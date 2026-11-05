@@ -8,7 +8,10 @@ Plateforme de suivi et d'organisation d'un service de soins : un socle commun (c
 | Isolement et contention (Isocont) | Suivi légal des mesures (article L. 3222-5-1 du code de la santé publique) : échéances et envois au juge des libertés et de la détention, registre, rapport annuel. |
 | Agenda du service | Calendrier du service, avec les échéances JLD des mesures en cours. |
 
-Projet en cours de présentation : voir la [fiche projet](docs/fiche-projet.md) ([PDF](docs/fiche-projet.pdf)).
+Projet en cours de présentation :
+
+- [Fiche projet](docs/fiche-projet.md) ([PDF](docs/fiche-projet.pdf)), pour la direction des soins ;
+- [Fiche technique](docs/fiche-technique.md) ([PDF](docs/fiche-technique.pdf)), pour le service informatique et le responsable de la sécurité informatique.
 
 Le module Isocont reprend l'application [Suivi-mesures-isocont](https://github.com/rodtrip2/Suivi-mesures-isocont).
 
