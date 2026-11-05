@@ -131,8 +131,8 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 | 2. Construction | Socle commun, modules Patients et Agenda, intégration d'Isocont. Chaque étape aboutit à une version vérifiée. |
 | 3. Validation | Fiche technique revue par le service informatique et le responsable de la sécurité informatique (RSSI) ; registre des traitements et analyse d'impact par le délégué à la protection des données. |
 | 4. Installation et paramétrage | Dossier réseau, publication, services, comptes, clés de secours ; import de l'historique et de la liste des patients. Environ une demi-journée du service informatique et une demi-journée de paramétrage. |
-| 5. Pilote à l'UHP | En parallèle des outils actuels, avec comparaison des échéances. 1 à 2 mois. |
-| 6. Bilan et généralisation | Bilan présenté à la direction des soins ; autres unités, abandon des outils antérieurs. |
+| 5. Pilote à l'UHP | En parallèle des outils actuels, avec comparaison des échéances. 1 à 2 mois. L'outil peut être utilisé dans sa **version publiée sur GitHub** : le porteur garde la maîtrise des évolutions jusqu'à maturité des modules, sans solliciter le service informatique à chaque version. Seul le code y est hébergé ; les données restent sur le réseau de l'établissement. Double authentification activée sur le compte GitHub. |
+| 6. Bilan et généralisation | Bilan présenté à la direction des soins ; installation sur l'intranet de l'établissement une fois les modules mûrs ; autres unités, abandon des outils antérieurs. |
 
 Formation : 20 à 30 minutes par agent, avec un **mode formation** sur données fictives.
 

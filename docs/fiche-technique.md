@@ -28,7 +28,7 @@
   Hébergement des fichiers de l'application (au choix)
   ┌────────────────────┬──────────────────────┬─────────────────────────┐
   │ Intranet HTTPS     │ GitHub Pages         │ Partage réseau (file://)│
-  │ (recommandé)       │ (démonstration)      │ (repli)                 │
+  │ (à maturité)       │ (phase pilote)       │ (repli)                 │
   └─────────┬──────────┴──────────┬───────────┴────────────┬────────────┘
             └────────── code uniquement, aucune donnée ─────┘
                                   ▼
@@ -61,10 +61,35 @@
 | Mise en place | Serveur web existant (IIS, Apache, nginx) | Immédiate | Copie de fichiers |
 | Accès Internet requis | Non | Oui (chargement du code) | Non |
 | Clés de sécurité (WebAuthn) | Oui (nom de domaine et certificat valides) | Oui | Non |
-| Maîtrise de la version | Service informatique | Mainteneurs du projet | Service informatique |
-| Usage conseillé | **Production** | Démonstration, données fictives | Repli |
+| Maîtrise de la version | Service informatique | Porteur du projet | Service informatique |
+| Mise à jour | Par le service informatique, à chaque version | Immédiate, sans intervention du service informatique | Par le service informatique |
+| Usage conseillé | **Production, une fois les modules mûrs** | **Phase pilote**, démonstration | Repli |
 
 Une clé de sécurité est liée au nom de domaine du site : elle doit être enregistrée dans chaque mode utilisé. Le mot de passe et le code de secours fonctionnent partout.
+
+### Phase pilote : version publiée sur GitHub
+
+Pendant le pilote, l'établissement peut utiliser **la version publiée par le porteur du projet sur GitHub Pages** (`https://rodtrip2.github.io/tessera-sante/`), puis passer à l'hébergement sur l'intranet une fois les modules mûrs.
+
+**Ce que GitHub héberge, et ce qu'il n'héberge pas.** GitHub sert uniquement les fichiers de l'application (le code). **Les données restent sur le partage de l'établissement**, chiffrées sur le poste ; aucune donnée n'est envoyée à GitHub ni ailleurs (`connect-src 'none'`). Le mode d'hébergement ne change ni le dossier de données, ni les droits NTFS, ni les sauvegardes.
+
+| Avantage | Pourquoi c'est utile pendant le pilote |
+| --- | --- |
+| Maîtrise des évolutions par le porteur | Le porteur publie lui-même corrections et ajustements tant que les modules évoluent, sans mobiliser le service informatique à chaque version |
+| Mise à jour immédiate de tous les postes | Bandeau *Recharger la page* à la publication d'une version (vérification existante, désactivable) |
+| Aucune installation | Ni serveur web, ni certificat à préparer pour démarrer le pilote |
+| Traçabilité publique des changements | Chaque modification du code est visible et datée dans l'historique du dépôt ; chaque version est étiquetée, avec ses empreintes SHA-256 |
+| Passage à l'intranet sans perte | Le même code est copié sur l'intranet le moment venu ; les données ne bougent pas |
+
+| Risque propre à ce mode | Parade |
+| --- | --- |
+| Compte GitHub du porteur compromis : une version malveillante pourrait être publiée, avec une politique de sécurité modifiée | **Double authentification activée sur le compte GitHub** (clé de sécurité ou application d'authentification), branche principale protégée, aucun autre contributeur avec droit de publication ; historique public des modifications ; bandeau signalant toute nouvelle version |
+| Postes sans accès Internet, ou GitHub indisponible | Le proxy de l'établissement doit autoriser `https://rodtrip2.github.io` pour les postes concernés ; mise en cache de l'outil sur les postes désignés (travail hors réseau) ; copie de repli prête sur l'intranet ou le partage |
+| Version modifiée sans validation de l'établissement | Journal des versions publié ; possibilité pour l'établissement de figer une version vérifiée en la copiant sur l'intranet |
+
+**Passage à l'intranet**, une fois les modules mûrs : copier le dossier `app` d'une version étiquetée sur le serveur web, vérifier ses empreintes, puis faire réenregistrer les clés de sécurité (liées au nom de domaine). Mots de passe, code de secours et données ne changent pas.
+
+L'usage de GitHub Pages avec des données réelles, même si seul le code y est hébergé, est soumis à l'accord du service informatique, du responsable de la sécurité informatique et du délégué à la protection des données.
 
 ## 3. Socle et modules
 
@@ -202,7 +227,7 @@ Tous les fichiers importés sont **lus dans le navigateur** ; ils ne sont ni cop
 
 1. Télécharger la version (dépôt GitHub, étiquette de version).
 2. Vérifier les empreintes : `Get-FileHash -Algorithm SHA256 .\app\js\*.js` (PowerShell), à comparer avec le fichier d'empreintes publié.
-3. Remplacer le dossier `app` sur le serveur web. Les données ne sont pas touchées.
+3. Remplacer le dossier `app` sur le serveur web. Les données ne sont pas touchées. **En phase pilote sur GitHub Pages**, ces étapes sont faites par le porteur du projet à chaque publication ; les postes affichent le bandeau *Recharger la page*.
 4. Le format des données est versionné, module par module : une nouvelle version lit les données des versions antérieures.
 5. **Mise en production** : à partir d'un dossier vide ; l'historique des mesures et la liste des patients sont importés ensuite (§ 8).
 
@@ -213,6 +238,7 @@ Tous les fichiers importés sont **lus dans le navigateur** ; ils ne sont ni cop
 | Hébergement de données de santé (art. L. 1111-8 du code de la santé publique) | Les données restent sur l'infrastructure de l'établissement, sans prestataire. La certification d'hébergeur de données de santé (HDS) s'impose à qui propose un service d'hébergement ; elle ne devrait donc pas s'appliquer ici, mais tout projet est examiné au cas par cas ([Agence du numérique en santé](https://esante.gouv.fr/faq/quel-est-le-champ-dapplication-de-la-legislation-relative-lhebergement-de-donnees-de-sante-caractere-personnel)). | Délégué à la protection des données (DPO, référent RGPD), service informatique |
 | RGPD | **Un traitement par module** à inscrire au registre des traitements (Patients, Isocont, Agenda) ; analyse d'impact probablement requise ([liste CNIL](https://www.cnil.fr/sites/default/files/atoms/files/liste-traitements-avec-aipd-requise-v2.pdf)). Minimisation : aucune donnée clinique ; la fiche patient ne garde que ce qui sert à plusieurs modules. | Délégué à la protection des données |
 | Registre légal (art. L. 3222-5-1 du code de la santé publique) | Le module Isocont produit le registre ; son statut de support officiel relève d'une décision de l'établissement. | Direction |
+| Hébergement du code sur GitHub pendant le pilote | Seul le code est servi par GitHub ; aucune donnée n'y transite. Double authentification sur le compte du porteur. | Service informatique, responsable de la sécurité informatique, délégué à la protection des données |
 | Politique de sécurité | Navigateurs, clés USB, droits du partage, postes hors réseau, fichiers exportés du DPI. | Responsable de la sécurité informatique |
 
 ## 13. Limites connues
@@ -226,7 +252,8 @@ Tous les fichiers importés sont **lus dans le navigateur** ; ils ne sont ni cop
 ## 14. Recette technique — liste de contrôle
 
 - [ ] Empreintes SHA-256 des fichiers vérifiées.
-- [ ] Application servie en HTTPS sur l'intranet ; certificat reconnu par les postes.
+- [ ] Phase pilote : `https://rodtrip2.github.io` autorisé par le proxy pour les postes concernés ; double authentification du compte GitHub du porteur confirmée.
+- [ ] Production : application servie en HTTPS sur l'intranet ; certificat reconnu par les postes.
 - [ ] Dossier de données créé ; droits NTFS limités au groupe des utilisateurs.
 - [ ] Poste type : ouverture du dossier, initialisation, saisie, relecture depuis un second poste.
 - [ ] Saisie simultanée depuis deux postes : aucune perte, conflit signalé.
