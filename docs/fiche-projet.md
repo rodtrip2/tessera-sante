@@ -6,7 +6,7 @@
 
 | En bref | |
 | --- | --- |
-| **Objet** | Réunir dans un seul outil, avec **une seule connexion**, ce dont un service a besoin au quotidien et que le dossier patient informatisé (DPI) ne couvre pas : la vue d'ensemble des patients du service, le suivi légal des mesures d'isolement et de contention, l'agenda du service. |
+| **Objet** | Réunir dans un seul outil, avec **une seule connexion**, ce dont un service a besoin au quotidien et que le dossier patient informatisé (DPI) ne couvre pas : le suivi légal des mesures d'isolement et de contention et l'agenda du service. Ces modules s'appuient sur une **fiche patient commune** : la liste des patients du service est disponible dans le DPI, mais Tessera en a besoin pour relier ses modules entre eux. |
 | **Trois modules** | **Patients** (fiche commune), **Isolement et contention** (Isocont), **Agenda du service**. D'autres pourront s'ajouter, chacun après validation. |
 | **Pour qui** | Infirmiers, aides-soignants, secrétariat médical, cadres de santé ; direction des soins pour le pilotage et le rapport annuel. |
 | **Coût** | Aucun coût de licence. Développement réalisé par le porteur sur son temps personnel. Mise en place : quelques heures du service informatique (DSI ou direction du numérique, selon l'établissement), une formation courte des équipes. |
@@ -17,7 +17,7 @@
 
 **Une obligation légale exigeante.** L'article L. 3222-5-1 du code de la santé publique encadre strictement l'isolement et la contention en psychiatrie : décisions médicales pour des durées limitées, renouvellements, information du juge des libertés et de la détention (JLD) puis saisine au-delà de seuils de durée cumulée, information des proches, et tenue d'un **registre** dans chaque établissement. Ce registre, sans données nominatives, est consultable par la commission départementale des soins psychiatriques (CDSP), le Contrôleur général des lieux de privation de liberté (CGLPL) et les parlementaires ; il alimente un **rapport annuel**. Les délais reposent sur des calculs délicats (cumul sur quinze jours glissants, mesures qui se succèdent, rythme particulier des mesures longues). Une erreur ou un retard peut conduire le juge à ordonner la mainlevée de la mesure.
 
-**Une organisation du service mal outillée.** Qui suit tel patient aujourd'hui, quel psychiatre en première ligne, quels soignants référents, dans quelle chambre, quelles échéances dans la semaine : ces informations sont dispersées entre le DPI, des tableaux, des cahiers et la mémoire des équipes.
+**Une organisation du service mal outillée.** La liste des patients du service est disponible dans le DPI. En revanche, quel psychiatre suit tel patient en première ligne, quels soignants sont ses référents, quelles échéances tombent dans la semaine : ces informations sont dispersées entre des tableaux, des cahiers et la mémoire des équipes.
 
 **Des outils bureautiques fragiles.** Les équipes compensent avec des tableaux et des classeurs Excel. À l'UHP, un classeur Excel avec macros suit les mesures d'isolement et de contention. Ces fichiers se verrouillent quand deux postes y saisissent en même temps, se corrompent, sont mal protégés, et chaque nouvel outil ajoute un fichier, un mot de passe, une procédure.
 
@@ -43,7 +43,7 @@ Le nom vient de la *tessera hospitalis* romaine, le jeton d'hospitalité qui gar
 
 ## 3. Module Patients
 
-La fiche patient est commune à tous les modules : elle est saisie une fois et sert partout. Elle concerne tous les patients du service, qu'ils fassent ou non l'objet d'une mesure.
+La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda et les modules à venir, qui s'appuient tous sur elle. Elle ne remplace pas la liste des patients du DPI : elle en reprend l'essentiel par import et y ajoute ce que le DPI ne porte pas. Elle concerne tous les patients du service, qu'ils fassent ou non l'objet d'une mesure.
 
 | Information | Source |
 | --- | --- |

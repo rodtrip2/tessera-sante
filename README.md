@@ -4,7 +4,7 @@ Plateforme de suivi et d'organisation d'un service de soins : un socle commun (c
 
 | Module | Rôle |
 | --- | --- |
-| Patients | Fiche commune à tous les modules : identité, séjour, chambre, médecins de 1re et 2e ligne, référents soignants. Import de la liste des patients exportée du DPI. |
+| Patients | Fiche commune qui relie les modules entre eux (la liste des patients reste disponible dans le DPI) : identité, séjour, chambre, médecins de 1re et 2e ligne, référents soignants. Import de la liste des patients exportée du DPI. |
 | Isolement et contention (Isocont) | Suivi légal des mesures (article L. 3222-5-1 du code de la santé publique) : échéances et envois au juge des libertés et de la détention, registre, rapport annuel. |
 | Agenda du service | Calendrier du service, avec les échéances JLD des mesures en cours. |
 
