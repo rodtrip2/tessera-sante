@@ -188,8 +188,16 @@ Tous les fichiers importés sont **lus dans le navigateur** ; ils ne sont ni cop
 
 | Import | Fonctionnement |
 | --- | --- |
-| Liste des patients exportée du DPI (CSV ou Excel) | Un agent exporte la liste depuis le DPI et l'ouvre dans Tessera. Attribution des colonnes au moment de l'import (l'export diffère d'un DPI à l'autre), mémorisée dans les réglages ; correspondance des valeurs (sexe, codes d'unité, formats de date) ; aperçu ; enregistrement en un lot annulable. L'IPP est indispensable pour retrouver la fiche d'un import à l'autre. |
+| Liste des patients exportée du DPI (CSV ou Excel) | Un agent exporte la liste depuis le DPI et l'ouvre dans Tessera. Attribution des colonnes au moment de l'import (l'export diffère d'un DPI à l'autre), mémorisée dans les réglages ; **découpage d'une colonne qui regroupe plusieurs champs** (voir ci-dessous) ; correspondance des valeurs (sexe, codes d'unité, formats de date) ; aperçu ; enregistrement en un lot annulable. L'IPP est indispensable pour retrouver la fiche d'un import à l'autre. |
 | Historique des mesures (registre du service ou classeur Excel existant) | Import existant d'Isocont, adapté : il prépare un lot pour Patients et un lot pour Isocont, liés par un identifiant d'import commun (annulation conjointe, pas de doublon si relancé). |
+
+**Colonne regroupant plusieurs champs.** Certains DPI exportent le nom, le prénom et le nom de naissance dans une seule colonne. L'import permet d'attribuer une colonne à plusieurs champs et de la découper selon une règle choisie sur un aperçu des premières lignes :
+
+- **séparateur** : virgule, point-virgule, barre, parenthèses ;
+- **mot-clé** introduisant le nom de naissance : « née », « né », « NN », « nom de naissance » (réglables) ;
+- **convention d'écriture** : nom en majuscules, prénom en minuscules (« DUPONT Marie-Claire ») ; les noms composés en majuscules (« LE GALL », « DE LA FONTAINE ») restent ensemble.
+
+La règle est enregistrée avec le modèle d'import. Les lignes que la règle ne permet pas de découper sans doute (aucun nom en majuscules, mot-clé absent, plusieurs lectures possibles) sont **signalées dans l'aperçu** et corrigées à la main avant l'enregistrement. La fiche est toujours retrouvée par l'IPP : une erreur de découpage ne crée pas de doublon, et une correction manuelle n'est pas écrasée par l'import suivant (l'écart est signalé).
 
 **À prévoir par l'établissement** : le fichier exporté du DPI contient des données nominatives en clair sur le poste. Il doit être enregistré dans un dossier aux droits restreints et supprimé après l'import. Aucune interface automatique avec le DPI n'est prévue à ce stade ; des flux HL7 (profil IHE PAM, extension française) pourraient être étudiés plus tard avec le service informatique.
 
