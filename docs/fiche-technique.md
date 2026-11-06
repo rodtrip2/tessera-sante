@@ -199,6 +199,24 @@ Tous les fichiers importés sont **lus dans le navigateur** ; ils ne sont ni cop
 
 La règle est enregistrée avec le modèle d'import. Les lignes que la règle ne permet pas de découper sans doute (aucun nom en majuscules, mot-clé absent, plusieurs lectures possibles) sont **signalées dans l'aperçu** et corrigées à la main avant l'enregistrement. La fiche est toujours retrouvée par l'IPP : une erreur de découpage ne crée pas de doublon, et une correction manuelle n'est pas écrasée par l'import suivant (l'écart est signalé).
 
+**Exemple : liste des patients présents exportée de Sillage** (fichier de démonstration aux données fictives fourni par le porteur le 7 novembre 2026). Fichier CSV séparé par des points-virgules, encodé en Windows-1252 (lu comme les autres imports : UTF-8 d'abord, puis Windows-1252), lignes vides en fin de fichier ignorées. Correspondance proposée par défaut :
+
+| Colonne de l'export | Champ de Tessera | Remarque |
+| --- | --- | --- |
+| `IEP` | Numéro de séjour | Identifiant d'épisode : **change à chaque séjour** (voir ci-dessous) |
+| `Sexe` | Sexe | `F` / `M` |
+| `Nom prénom` | Nom, prénom, nom de naissance | Découpée : « NOM PRENOM Née NOMNAISSANCE », mot-clé `Née` ou `Né` toujours présent, même si le nom de naissance est identique |
+| `Né·e le` | Date de naissance | JJ/MM/AAAA |
+| `Entrée` | Date d'entrée du séjour | JJ/MM/AAAA |
+| `RM`, `RH` | Unité médicale, unité d'hébergement | Codes d'unité du DPI, à faire correspondre aux services de Tessera (sens à confirmer) |
+| `Loc.` | Chambre (et lit) | Ex. `HD412-U` : découpage de la chambre et du lit à confirmer |
+| `Médecin responsable` | Non importé par défaut | Médecin référent du DPI, distinct des médecins de 1re et 2e ligne de Tessera |
+| `Commentaires` | Non importé | Texte libre : risque de données cliniques |
+
+**Identifiant d'épisode (IEP) et identifiant permanent (IPP).** L'IEP identifie un séjour, l'IPP identifie le patient pour toute sa vie. Si l'export ne contient que l'IEP, une réadmission arrive avec un nouvel IEP : Tessera doit alors rattacher le patient à sa fiche existante par la détection des doublons (nom, prénom, nom de naissance, date de naissance, sexe), avec confirmation dans l'aperçu. Le registre de l'isolement et de la contention exige l'identifiant du patient : **l'ajout de l'IPP à l'export est à demander** à l'administrateur du DPI ; à défaut, il est saisi dans Tessera.
+
+**Découpage du nom quand tout est en majuscules.** Avec « NOM NOM PRENOM Né … », un nom composé sans trait d'union ne se distingue pas d'un prénom si l'export écrit tout en capitales. Règle proposée : le dernier mot avant le mot-clé est le prénom, le reste est le nom ; un prénom composé avec trait d'union reste entier. Les lignes de plus de deux mots avant le mot-clé sont signalées dans l'aperçu pour vérification, et une fiche déjà connue garde le découpage validé.
+
 **À prévoir par l'établissement** : le fichier exporté du DPI contient des données nominatives en clair sur le poste. Il doit être enregistré dans un dossier aux droits restreints et supprimé après l'import. Aucune interface automatique avec le DPI n'est prévue à ce stade ; des flux HL7 (profil IHE PAM, extension française) pourraient être étudiés plus tard avec le service informatique.
 
 ## 9. Sécurité applicative
