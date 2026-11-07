@@ -1,5 +1,16 @@
 # Journal des modifications — Tessera Santé
 
+## 0.6.3 — 7 novembre 2026
+
+Étape 5 (module Patients), troisième sous-étape terminée : **fiche commune complète et séjours**.
+
+- Fiche patient : nom d'usage et nom de naissance, sexe, médecins de 1re et 2e ligne, référents soignants (comptes du service ou nom libre). Chaque changement de médecin, de référents, de protection, du statut de détenu ou de service est gardé avec sa date.
+- Séjours successifs : numéro de séjour (IEP), entrée, sortie, unité, chambre et lit ; la liste des patients montre le séjour en cours.
+- Onglet *Patients* : *+ Nouvelle fiche* pour un patient sans mesure ; bouton *Fiche* ouvert à tous (lecture seule sans l'accès « Fiches patient ») ; *Mode* réservé aux services de psychiatrie.
+- *Administration → Établissement et services → Fiche patient par service* : service de psychiatrie (par défaut ; sinon ni mode d'hospitalisation ni case « patient détenu » sur la fiche, et « Médecin » au lieu de « Psychiatre »), libellés des médecins modifiables. Réglage `fichePatient` (journal du socle, export des réglages, jeu de formation, libellé du journal).
+- Journal : libellés des nouveaux champs et des séjours.
+- Nouveaux tests (champs, séjours, fusion des séjours, réglages par service, droits ; 191 au vert) ; création d'une fiche, d'un séjour et réglage vérifiés dans Chrome.
+
 ## 0.6.2 — 7 novembre 2026
 
 Étape 5 (module Patients), troisième sous-étape, première partie : **droits de la fiche patient et onglet en tête**. Décisions du porteur du 7 novembre 2026.

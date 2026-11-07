@@ -28,11 +28,11 @@
   // Types d'événements autorisés par rôle. L'IDE dispose en permanence des
   // actions JLD (usage prévu le week-end et en l'absence de la secrétaire).
   var DROITS = {
-    IDE: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],
+    IDE: ['PATIENT', 'SEJOUR', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],
     // AS : ni création ni correction des fiches patient (décision du porteur du 7 novembre 2026), sinon comme l'IDE
     AS: ['MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],
-    SECRETAIRE: ['PATIENT', 'JLD', 'RECOURS'],   // fiches patient : IDE, secrétaire et cadre par défaut (décision du 4 novembre 2026)
-    CADRE: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'ENTRETIEN', 'CORRECTION', 'REFUS_PROPOSITION', 'ANNULATION', 'STATS', 'FUSION'],
+    SECRETAIRE: ['PATIENT', 'SEJOUR', 'JLD', 'RECOURS'],   // fiches patient : IDE, secrétaire et cadre par défaut (décision du 4 novembre 2026)
+    CADRE: ['PATIENT', 'SEJOUR', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'ENTRETIEN', 'CORRECTION', 'REFUS_PROPOSITION', 'ANNULATION', 'STATS', 'FUSION'],
     ADMIN: ['CONFIG', 'ANNULATION', 'COMPTE', 'LOT', 'INTEGRITE']
   };
 
@@ -42,7 +42,7 @@
    * Le rôle Administrateur est fixe : droits d'administration, non modifiable (choix du porteur).
    */
   var ACCES = [
-    { code: 'patients', libelle: 'Fiches patient : créer et corriger (module Patients)', types: ['PATIENT'] },
+    { code: 'patients', libelle: 'Fiches patient : créer et corriger, séjours (module Patients)', types: ['PATIENT', 'SEJOUR'] },
     { code: 'mesures', libelle: 'Début et fin des mesures, changement de lieu, mode d’hospitalisation', types: ['MESURE_DEBUT', 'MESURE_FIN', 'MODE_HOSPI'] },
     { code: 'pauses', libelle: 'Pauses (levées temporaires) et reprises', types: ['PAUSE', 'REPRISE'] },
     { code: 'tiers', libelle: 'Information du tiers', types: ['TIERS'] },
@@ -223,6 +223,7 @@
     verificationVersion: true,
     // Exports (PDF, CSV) enregistrés automatiquement dans ce sous-dossier du dossier des données
     exports: { dossier: 'exports', conservationJours: 0, cheminReseau: '' },
+    fichePatient: {},      // module Patients, par service : { services: { U1: { psychiatrie, medecin1, medecin2 } } } ; vide = psychiatrie, libellés par défaut
     modulesServices: {},   // activation des modules par service (journal du socle) : { isocont: { tous: false, services: [...] } } ; vide = tous les services   // 0 = aucune purge ; cheminReseau : chemin Windows du dossier des données
     // Surveillance en CSI : nombre minimal de professionnels attendus par poste
     surveillance: { minParPoste: 2 },
@@ -2004,7 +2005,7 @@
   // ou dans REGLAGES_EXCLUS (test unitaire).
   var FORMAT_REGLAGES = 'suivi-isocont-reglages';
   var GROUPES_REGLAGES = [
-    { code: 'etablissement', libelle: 'Établissement, services et lieux d’isolement', cles: ['etablissement', 'services', 'modulesServices', 'lieuxCSI', 'lieuIsolement'] },
+    { code: 'etablissement', libelle: 'Établissement, services et lieux d’isolement', cles: ['etablissement', 'services', 'modulesServices', 'fichePatient', 'lieuxCSI', 'lieuIsolement'] },
     { code: 'psychiatres', libelle: 'Liste des psychiatres (noms)', cles: ['psychiatres'] },
     { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
     { code: 'affichage', libelle: 'Points de vigilance et écran de connexion (contact, consigne, logo)', cles: ['vigilance', 'affichage'] },

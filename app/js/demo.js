@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.

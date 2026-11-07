@@ -180,3 +180,43 @@ test('Fiche : historique daté des changements (protection, détenu, service), v
     { patients: { fiches: { Q: { id: 'Q', ipp: '42 (fictif)', modes: [] } }, fusions: {} } });
   assert.equal(etat.patients.Q.ipp, '42 (fictif)');
 });
+
+test('Fiche commune : nom de naissance, sexe, médecins et référents datés, séjours successifs, réglages par service', async () => {
+  const P = require('../app/js/module-patients.js');
+  const at = (j) => new Date(Date.UTC(2026, 2, j)).toISOString();
+  const st = P.reduire([
+    { id: '1', at: at(1), by: 'u', type: 'PATIENT', data: { patientId: 'P', nom: 'DURAND (fictif)', nomNaissance: 'MARTIN (fictif)', sexe: 'F', medecin1: 'Dr A (fictif)', referents: [{ id: 'u1', nom: 'IDE A (fictif)' }] } },
+    { id: '2', at: at(2), by: 'u', type: 'SEJOUR', data: { patientId: 'P', sejourId: 'S1', iep: '111 (fictif)', entree: '2026-03-02', service: 'U1', chambre: '412', lit: 'U' } },
+    { id: '3', at: at(9), by: 'u', type: 'SEJOUR', data: { patientId: 'P', sejourId: 'S1', sortie: '2026-03-09' } },
+    { id: '4', at: at(20), by: 'u', type: 'SEJOUR', data: { patientId: 'P', sejourId: 'S2', iep: '222 (fictif)', entree: '2026-03-20', service: 'U1', chambre: '410', lit: 'P' } },
+    { id: '5', at: at(21), by: 'u', type: 'PATIENT', data: { patientId: 'P', medecin1: 'Dr B (fictif)', referents: [{ id: 'u1', nom: 'IDE A (fictif)' }, { id: null, nom: 'Mme C (fictif)' }] } },
+    { id: '6', at: at(22), by: 'u', type: 'PATIENT', data: { patientId: 'Q', nom: 'DURAND (fictif)' } },
+    { id: '7', at: at(22), by: 'u', type: 'SEJOUR', data: { patientId: 'Q', sejourId: 'S3', entree: '2025-12-01', sortie: '2025-12-10' } },
+    { id: '8', at: at(23), by: 'u', type: 'FUSION', data: { garde: 'P', absorbe: 'Q' } }]);
+  const f = st.fiches.P;
+  assert.equal(f.nomNaissance, 'MARTIN (fictif)');
+  assert.equal(f.sexe, 'F');
+  assert.deepEqual(f.sejours.map((x) => x.id), ['S3', 'S1', 'S2']);            // fusion : séjours réunis, par date d'entrée
+  assert.equal(P.sejourEnCours(f).iep, '222 (fictif)');
+  assert.equal(f.sejours.find((x) => x.id === 'S1').sortie, '2026-03-09');
+  assert.deepEqual(f.historique.medecin1.map((x) => x.valeur), ['Dr A (fictif)', 'Dr B (fictif)']);
+  assert.equal(P.valeurAu(f, 'medecin1', Date.UTC(2026, 2, 10)), 'Dr A (fictif)');
+  assert.equal(f.historique.referents.length, 2);
+  // Réglages par service : psychiatrie par défaut, libellés modifiables
+  assert.deepEqual(P.optionsFiche({}, 'U1'), { psychiatrie: true, medecin1: 'Psychiatre de 1re ligne', medecin2: 'Psychiatre de 2e ligne' });
+  assert.deepEqual(P.optionsFiche({ fichePatient: { services: { U2: { psychiatrie: false, medecin2: 'Médecin traitant' } } } }, 'U2'), { psychiatrie: false, medecin1: 'Médecin de 1re ligne', medecin2: 'Médecin traitant' });
+});
+
+test('Séjour : saisie du module Patients, permise aux IDE, secrétaire et cadre ; refusée à l’AS', async () => {
+  const { racine, admin } = await equipe();
+  await admin.creerComptes([{ nom: 'AS (fictif)', login: 'as.a', motDePasse: 'mot de passe as a', roles: ['AS'], services: ['U1'] }]);
+  const a = await co(racine, 'ide.a', 'mot de passe ide a');
+  await a.enregistrer('PATIENT', { patientId: 'P1', nom: 'SEJOUR (fictif)', service: 'U1' });
+  const e = await a.enregistrer('SEJOUR', { patientId: 'P1', sejourId: 'S1', entree: '2026-11-01', service: 'U1', chambre: '412', lit: 'U' });
+  assert.ok(fichier(racine, PATIENTS, e.id));
+  assert.equal(a.etat.patients.P1.sejours[0].chambre, '412');
+  const as = await co(racine, 'as.a', 'mot de passe as a');
+  await assert.rejects(as.enregistrer('SEJOUR', { patientId: 'P1', sejourId: 'S2', entree: '2026-11-02' }), /rôle/);
+  await assert.rejects(as.enregistrer('PATIENT', { patientId: 'P1', nom: 'X' }), /rôle/);
+  assert.equal(as.etat.patients.P1.nom, 'SEJOUR (fictif)');                   // l'AS lit la fiche
+});

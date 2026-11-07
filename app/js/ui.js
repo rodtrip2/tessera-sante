@@ -1051,6 +1051,30 @@
         await enregistrerConfig([['modulesServices', valeur]]);
       }));
 
+    // -- Fiche patient par service (module Patients, décision du porteur du 7 novembre 2026)
+    var lignesFiche = tousServices().map(function (sv) {
+      var o = SIC.patients.optionsFiche(cfg, sv.code), r = ((cfg.fichePatient && cfg.fichePatient.services) || {})[sv.code] || {};
+      return { sv: sv, psy: h('input', { type: 'checkbox', checked: o.psychiatrie, 'aria-label': 'Service de psychiatrie : ' + sv.libelle }),
+        m1: h('input', { type: 'text', maxlength: 60, value: r.medecin1 || '', placeholder: o.medecin1, 'aria-label': 'Libellé du médecin de 1re ligne' }),
+        m2: h('input', { type: 'text', maxlength: 60, value: r.medecin2 || '', placeholder: o.medecin2, 'aria-label': 'Libellé du médecin de 2e ligne' }) };
+    });
+    var pFiche = h('section', { class: 'panneau' }, h('h2', { text: 'Fiche patient par service' }),
+      h('p', { class: 'muted', text: 'Service de psychiatrie : la fiche montre le mode d’hospitalisation et la case « patient détenu », et les médecins s’appellent « psychiatres ». Laissez un libellé vide pour garder celui proposé.' }),
+      lignesFiche.length ? h('div', { class: 'table-wrap' }, h('table', {},
+        h('thead', {}, h('tr', {}, ['Service', 'Psychiatrie', 'Libellé : médecin de 1re ligne', 'Libellé : médecin de 2e ligne'].map(function (t) { return h('th', { text: t }); }))),
+        h('tbody', {}, lignesFiche.map(function (l) { return h('tr', {}, h('td', { text: l.sv.libelle + ' (' + l.sv.code + ')' }), h('td', {}, l.psy), h('td', {}, l.m1), h('td', {}, l.m2)); })))) : h('p', { class: 'muted', text: 'Créez d’abord les services ci-dessus.' }),
+      boutonEnregistrer(async function () {
+        var svs = {};
+        lignesFiche.forEach(function (l) {
+          var r = {};
+          if (!l.psy.checked) r.psychiatrie = false;
+          if (l.m1.value.trim()) r.medecin1 = l.m1.value.trim();
+          if (l.m2.value.trim()) r.medecin2 = l.m2.value.trim();
+          if (Object.keys(r).length) svs[l.sv.code] = r;
+        });
+        await enregistrerConfig([['fichePatient', Object.keys(svs).length ? { services: svs } : {}]]);
+      }));
+
     // -- Dossier des exports
     var tExports = h('input', { type: 'text', maxlength: 120, value: X.dossierExports(cfg), placeholder: 'exports' });
     var oExp = X.optionsExports(cfg);
@@ -1122,14 +1146,14 @@
       var note = h('section', { class: 'panneau' }, h('h2', { text: 'Administration en mode formation' }),
         h('p', { text: 'Le paramétrage ci-dessous ne concerne que le jeu de formation. Les comptes, les clés de sécurité et l’import se gèrent depuis les données réelles.' }));
       return sousOngletsAdmin([].concat(
-        [['services', 'Établissement et services', [note, pServices, pModulesServices].concat(pModule.services)]],
+        [['services', 'Établissement et services', [note, pServices, pModulesServices, pFiche].concat(pModule.services)]],
         pModule.onglets.map(function (o) { return [o[0], o[1], [note].concat(o[2])]; }),
         [['sauvegardes', 'Sauvegardes et exports', [note, pExports].concat(pModule.sauvegardes)],
           ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos]]]));
     }
     return sousOngletsAdmin([].concat(
       [['comptes', 'Comptes et sécurité', [pAttestation, pTrousseau, pIncomplets, comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
-        ['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)]],
+        ['services', 'Établissement et services', [pServices, pModulesServices, pFiche].concat(pModule.services)]],
       pModule.onglets,
       [['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
         ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos, SIC.ui.version.panneau(), demo]]]));
