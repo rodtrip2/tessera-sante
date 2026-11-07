@@ -15,6 +15,9 @@
  *   fournitures  [{ nom, version, champs, acces, publication }] : données lues par d'autres modules
  *   besoins      [{ fourniture, version, obligatoire }] : fournitures attendues d'autres modules
  *   interface    ajoutée par le fichier d'interface du module (navigateur) : { vues, journal, admin }
+ *   reference    vrai pour un module de référence partagé par d'autres (Patients, étape 5) : sans onglet ni droits
+ *                propres tant qu'il n'a pas son écran ; ses saisies sont permises par les modules qui en dépendent,
+ *                et sa clé est remise à qui a droit à l'un d'eux
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -41,10 +44,10 @@
       if (codes[a.code]) throw erreur(id, 'accès en double : ' + a.code + '.');
       codes[a.code] = 1;
     });
-    if (!c.droits || typeof c.droits.peut !== 'function' || typeof c.droits.rolesConfig !== 'function') throw erreur(id, 'droits absents (droits.js, creer).');
+    if (!c.reference && (!c.droits || typeof c.droits.peut !== 'function' || typeof c.droits.rolesConfig !== 'function')) throw erreur(id, 'droits absents (droits.js, creer).');
     if (!c.saisies || typeof c.saisies.reduire !== 'function' || !Array.isArray(c.saisies.types)) throw erreur(id, 'saisies : types et reduire obligatoires.');
     if (!c.reglages || !c.reglages.defaut || typeof c.reglages.defaut !== 'object') throw erreur(id, 'réglages par défaut obligatoires.');
-    if (!c.vues || !Array.isArray(c.vues.onglets) || !c.vues.onglets.length) throw erreur(id, 'au moins un onglet.');
+    if (!c.vues || !Array.isArray(c.vues.onglets) || (!c.reference && !c.vues.onglets.length)) throw erreur(id, 'au moins un onglet.');
     var onglets = {};
     c.vues.onglets.forEach(function (o) {
       if (!o || !o.code || !o.libelle) throw erreur(id, 'onglet incomplet (code, libellé).');
@@ -77,6 +80,9 @@
       declarer: function (contrat) {
         var c = valider(contrat);
         if (liste.some(function (x) { return x.id === c.id; })) throw erreur(c.id, 'déjà déclaré.');
+        var types = {};
+        liste.forEach(function (m) { m.saisies.types.forEach(function (t) { types[t] = m.id; }); });
+        c.saisies.types.forEach(function (t) { if (types[t]) throw erreur(c.id, 'type de saisie « ' + t + ' » déjà déclaré par « ' + types[t] + ' ».'); });
         c.migrations = c.migrations || []; c.fournitures = c.fournitures || []; c.besoins = c.besoins || [];
         liste.push(c);
         return c;
@@ -94,7 +100,30 @@
        * Module affiché. Un seul module est déclaré tant que le module Patients et l'Agenda n'existent pas
        * (étapes 5 et 6) ; l'écran d'accueil des modules viendra avec eux.
        */
-      actif: function () { return liste[0] || null; },
+      actif: function () { return liste.filter(function (m) { return !m.reference; })[0] || null; },
+      /** Modules affichés (hors modules de référence). */
+      affiches: function () { return liste.filter(function (m) { return !m.reference; }); },
+      /**
+       * Modules dans l'ordre de chargement : un module fournisseur avant ceux qui en ont besoin (le socle charge
+       * Patients d'abord). Une dépendance circulaire est refusée.
+       */
+      ordre: function () {
+        var res = [], vus = {}, enCours = {};
+        function fournisseur(nom) { return liste.filter(function (m) { return m.fournitures.some(function (f) { return f.nom === nom; }); })[0]; }
+        function visiter(m) {
+          if (vus[m.id]) return;
+          if (enCours[m.id]) throw erreur(m.id, 'dépendance circulaire.');
+          enCours[m.id] = 1;
+          m.besoins.forEach(function (b) { var f = fournisseur(b.fourniture); if (f) visiter(f); });
+          vus[m.id] = 1; res.push(m);
+        }
+        liste.forEach(visiter);
+        return res;
+      },
+      /** Module qui déclare un type de saisie (null : saisie du socle ou inconnue). */
+      moduleDuType: function (type) { return liste.filter(function (m) { return m.saisies.types.indexOf(type) >= 0; })[0] || null; },
+      /** Modules qui ont besoin d'une fourniture du module `id`. */
+      dependants: function (id) { return liste.filter(function (m) { return m.besoins.some(function (b) { return b.fourniture.split('.')[0] === id; }); }); },
       /** Besoins non satisfaits : [{ module, fourniture, version, obligatoire }]. */
       besoinsManquants: function () {
         var dispo = {};

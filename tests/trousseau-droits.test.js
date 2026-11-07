@@ -92,7 +92,7 @@ async function dossierEquipe() {
 test('Remise selon les droits : sans rôle dans Isocont, pas de clé du module ni de lecture de son journal', async () => {
   const { racine, admin, id } = await dossierEquipe();
   const cles = (login) => [...new Set(admin.coffre.enveloppes.filter((e) => e.pour === id(login)).map((e) => e.cle))].sort();
-  assert.deepEqual(cles('ide.a'), ['isocont', 'plateforme']);
+  assert.deepEqual(cles('ide.a'), ['isocont', 'patients', 'plateforme']);   // Patients : suit le droit à Isocont
   assert.deepEqual(cles('sans'), ['plateforme']);
   const sans = await co(racine, 'sans', 'mot de passe sans');
   assert.equal(sans.accesModule(), false);
@@ -211,8 +211,8 @@ test('Copie sous scellé : à refaire après un changement de clé maîtresse ; 
   assert.equal(admin.etatScelle().aJour, true);
   const id2 = admin.comptes.find((c) => c.login === 'admin2').id, idS = admin.comptes.find((c) => c.login === 'sans').id;
   let r = admin.resumeTrousseau();
-  assert.deepEqual(r.cles, { plateforme: 1, isocont: 1 });
-  assert.deepEqual(r.comptes[id2], { cles: ['isocont', 'plateforme'], maitresses: true });
+  assert.deepEqual(r.cles, { plateforme: 1, patients: 1, isocont: 1 });
+  assert.deepEqual(r.comptes[id2], { cles: ['isocont', 'patients', 'plateforme'], maitresses: true });
   assert.deepEqual(r.comptes[idS], { cles: ['plateforme'], maitresses: false });
   // Nouvelle génération sans changement de clé maîtresse : la copie reste valable
   await admin.modifierRoles(idS, ['SECRETAIRE'], true, ['U1']);

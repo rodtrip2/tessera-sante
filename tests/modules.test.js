@@ -12,7 +12,7 @@ function moduleFictif(id, autres) {
   return Object.assign({
     id, libelle: 'Module ' + id + ' (fictif)', version: '0.1.0', acces: [{ code: 'lire', libelle: 'Consulter', types: ['NOTE'] }],
     droits: Droits.creer({ roles: { AGENT: 'Agent', ADMIN: 'Administrateur' }, rolesFournis: ['AGENT'], droits: { AGENT: ['NOTE'] }, acces: [{ code: 'lire', libelle: 'Consulter', types: ['NOTE'] }] }),
-    saisies: { types: ['NOTE'], reduire: () => ({ config: {} }) }, reglages: { defaut: {} }, vues: { onglets: [{ code: 'notes', libelle: 'Notes' }] }
+    saisies: { types: ['NOTE_' + String(id).toUpperCase()], reduire: () => ({ config: {} }) }, reglages: { defaut: {} }, vues: { onglets: [{ code: 'notes', libelle: 'Notes' }] }
   }, autres || {});
 }
 
@@ -34,8 +34,38 @@ test('Isocont : contrat déclaré au registre, identique à ce que le modèle ex
   assert.equal(M.niveauJournal(['CADRE'], {}), 'complet');
   // Chaque accès ouvre des saisies du module ou des actions connues
   const actions = ['ANNULATION', 'EDITION_CADA', 'EXPORT_PATIENT'];
-  contrat.acces.forEach((a) => a.types.forEach((t) => assert.ok(contrat.saisies.types.includes(t) || actions.includes(t), t)));
+  contrat.acces.forEach((a) => a.types.forEach((t) => assert.ok(contrat.saisies.types.includes(t) || actions.includes(t) || (registre.moduleDuType(t) || {}).id === 'patients', t)));
   assert.deepEqual(registre.besoinsManquants(), []);
+});
+
+test('Module Patients : module de référence, saisies de la fiche, chargé avant Isocont, fiche reconstituée', () => {
+  const P = registre.obtenir('patients');
+  assert.ok(P.reference && P.vues.onglets.length === 0);
+  assert.deepEqual(registre.affiches().map((m) => m.id), ['isocont']);
+  assert.deepEqual(registre.ordre().map((m) => m.id), ['patients', 'isocont']);
+  assert.equal(registre.moduleDuType('PATIENT').id, 'patients');
+  assert.equal(registre.moduleDuType('MESURE_DEBUT').id, 'isocont');
+  assert.equal(registre.moduleDuType('COMPTE'), null);
+  assert.deepEqual(registre.dependants('patients').map((m) => m.id), ['isocont']);
+  const at = (h) => new Date(Date.UTC(2026, 10, 1, h)).toISOString();
+  const st = P.saisies.reduire([
+    { id: '1', at: at(1), by: 'u', type: 'PATIENT', data: { patientId: 'P1', ipp: '100 (fictif)', nom: 'DUPONT (fictif)', naissance: '1980-01-01' } },
+    { id: '2', at: at(2), by: 'u', type: 'MODE_HOSPI', data: { patientId: 'P1', date: 1, mode: 'SDT' } },
+    { id: '3', at: at(3), by: 'u', type: 'PATIENT', data: { patientId: 'P2', nom: 'DUPONT (fictif)', protection: 'Tutelle' } },
+    { id: '4', at: at(4), by: 'u', type: 'FUSION', data: { garde: 'P1', absorbe: 'P2' } },
+    { id: '5', at: at(5), by: 'u', type: 'PATIENT', data: { patientId: 'P2', detenu: true } }]);
+  assert.deepEqual(Object.keys(st.fiches), ['P1']);
+  assert.equal(st.fiches.P1.protection, 'Tutelle');
+  assert.equal(st.fiches.P1.detenu, true);                      // saisie sur l'ancienne fiche redirigée
+  assert.equal(st.fiches.P1.modes.length, 1);
+  // Un type de saisie ne peut être déclaré que par un module ; dépendance circulaire refusée
+  const r = registre.nouveau();
+  r.declarer(moduleFictif('notes'));
+  assert.throws(() => r.declarer(moduleFictif('autres', { saisies: { types: ['NOTE_NOTES'], reduire: () => ({}) } })), /déjà déclaré par « notes »/);
+  const r2 = registre.nouveau();
+  r2.declarer(moduleFictif('aaa', { besoins: [{ fourniture: 'bbb.liste', version: 1 }], fournitures: [{ nom: 'aaa.liste', version: 1, champs: [] }] }));
+  r2.declarer(moduleFictif('bbb', { besoins: [{ fourniture: 'aaa.liste', version: 1 }], fournitures: [{ nom: 'bbb.liste', version: 1, champs: [] }] }));
+  assert.throws(() => r2.ordre(), /circulaire/);
 });
 
 test('Registre : contrats incomplets ou incohérents refusés', () => {

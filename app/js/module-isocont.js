@@ -5,7 +5,7 @@
  * s'ajoute au contrat depuis ui-isocont.js.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./model.js'), require('./modules.js'), root);
+  if (typeof module === 'object' && module.exports) { require('./module-patients.js'); module.exports = factory(require('./model.js'), require('./modules.js'), root); }
   else factory(root.SIC.model, root.SIC.modules, root);
 })(typeof self !== 'undefined' ? self : this, function (M, registre, root) {
   'use strict';
@@ -23,7 +23,8 @@
 
     // Saisies : types propres au module, champ logique pour les conflits, reconstitution de l'état
     saisies: {
-      types: ['PATIENT', 'MODE_HOSPI', 'FUSION', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'JLD', 'RECOURS',
+      // (PATIENT, MODE_HOSPI, FUSION : saisies du module Patients, lues à la volée et reconstituées ici comme avant)
+      types: ['MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'JLD', 'RECOURS',
         'PROFESSIONNEL', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'ENTRETIEN', 'PROPOSITION', 'CORRECTION',
         'REFUS_PROPOSITION', 'STATS'],
       champ: M.champ,
@@ -56,8 +57,8 @@
         champs: ['date', 'nature', 'typeMesure', 'service', 'mesure', 'statut'] }
     ],
 
-    // Besoins : la fiche patient viendra du module Patients (étape 5) ; aucun besoin tant qu'il n'existe pas
-    besoins: []
+    // Besoins : la fiche commune du module Patients (étape 5), indispensable
+    besoins: [{ fourniture: 'patients.fiches', version: 1, obligatoire: true }]
   };
 
   registre.declarer(contrat);

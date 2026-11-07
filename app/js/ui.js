@@ -1024,22 +1024,23 @@
     // -- Activation des modules par service (socle, architecture § 5)
     var casesModules = [];
     var tableModules = h('table', {},
-      h('thead', {}, h('tr', {}, [h('th', { text: 'Service' })].concat(SIC.modules.liste().map(function (m) { return h('th', { text: m.libelle }); })))),
+      h('thead', {}, h('tr', {}, [h('th', { text: 'Service' })].concat(SIC.modules.affiches().map(function (m) { return h('th', { text: m.libelle }); })))),
       h('tbody', {}, tousServices().map(function (sv) {
-        return h('tr', {}, [h('td', { text: sv.libelle + ' (' + sv.code + ')' })].concat(SIC.modules.liste().map(function (m) {
+        return h('tr', {}, [h('td', { text: sv.libelle + ' (' + sv.code + ')' })].concat(SIC.modules.affiches().map(function (m) {
           var cb = h('input', { type: 'checkbox', checked: m.droits.serviceActif(cfg, sv.code), 'aria-label': m.libelle + ' — ' + sv.libelle });
           casesModules.push({ module: m, service: sv, cb: cb });
           return h('td', {}, h('label', { class: 'case' }, cb, h('span', { text: 'activé' })));
         })));
       })));
-    var encadrement = SIC.modules.liste().map(function (m) { return (m.droits.ROLES_ENCADREMENT || []).map(function (r) { return droits().libRole(cfg, r).toLowerCase(); }); })[0] || [];
+    var encadrement = SIC.modules.affiches().map(function (m) { return (m.droits.ROLES_ENCADREMENT || []).map(function (r) { return droits().libRole(cfg, r).toLowerCase(); }); })[0] || [];
     var pModulesServices = h('section', { class: 'panneau' }, h('h2', { text: 'Modules activés par service' }),
       h('p', { class: 'muted', text: 'Un agent voit un module dans un service si le module y est activé, s’il est affecté au service et s’il a un rôle dans le module. Sans réglage, chaque module est activé pour tous les services, y compris ceux créés ensuite ; dès qu’un module est désactivé pour un service, un service créé ensuite doit être activé ici.' }),
+      SIC.modules.liste().some(function (m) { return m.reference; }) ? h('p', { class: 'muted', text: 'Les modules de référence (' + SIC.modules.liste().filter(function (m) { return m.reference; }).map(function (m) { return m.libelle; }).join(', ') + ') ne s’activent pas ici : ils suivent les modules qui en dépendent, et leur clé est remise à qui a droit à l’un d’eux.' }) : null,
       h('p', { class: 'muted', text: 'Désactiver un module pour un service : ses données sont conservées, aucune saisie n’est plus possible dans ce service, et seuls ' + (encadrement.length ? encadrement.join(', ') + ' et l’administrateur' : 'l’administrateur') + ' les consultent.' }),
       tousServices().length ? h('div', { class: 'table-wrap' }, tableModules) : h('p', { class: 'muted', text: 'Créez d’abord les services ci-dessus.' }),
       boutonEnregistrer(async function () {
         var valeur = JSON.parse(JSON.stringify(cfg.modulesServices || {})), desactives = [];
-        SIC.modules.liste().forEach(function (m) {
+        SIC.modules.affiches().forEach(function (m) {
           var lignes = casesModules.filter(function (c) { return c.module === m; });
           var actifs = lignes.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.service.code; });
           lignes.forEach(function (c) { if (!c.cb.checked && m.droits.serviceActif(cfg, c.service.code)) desactives.push(m.libelle + ' — ' + c.service.libelle); });

@@ -77,11 +77,11 @@ test('Coffre version 2 : clés distinctes par journal, aucune clé de données e
   await admin.enregistrer('MESURE_DEBUT', mesure('M1'));
   const cf = admin.coffre;
   assert.equal(cf.version, 2);
-  assert.deepEqual(Object.keys(cf.cles).sort(), ['isocont', 'plateforme']);
+  assert.deepEqual(Object.keys(cf.cles).sort(), ['isocont', 'patients', 'plateforme']);
   assert.deepEqual(Object.keys(cf.agents).sort(), [admin.utilisateur.id, 'secours'].sort());
   const pour = (qui) => cf.enveloppes.filter((e) => e.pour === qui).map((e) => e.cle + ':' + e.g).sort();
-  assert.deepEqual(pour(admin.utilisateur.id), ['isocont:1', 'isocont:m', 'plateforme:1', 'plateforme:m']);
-  assert.deepEqual(pour('secours'), ['isocont:m', 'plateforme:m']);
+  assert.deepEqual(pour(admin.utilisateur.id), ['isocont:1', 'isocont:m', 'patients:1', 'patients:m', 'plateforme:1', 'plateforme:m']);
+  assert.deepEqual(pour('secours'), ['isocont:m', 'patients:m', 'plateforme:m']);
   assert.ok(cf.emballages.every((e) => ['mdp', 'secours'].includes(e.methode)));
   // Fichiers « SIC2 » génération 1, chacun lisible avec sa seule clé
   const fs = await premierFichier(racine, SOCLE), fi = await premierFichier(racine, ISOCONT);
@@ -103,7 +103,7 @@ test('Comptes : clé personnelle à la création, réinitialisation par l’admi
   await admin.creerComptes([{ nom: 'IDE (fictif)', login: 'ide', motDePasse: 'mot de passe ide 1', roles: ['IDE'], services: ['U1'] }]);
   const id = admin.comptes.find((c) => c.login === 'ide').id;
   const enveloppes = () => admin.coffre.enveloppes.filter((e) => e.pour === id).map((e) => e.cle + ':' + e.g).sort();
-  assert.deepEqual(enveloppes(), ['isocont:1', 'plateforme:1']);              // générations seulement, pas de clé maîtresse
+  assert.deepEqual(enveloppes(), ['isocont:1', 'patients:1', 'plateforme:1']);              // générations seulement, pas de clé maîtresse
   let ide = await co(racine, 'ide', 'mot de passe ide 1');
   assert.ok(ide.etat.mesures.M1);
   assert.equal(ide.trousseau.isocont.maitresse, null);
@@ -116,13 +116,13 @@ test('Comptes : clé personnelle à la création, réinitialisation par l’admi
   // Réinitialisation par l'administrateur : nouvelle clé personnelle, anciennes enveloppes remplacées
   await admin.reinitialiserMotDePasse(id, 'provisoire 2026 ide');
   assert.notEqual(admin.coffre.agents[id].publique, pub1);
-  assert.deepEqual(enveloppes(), ['isocont:1', 'plateforme:1']);
+  assert.deepEqual(enveloppes(), ['isocont:1', 'patients:1', 'plateforme:1']);
   await assert.rejects(co(racine, 'ide', 'mot de passe ide 2'), /incorrect/);
   ide = await co(racine, 'ide', 'provisoire 2026 ide');
   assert.ok(ide.utilisateur.mdpProvisoire && ide.etat.mesures.M1);
   // Un administrateur ajouté reçoit les clés maîtresses ; un compte désactivé perd ses enveloppes
   await admin.modifierRoles(id, ['IDE', 'ADMIN'], true, ['U1']);
-  assert.deepEqual(enveloppes(), ['isocont:1', 'isocont:m', 'plateforme:1', 'plateforme:m']);
+  assert.deepEqual(enveloppes(), ['isocont:1', 'isocont:m', 'patients:1', 'patients:m', 'plateforme:1', 'plateforme:m']);
   await admin.modifierRoles(id, ['IDE'], false, ['U1']);
   assert.deepEqual(enveloppes(), []);
   await assert.rejects(co(racine, 'ide', 'provisoire 2026 ide'), /incorrect/);
@@ -146,7 +146,7 @@ test('Code de secours renouvelé : l’ancien n’ouvre plus rien ; copie sous s
   await assert.rejects(t1.connexionCodeSecours(code), /incorrect/);
   await t1.connexionCodeSecours(nouveau);
   assert.ok(t1.etat.mesures.M1);
-  assert.equal(admin.coffre.enveloppes.filter((e) => e.pour === 'secours').length, 2);
+  assert.equal(admin.coffre.enveloppes.filter((e) => e.pour === 'secours').length, 3);
   assert.equal(await Session.verifierAdministrateur(new Dossier(racine, 'reseau'), '', nouveau), 'code de secours');
   assert.equal(await Session.verifierAdministrateur(new Dossier(racine, 'reseau'), 'admin', 'mot de passe solide'), 'Admin (fictif)');
 });
@@ -208,7 +208,7 @@ test('Migration d’un coffre version 1 : historique lisible, génération 2 clo
   assert.deepEqual(r.provisoires.map((p) => p.login), ['ide']);          // compte désactivé : pas de clé
   assert.equal(admin.coffre.version, 2);
   assert.equal(admin.coffre.creeLe, '2026-11-01T08:00:00.000Z');        // même dossier (dossier de secours, verrou)
-  assert.deepEqual(admin.coffre.cles, { plateforme: { courante: 2, base: 2 }, isocont: { courante: 2, base: 2 } });
+  assert.deepEqual(admin.coffre.cles, { plateforme: { courante: 2, base: 2 }, patients: { courante: 2, base: 2 }, isocont: { courante: 2, base: 2 } });
   assert.ok(admin.etat.mesures.M1);                                     // historique relu (génération 1)
   assert.equal(admin.rejetes.length, 0);
   // Saisies à venir : génération 2, clés distinctes pour le socle et Isocont
