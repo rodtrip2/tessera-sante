@@ -1,5 +1,15 @@
 # Journal des modifications — Tessera Santé
 
+## 0.4.3 — 7 novembre 2026
+
+Étape 4 (trousseau), troisième sous-étape : **migration d'un coffre version 1**.
+
+- *Administration → Comptes et sécurité* : panneau « Protection des données : passage au trousseau de clés » pour un dossier encore protégé par une clé unique (dossiers d'essai, sauvegardes d'Isocont reprises). La fenêtre demande le mot de passe de l'administrateur, le code de secours actuel (facultatif) et la confirmation qu'une copie complète a été faite et essayée.
+- Aucune saisie n'est modifiée : l'ancienne clé devient la génération 1 de la clé de plateforme et de la clé d'Isocont ; les saisies à venir utilisent une génération 2 propre à chacune. L'administrateur garde son mot de passe ; les autres comptes actifs reçoivent un mot de passe provisoire (fiches de remise). Code de secours repris s'il est saisi, sinon nouveau code affiché. Clés de sécurité à réenregistrer, copie sous scellé à refaire.
+- Un poste resté connecté pendant la migration se verrouille et demande une reconnexion.
+- « Revenir à la clé unique » : tant que l'ancien coffre est dans l'historique, l'administrateur peut le remettre en place (les saisies faites depuis la migration deviennent illisibles).
+- Tests de migration (dossier fictif de la 0.4.0, code repris ou nouveau, jeu de formation, poste resté connecté, retour arrière) ; parcours complet vérifié dans Chrome.
+
 ## 0.4.2 — 7 novembre 2026
 
 Étape 4 (trousseau), deuxième sous-étape : **coffre version 2 et trousseau en mémoire**, sans changement à l'écran.

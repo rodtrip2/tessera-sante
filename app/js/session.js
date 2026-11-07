@@ -351,6 +351,69 @@
     return this.reinitialiserMotDePasse(this.utilisateur.id, motDePasse);
   };
 
+  /** Vrai si le coffre est encore en version 1 (clé de données unique) : migration vers le trousseau à proposer. */
+  Session.prototype.migrationTrousseauPossible = function () { return !!this.coffre && !v2(this); };
+
+  /**
+   * Migration du coffre version 1 vers le trousseau (étape 4, 0.4.3). Réservée à un compte administrateur, sur les
+   * données réelles. `motDePasse` : celui de l'administrateur (il le garde) ; `codeSecours` (facultatif) : le code
+   * actuel, repris s'il est donné, sinon un nouveau code est créé. Aucun fichier de saisie n'est modifié ; l'ancien
+   * coffre reste dans l'historique du coffre. Retourne { codeSecours (nouveau code, ou null), provisoires: [fiches] }.
+   */
+  Session.prototype.migrerVersTrousseau = async function (motDePasse, codeSecours) {
+    var s = this;
+    if (v2(this)) throw new Error('Ce dossier utilise déjà le trousseau.');
+    if (this.formation) throw new Error('Quittez le mode formation pour migrer les données réelles.');
+    if (!this.utilisateur || this.utilisateur.id === 'secours' || (this.utilisateur.roles || []).indexOf('ADMIN') < 0) throw new Error('Migration réservée à un compte administrateur (connexion par mot de passe).');
+    var coffre = await this.dossier.lireCoffre();
+    this.coffre = coffre;
+    if (v2(this)) throw new Error('Ce dossier vient d’être migré depuis un autre poste : reconnectez-vous.');
+    var embMdp = coffre.emballages.filter(function (e) { return e.methode === 'mdp' && e.userId === s.utilisateur.id; });
+    var ok = false;
+    for (var i = 0; i < embMdp.length && !ok; i++) { try { await C.deballerMotDePasse(embMdp[i], motDePasse); ok = true; } catch (e) { /* suivant */ } }
+    if (!ok) throw new Error('Mot de passe incorrect.');
+    var code = (codeSecours || '').trim(), nouveau = null;
+    if (code) {
+      var embSec = coffre.emballages.filter(function (e) { return e.methode === 'secours'; })[0];
+      try { await C.deballerCodeSecours(embSec, code); } catch (e) { throw new Error('Code de secours incorrect : laissez le champ vide pour en créer un nouveau.'); }
+    } else { code = nouveau = C.nouveauCodeSecours(); }
+    await lireComptes(this);
+    var r = await T.migrerCoffre(coffre, this.cleV1, this.comptes, { modules: modulesDeclares(), adminId: this.utilisateur.id, motDePasseAdmin: motDePasse, codeSecours: code, provisoire: C.nouveauMotDePasseProvisoire, id: nouvelId });
+    var provisoires = r.provisoires.map(function (p) { p.compte.mdpProvisoire = true; return { nom: p.compte.nom, login: p.compte.login, motDePasse: p.motDePasse, roles: p.compte.roles, services: p.compte.services || [], finValidite: p.compte.finValidite || '' }; });
+    r.coffre.comptes = await chiffrerComptes(r.trousseau[T.PLATEFORME], this.comptes);
+    this.coffre = await this.dossier.ecrireCoffre(r.coffre, coffre.rev);
+    T.effacer(this.trousseau);
+    installerTrousseau(this, r.trousseau, r.privee8);
+    oublierJournaux(this);   // relecture complète avec le trousseau (l'existant est en génération 1)
+    await this.synchroniser();
+    await this.tracer('MIGRATION_TROUSSEAU', { libelle: 'coffre migré vers le trousseau de clés', comptes: provisoires.length + 1, nouveauCodeSecours: !!nouveau });
+    return { codeSecours: nouveau, provisoires: provisoires };
+  };
+
+  /** Date de la migration vers le trousseau si l'ancien coffre (version 1) est encore dans l'historique, sinon null. */
+  Session.prototype.retourAvantTrousseauPossible = async function () {
+    if (!v2(this) || !this.coffre.migreLe) return null;
+    var versions = await this.dossier.versionsCoffre();
+    return versions.some(function (v) { return v.valide && v.coffre && v.coffre.version !== 2; }) ? this.coffre.migreLe : null;
+  };
+
+  /**
+   * Retour à la clé unique : remet en place le dernier coffre version 1 de l'historique (le coffre actuel y reste).
+   * Les saisies faites depuis la migration, chiffrées avec le trousseau, ne seront plus lisibles. La session est
+   * fermée : reconnexion avec les mots de passe d'avant la migration.
+   */
+  Session.prototype.revenirAvantTrousseau = async function () {
+    if (!this.utilisateur || this.utilisateur.id === 'secours' || (this.utilisateur.roles || []).indexOf('ADMIN') < 0) throw new Error('Réservé à un compte administrateur.');
+    var actuel = await this.dossier.lireCoffre();
+    if (!actuel || actuel.version !== 2) throw new Error('Ce dossier n’utilise pas le trousseau.');
+    var v1 = (await this.dossier.versionsCoffre()).filter(function (v) { return v.valide && v.coffre && v.coffre.version !== 2; })[0];
+    if (!v1) throw new Error('Aucun coffre d’avant la migration dans l’historique.');
+    var c = JSON.parse(JSON.stringify(v1.coffre));
+    delete c.archiveLe; c.retourTrousseauLe = new Date().toISOString();
+    await this.dossier.ecrireCoffre(c, actuel.rev);
+    this.verrouiller();
+  };
+
   Session.prototype.ajouterCleSecurite = async function (libelle) {
     var s = this;
     var secret = v2(this) ? this.privee8 : this.cleV1;   // partie privée de l'agent (ou de la clé de secours en déblocage)
@@ -696,6 +759,12 @@
       this.dernierCoffre = Date.now();
       try {
         var coffre = await this.dossier.lireCoffre();
+        if (coffre && this.coffre && coffre.version !== this.coffre.version) {
+          // Coffre migré vers le trousseau depuis un autre poste : l'ancienne clé n'ouvre plus les comptes
+          this.verrouiller();
+          this.notifier({ source: 'verrou', message: 'Le dossier a été migré vers le trousseau de clés depuis un autre poste : reconnectez-vous.' });
+          return 0;
+        }
         if (coffre && this.coffre && coffre.rev !== this.coffre.rev) {
           var jeuChange = this.formation && JSON.stringify(coffre.formation || null) !== JSON.stringify(this.coffre.formation || null);
           this.coffre = coffre; await lireComptes(this);
