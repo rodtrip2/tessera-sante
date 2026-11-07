@@ -1,5 +1,20 @@
 # Journal des modifications — Tessera Santé
 
+## 0.5.0 — 7 novembre 2026
+
+Étape 4 (trousseau) terminée : **attestation du coffre**, renouvellement des clés après une restauration, option « compromission ». Décisions du porteur du 7 novembre 2026 : un agent qui garde un accès en écriture au partage fait partie de la menace couverte ; renouvellement obligatoire après une restauration ; bouton pour tout renouveler.
+
+- Le coffre est signé par l'administrateur à chaque modification (parties publiques des agents, générations et empreintes des clés, droits des comptes, compteur). L'empreinte de la clé de signature est gardée dans chaque emballage, protégé par le mot de passe, la clé de sécurité ou le code de secours.
+- Chaque agent vérifie la signature à l'ouverture de sa session et n'accepte que les générations attestées : une fausse génération glissée dans le coffre est ignorée. Connexion refusée sur un coffre modifié hors de l'outil.
+- Avant toute remise de clé, l'administrateur vérifie les comptes (rôles, services, activité), les clés personnelles et la clé de secours : un rôle ajouté ou une clé personnelle substituée hors de l'outil bloque toute remise. Une clé personnelle créée par l'agent lui-même porte une preuve de continuité.
+- Version antérieure du coffre recopiée : détectée par les postes qui ont vu une version plus récente et par l'historique du coffre.
+- *Comptes et sécurité → Intégrité du coffre* (et bandeau rouge pour l'administrateur) : état attesté, anomalies, réparations : *Renouveler les clés*, *Nouvelle clé personnelle* d'un compte, *Nouveau code de secours*, *Remettre la dernière version attestée*.
+- Après toute restauration du coffre (historique, copie sous scellé, copie complète) : les agents ne se connectent pas tant que l'administrateur n'a pas renouvelé toutes les clés (nouvelles clés maîtresses, génération au-dessus de toute génération déjà employée ; les saisies existantes restent lisibles).
+- *Tout renouveler* en cas de compromission : clés, clés d'attestation, code de secours, nouvelle clé personnelle et mot de passe provisoire pour chaque compte (l'administrateur garde le sien), fiches de remise.
+- Dossiers d'essai d'avant 0.5.0 : attestation établie à la connexion d'un administrateur.
+- Journal : libellés des traces du trousseau (génération, passage au trousseau, attestation, renouvellement, compromission) ; une trace de passage au trousseau ne fait plus échouer l'affichage de sa ligne.
+- Nouveau test `tests/attestation.test.js` (183 au vert) ; panneau, réparation et compromission vérifiés dans Chrome.
+
 ## 0.4.5 — 7 novembre 2026
 
 Étape 4 (trousseau) : **corrections après une relecture indépendante** du code des clés.

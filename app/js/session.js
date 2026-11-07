@@ -12,7 +12,7 @@
   // Fichiers du socle : chargés par la page, ou lus directement sous Node (tests).
   function socle(nom, fichier) { return SIC[nom] || (typeof require === 'function' ? require(fichier) : undefined); }
   var Droits = socle('droits', './droits.js'), N = socle('noyauJournal', './noyau-journal.js'), X = socle('exportsRangement', './exports-rangement.js');
-  var T = socle('trousseau', './trousseau.js');
+  var T = socle('trousseau', './trousseau.js'), A = socle('attestation', './attestation.js');
   /**
    * Module dont la session tient le journal : celui du registre des modules (contrat, modules.js). Sans registre
    * (tests qui ne chargent que le modèle), le modèle d'Isocont est lu comme un contrat.
@@ -113,8 +113,135 @@
   /** Coffre version 1 : la clé de données unique tient lieu de toutes les clés de droit (comportement d'origine). */
   function trousseauV1(s, cle) { var j = T.jeuV1(cle), t = {}; t[T.PLATEFORME] = j; t[idModule()] = j; installerTrousseau(s, t, null, cle); }
   function jeuModule(s) { return s.trousseau && (s.trousseau[idModule()] || s.trousseau[T.PLATEFORME]); }
-  async function ouvrirAvecPrivee(s, pour, privee8) {
-    installerTrousseau(s, await T.ouvrir(s.coffre, pour, await C.importerPrivee(privee8)), privee8);
+  /**
+   * Ouvre le trousseau avec le contenu d'un emballage (partie privée et ancre, 0.5.0) : attestation du coffre vérifiée
+   * d'abord (signature, ancre, version) ; seules les générations attestées sont acceptées.
+   */
+  async function ouvrirAvecPrivee(s, pour, octets) {
+    var p = C.ouvrirPaquet(octets);
+    s.ancre = p.ancre;
+    s.controle = await controler(s, s.coffre);
+    installerTrousseau(s, await T.ouvrir(s.coffre, pour, await C.importerPrivee(p.prive8), s.controle.etat), p.prive8);
+    await ouvrirAttestation(s, s.coffre);
+  }
+
+  // ---------------------------------------------------------- Attestation du coffre (0.5.0, attestation.js)
+  /** Mémoire du poste : plus haut compteur d'attestation vu pour ce coffre (une version antérieure remise est détectée). */
+  function memoire(s) {
+    if (s.memoirePoste) return s.memoirePoste;
+    try { if (typeof localStorage !== 'undefined') return { lire: function (k) { return localStorage.getItem(k); }, ecrire: function (k, v) { localStorage.setItem(k, v); } }; } catch (e) { /* sans stockage */ }
+    return null;
+  }
+  function nVu(s, coffre) { var m = memoire(s); return m && coffre ? +(m.lire('sic-attestation-n:' + coffre.creeLe) || 0) : 0; }
+  function retenirN(s, coffre, n) { var m = memoire(s); if (m && coffre && n > nVu(s, coffre)) m.ecrire('sic-attestation-n:' + coffre.creeLe, String(n)); }
+  function bloquantes(r) { return ((r && r.anomalies) || []).filter(function (x) { return x.bloquante; }); }
+  /** Vérification faite par tout agent : attestation (attestation.js) et mémoire du poste. */
+  async function controler(s, coffre) {
+    if (!coffre || coffre.version !== 2) return { etat: null, anomalies: [] };
+    var r = await A.verifier(coffre, s.ancre), vu = nVu(s, coffre);
+    if (r.etat && r.etat.n < vu) r.anomalies.push({ code: 'ancienne', texte: 'Une version antérieure du coffre a été remise en place : l’administrateur doit renouveler les clés avant toute saisie.', bloquante: true });
+    if (!r.etat && vu > 0) r.anomalies.forEach(function (x) { if (x.code === 'absente') { x.bloquante = true; x.texte = 'L’attestation du coffre a été retirée hors de l’outil.'; } });
+    return r;
+  }
+  /** Clés d'attestation ouvertes si la session détient la clé maîtresse de plateforme (administrateur, clé de secours). */
+  async function ouvrirAttestation(s, coffre) {
+    A.effacerCles(s.attest);
+    s.attest = null;
+    var j = s.trousseau && s.trousseau[T.PLATEFORME];
+    if (v2(s) && j && j.maitresse) s.attest = await A.ouvrirCles(coffre, j.maitresse);
+  }
+  function attestateur(s) { var j = v2(s) && s.trousseau && s.trousseau[T.PLATEFORME]; return !!(j && j.maitresse); }
+  async function ancreSession(s) { return s.ancre || (s.attest ? C.ancreDe(s.attest.publique) : null); }
+  /**
+   * Ce que disent les versions attestées du coffre (historique et coffre actuel) : plus haut compteur, plus hautes
+   * générations employées, empreintes attestées des générations et des clés maîtresses. Seules les versions signées
+   * par la clé d'attestation de la session (ou du coffre actuel) comptent.
+   */
+  async function historiqueAttestations(s, coffre) {
+    var res = { n: 0, cles: {}, empreintes: {}, maitresses: {} }, vs = [];
+    try { vs = await s.dossier.versionsCoffre(); } catch (e) { vs = []; }
+    var publique = s.attest ? s.attest.publique : coffre.attestation && coffre.attestation.publique;
+    vs = [{ coffre: coffre }].concat(vs);
+    for (var i = 0; i < vs.length; i++) {
+      var c = vs[i].coffre;
+      if (!c || c.version !== 2 || c.creeLe !== coffre.creeLe) continue;
+      var a = c.attestation, e = A.etatDe(c);
+      if (!a || !e || a.publique !== publique || !(await C.verifierSignature(a.publique, a.etat, a.signature))) continue;
+      res.n = Math.max(res.n, e.n);
+      Object.keys(e.cles || {}).forEach(function (n) { res.cles[n] = Math.max(res.cles[n] || 0, e.cles[n].courante || 0); });
+      Object.keys(e.empreintes || {}).forEach(function (n) { var m = res.empreintes[n] = res.empreintes[n] || {}; Object.keys(e.empreintes[n]).forEach(function (g) { m[g] = e.empreintes[n][g]; }); });
+      Object.keys(e.maitresses || {}).forEach(function (n) { (res.maitresses[n] = res.maitresses[n] || []).push(e.maitresses[n]); });
+    }
+    return res;
+  }
+  /**
+   * Avant un renouvellement de toutes les clés : seules les générations dont l'empreinte est attestée sont gardées
+   * (remises explicitement ensuite) ; les autres sont déclarées perdues. Retourne la plus haute génération employée
+   * de chaque clé (le renouvellement crée la suivante).
+   */
+  async function preparerRenouvellement(s, coffre, trousseau, h) {
+    var depuis = {}, noms = Object.keys(coffre.cles);
+    for (var i = 0; i < noms.length; i++) {
+      var nom = noms[i], c = coffre.cles[nom], jeu = trousseau[nom], max = Math.max(c.courante, h.cles[nom] || 0);
+      for (var g = 1; g <= max; g++) {
+        if (T.perdue(c, g)) continue;
+        var o = await jeu.octetsDe(g), att = h.empreintes[nom] && h.empreintes[nom][g];
+        if (o && att && att === (await A.empreinteGeneration(nom, g, o))) continue;
+        if (jeu.octets[g]) { jeu.octets[g].fill(0); delete jeu.octets[g]; }
+        (c.perdues = c.perdues || []).push(g);
+      }
+      var okM = jeu.maitresse && (h.maitresses[nom] || []).indexOf(await A.empreinteGeneration(nom, 'm', jeu.maitresse)) >= 0;
+      if (!okM) { if (jeu.maitresse) jeu.maitresse.fill(0); jeu.maitresse = C.nouvelleMaitresse(); }   // remplacée par le renouvellement
+      depuis[nom] = max;
+    }
+    return depuis;
+  }
+  var TOUTES = ['absente', 'signature', 'ancre', 'coffre', 'cles', 'restaure', 'ancienne', 'comptes', 'agents', 'secours'];
+  /** Anomalies vues par l'administrateur : celles de tout agent, puis comptes, parties publiques, clé de secours. */
+  async function anomaliesAdmin(s, coffre, comptes, historique) {
+    var r = await controler(s, coffre);
+    var an = r.anomalies.slice();
+    if (r.etat && s.attest) an = an.concat(await A.verifierAdmin(s.attest, coffre, r.etat, comptes));
+    if (historique && r.etat) {
+      var h = await historiqueAttestations(s, coffre);
+      if (h.n > r.etat.n && !an.some(function (x) { return x.code === 'ancienne'; })) an.push({ code: 'ancienne', texte: 'Une version antérieure du coffre a été remise en place (une version plus récente figure dans l’historique) : renouvelez les clés.', bloquante: true });
+    }
+    return { etat: r.etat, anomalies: an };
+  }
+  /** Signe l'état du coffre à écrire (administrateur) ; crée les clés d'attestation si le coffre n'en a pas encore. */
+  async function signerCoffre(s, coffre, trousseau, nMin) {
+    if (!s.attestEnAttente && !s.attest) s.attestEnAttente = await A.creerCles();
+    var cles = s.attestEnAttente || s.attest, prec = A.etatDe(coffre);
+    var n = Math.max(prec ? prec.n : 0, s.controle && s.controle.etat ? s.controle.etat.n : 0, nVu(s, coffre), nMin || 0) + 1;
+    return A.signer(cles, trousseau, coffre, s.comptes, { n: n, par: s.utilisateur ? s.utilisateur.id : null });
+  }
+  /** Réemballe l'emballage de connexion avec l'ancre (emballage d'avant 0.5.0, ou attestation tout juste établie). */
+  async function ancrerEmballage(s, emb, secret) {
+    var ancre = await ancreSession(s);
+    if (!ancre || !s.privee8 || !emb) return;
+    var neuf = emb.methode === 'secours' ? await C.emballerCodeSecours(C.paquet(s.privee8, ancre), secret) : await C.emballerMotDePasse(C.paquet(s.privee8, ancre), secret, emb.iterations);
+    await s.modifierCoffre(async function (coffre) {
+      var e = coffre.emballages.filter(function (x) { return x.id === emb.id; })[0];
+      if (e) { e.sel = neuf.sel; e.iterations = neuf.iterations; e.cle = neuf.cle; }
+    });
+    s.ancre = ancre;
+  }
+  /**
+   * Après l'ouverture d'une session (version 2) : un agent ne se connecte pas sur un coffre dont l'attestation est
+   * invalide ; l'administrateur, oui, pour le réparer (aucune remise de clé tant que l'anomalie demeure). Attestation
+   * établie au besoin (coffre d'avant 0.5.0) et emballage ancré.
+   */
+  async function apresOuverture(s, emb, secret) {
+    if (!v2(s) || s.formation) return;
+    if (attestateur(s)) {
+      s.controle = await anomaliesAdmin(s, s.coffre, s.comptes, true);
+      if (!s.coffre.attestation && !bloquantes(s.controle).length) { await s.modifierCoffre(async function () {}); await s.tracer('ATTESTATION', { libelle: 'attestation du coffre établie' }); }
+    } else {
+      var b = bloquantes(s.controle);
+      if (b.length) { s.verrouiller(); throw new Error(b[0].texte + ' Connexion impossible : prévenez l’administrateur.'); }
+    }
+    if (s.controle.etat || s.attest) retenirN(s, s.coffre, (A.etatDe(s.coffre) || {}).n || 0);
+    if (!s.ancre && secret && s.coffre.attestation && !bloquantes(s.controle).length) await ancrerEmballage(s, emb, secret);
   }
   function nouvelId() { return 'k' + id8(); }
   /** Première génération produite par la clé maîtresse en vigueur, pour chaque clé de droit (copie sous scellé). */
@@ -189,16 +316,30 @@
       s.notifier({ source: 'verrou', message: !a ? 'Votre accès a été retiré : reconnectez-vous ou adressez-vous à l’administrateur.' : 'Vos clés ont été renouvelées : reconnectez-vous.' });
       return false;
     }
-    var identique = JSON.stringify(coffre.cles) === JSON.stringify(s.coffre.cles) && JSON.stringify((coffre.enveloppes || []).filter(function (e) { return e.pour === pour; }).map(function (e) { return e.cle + e.g; })) === JSON.stringify((s.coffre.enveloppes || []).filter(function (e) { return e.pour === pour; }).map(function (e) { return e.cle + e.g; }));
+    var controle = await controler(s, coffre);
+    if (bloquantes(controle).length && !attestateur(s)) {
+      s.verrouiller();
+      s.notifier({ source: 'verrou', message: bloquantes(controle)[0].texte + ' Prévenez l’administrateur.' });
+      return false;
+    }
+    s.controle = controle;
+    if (attestateur(s) && s.attest && controle.etat) {
+      try { var cps = (await C.dechiffrerJSON(s.cle, C.deb64(coffre.comptes), 'comptes')).comptes; s.controle = { etat: controle.etat, anomalies: controle.anomalies.concat(await A.verifierAdmin(s.attest, coffre, controle.etat, cps)) }; }
+      catch (e) { /* comptes relus ensuite par la synchronisation */ }
+    }
+    if (!controle.etat && s.coffre.attestation && coffre.attestation) return true;   // administrateur : attestation invalide, trousseau inchangé (réparation)
+    if (controle.etat) retenirN(s, coffre, controle.etat.n);
+    var identique = (coffre.attestation || {}).signature === (s.coffre.attestation || {}).signature && JSON.stringify(coffre.cles) === JSON.stringify(s.coffre.cles) && JSON.stringify((coffre.enveloppes || []).filter(function (e) { return e.pour === pour; }).map(function (e) { return e.cle + e.g; })) === JSON.stringify((s.coffre.enveloppes || []).filter(function (e) { return e.pour === pour; }).map(function (e) { return e.cle + e.g; }));
     if (identique) return true;
-    var t = await T.ouvrir(coffre, pour, await C.importerPrivee(s.privee8));
+    var t = await T.ouvrir(coffre, pour, await C.importerPrivee(s.privee8), controle.etat);
     if (!(await t[T.PLATEFORME].cle(t[T.PLATEFORME].courante))) {
       T.effacer(t); s.verrouiller();
       s.notifier({ source: 'verrou', message: 'Votre accès a été retiré ou vos clés ne sont plus à jour : reconnectez-vous ou adressez-vous à l’administrateur.' });
       return false;
     }
     // Jamais de recul de la génération d'écriture (coffre restauré ou modifié) : on garde la plus haute détenue
-    for (var n in s.trousseau) {
+    // (sans attestation seulement : avec, la génération d'écriture est celle de l'état signé)
+    if (!controle.etat) for (var n in s.trousseau) {
       if (t[n] && s.trousseau[n].courante > t[n].courante && (await s.trousseau[n].cle(s.trousseau[n].courante))) {
         var g = s.trousseau[n].courante, o = await s.trousseau[n].octetsDe(g);
         if (o) { t[n].octets[g] = o.slice(); t[n].courante = g; }
@@ -206,6 +347,7 @@
     }
     var avaitModule = accesModule(s);
     installerJeux(s, t);
+    await ouvrirAttestation(s, coffre);
     if (avaitModule !== accesModule(s)) oublierJournaux(s);
     return true;
   }
@@ -242,13 +384,14 @@
   Session.prototype.initialiser = async function (admin) {
     if (await this.dossier.lireCoffre()) throw new Error('Ce dossier contient déjà des données.');
     var compte = { id: 'u' + id8(), login: admin.login.trim().toLowerCase(), nom: admin.nom.trim(), roles: ['CADRE', 'ADMIN'], actif: true };
-    var code = C.nouveauCodeSecours();
-    var r = await T.creerCoffre({ compte: compte, motDePasse: admin.motDePasse, codeSecours: code, modules: modulesDeclares(), id: nouvelId });
+    var code = C.nouveauCodeSecours(), cles = await A.creerCles(), ancre = await C.ancreDe(cles.publique);
+    var r = await T.creerCoffre({ compte: compte, motDePasse: admin.motDePasse, codeSecours: code, modules: modulesDeclares(), id: nouvelId, ancre: ancre });
     installerTrousseau(this, r.trousseau, r.privee8);
-    this.comptes = [compte];
+    this.comptes = [compte]; this.utilisateur = compte; this.attest = cles; this.ancre = ancre;
     r.coffre.comptes = await chiffrerComptes(this.cle, this.comptes);
+    var etat = await A.signer(cles, r.trousseau, r.coffre, this.comptes, { n: 1, par: compte.id });
     this.coffre = await this.dossier.ecrireCoffre(r.coffre, undefined);
-    this.utilisateur = compte;
+    this.controle = { etat: etat, anomalies: [] }; retenirN(this, this.coffre, 1);
     await this.synchroniser();
     return code;
   };
@@ -283,6 +426,7 @@
     var val = SIC.comptes.validite(u, Date.now());
     if (val.expire) { this.verrouiller(); throw new Error('Ce compte temporaire a expiré (dernier jour d’accès : ' + u.finValidite.split('-').reverse().join('/') + '). Demandez sa prolongation à l’administrateur.'); }
     this.utilisateur = u;
+    await apresOuverture(this, trouve, motDePasse);
     await this.synchroniser();
   };
 
@@ -295,6 +439,7 @@
     if (u && SIC.comptes.validite(u, Date.now()).expire) { this.verrouiller(); throw new Error('Ce compte temporaire a expiré : demandez sa prolongation à l’administrateur.'); }
     if (r.emballage.userId && (!u || !u.actif)) { this.verrouiller(); throw new Error('Ce compte est désactivé.'); }
     this.utilisateur = u && u.actif ? u : { id: 'secours', login: 'secours', nom: 'Déblocage par clé de sécurité', roles: ['ADMIN'], actif: true };
+    await apresOuverture(this, null, null);
     await this.synchroniser();
   };
 
@@ -306,6 +451,7 @@
     if (v2(this)) await ouvrirAvecPrivee(this, T.SECOURS, secret); else trousseauV1(this, secret);
     await lireComptes(this);
     this.utilisateur = { id: 'secours', login: 'secours', nom: 'Déblocage par code de secours', roles: ['ADMIN'], actif: true };
+    await apresOuverture(this, emb, code);
     await this.synchroniser();
   };
 
@@ -341,33 +487,51 @@
     // Trousseau effacé de la mémoire (octets des clés et partie privée remis à zéro)
     T.effacer(this.trousseau); if (this.privee8) this.privee8.fill(0);
     this.trousseau = null; this.privee8 = null; this.cleV1 = null;
+    A.effacerCles(this.attest); this.attest = null; this.ancre = null; this.controle = null;
     this.cle = null; this.utilisateur = null; this.comptes = [];
     this.donnees = null; this.cleDonnees = null; this.formation = false; oublierJournaux(this); this.preferences = null;
     this.apercu = null;
   };
 
-  /** Relit le coffre, applique `modif`, réécrit (contrôle de révision). */
-  Session.prototype.modifierCoffre = async function (modif) {
+  /**
+   * Relit le coffre, applique `modif`, réécrit (contrôle de révision). Administrateur (version 2) : l'attestation est
+   * vérifiée avant la modification (aucune remise de clé sur un coffre modifié hors de l'outil), puis le nouvel état est
+   * signé. `options.reparation` : codes d'anomalies que l'opération répare (elle est alors permise malgré elles).
+   */
+  Session.prototype.modifierCoffre = async function (modif, options) {
     var coffre = await this.dossier.lireCoffre();
     if (!(await confronterTrousseau(this, coffre))) throw new Error('Session verrouillée : vos clés ont changé.');
-    var avant = this.coffre;
+    var avant = this.coffre, s = this, permis = (options && options.reparation) || [];
     this.coffre = coffre;
-    this.trousseauEnAttente = null; this.priveeEnAttente = null;
+    this.trousseauEnAttente = null; this.priveeEnAttente = null; this.attestEnAttente = null; this.ancreEnAttente = null;
+    var signe = null;
     try {
       await lireComptes(this);
+      var att = attestateur(this);   // mode formation compris : le coffre et le trousseau sont ceux des données réelles
+      if (att) {
+        var ctl = await anomaliesAdmin(this, coffre, this.comptes, false);
+        var genantes = bloquantes(ctl).filter(function (x) { return permis.indexOf(x.code) < 0; });
+        if (genantes.length) throw new Error('Coffre modifié hors de l’outil : ' + genantes.map(function (x) { return x.texte; }).join(' ') + ' Aucune modification possible avant réparation (Administration → Comptes et sécurité).');
+        this.controle = ctl;
+      } else if (v2(this) && bloquantes(this.controle).length) throw new Error(bloquantes(this.controle)[0].texte);
       await modif(coffre, this.comptes);
       var jeuComptes = this.trousseauEnAttente ? this.trousseauEnAttente[T.PLATEFORME] : this.cle;
       coffre.comptes = await chiffrerComptes(jeuComptes, this.comptes);
+      if (att) signe = await signerCoffre(this, coffre, this.trousseauEnAttente || this.trousseau, options && options.nMin);
       this.coffre = await this.dossier.ecrireCoffre(coffre, coffre.rev);
     } catch (e) {
       // Rien n'est installé : ni nouvelle génération, ni nouvelle clé maîtresse (aucune saisie chiffrée avec une clé perdue)
       if (this.trousseauEnAttente) T.effacer(this.trousseauEnAttente);
       if (this.priveeEnAttente) this.priveeEnAttente.fill(0);
-      this.trousseauEnAttente = null; this.priveeEnAttente = null; this.coffre = avant;
+      A.effacerCles(this.attestEnAttente);
+      this.trousseauEnAttente = null; this.priveeEnAttente = null; this.attestEnAttente = null; this.ancreEnAttente = null; this.coffre = avant;
       throw e;
     }
     if (this.trousseauEnAttente) { installerJeux(this, this.trousseauEnAttente); this.trousseauEnAttente = null; }
     if (this.priveeEnAttente) { if (this.privee8) this.privee8.fill(0); this.privee8 = this.priveeEnAttente; this.priveeEnAttente = null; }
+    if (this.attestEnAttente) { if (this.attest !== this.attestEnAttente) A.effacerCles(this.attest); this.attest = this.attestEnAttente; this.attestEnAttente = null; }
+    if (this.ancreEnAttente) { this.ancre = this.ancreEnAttente; this.ancreEnAttente = null; }
+    if (signe) { this.controle = { etat: signe, anomalies: [] }; retenirN(this, this.coffre, signe.n); }
     var moi = this.utilisateur && this.comptes.filter(function (x) { return x.id === this.utilisateur.id; }, this)[0];
     if (moi) this.utilisateur = moi;
     this.notifier();
@@ -403,11 +567,11 @@
     for (var i = 0; i < liste.length; i++) {
       var c = liste[i], id = 'u' + id8(), it = c.aleatoire ? C.ITERATIONS_PROVISOIRE : undefined;
       var compte = { id: id, login: c.login, nom: c.nom.trim(), roles: c.roles, services: c.services || [], actif: true, mdpProvisoire: true, formation: c.formation !== false, finValidite: c.finValidite || '' };
-      var agent = null, emb;
+      var agent = null, emb, ancre = v2(s) ? await ancreSession(s) : null;
       if (v2(s)) {
         // Paire et emballage préparés ici (calcul lent) ; enveloppes calculées sur le coffre relu, dans l'écriture
         var paire = await C.nouvellePaire(), p8 = await C.exporterPrivee(paire.privateKey);
-        emb = await C.emballerMotDePasse(p8, c.motDePasse, it); p8.fill(0);
+        emb = await C.emballerMotDePasse(C.paquet(p8, ancre), c.motDePasse, it); p8.fill(0);
         agent = { publique: await C.exporterPublique(paire.publicKey), cle: paire.publicKey };
       }
       else emb = await C.emballerMotDePasse(s.cleV1, c.motDePasse, it);
@@ -463,6 +627,7 @@
    */
   Session.prototype.reinitialiserMotDePasse = async function (userId, motDePasse, options) {
     var s = this, provisoire = userId !== this.utilisateur.id, it = options && options.aleatoire ? C.ITERATIONS_PROVISOIRE : undefined;
+    var ancre = v2(this) ? await ancreSession(this) : null;
     // Par l'agent lui-même : sa partie privée réemballée. Par l'administrateur (version 2) : il ne connaît pas la partie
     // privée de l'agent, il lui crée une nouvelle clé personnelle et lui remet de nouvelles enveloppes.
     // Premier changement par l'agent (mot de passe provisoire) : il crée sa propre clé personnelle, que l'administrateur
@@ -476,17 +641,23 @@
       if (!c) throw new Error('Compte introuvable.');
       coffre.emballages = coffre.emballages.filter(function (e) { return !(e.methode === 'mdp' && e.userId === userId); });
       if (!emb) {
-        var a = await T.nouvelAgent(s.trousseau, coffre, c, motDePasse, it, aDroitPour(s));
+        var a = await T.nouvelAgent(s.trousseau, coffre, c, motDePasse, it, aDroitPour(s), ancre);
+        var ancien = coffre.agents[userId], preuves;
+        // Clé personnelle créée par l'agent lui-même (sans les clés d'attestation) : preuve de continuité pour
+        // l'administrateur, tirée de son ancienne partie privée (0.5.0)
+        if (!provisoire && !attestateur(s) && ancien && s.privee8 && s.controle && s.controle.etat && s.controle.etat.temoin) {
+          preuves = (ancien.preuves || []).concat([await A.preuve(s.privee8, ancien.publique, s.controle.etat.temoin, userId, a.publique)]);
+        }
         if (provisoire) a.privee8.fill(0); else s.priveeEnAttente = a.privee8;   // installée après l'écriture du coffre
         emb = a.emballage;
-        coffre.agents[userId] = { publique: a.publique };
+        coffre.agents[userId] = preuves ? { publique: a.publique, preuves: preuves } : { publique: a.publique };
         coffre.emballages = coffre.emballages.filter(function (e) { return e.userId !== userId; });   // clés de sécurité de l'ancienne paire
         coffre.enveloppes = coffre.enveloppes.filter(function (e) { return e.pour !== userId; }).concat(a.enveloppes);
       }
       emb.id = nouvelId(); emb.userId = userId; emb.login = c.login;
       coffre.emballages.push(emb);
       c.mdpProvisoire = provisoire;
-    });
+    }, options && options.reparation ? { reparation: ['agents'] } : undefined);
     var c3 = this.comptes.filter(function (x) { return x.id === userId; })[0];
     await this.tracer(userId === this.utilisateur.id ? 'MDP_CHANGE' : 'MDP_REINIT', { login: c3 ? c3.login : userId });
   };
@@ -563,12 +734,15 @@
       try { await C.deballerCodeSecours(embSec, code); } catch (e) { throw new Error('Code de secours incorrect : laissez le champ vide pour en créer un nouveau.'); }
     } else { code = nouveau = C.nouveauCodeSecours(); }
     await lireComptes(this);
-    var r = await T.migrerCoffre(coffre, this.cleV1, this.comptes, { modules: modulesDeclares(), adminId: this.utilisateur.id, motDePasseAdmin: motDePasse, codeSecours: code, provisoire: C.nouveauMotDePasseProvisoire, id: nouvelId, aDroit: aDroitPour(this) });
+    var cles = await A.creerCles(), ancre = await C.ancreDe(cles.publique);
+    var r = await T.migrerCoffre(coffre, this.cleV1, this.comptes, { modules: modulesDeclares(), adminId: this.utilisateur.id, motDePasseAdmin: motDePasse, codeSecours: code, provisoire: C.nouveauMotDePasseProvisoire, id: nouvelId, aDroit: aDroitPour(this), ancre: ancre });
     var provisoires = r.provisoires.map(function (p) { p.compte.mdpProvisoire = true; return { nom: p.compte.nom, login: p.compte.login, motDePasse: p.motDePasse, roles: p.compte.roles, services: p.compte.services || [], finValidite: p.compte.finValidite || '' }; });
     r.coffre.comptes = await chiffrerComptes(r.trousseau[T.PLATEFORME], this.comptes);
+    var etat = await A.signer(cles, r.trousseau, r.coffre, this.comptes, { n: 1, par: this.utilisateur.id });
     this.coffre = await this.dossier.ecrireCoffre(r.coffre, coffre.rev);
     T.effacer(this.trousseau);
     installerTrousseau(this, r.trousseau, r.privee8);
+    this.attest = cles; this.ancre = ancre; this.controle = { etat: etat, anomalies: [] }; retenirN(this, this.coffre, 1);
     oublierJournaux(this);   // relecture complète avec le trousseau (l'existant est en génération 1)
     await this.synchroniser();
     await this.tracer('MIGRATION_TROUSSEAU', { libelle: 'coffre migré vers le trousseau de clés', comptes: provisoires.length + 1, nouveauCodeSecours: !!nouveau });
@@ -603,7 +777,7 @@
     var s = this;
     var secret = v2(this) ? this.privee8 : this.cleV1;   // partie privée de l'agent (ou de la clé de secours en déblocage)
     if (!secret) throw new Error('Session sans clé personnelle ouverte : reconnectez-vous.');
-    var emb = await C.emballerCleSecurite(secret, this.utilisateur.login, libelle);
+    var emb = await C.emballerCleSecurite(v2(this) ? C.paquet(secret, await ancreSession(this)) : secret, this.utilisateur.login, libelle);
     emb.id = 'k' + id8(); emb.userId = this.utilisateur.id === 'secours' ? null : this.utilisateur.id;
     await this.modifierCoffre(async function (coffre) { coffre.emballages.push(emb); });
     await this.tracer('CLE_AJOUT', { libelle: emb.libelle, rpId: emb.rpId });
@@ -638,7 +812,8 @@
     var s = this, code = C.nouveauCodeSecours();
     if (v2(this)) {
       // Nouvelle clé de secours : clés maîtresses réenveloppées ; l'ancien code et une YubiKey de secours n'ouvrent plus rien
-      await this.modifierCoffre(async function (coffre) { await T.nouveauSecours(s.trousseau, coffre, code, nouvelId()); });
+      var ancre = await ancreSession(this);
+      await this.modifierCoffre(async function (coffre) { await T.nouveauSecours(s.trousseau, coffre, code, nouvelId(), ancre); }, { reparation: ['secours'] });
     } else {
       var emb = await C.emballerCodeSecours(this.cleV1, code);
       emb.id = nouvelId(); emb.userId = null;
@@ -648,6 +823,128 @@
     }
     await this.tracer('CODE_SECOURS', {});
     return code;
+  };
+
+  // ------------------------------------------------- Attestation : état, réparations, compromission (0.5.0)
+  /** État de l'attestation pour l'affichage : { etat, anomalies, attestateur } ou null (coffre version 1). */
+  Session.prototype.etatAttestation = function () {
+    if (!v2(this)) return null;
+    return { etat: this.controle && this.controle.etat, anomalies: (this.controle && this.controle.anomalies) || [], attestateur: attestateur(this) };
+  };
+  /** Contrôle complet de l'attestation (administrateur : comptes, parties publiques, historique). */
+  Session.prototype.controlerAttestation = async function () {
+    if (!v2(this)) return null;
+    var coffre = await this.dossier.lireCoffre();
+    if (attestateur(this)) {
+      var cps = this.comptes;
+      try { cps = (await C.dechiffrerJSON(this.cle, C.deb64(coffre.comptes), 'comptes')).comptes; } catch (e) { /* comptes en mémoire */ }
+      this.controle = await anomaliesAdmin(this, coffre, cps, true);
+    } else this.controle = await controler(this, coffre);
+    return this.etatAttestation();
+  };
+
+  /**
+   * Renouvellement de toutes les clés (décision du porteur : après une restauration du coffre, ou une version antérieure
+   * remise en place) : nouvelles clés maîtresses et nouvelle génération de chaque clé, au-dessus de toute génération déjà
+   * employée ; les générations attestées restent remises aux détenteurs. Les mots de passe ne changent pas.
+   */
+  Session.prototype.renouvelerCles = async function () {
+    if (!attestateur(this) || this.formation) throw new Error('Réservé à un administrateur, sur les données réelles.');
+    var s = this, h = await historiqueAttestations(this, await this.dossier.lireCoffre()), res;
+    await this.modifierCoffre(async function (cf, comptes) {
+      var t = travail(s), depuis = await preparerRenouvellement(s, cf, t, h);
+      res = await T.appliquerDroits(t, cf, comptesPourCles(comptes), aDroitPour(s), { tout: true, depuis: depuis });
+      delete cf.restaureLe; cf.renouveleLe = new Date().toISOString();
+    }, { reparation: ['restaure', 'ancienne', 'cles'], nMin: h.n });
+    await this.tracer('RENOUVELLEMENT', { cles: res.generations, libelle: 'renouvellement de toutes les clés' });
+    return res;
+  };
+
+  /**
+   * Remet en place la dernière version du coffre dont l'attestation est intacte (signature, comptes, parties publiques),
+   * puis renouvelle toutes les clés. La clé personnelle de l'administrateur qui répare est gardée telle qu'elle est.
+   * Les comptes créés ou modifiés depuis cette version sont à refaire. Retourne la date de la version remise.
+   */
+  Session.prototype.remettreDerniereAttestee = async function () {
+    if (!attestateur(this) || !this.attest || this.formation) throw new Error('Réservé à un administrateur, sur les données réelles.');
+    // La version attestée au compteur le plus élevé (pas la plus récemment écrite : une version antérieure recopiée
+    // par un tiers porte une attestation valide, mais un compteur plus bas)
+    var s = this, actuel = await this.dossier.lireCoffre(), vs = await this.dossier.versionsCoffre(), choisi = null, comptesChoisis = null, nChoisi = -1;
+    for (var i = 0; i < vs.length; i++) {
+      var c = vs[i].coffre;
+      if (!vs[i].valide || !c || c.version !== 2 || c.creeLe !== actuel.creeLe || !c.attestation || c.attestation.publique !== this.attest.publique) continue;
+      var r = await A.verifier(c, this.ancre);
+      if (!r.etat || r.anomalies.some(function (x) { return x.bloquante && x.code !== 'restaure'; })) continue;
+      var cps;
+      try { cps = (await C.dechiffrerJSON(this.cle, C.deb64(c.comptes), 'comptes')).comptes; } catch (e) { continue; }
+      if ((await A.verifierAdmin(this.attest, c, r.etat, cps)).length || r.etat.n <= nChoisi) continue;
+      choisi = c; comptesChoisis = cps; nChoisi = r.etat.n;
+    }
+    if (!choisi) throw new Error('Aucune version attestée du coffre dans l’historique. Utilisez la copie sous scellé (restauration du coffre), puis renouvelez les clés.');
+    var h = await historiqueAttestations(this, actuel), etat = A.etatDe(choisi);
+    var moi = this.utilisateur.id === 'secours' ? T.SECOURS : this.utilisateur.id, userId = moi === T.SECOURS ? null : moi;
+    await this.modifierCoffre(async function (cf, comptes) {
+      var rev = cf.rev, mien = cf.agents[moi], mesEmb = cf.emballages.filter(function (e) { return e.userId === userId && (userId || e.methode !== 'mdp'); });
+      Object.keys(cf).forEach(function (k) { delete cf[k]; });
+      Object.assign(cf, JSON.parse(JSON.stringify(choisi)));
+      cf.rev = rev; delete cf.archiveLe; delete cf.restaureLe;
+      if (mien) {   // la partie privée de la session reste utilisable
+        cf.agents[moi] = { publique: mien.publique };
+        cf.emballages = cf.emballages.filter(function (e) { return !(e.userId === userId && (userId || e.methode !== 'mdp')); }).concat(mesEmb);
+      }
+      comptes.splice.apply(comptes, [0, comptes.length].concat(comptesChoisis));
+      var t = travail(s), depuis = await preparerRenouvellement(s, cf, t, h);
+      await T.appliquerDroits(t, cf, comptesPourCles(comptes), aDroitPour(s), { tout: true, depuis: depuis });
+      cf.renouveleLe = cf.remiseAttesteeLe = new Date().toISOString();
+    }, { reparation: TOUTES, nMin: h.n });
+    await this.tracer('REMISE_ATTESTEE', { libelle: 'dernière version attestée du coffre remise en place, clés renouvelées', etatDu: etat.le });
+    return etat.le;
+  };
+
+  /**
+   * Compromission (décision du porteur) : tout renouveler. Nouvelles clés maîtresses et générations, nouvelles clés
+   * d'attestation, nouveau code de secours, nouvelle clé personnelle pour chaque compte actif : l'administrateur garde son
+   * mot de passe (`motDePasse`), les autres reçoivent un mot de passe provisoire ; clés de sécurité à réenregistrer.
+   * Retourne { codeSecours, provisoires: [fiches] }.
+   */
+  Session.prototype.renouvelerTout = async function (motDePasse) {
+    if (!attestateur(this) || this.formation) throw new Error('Réservé à un administrateur, sur les données réelles.');
+    var s = this, moi = this.utilisateur.id, secours = moi === 'secours';
+    if (!secours) {
+      var mien = this.coffre.emballages.filter(function (e) { return e.methode === 'mdp' && e.userId === moi; }), ok = false;
+      for (var i = 0; i < mien.length && !ok; i++) { try { (await C.deballerMotDePasse(mien[i], motDePasse || '', true)).fill(0); ok = true; } catch (e) { /* suivant */ } }
+      if (!ok) throw new Error('Mot de passe incorrect.');
+    }
+    var cles = await A.creerCles(), ancre = await C.ancreDe(cles.publique), code = C.nouveauCodeSecours();
+    var h = await historiqueAttestations(this, await this.dossier.lireCoffre());
+    var actifs = comptesPourCles(this.comptes).filter(function (c) { return c.actif; }), nouvelles = {}, provisoires = [];
+    for (var k = 0; k < actifs.length; k++) {
+      var c = actifs[k], lui = c.id === moi, mdp = lui ? motDePasse : C.nouveauMotDePasseProvisoire();
+      var p = await C.nouvellePaire(), p8 = await C.exporterPrivee(p.privateKey);
+      var emb = await C.emballerMotDePasse(C.paquet(p8, ancre), mdp, lui ? undefined : C.ITERATIONS_PROVISOIRE);
+      emb.id = nouvelId(); emb.userId = c.id; emb.login = c.login;
+      nouvelles[c.id] = { publique: await C.exporterPublique(p.publicKey), emb: emb, p8: lui ? p8 : null };
+      if (!lui) { p8.fill(0); provisoires.push({ nom: c.nom, login: c.login, motDePasse: mdp, roles: c.roles, services: c.services || [], finValidite: c.finValidite || '' }); }
+    }
+    await this.modifierCoffre(async function (cf, comptes) {
+      var manquants = comptesPourCles(comptes).filter(function (c) { return c.actif && !nouvelles[c.id]; });
+      if (manquants.length) throw new Error('Des comptes ont été créés ou réactivés pendant l’opération : recommencez.');
+      cf.agents = { secours: cf.agents.secours }; cf.emballages = []; cf.enveloppes = [];
+      Object.keys(nouvelles).forEach(function (id) {
+        cf.agents[id] = { publique: nouvelles[id].publique }; cf.emballages.push(nouvelles[id].emb);
+        var c = comptes.filter(function (x) { return x.id === id; })[0];
+        if (c && id !== moi) c.mdpProvisoire = true;
+      });
+      if (nouvelles[moi]) s.priveeEnAttente = nouvelles[moi].p8;
+      s.attestEnAttente = cles; s.ancreEnAttente = ancre;
+      var t = travail(s), depuis = await preparerRenouvellement(s, cf, t, h);
+      await T.appliquerDroits(t, cf, comptesPourCles(comptes), aDroitPour(s), { tout: true, depuis: depuis });
+      await T.nouveauSecours(t, cf, code, nouvelId(), ancre);
+      delete cf.restaureLe; cf.renouveleLe = cf.compromissionLe = new Date().toISOString();
+    }, { reparation: ['absente', 'cles', 'restaure', 'ancienne', 'agents', 'secours'], nMin: h.n });
+    await this.tracer('COMPROMISSION', { libelle: actifs.length + ' compte(s) : nouvelle clé personnelle', nbComptes: actifs.length });
+    if (secours) this.verrouiller();   // la clé de secours a changé : reconnexion avec le nouveau code
+    return { codeSecours: code, provisoires: provisoires };
   };
 
   // ---------------------------------------------------------- Journal

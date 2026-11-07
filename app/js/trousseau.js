@@ -27,10 +27,13 @@
   'use strict';
 
   var PLATEFORME = 'plateforme', SECOURS = 'secours';
+  function attestation() { return (typeof self !== 'undefined' && self.SIC && self.SIC.attestation) || (typeof require === 'function' ? require('./attestation.js') : null); }
 
   function contexte(cle, g, pour) { return cle + ':' + g + ':' + pour; }
   /** Première génération tirée de la clé maîtresse en vigueur (coffres migrés en 0.4.3 : « origine » = base 2). */
   function baseDe(c) { return (c && (c.base || (c.origine ? 2 : 1))) || 1; }
+  /** Générations perdues d'une clé (non retrouvées lors d'un renouvellement après restauration) : ni remises, ni attestées. */
+  function perdue(c, g) { return !!(c && c.perdues && c.perdues.indexOf(g) >= 0); }
 
   /** Jeu d'une clé de droit en mémoire : octets des générations reçues, ou clé maîtresse (toutes les générations). */
   function nouveauJeu(nom, courante, octets, maitresse, base) {
@@ -88,6 +91,7 @@
       var nom = droits.cles[i], jeu = trousseau[nom], courante = coffre.cles[nom].courante;
       if (!jeu) throw new Error('Clé « ' + nom + ' » absente de votre trousseau : remise impossible.');
       for (var g = 1; g <= courante; g++) {
+        if (perdue(coffre.cles[nom], g)) continue;
         var o = await jeu.octetsDe(g);
         if (!o) throw new Error('Génération ' + g + ' de la clé « ' + nom + ' » absente de votre trousseau : remise impossible.');
         res.push(Object.assign({ cle: nom, g: g, pour: pour }, await C.envelopper(o, publique, contexte(nom, g, pour))));
@@ -111,6 +115,7 @@
       if (!jeu || !jeu.maitresse) throw new Error('Seul un administrateur peut préparer la clé de secours.');
       res.push(Object.assign({ cle: nom, g: 'm', pour: SECOURS }, await C.envelopper(jeu.maitresse, publique, contexte(nom, 'm', SECOURS))));
       for (var g = 1; g < baseDe(coffre.cles[nom]); g++) {   // générations qui ne se déduisent pas de la clé maîtresse en vigueur
+        if (perdue(coffre.cles[nom], g)) continue;
         var o = await jeu.octetsDe(g);
         if (!o) throw new Error('Génération ' + g + ' de la clé « ' + nom + ' » absente de votre trousseau.');
         res.push(Object.assign({ cle: nom, g: g, pour: SECOURS }, await C.envelopper(o, publique, contexte(nom, g, SECOURS))));
@@ -119,10 +124,17 @@
     return res;
   }
 
-  /** Ouvre le trousseau du détenteur `pour` (id du compte ou 'secours') avec sa partie privée (CryptoKey). */
-  async function ouvrir(coffre, pour, privee) {
-    var t = {};
-    Object.keys(coffre.cles).forEach(function (nom) { t[nom] = nouveauJeu(nom, coffre.cles[nom].courante, {}, null, baseDe(coffre.cles[nom])); });
+  /**
+   * Ouvre le trousseau du détenteur `pour` (id du compte ou 'secours') avec sa partie privée (CryptoKey).
+   * `etat` (attestation vérifiée, 0.5.0) : seules les générations et clés maîtresses dont l'empreinte est attestée sont
+   * acceptées, et la génération d'écriture est celle de l'état signé (une enveloppe glissée par un tiers est ignorée).
+   */
+  async function ouvrir(coffre, pour, privee, etat) {
+    var t = {}, A = attestation();
+    Object.keys(coffre.cles).forEach(function (nom) {
+      var c = etat && etat.cles[nom] ? etat.cles[nom] : coffre.cles[nom];
+      t[nom] = nouveauJeu(nom, c.courante, {}, null, baseDe(c));
+    });
     var miennes = (coffre.enveloppes || []).filter(function (e) { return e.pour === pour; });
     for (var i = 0; i < miennes.length; i++) {
       var e = miennes[i], jeu = t[e.cle];
@@ -130,11 +142,12 @@
       var o;
       // Une enveloppe abîmée ou modifiée n'empêche pas d'ouvrir les autres (elle est comptée et signalée)
       try { o = await C.ouvrirEnveloppe(e, privee, contexte(e.cle, e.g, pour)); } catch (err) { jeu.illisibles = (jeu.illisibles || 0) + 1; continue; }
+      if (etat && !(await A.generationAttestee(etat, e.cle, e.g, o))) { o.fill(0); jeu.rejetees = (jeu.rejetees || 0) + 1; continue; }
       if (e.g === 'm') jeu.maitresse = o; else jeu.octets[e.g] = o;
     }
     // Génération d'écriture : jamais en deçà de la plus haute génération reçue (une génération courante remise en
     // arrière dans le coffre ne fait pas réécrire avec une génération que détient un agent retiré)
-    Object.keys(t).forEach(function (nom) {
+    if (!etat) Object.keys(t).forEach(function (nom) {
       var recues = Object.keys(t[nom].octets).map(Number);
       t[nom].courante = Math.max.apply(null, [t[nom].courante].concat(recues));
     });
@@ -177,7 +190,7 @@
     // Clé de secours : clés maîtresses seulement (elles donnent toutes les générations)
     var sec = await C.nouvellePaire(), sec8 = await C.exporterPrivee(sec.privateKey);
     coffre.agents[SECOURS] = { publique: await C.exporterPublique(sec.publicKey) };
-    var embSec = await C.emballerCodeSecours(sec8, options.codeSecours);
+    var embSec = await C.emballerCodeSecours(C.paquet(sec8, options.ancre), options.codeSecours);
     embSec.id = options.id(); embSec.userId = null;
     coffre.emballages.push(embSec);
     coffre.enveloppes = coffre.enveloppes.concat(await enveloppesSecours(t, coffre, sec.publicKey));
@@ -185,7 +198,7 @@
     // Administrateur
     var adm = await C.nouvellePaire(), adm8 = await C.exporterPrivee(adm.privateKey);
     coffre.agents[options.compte.id] = { publique: await C.exporterPublique(adm.publicKey) };
-    var emb = await C.emballerMotDePasse(adm8, options.motDePasse);
+    var emb = await C.emballerMotDePasse(C.paquet(adm8, options.ancre), options.motDePasse);
     emb.id = options.id(); emb.userId = options.compte.id; emb.login = options.compte.login;
     coffre.emballages.push(emb);
     coffre.enveloppes = coffre.enveloppes.concat(await enveloppesPour(t, coffre, options.compte.id, adm.publicKey, droitsDe(coffre, options.compte)));
@@ -196,9 +209,9 @@
    * Nouvelle clé personnelle pour un compte : paire, partie privée emballée par le mot de passe donné, enveloppes
    * selon ses droits. Retourne { publique (texte), emballage, enveloppes, privee8 }.
    */
-  async function nouvelAgent(trousseau, coffre, compte, motDePasse, iterations, aDroit) {
+  async function nouvelAgent(trousseau, coffre, compte, motDePasse, iterations, aDroit, ancre) {
     var p = await C.nouvellePaire(), p8 = await C.exporterPrivee(p.privateKey);
-    var emb = await C.emballerMotDePasse(p8, motDePasse, iterations);
+    var emb = await C.emballerMotDePasse(C.paquet(p8, ancre), motDePasse, iterations);
     var env = await enveloppesPour(trousseau, coffre, compte.id, p.publicKey, droitsDe(coffre, compte, aDroit));
     return { publique: await C.exporterPublique(p.publicKey), emballage: emb, enveloppes: env, privee8: p8 };
   }
@@ -222,7 +235,7 @@
       if (!c.actif) return;
       if (!coffre.agents[c.id]) { res.push({ id: c.id, cles: ['clé personnelle'] }); return; }
       var manque = a[c.id].cles.filter(function (nom) {
-        for (var g = 1; g <= coffre.cles[nom].courante; g++) if (!tient[c.id + '|' + nom + '|' + g]) return true;
+        for (var g = 1; g <= coffre.cles[nom].courante; g++) if (!tient[c.id + '|' + nom + '|' + g] && !perdue(coffre.cles[nom], g)) return true;
         return a[c.id].maitresses && !tient[c.id + '|' + nom + '|m'];
       });
       if (manque.length) res.push({ id: c.id, cles: manque });
@@ -239,7 +252,8 @@
    * Les enveloppes de tous les comptes actifs et de la clé de secours sont recalculées. Retourne
    * { change, generations: [noms], maitresses: [noms] } ; `change` faux si rien n'était à faire.
    */
-  async function appliquerDroits(trousseau, coffre, comptes, aDroit) {
+  async function appliquerDroits(trousseau, coffre, comptes, aDroit, options) {
+    var tout = !!(options && options.tout);   // renouvellement de toutes les clés (restauration, compromission)
     var a = attendus(coffre, comptes, aDroit), noms = Object.keys(coffre.cles);
     var res = { change: false, generations: [], maitresses: [] };
     var tenait = {};   // nom → { pour: true } d'après les enveloppes actuelles (hors secours)
@@ -251,12 +265,19 @@
     for (var i = 0; i < noms.length; i++) {
       var nom = noms[i], jeu = trousseau[nom];
       if (!jeu || !jeu.maitresse) throw new Error('Seul un administrateur peut appliquer les droits aux clés.');
-      var perd = Object.keys(tenait[nom].gen).some(function (id) { return !a[id] || a[id].cles.indexOf(nom) < 0; });
-      var perdMaitresse = Object.keys(tenait[nom].m).some(function (id) { return !a[id] || !a[id].maitresses; });
+      var perd = tout || Object.keys(tenait[nom].gen).some(function (id) { return !a[id] || a[id].cles.indexOf(nom) < 0; });
+      var perdMaitresse = tout || Object.keys(tenait[nom].m).some(function (id) { return !a[id] || !a[id].maitresses; });
       if (perd || perdMaitresse) {
-        var nouvelle = coffre.cles[nom].courante + 1;
+        // Renouvellement après restauration : au-dessus de toute génération déjà employée (`depuis`), un même numéro
+        // ne désigne jamais deux clés différentes
+        var nouvelle = Math.max(coffre.cles[nom].courante, (options && options.depuis && options.depuis[nom]) || 0) + 1;
         if (perdMaitresse) {
-          for (var g = 1; g < nouvelle; g++) if (!(await jeu.octetsDe(g))) throw new Error('Génération ' + g + ' de la clé « ' + nom + ' » absente de votre trousseau.');
+          for (var g = 1; g < nouvelle; g++) {
+            if (perdue(coffre.cles[nom], g)) { if (jeu.octets[g]) { jeu.octets[g].fill(0); delete jeu.octets[g]; } continue; }
+            if (await jeu.octetsDe(g)) continue;
+            if (!tout) throw new Error('Génération ' + g + ' de la clé « ' + nom + ' » absente de votre trousseau.');
+            if (!perdue(coffre.cles[nom], g)) (coffre.cles[nom].perdues = coffre.cles[nom].perdues || []).push(g);   // saisies de cette génération illisibles
+          }
           jeu.maitresse.fill(0); jeu.maitresse = C.nouvelleMaitresse(); jeu.base = nouvelle;
           coffre.cles[nom].base = nouvelle; delete coffre.cles[nom].origine;
           res.maitresses.push(nom);
@@ -269,7 +290,7 @@
     var voulu = {};
     Object.keys(a).forEach(function (id) {
       a[id].cles.forEach(function (nom) {
-        for (var g = 1; g <= coffre.cles[nom].courante; g++) voulu[id + '|' + nom + '|' + g] = true;
+        for (var g = 1; g <= coffre.cles[nom].courante; g++) if (!perdue(coffre.cles[nom], g)) voulu[id + '|' + nom + '|' + g] = true;
         if (a[id].maitresses) voulu[id + '|' + nom + '|m'] = true;
       });
     });
@@ -292,11 +313,11 @@
   }
 
   /** Nouvelle clé de secours (nouveau code) : réservée à qui détient les clés maîtresses. Retourne l'emballage. */
-  async function nouveauSecours(trousseau, coffre, code, id) {
+  async function nouveauSecours(trousseau, coffre, code, id, ancre) {
     var noms = Object.keys(coffre.cles);
     noms.forEach(function (n) { if (!trousseau[n] || !trousseau[n].maitresse) throw new Error('Seul un administrateur peut renouveler le code de secours.'); });
     var sec = await C.nouvellePaire(), sec8 = await C.exporterPrivee(sec.privateKey);
-    var emb = await C.emballerCodeSecours(sec8, code);
+    var emb = await C.emballerCodeSecours(C.paquet(sec8, ancre), code);
     emb.id = id; emb.userId = null;
     sec8.fill(0);
     var env = await enveloppesSecours(trousseau, coffre, sec.publicKey);
@@ -327,7 +348,7 @@
     if (ancien.formation) coffre.formation = ancien.formation;   // clé du jeu protégée par l'ancienne clé : génération 1 d'Isocont
     var sec = await C.nouvellePaire(), sec8 = await C.exporterPrivee(sec.privateKey);
     coffre.agents[SECOURS] = { publique: await C.exporterPublique(sec.publicKey) };
-    var embSec = await C.emballerCodeSecours(sec8, options.codeSecours);
+    var embSec = await C.emballerCodeSecours(C.paquet(sec8, options.ancre), options.codeSecours);
     embSec.id = options.id(); embSec.userId = null;
     sec8.fill(0);
     coffre.emballages.push(embSec);
@@ -337,7 +358,7 @@
       var c = comptes[i];
       if (!c.actif) continue;   // compte désactivé : clé personnelle créée à sa réactivation (réinitialisation)
       var lui = c.id === options.adminId, mdp = lui ? options.motDePasseAdmin : options.provisoire();
-      var a = await nouvelAgent(t, coffre, c, mdp, lui ? undefined : C.ITERATIONS_PROVISOIRE, options.aDroit);
+      var a = await nouvelAgent(t, coffre, c, mdp, lui ? undefined : C.ITERATIONS_PROVISOIRE, options.aDroit, options.ancre);
       a.emballage.id = options.id(); a.emballage.userId = c.id; a.emballage.login = c.login;
       coffre.agents[c.id] = { publique: a.publique };
       coffre.emballages.push(a.emballage);
@@ -351,6 +372,6 @@
   return {
     PLATEFORME: PLATEFORME, migrerCoffre: migrerCoffre, enveloppesSecours: enveloppesSecours, SECOURS: SECOURS, jeuV1: jeuV1, nouveauJeu: nouveauJeu, droitsDe: droitsDe, enveloppesPour: enveloppesPour,
     ouvrir: ouvrir, manquantes: manquantes, effacer: effacer, creerCoffre: creerCoffre, nouvelAgent: nouvelAgent,
-    appliquerDroits: appliquerDroits, incomplets: incomplets, copier: copier, contexte: contexte, nouveauSecours: nouveauSecours, baseDe: baseDe
+    appliquerDroits: appliquerDroits, incomplets: incomplets, perdue: perdue, copier: copier, contexte: contexte, nouveauSecours: nouveauSecours, baseDe: baseDe
   };
 });

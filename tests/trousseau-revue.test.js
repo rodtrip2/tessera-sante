@@ -157,7 +157,7 @@ test('I4 — Ancien mot de passe retrouvé dans l’historique du coffre : il n�
     if (emb && !p8) p8 = await C.deballerMotDePasse(emb, 'mot de passe personnel a', true).catch(() => null);
   }
   assert.ok(p8, 'emballage de l’ancien mot de passe retrouvé dans l’historique');
-  const t = await SIC.trousseau.ouvrir(await new Dossier(racine, 'reseau').lireCoffre(), id('ide.a'), await C.importerPrivee(p8));
+  const t = await SIC.trousseau.ouvrir(await new Dossier(racine, 'reseau').lireCoffre(), id('ide.a'), await C.importerPrivee(C.ouvrirPaquet(p8).prive8));
   assert.equal(await t.plateforme.cle(t.plateforme.courante), null);
   assert.equal(await t.isocont.cle(t.isocont.courante), null);
   // Un compte désactivé perd sa clé personnelle ; réactivé, il est signalé jusqu'à la réinitialisation
