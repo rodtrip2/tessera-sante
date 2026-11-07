@@ -1369,7 +1369,7 @@
           var av2 = avantCorr[k] !== undefined && valeurChamp(k, avantCorr[k]) !== valeurChamp(k, ch[k]) ? valeurChamp(k, avantCorr[k]) + ' → ' : '';
           return (lieu(LIB_CHAMPS[k]) || k) + ' : ' + av2 + valeurChamp(k, ch[k]);
         }).join(' ; ') + '. Motif : ' + (d.motif || 'non précisé') + '.';
-      case 'LOT': return (d.libelle || 'Lot de saisies') + ' — ' + (d.evenements || []).length + ' saisies enregistrées en une fois';
+      case 'LOT': return (d.libelle || 'Lot de saisies') + (d.journal === 'patients' ? ' (fiches patient)' : '') + ' — ' + (d.evenements || []).length + ' saisies enregistrées en une fois' + (d.lien ? ' ; lié aux autres lots du même enregistrement (annulés ensemble)' : '');
       case 'STATS': return 'Statistiques ' + libService(d.service) + ' ' + d.annee + ' : patients en hospitalisation complète ' + (d.hc == null ? '—' : d.hc) + ', sous contrainte ' + (d.ssc == null ? '—' : d.ssc);
       default: return e.type;
     }

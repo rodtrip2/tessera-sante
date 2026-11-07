@@ -119,8 +119,9 @@ Les modules qui concernent des patients (Isocont, Agenda) **dépendent** du modu
 
 ### Échanges entre modules
 
-- **Lecture à la volée** (seul mode activé) : quand l'Agenda affiche les échéances JLD, le socle demande au module Isocont de les calculer **sur le poste**, avec la clé d'Isocont que l'agent détient déjà. Rien n'est écrit sur le partage ; aucune copie n'existe hors du module Isocont. Un agent sans accès à Isocont ne voit pas les échéances.
+- **Lecture à la volée** (seul mode activé) : quand l'Agenda affiche les échéances JLD, le socle demande au module Isocont de les calculer **sur le poste**, avec la clé d'Isocont que l'agent détient déjà. Rien n'est écrit sur le partage ; aucune copie n'existe hors du module Isocont. Un agent sans accès à Isocont ne voit pas les échéances. *Existant* depuis la version 0.6.1 pour la fiche patient : Isocont lit les fiches calculées par le module Patients (fourniture `patients.fiches`), sans les reconstituer lui-même.
 - **Publication** (prévue, **désactivée par défaut**) : le module fournisseur écrirait un extrait minimal chiffré par une clé d'échange propre au service (`echanges\<module>\<service>.enc`). Ce mode crée une copie de données de santé hors du module source : il ne sera activé qu'après avis du délégué à la protection des données.
+- Un import ou un lot de saisies touchant plusieurs modules est rangé en un lot par journal, liés entre eux : annuler l'un annule les autres, « Rétablir » les rétablit ensemble (existant).
 - Un module n'écrit jamais dans le journal d'un autre. L'import de l'historique d'Isocont transmet ses propositions de fiches à Patients, qui les vérifie et les enregistre lui-même.
 
 ## 4. Prérequis

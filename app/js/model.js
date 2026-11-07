@@ -272,10 +272,21 @@
    * Retourne { config, patients, mesures, professionnels, saisiesStats, conflits, annules, journal, parId }.
    * Tri, annulations, chaînage et intégrité : noyau du journal ; application des saisies : ci-dessous.
    */
-  function reduire(evts) {
+  /**
+   * Fiches patient lues à la volée chez le module Patients (fourniture `patients.fiches`, étape 5) : Isocont ne
+   * reconstitue plus la fiche lui-même. `contexte.patients` permet de les fournir directement (tests).
+   */
+  function fichesPatients(evts, contexte) {
+    if (contexte && contexte.patients) return contexte.patients;
+    var reg = typeof module === 'object' && module.exports ? (require('./module-patients.js'), require('./modules.js')) : (self.SIC && self.SIC.modules);
+    return (reg && reg.fournir('patients.fiches', evts)) || { fiches: {}, fusions: {} };
+  }
+
+  function reduire(evts, contexte) {
+    var fp = fichesPatients(evts, contexte);
     return N.reduire(evts, {
       etat: function () {
-        return { config: cloner(CONFIG_DEFAUT), fusions: {}, propositions: {}, patients: {}, mesures: {}, professionnels: [], saisiesStats: {} };
+        return { config: cloner(CONFIG_DEFAUT), fusions: fp.fusions, propositions: {}, patients: fp.fiches, mesures: {}, professionnels: [], saisiesStats: {} };
       },
       appliquer: appliquer
     });
@@ -292,35 +303,14 @@
     var d = e.data || {}, m;
     if (d.patientId && st.fusions[d.patientId]) d = Object.assign({}, d, { patientId: ciblePatient(st, d.patientId) });
     switch (e.type) {
-      case 'FUSION':
-        var g = ciblePatient(st, d.garde), a = ciblePatient(st, d.absorbe);
-        var pg = st.patients[g], pa = st.patients[a];
-        if (!pg || !pa || g === a) break;
-        ['ipp', 'nom', 'prenom', 'naissance', 'protection', 'service'].forEach(function (k) { if (!pg[k] && pa[k]) pg[k] = pa[k]; });
-        pg.modes = pg.modes.concat(pa.modes).sort(function (x, y) { return x.date - y.date; });
-        pg.fusionnes = (pg.fusionnes || []).concat([{ id: a, ipp: pa.ipp || '', nom: pa.nom || '', prenom: pa.prenom || '', naissance: pa.naissance || '', evt: e.id, motif: d.motif || '' }], pa.fusionnes || []);
-        Object.keys(st.mesures).forEach(function (k) { if (st.mesures[k].patientId === a) st.mesures[k].patientId = g; });
-        delete st.patients[a];
-        st.fusions[a] = g;
-        break;
-
+      // FUSION, PATIENT, MODE_HOSPI : fiche reconstituée par le module Patients (fichesPatients) ; les mesures d'une
+      // fiche fusionnée sont rattachées à la fiche conservée dès leur lecture (`patientId` redirigé ci-dessus).
       case 'CONFIG':
         st.config[d.cle] = cloner(d.valeur);
         break;
 
       case 'INTEGRITE':
         N.appliquerIntegrite(st, e);
-        break;
-
-      case 'PATIENT':
-        var p = st.patients[d.patientId] || { id: d.patientId, modes: [] };
-        ['ipp', 'nom', 'prenom', 'naissance', 'protection', 'service', 'detenu'].forEach(function (k) { if (d[k] !== undefined) p[k] = d[k]; });
-        st.patients[d.patientId] = p;
-        break;
-
-      case 'MODE_HOSPI':
-        var pt = st.patients[d.patientId];
-        if (pt) { pt.modes.push({ date: d.date, mode: d.mode, evt: e.id, by: e.by }); pt.modes.sort(function (a, b) { return a.date - b.date; }); }
         break;
 
       case 'STATS':
