@@ -1,5 +1,18 @@
 # Journal des modifications — Tessera Santé
 
+## 0.8.3 — 7 novembre 2026
+
+Étape 6 (module Agenda), troisième sous-étape : **tâches, absences, répétition et check-lists**. Décisions du porteur du 7 novembre 2026.
+
+- **Icône** : mosaïque de neuf tesselles, sans initiales (« TS » est trop connoté en psychiatrie) ; l'en-tête affiche l'icône.
+- **Onglet « Tâches du service »**, affiché seulement à qui a l'accès « Régler les tâches » (cadre par défaut) : tâches ponctuelles ou récurrentes (chaque jour, certains jours, chaque mois, jusqu'à une date), heure facultative, précision, pour certains rôles ou toute l'équipe. Elles apparaissent chaque jour dû dans l'agenda ; l'agent les coche « faites » (nom et heure gardés).
+- **Absences** : *+ Absence* dans l'agenda ; chacun saisit les siennes, le cadre celles de l'équipe ; **motif facultatif** (« non précisé » possible) ; affichées dans l'agenda ; un professionnel prévu sur un élément pendant son absence est signalé.
+- **Répétition d'un événement** : chaque jour, chaque semaine (jours choisis), chaque mois, jusqu'à une date ou sans fin ; même heure locale au changement d'heure ; *Retirer cette date* pour une seule occurrence.
+- **Check-list d'un événement** (ex. sortie d'un patient : lettre de sortie, ordonnance, infirmier libéral, rendez-vous au centre médico-psychologique, transport) : modèles réglables dans *Administration → Agenda*, points libres ; points cochés pour chaque date (qui, quand) ; avancement affiché sur l'élément (« Check-list : 1/5 »).
+- Nouveaux types d'événements : sortie ou permission, autre événement.
+- Accès de l'Agenda revus : « Planifier » (événements), « Régler les tâches » (nouveau), « Cocher les tâches faites et les check-lists ».
+- Nouveaux tests (répétition, changement d'heure, check-list, tâches dues, absences ; 204 au vert) ; écrans vérifiés dans Chrome (dont l'onglet masqué pour l'AS).
+
 ## 0.8.2 — 7 novembre 2026
 
 Décisions du porteur du 7 novembre 2026 sur l'Agenda et le nom de l'application.

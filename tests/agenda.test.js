@@ -173,3 +173,40 @@ test('Commentaire sur un élément d’un autre service : permis sans accès par
   assert.equal(c.length, 1);
   assert.equal(c[0].service, 'U1');
 });
+
+test('Répétition : chaque semaine (jours choisis), jusqu’au, occurrence retirée, chaque mois, changement d’heure', () => {
+  const A = require('../app/js/module-agenda.js');
+  const L = (a, m, j, h, mi) => new Date(a, m - 1, j, h || 0, mi || 0).getTime();
+  const r = { id: 'R', debut: L(2026, 11, 2, 10), fin: L(2026, 11, 2, 11, 30), regularite: { type: 'semaine', jours: [1, 4], jusquAu: '2026-11-19' }, exceptions: ['2026-11-12'] };
+  const o = A.occurrences(r, L(2026, 11, 1), L(2026, 12, 1));
+  assert.deepEqual(o.map((x) => x.occurrence), ['2026-11-02', '2026-11-05', '2026-11-09', '2026-11-16', '2026-11-19']);
+  assert.equal(new Date(o[1].debut).getHours(), 10);
+  assert.equal(o[1].fin - o[1].debut, 90 * 60000);
+  assert.deepEqual(A.datesOccurrences(L(2026, 1, 31), { type: 'mois' }, L(2026, 1, 1), L(2026, 6, 1)), ['2026-01-31', '2026-03-31', '2026-05-31']);
+  // Chaque jour à 9 h, à travers le passage à l'heure d'hiver (25 octobre 2026) : toujours 9 h locales
+  const q = A.occurrences({ debut: L(2026, 10, 24, 9), fin: L(2026, 10, 24, 10), regularite: { type: 'jour' } }, L(2026, 10, 24), L(2026, 10, 27));
+  assert.deepEqual(q.map((x) => new Date(x.debut).getHours()), [9, 9, 9]);
+  assert.deepEqual(A.occurrences({ debut: L(2026, 11, 2, 10), regularite: {} }, L(2026, 11, 2), L(2026, 11, 3)).map((x) => x.occurrence), ['2026-11-02']);
+});
+
+test('Check-list d’un événement (sortie) : points cochés par occurrence ; modèles ; tâches dues et faites ; professionnel prévu absent', () => {
+  const A = require('../app/js/module-agenda.js');
+  const L = (a, m, j, h) => new Date(a, m - 1, j, h || 0).getTime();
+  assert.deepEqual(A.checklists({})[0].items.length, 5);
+  const ev = (id, type, data) => ({ id, at: '2026-11-0' + (1 + (id.charCodeAt(0) % 8)) + 'T08:00:00.000Z', by: 'u', type, data });
+  const st = A.reduire([
+    ev('a', 'RDV', { id: 'S1', nature: 'sortie', titre: 'Sortie (fictif)', debut: L(2026, 11, 10, 14), service: 'U1', patients: ['P1'], professionnels: [{ id: 'u1', nom: 'IDE A (fictif)' }],
+      checklist: [{ id: 'i1', libelle: 'Lettre de sortie' }, { id: 'i2', libelle: 'Ordonnance' }] }),
+    ev('b', 'CHECK', { rdv: 'S1', item: 'i1', occurrence: '2026-11-10' }),
+    ev('c', 'TACHE', { id: 'T1', titre: 'Vérifier le chariot d’urgence (fictif)', service: 'U1', debut: '2026-11-01', regularite: { type: 'semaine', jours: [1] }, heure: '08:00', pour: { roles: ['IDE'] } }),
+    ev('d', 'TACHE_FAITE', { tache: 'T1', occurrence: '2026-11-09' }),
+    ev('e', 'ABSENCE', { id: 'B1', agent: 'u1', nom: 'IDE A (fictif)', debut: L(2026, 11, 10), fin: L(2026, 11, 11) })]);
+  const els = A.elements(st, {}, ['U1'], L(2026, 11, 10), L(2026, 11, 11));
+  assert.equal(els[0].checklist.reste, 1);
+  assert.equal(els[0].checklist.items[0].fait.par, 'u');
+  assert.deepEqual(els[0].absents.map((p) => p.id), ['u1']);
+  const dues = A.tachesDues(st, ['U1'], L(2026, 11, 9), L(2026, 11, 17));
+  assert.deepEqual(dues.map((x) => [x.occurrence, !!x.fait]), [['2026-11-09', true], ['2026-11-16', false]]);
+  assert.ok(A.tachePour(st.taches.T1, { id: 'x', roles: ['IDE'] }) && !A.tachePour(st.taches.T1, { id: 'y', roles: ['AS'] }));
+  assert.equal(A.absences(st, L(2026, 11, 10), L(2026, 11, 11))[0].categorie, undefined);   // motif facultatif
+});

@@ -15,8 +15,11 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre) {
   'use strict';
 
-  var TYPES = ['RDV', 'COMMENTAIRE', 'TACHE', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
-  var NATURES = { accompagnement: 'Accompagnement', activite: 'Activité thérapeutique', reunion: 'Réunion' };
+  var TYPES = ['RDV', 'COMMENTAIRE', 'CHECK', 'TACHE', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
+  var NATURES = { accompagnement: 'Accompagnement', activite: 'Activité thérapeutique', reunion: 'Réunion', sortie: 'Sortie ou permission', autre: 'Autre événement' };
+  var REGULARITES = { aucune: 'Une seule fois', jour: 'Chaque jour', semaine: 'Chaque semaine (jours choisis)', mois: 'Chaque mois (même date)' };
+  // Modèle de check-list fourni (décision du porteur du 7 novembre 2026 : exemple de la sortie d'un patient), modifiable
+  var CHECKLISTS_DEFAUT = [{ code: 'sortie', libelle: 'Sortie du patient', items: ['Lettre de sortie', 'Ordonnance', 'Infirmier(ère) libéral(e) prévenu(e)', 'Rendez-vous au centre médico-psychologique (CMP)', 'Transport commandé (VSL, taxi, ambulance)'] }];
   var CATEGORIES_ABSENCE = { conge: 'Congé', formation: 'Formation', exterieur: 'Réunion extérieure', autre: 'Autre' };
   // Identité du patient affichée dans l'agenda (décision du 4 novembre 2026 ; défaut proposé : initiales)
   var IDENTITES = { aucune: 'Aucune (« patient »)', initiales: 'Initiales', ipp: 'IPP', nom: 'Nom complet' };
@@ -56,6 +59,86 @@
     return (ini(fiche.prenom) + '.' + ini(fiche.nom) + '.').replace(/^\./, '') || 'patient';
   }
 
+  // ------------------------------------------------------------ Répétition (événements et tâches)
+  function jourISO(t) { var d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function depuisISO(j) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(j || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : null; }
+  function plusJours(t, n) { var d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); }   // heures d'été comprises
+  /** Répétition validée : { type: aucune | jour | semaine | mois, jours: [0..6] (semaine), jusquAu: 'AAAA-MM-JJ' | '' }. */
+  function regularite(v) {
+    var r = v || {}, type = REGULARITES[r.type] ? r.type : 'aucune';
+    var jours = Array.isArray(r.jours) ? r.jours.map(Number).filter(function (j) { return j >= 0 && j <= 6; }) : [];
+    return { type: type, jours: jours, jusquAu: depuisISO(r.jusquAu) ? r.jusquAu : '' };
+  }
+  /**
+   * Dates (AAAA-MM-JJ) des occurrences d'une répétition à partir du jour `premier` (ms), dans [debut, fin[ (ms).
+   * Semaine sans jour choisi : le jour de la première occurrence. Mois : même quantième (mois trop courts sautés).
+   */
+  function datesOccurrences(premier, reg, debut, fin) {
+    var r = regularite(reg), res = [], j0 = depuisISO(jourISO(premier)), limite = r.jusquAu ? plusJours(depuisISO(r.jusquAu), 1) : Infinity;
+    if (r.type === 'aucune') return j0 < fin && plusJours(j0, 1) > debut ? [jourISO(j0)] : [];
+    var depart = Math.max(j0, depuisISO(jourISO(debut))), jours = r.jours.length ? r.jours : [new Date(j0).getDay()];
+    for (var t = depart, n = 0; t < fin && t < limite && n < 400; t = plusJours(t, 1), n++) {
+      var d = new Date(t);
+      if (r.type === 'jour' || (r.type === 'semaine' && jours.indexOf(d.getDay()) >= 0) || (r.type === 'mois' && d.getDate() === new Date(j0).getDate())) res.push(jourISO(t));
+    }
+    return res;
+  }
+  /** Occurrences d'un élément qui chevauchent [debut, fin[ : { occurrence, debut, fin } (même heure, même durée). */
+  function occurrences(r, debut, fin) {
+    var duree = (r.fin || r.debut) - r.debut, b = new Date(r.debut), exc = r.exceptions || [];
+    function aLHeure(j) { var d = new Date(depuisISO(j)); d.setHours(b.getHours(), b.getMinutes(), 0, 0); return d.getTime(); }   // heure locale gardée
+    var reg = regularite(r.regularite);
+    if (reg.type === 'aucune') return r.debut < fin && (r.fin || r.debut) >= debut ? [{ occurrence: jourISO(r.debut), debut: r.debut, fin: r.fin || null }] : [];
+    return datesOccurrences(r.debut, reg, plusJours(debut, -Math.ceil(duree / 864e5) - 1), fin).filter(function (j) { return exc.indexOf(j) < 0; })
+        .map(function (j) { var d0 = aLHeure(j); return { occurrence: j, debut: d0, fin: r.fin ? d0 + duree : null }; })
+      .filter(function (o) { return o.debut < fin && (o.fin || o.debut) >= debut; });
+  }
+
+  /** Check-list d'une occurrence : points, cochés ou non (qui, quand), et reste à faire. */
+  function etatChecklist(r, occurrence) {
+    var items = (r.checklist || []).map(function (it) { var c = (r.coches || {})[occurrence + '|' + it.id]; return { id: it.id, libelle: it.libelle, fait: c || null }; });
+    return { items: items, reste: items.filter(function (x) { return !x.fait; }).length };
+  }
+
+  /** Modèles de check-lists (`config.agenda.checklists`), validés : [{ code, libelle, items: [texte] }]. */
+  function checklists(config) {
+    var a = (config && config.agenda) || {};
+    var l = Array.isArray(a.checklists) ? a.checklists.filter(function (c) { return c && c.code && String(c.libelle || '').trim() && Array.isArray(c.items); })
+      .map(function (c) { return { code: String(c.code), libelle: String(c.libelle).trim().slice(0, 80), items: c.items.map(function (x) { return String(x || '').trim().slice(0, 120); }).filter(Boolean) }; }) : null;
+    return l || CHECKLISTS_DEFAUT.map(function (c) { return { code: c.code, libelle: c.libelle, items: c.items.slice() }; });
+  }
+
+  // ------------------------------------------------------------ Tâches du service
+  /** La tâche est-elle pour cet agent (rôles ou agents désignés ; sans désignation : toute l'équipe du service) ? */
+  function tachePour(t, compte) {
+    var p = t.pour || {}, roles = p.roles || [], agents = p.agents || [];
+    if (!roles.length && !agents.length) return true;
+    return !!compte && (agents.indexOf(compte.id) >= 0 || (compte.roles || []).some(function (r) { return roles.indexOf(r) >= 0; }));
+  }
+  /** Tâches des services dues dans [debut, fin[ : { tache, occurrence (AAAA-MM-JJ), fait: { par, le } | null }. */
+  function tachesDues(st, services, debut, fin) {
+    var res = [];
+    Object.keys(st.taches).forEach(function (k) {
+      var t = st.taches[k], d0 = depuisISO(t.debut);
+      if (t.supprime || services.indexOf(t.service) < 0 || d0 === null) return;
+      datesOccurrences(d0, t.regularite, debut, fin).forEach(function (j) { res.push({ tache: t, occurrence: j, fait: t.faites[j] || null }); });
+    });
+    return res.sort(function (a, b) { return a.occurrence.localeCompare(b.occurrence) || String(a.tache.heure || '99').localeCompare(String(b.tache.heure || '99')) || String(a.tache.titre).localeCompare(String(b.tache.titre)); });
+  }
+
+  // ------------------------------------------------------------ Absences
+  /** Absences des services (ou de leurs professionnels) qui chevauchent [debut, fin[. Motif facultatif. */
+  function absences(st, debut, fin) {
+    return Object.keys(st.absences).map(function (k) { return st.absences[k]; })
+      .filter(function (a) { return !a.supprime && a.debut < fin && (a.fin || a.debut) >= debut; })
+      .sort(function (a, b) { return a.debut - b.debut; });
+  }
+  /** Professionnels prévus sur une occurrence et absents pendant celle-ci (comptes désignés). */
+  function prevusAbsents(st, r, o) {
+    var abs = absences(st, o.debut, o.fin || o.debut + 1);
+    return (r.professionnels || []).filter(function (p) { return p.id && abs.some(function (a) { return a.agent === p.id; }); });
+  }
+
   /** Service où le patient est hospitalisé : unité du séjour en cours, sinon service de la fiche. */
   function serviceDuPatient(fiche) {
     var s = (fiche && fiche.sejours) || [], cours = null;
@@ -72,28 +155,35 @@
     var res = [];
     Object.keys(st.rdv).forEach(function (k) {
       var r = st.rdv[k];
-      if (r.supprime || !(r.debut < fin) || !((r.fin || r.debut) >= debut)) return;
-      if (services.indexOf(r.service) >= 0) { res.push({ rdv: r, externe: false, patients: r.patients || [] }); return; }
-      if (r.nature === 'reunion') return;
-      var concernes = (r.patients || []).filter(function (pid) { return services.indexOf(serviceDuPatient(fiches[pid])) >= 0; });
-      if (concernes.length) res.push({ rdv: r, externe: true, patients: concernes });
+      if (r.supprime) return;
+      var externe = services.indexOf(r.service) < 0, concernes = r.patients || [];
+      if (externe) {
+        if (r.nature === 'reunion') return;
+        concernes = concernes.filter(function (pid) { return services.indexOf(serviceDuPatient(fiches[pid])) >= 0; });
+        if (!concernes.length) return;
+      }
+      occurrences(r, debut, fin).forEach(function (o) {
+        res.push({ rdv: r, externe: externe, patients: concernes, occurrence: o.occurrence, debut: o.debut, fin: o.fin, checklist: etatChecklist(r, o.occurrence), absents: prevusAbsents(st, r, o) });
+      });
     });
-    return res.sort(function (a, b) { return a.rdv.debut - b.rdv.debut || String(a.rdv.titre).localeCompare(String(b.rdv.titre)); });
+    return res.sort(function (a, b) { return a.debut - b.debut || String(a.rdv.titre).localeCompare(String(b.rdv.titre)); });
   }
 
   // Accès cochables dans « Rôles et accès » (rangés dans config.roles[CODE].accesModules.agenda)
   var ACCES = [
     { code: 'agenda.consulter', libelle: 'Consulter l’agenda du service', types: [] },
-    { code: 'agenda.planifier', libelle: 'Planifier : accompagnements, activités, réunions, tâches', types: ['RDV', 'TACHE'] },
-    { code: 'agenda.taches', libelle: 'Cocher les tâches faites', types: ['TACHE_FAITE'] },
+    { code: 'agenda.planifier', libelle: 'Planifier : accompagnements, activités, réunions, sorties, événements', types: ['RDV'] },
+    { code: 'agenda.reglerTaches', libelle: 'Régler les tâches du service (onglet Tâches : ponctuelles et récurrentes)', types: ['TACHE'] },
+    { code: 'agenda.taches', libelle: 'Cocher les tâches faites et les check-lists', types: ['TACHE_FAITE', 'CHECK'] },
     { code: 'agenda.alertes', libelle: 'Alertes (à voir par le médecin…) : créer, marquer vue', types: ['ALERTE', 'ALERTE_VUE'] },
     { code: 'agenda.absences', libelle: 'Saisir les absences de l’équipe (chacun saisit les siennes)', types: ['ABSENCE'] }
   ];
   // Accès par défaut des rôles fournis (proposition, réglable par l'établissement)
   var DROITS = {
-    IDE: ['RDV', 'TACHE', 'TACHE_FAITE', 'ALERTE', 'ALERTE_VUE'],
-    AS: ['TACHE_FAITE', 'ALERTE', 'ALERTE_VUE'],
-    SECRETAIRE: ['RDV', 'TACHE', 'TACHE_FAITE'],
+    // Régler les tâches du service : cadre seulement par défaut (proposition, réglable dans « Rôles et accès »)
+    IDE: ['RDV', 'TACHE_FAITE', 'CHECK', 'ALERTE', 'ALERTE_VUE'],
+    AS: ['TACHE_FAITE', 'CHECK', 'ALERTE', 'ALERTE_VUE'],
+    SECRETAIRE: ['RDV', 'TACHE_FAITE', 'CHECK'],
     CADRE: TYPES.slice()
   };
 
@@ -111,7 +201,7 @@
       case 'RDV':
         if (!d.id) break;
         var r = st.rdv[d.id] || { id: d.id, cree: e.at, par: e.by, evts: [] };
-        ['nature', 'titre', 'debut', 'fin', 'lieu', 'service', 'patients', 'professionnels', 'motif', 'supprime'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
+        ['nature', 'titre', 'debut', 'fin', 'lieu', 'service', 'patients', 'professionnels', 'motif', 'supprime', 'regularite', 'exceptions', 'checklist'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
         r.evts.push(e.id);
         st.rdv[d.id] = r;
         break;
@@ -122,10 +212,18 @@
         rc.commentaires = (rc.commentaires || []).filter(function (x) { return x.id !== d.id; });
         rc.commentaires.push({ id: d.id, texte: d.texte || '', service: d.service || null, par: e.by, le: e.at, evt: e.id });
         break;
+      case 'CHECK':
+        // Point de check-list coché (ou décoché) pour une occurrence de l'élément
+        var rk = st.rdv[d.rdv];
+        if (!rk || !d.item) break;
+        rk.coches = rk.coches || {};
+        var cle = (d.occurrence || '') + '|' + d.item;
+        if (d.fait === false) delete rk.coches[cle]; else rk.coches[cle] = { par: e.by, le: e.at, evt: e.id };
+        break;
       case 'TACHE':
         if (!d.id) break;
         var t = st.taches[d.id] || { id: d.id, cree: e.at, par: e.by, faites: {}, evts: [] };
-        ['titre', 'service', 'echeance', 'heure', 'regularite', 'jours', 'jusquAu', 'pour', 'supprime'].forEach(function (k) { if (d[k] !== undefined) t[k] = d[k]; });
+        ['titre', 'service', 'debut', 'heure', 'regularite', 'pour', 'consigne', 'supprime'].forEach(function (k) { if (d[k] !== undefined) t[k] = d[k]; });
         t.evts.push(e.id);
         st.taches[d.id] = t;
         break;
@@ -158,6 +256,7 @@
   function cibles(st, e) {
     var d = e.data || {}, x = null;
     if (e.type === 'TACHE_FAITE') x = st && st.taches && st.taches[d.tache];
+    else if (e.type === 'CHECK' || e.type === 'COMMENTAIRE') x = d.service ? null : st && st.rdv && st.rdv[d.rdv];
     else if (e.type === 'ALERTE_VUE') x = st && st.alertes && st.alertes[d.alerte];
     var sv = d.service || (x && x.service);
     return sv ? [sv] : [];
@@ -182,7 +281,8 @@
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, permisPourSoi: permisPourSoi,
       services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [] },
-    vues: { onglets: [{ code: 'agenda', libelle: 'Agenda' }] },
+    // Onglet « Tâches du service » : affiché à qui peut régler les tâches (décision du porteur du 7 novembre 2026)
+    vues: { onglets: [{ code: 'agenda', libelle: 'Agenda' }, { code: 'taches', libelle: 'Tâches du service', droit: 'TACHE' }] },
     migrations: [],
     fournitures: [],
     besoins: [{ fourniture: 'patients.fiches', version: 1, obligatoire: true }, { fourniture: 'isocont.echeancesJLD', version: 1, obligatoire: false }]
@@ -190,5 +290,7 @@
 
   registre.declarer(contrat);
   return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
-    IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements };
+    IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
+    REGULARITES: REGULARITES, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
+    etatChecklist: etatChecklist, checklists: checklists, tachePour: tachePour, tachesDues: tachesDues, absences: absences, prevusAbsents: prevusAbsents, jourISO: jourISO, depuisISO: depuisISO };
 });

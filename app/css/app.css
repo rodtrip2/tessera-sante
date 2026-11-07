@@ -60,7 +60,7 @@ code, .mono { font-family: var(--mono); font-size: .92em; }
 .carte { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 28px; width: min(520px, 100%); }
 .carte.large { width: min(760px, 100%); }
 .marque { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
-.marque .logo { width: 34px; height: 34px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 700; }
+.marque .logo { width: 34px; height: 34px; border-radius: 8px; display: block; }
 .marque b { display: block; font-size: 1.05rem; }
 .pile { display: grid; gap: 10px; }
 .separateur { display: flex; align-items: center; gap: 10px; color: var(--ink-2); font-size: .85rem; margin: 6px 0; }
@@ -484,3 +484,8 @@ fieldset.role { margin-bottom: 12px; }
 .agenda-element.externe { border-left-style: dashed; border-left-color: var(--warn); }
 .agenda-plage { font-weight: 600; font-variant-numeric: tabular-nums; }
 .liste-cases { max-height: 240px; overflow: auto; }
+.agenda-absents { display: grid; gap: 2px; margin-bottom: 6px; font-size: .82rem; }
+.agenda-absents .lien { text-align: left; color: var(--bad); }
+.agenda-taches { display: grid; gap: 2px; margin-bottom: 6px; padding: 4px 6px; background: var(--muted-soft); border-radius: 6px; font-size: .84rem; }
+.agenda-tache.faite span { text-decoration: line-through; color: var(--ink-2); }
+.agenda-tache.autre { opacity: .75; }
