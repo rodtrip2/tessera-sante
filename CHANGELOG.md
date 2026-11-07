@@ -1,5 +1,15 @@
 # Journal des modifications — Tessera Santé
 
+## 0.11.1 — 8 novembre 2026
+
+Décisions du porteur du 8 novembre 2026 sur les événements répétés.
+
+- **Réglages propres à une date** : un élément répété ouvert à une date se modifie pour **cette date seulement** (par défaut) ou pour **toutes les dates**. Pour une date : patients, professionnels prévus, accompagnateurs, transports (nombre de VSL), validations, check-list, horaires et lieu ; la date peut être **décalée** (même à un autre jour). Saisie `OCCURRENCE`, réglages de la date qui l'emportent sur les réglages communs ; « Date modifiée » sur l'élément. Le type, le service et la répétition restent communs.
+- **Annuler une date** (gardée barrée dans l'agenda, motif facultatif, sans rappel ni alerte), **Rétablir**, **Reprendre les réglages communs**. *Retirer cette date* (suppression définitive) et *Arrêter à cette date* restent proposés en mode « toutes les dates ».
+- **Audience JLD sans patient prévu** : affichée en transparence, sans rappel de transport ni d'accompagnateur, jusqu'à ce qu'un patient soit convoqué.
+- Démonstration : audience JLD chaque mercredi de 9 h 30 à midi, sans patient par défaut (transparente), complétée la semaine suivante (deux patients, deux VSL réservés, deux accompagnateurs dont l'agent de la démonstration), annulée la semaine d'après faute de patient, décalée au jeudi après-midi ensuite.
+- Nouveau test (réglages d'une date, date décalée, annulée, rétablie ; 221 au vert) ; écrans vérifiés dans Chrome ; architecture et guide utilisateur à jour.
+
 ## 0.11.0 — 8 novembre 2026
 
 Décisions du porteur du 8 novembre 2026 (agenda et fiche patient).

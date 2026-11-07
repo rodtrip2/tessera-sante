@@ -182,9 +182,16 @@
     ajouter(avant, 'VALIDATION', { rdv: permWe, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(samedi)), statut: 'validee', nom: 'Dr Diallo (fictif)', service: U2 });
     // Examen (VSL à réserver, patient accompagné) ; audience JLD (deux patients, deux VSL réservés, soignants à prévoir)
     rdv({ nature: 'examen', examen: { type: 'Scanner' }, titre: '', debut: jour(2, 9, 30), fin: jour(2, 11), lieu: 'Hôpital général (fictif), imagerie', service: U1, patients: ['P02'], accompagnateurs: 1, transports: [{ id: 'tv', type: 'vsl', nombre: 1, precision: 'Aller-retour' }] });
-    var audience = rdv({ nature: 'audience', titre: '', debut: jour(3, 14), fin: jour(3, 16), lieu: 'Salle d’audience (fictive)', service: U1, patients: ['P01', 'P02'], professionnels: [profA], accompagnateurs: 2, transports: [{ id: 'ta', type: 'vsl', nombre: 2, precision: 'Départ 13 h 15' }] });
-    ajouter(avant, 'TRANSPORT', { rdv: audience, transport: 'ta', occurrence: SIC.model.dateLocaleISO(jour(3)), statut: 'reserve', precision: 'Ambulances du centre (fictif), n° 1234', service: U1 });
-    if (options.moi && options.moi.id) ajouter(avant, 'INSCRIPTION', { rdv: audience, occurrence: SIC.model.dateLocaleISO(jour(3)), agent: options.moi.id, nom: options.moi.nom || '', service: U1 });
+    // Audience JLD chaque mercredi 9 h 30 - 12 h (réglages propres à chaque date : patients, VSL, accompagnateurs ; une date
+    // décalée, une date annulée faute de patient convoqué ; sans patient prévu, la date s'affiche en transparence)
+    var mercredi = function (n) { return lundiDe(2 + 7 * n); };
+    var audience = rdv({ nature: 'audience', titre: '', debut: lundiDe(-12, 9, 30), fin: lundiDe(-12, 12), lieu: 'Salle d’audience de l’hôpital (fictive)', service: U1, patients: [], accompagnateurs: 1, transports: [], regularite: { type: 'semaine', jours: [3] } });
+    var occ1 = SIC.model.dateLocaleISO(mercredi(1)), occ2 = SIC.model.dateLocaleISO(mercredi(2)), occ3 = SIC.model.dateLocaleISO(mercredi(3));
+    ajouter(avant, 'OCCURRENCE', { rdv: audience, occurrence: occ1, patients: ['P01', 'P02'], accompagnateurs: 2, professionnels: [profA], transports: [{ id: 'ta', type: 'vsl', nombre: 2, precision: 'Départ 9 h' }], service: U1 });
+    ajouter(avant, 'TRANSPORT', { rdv: audience, transport: 'ta', occurrence: occ1, statut: 'reserve', precision: 'Ambulances du centre (fictif), n° 1234', service: U1 });
+    if (options.moi && options.moi.id) ajouter(avant, 'INSCRIPTION', { rdv: audience, occurrence: occ1, agent: options.moi.id, nom: options.moi.nom || '', service: U1 });
+    ajouter(avant, 'OCCURRENCE', { rdv: audience, occurrence: occ2, annulee: true, motifAnnulation: 'Aucun patient convoqué', service: U1 });
+    ajouter(avant, 'OCCURRENCE', { rdv: audience, occurrence: occ3, debut: mercredi(3) + 864e5 + 14 * 36e5, fin: mercredi(3) + 864e5 + 16 * 36e5, patients: ['P04'], transports: [{ id: 'tb', type: 'vsl', nombre: 1 }], service: U1 });
     // Sortie du patient avec sa check-list (un point déjà fait)
     var sortie = rdv({ nature: 'sortie', titre: 'Sortie', debut: jour(3, 11), fin: jour(3, 11, 30), service: U1, patients: ['P03'], validations: [{ id: 'va', type: 'medicale', libelle: 'Avis du psychiatre pour la sortie', delai: 48 }],
       checklist: SIC.agenda && SIC.agenda.CHECKLISTS_DEFAUT ? SIC.agenda.CHECKLISTS_DEFAUT[0].items.map(function (it, i) { return { id: 'c' + i, libelle: it.libelle, delai: it.delai }; }) : [] });

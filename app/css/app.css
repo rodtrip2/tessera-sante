@@ -600,3 +600,10 @@ table.liste-patients .btn.tri { color: inherit; text-decoration: none; font-weig
 .ag-validation { border-left: 3px solid var(--warn); padding-left: 8px; }
 .ag-puce.ag-transport { --c: var(--done); }
 .ag-puce.ag-transport.retard { --c: var(--bad); font-weight: 600; }
+/* Dates annulées, audiences sans patient prévu, portée d'une modification (0.11.1) */
+.ag-bloc.annulee { opacity: .55; background: var(--surface-2); border-style: dashed; }
+.ag-bloc.annulee .ag-bloc-tete b { text-decoration: line-through; }
+.ag-bloc.en-attente { opacity: .45; background: color-mix(in srgb, var(--c) 5%, transparent); border-style: dashed; }
+.ag-bloc.en-attente:hover, .ag-bloc.annulee:hover { opacity: 1; }
+.ag-portee { border: 1px solid var(--accent); border-radius: var(--radius); padding: 6px 10px; background: var(--accent-soft); }
+.ag-portee legend { font-weight: 600; padding: 0 4px; }
