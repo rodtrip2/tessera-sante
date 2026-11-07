@@ -1937,7 +1937,7 @@
     if (erreurs.length) return { erreurs: erreurs, texte: '', tache: tache };
     function q(v) { return "'" + String(v).replace(/'/g, "''") + "'"; }
     var L = [];
-    L.push('# Suivi des mesures d’isolement et de contention — installation de la ' + (type === 'local' ? 'copie locale de ce poste' : 'copie vers le dossier de secours') + ' (robocopy).');
+    L.push('# Tessera Santé — installation de la ' + (type === 'local' ? 'copie locale de ce poste' : 'copie vers le dossier de secours') + ' (robocopy).');
     L.push(compte === 'session' ? '# À coller en une fois dans PowerShell (sans droits d’administrateur), dans la session Windows qui utilisera le poste, puis Entrée.' : '# À coller en une fois dans PowerShell ouvert en administrateur, sur ' + (type === 'local' ? 'le poste désigné' : 'la machine qui fera la copie (serveur de préférence)') + ', puis Entrée.');
     L.push('& {');
     L.push("$ErrorActionPreference = 'Stop'");

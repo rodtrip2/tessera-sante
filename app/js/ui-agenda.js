@@ -57,21 +57,22 @@
   function carteElement(x, jour) {
     var r = x.rdv;
     var plage = (r.debut < jour ? '…' : hm(r.debut)) + (r.fin ? ' – ' + (r.fin >= plusJours(jour, 1) ? '…' : hm(r.fin)) : '');
-    var modifiable = !x.externe && peut('RDV');
+    var modifiable = peut('RDV') && (!x.externe || opts().modifAutresServices);
     return h('article', { class: 'agenda-element nature-' + (r.nature || 'autre') + (x.externe ? ' externe' : ''), tabindex: 0, role: 'button',
       'aria-label': (A.NATURES[r.nature] || '') + ' ' + (r.titre || '') + ' ' + plage,
-      onclick: function () { modaleElement(r, null, !modifiable, x.externe ? x.patients : null); },
-      onkeydown: function (ev) { if (ev.key === 'Enter') modaleElement(r, null, !modifiable, x.externe ? x.patients : null); } },
+      onclick: function () { modaleElement(r, null, !modifiable, x.externe ? x.patients : null, x.externe); },
+      onkeydown: function (ev) { if (ev.key === 'Enter') modaleElement(r, null, !modifiable, x.externe ? x.patients : null, x.externe); } },
       h('div', { class: 'agenda-plage', text: plage }),
       h('div', {}, h('span', { class: 'badge', text: A.NATURES[r.nature] || 'Élément' }), x.externe ? h('span', { class: 'badge warn', text: U.libService(r.service) }) : null),
       h('b', { text: r.titre || '' }),
       r.lieu ? h('div', {}, h('small', { text: r.lieu })) : null,
       x.patients.length ? h('div', {}, h('small', { text: (x.patients.length > 1 ? 'Patients : ' : 'Patient : ') + nomsPatients(x.patients).join(', ') })) : null,
-      (r.professionnels || []).length ? h('div', {}, h('small', { class: 'muted', text: r.professionnels.map(function (p) { return p.nom; }).join(', ') })) : null);
+      (r.professionnels || []).length ? h('div', {}, h('small', { class: 'muted', text: r.professionnels.map(function (p) { return p.nom; }).join(', ') })) : null,
+      (r.commentaires || []).length ? h('div', {}, h('small', { class: 'muted', text: r.commentaires.length + ' commentaire(s)' })) : null);
   }
 
   /** Fenêtre d'un élément : création (r nul), modification, ou consultation (lecture seule / autre service). */
-  function modaleElement(r, jour, lecture, patientsVisibles) {
+  function modaleElement(r, jour, lecture, patientsVisibles, externe) {
     var x = r || {}, nouveau = !r, dis = lecture ? { disabled: true } : {};
     var sv = h('select', dis, (lecture ? U.tousServices() : U.services()).map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === (x.service || (U.App.service !== '*' ? U.App.service : '')) }); }));
     var nature = h('select', dis, Object.keys(A.NATURES).map(function (k) { return h('option', { value: k, text: A.NATURES[k], selected: (x.nature || 'accompagnement') === k }); }));
@@ -119,6 +120,24 @@
       var libre = h('input', { type: 'text', placeholder: 'Autre professionnel (nom et fonction)' });
       zonePro.appendChild(h('div', { class: 'barre' }, libre, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (libre.value.trim()) { profs.push({ id: null, nom: libre.value.trim() }); dessinerPros(); } } }, 'Ajouter')));
     }
+    // Commentaires (tout agent de l'Agenda, y compris sur un élément d'un autre service)
+    var zoneCom = h('div', { class: 'pile' });
+    function dessinerCommentaires() {
+      U.vider(zoneCom);
+      var etatR = st().rdv[x.id] || x, liste = etatR.commentaires || [];
+      zoneCom.appendChild(liste.length ? h('ul', {}, liste.map(function (c) { return h('li', {}, h('small', { class: 'muted', text: U.date(Date.parse(c.le)) + ' — ' + U.App.session.nomAuteur(c.par) + (c.service ? ' (' + U.libService(c.service) + ')' : '') + ' : ' }), c.texte); }))
+        : h('small', { class: 'muted', text: 'Aucun commentaire.' }));
+      var txt = h('textarea', { rows: 2, maxlength: 500, placeholder: 'Information d’organisation (pas de donnée clinique)' });
+      var monService = U.App.service !== '*' ? U.App.service : (U.App.session.mesServices()[0] || null);
+      zoneCom.appendChild(h('div', { class: 'barre' }, txt, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
+        if (!txt.value.trim()) return;
+        try {
+          await U.App.session.enregistrer('COMMENTAIRE', { id: 'K' + C.hex(C.aleatoire(5)), rdv: x.id, texte: txt.value.trim(), service: monService });
+          dessinerCommentaires();
+        } catch (e) { alert(e.message); }
+      } }, 'Ajouter le commentaire')));
+    }
+    if (!nouveau) dessinerCommentaires();
     sv.addEventListener('change', function () { dessinerPatients(); dessinerPros(); });
     dessinerPatients(); dessinerPros();
     var boutons = [{ texte: lecture ? 'Fermer' : 'Annuler' }];
@@ -139,24 +158,38 @@
       await U.App.session.enregistrer('RDV', d);
       U.toast(nouveau ? 'Ajouté à l’agenda.' : 'Élément modifié.');
     } });
-    U.modale(nouveau ? 'Nouvel élément de l’agenda' : (lecture ? (A.NATURES[x.nature] || 'Élément') + (patientsVisibles ? ' — ' + U.libService(x.service) : '') : 'Modifier l’élément'), h('div', { class: 'pile' },
-      patientsVisibles ? h('p', { class: 'muted', text: 'Élément de l’agenda du service ' + U.libService(x.service) + ', qui concerne un patient hospitalisé dans votre service : consultation seulement.' }) : null,
+    U.modale(nouveau ? 'Nouvel élément de l’agenda' : (lecture ? (A.NATURES[x.nature] || 'Élément') + (externe ? ' — ' + U.libService(x.service) : '') : 'Modifier l’élément'), h('div', { class: 'pile' },
+      externe ? h('p', { class: 'muted', text: 'Élément de l’agenda du service ' + U.libService(x.service) + ', qui concerne un patient hospitalisé dans votre service' + (lecture ? ' : consultation et commentaires.' : '.') }) : null,
       h('div', { class: 'grille-2' }, h('label', {}, 'Type', nature), h('label', {}, 'Service', sv)),
       h('label', {}, 'Intitulé', titre),
       h('div', { class: 'grille-3' }, h('label', {}, 'Date', date), h('label', {}, 'Début', hDebut), h('label', {}, 'Fin', hFin)),
       h('label', {}, 'Lieu', lieu),
       h('div', { class: 'pile' }, h('b', { text: 'Patients' + (lecture ? '' : ' (accompagnements et activités)') }), zonePat),
       h('div', { class: 'pile' }, h('b', { text: 'Professionnels prévus' }), zonePro),
+      nouveau ? null : h('div', { class: 'pile' }, h('b', { text: 'Commentaires' }), zoneCom),
       h('small', { class: 'muted', text: 'Aucune donnée clinique : le motif et le contenu de la prise en charge restent dans le dossier du patient.' })), boutons, { large: true });
   }
 
   // ------------------------------------------------------------ Réglages (Administration → Agenda)
   function panneauReglages() {
-    var o = opts(), types = o.typesAlertes.map(function (t) { return { code: t.code, libelle: t.libelle }; });
+    var o = opts(), copie = function (l) { return l.map(function (t) { return { code: t.code, libelle: t.libelle }; }); };
+    // Listes de types d'alertes : celle de l'établissement, et celles propres à certains services (décision du porteur)
+    var listes = { '*': copie(o.typesAlertesEtablissement) }, propres = {};
+    U.tousServices().forEach(function (s) { propres[s.code] = !!o.typesAlertesServices[s.code]; listes[s.code] = copie(o.typesAlertesServices[s.code] || o.typesAlertesEtablissement); });
+    var portee = '*', types = listes['*'];
     var selId = h('select', {}, Object.keys(A.IDENTITES).map(function (k) { return h('option', { value: k, text: A.IDENTITES[k], selected: o.identite === k }); }));
+    var cbModif = h('input', { type: 'checkbox', checked: o.modifAutresServices });
+    var selPortee = h('select', { 'aria-label': 'Liste des types d’alertes', onchange: function () { portee = selPortee.value; types = listes[portee]; dessiner(); } },
+      [h('option', { value: '*', text: 'Liste de l’établissement' })].concat(U.tousServices().map(function (s) { return h('option', { value: s.code, text: 'Service ' + s.libelle }); })));
     var zone = h('div', { class: 'pile' });
     function dessiner() {
       U.vider(zone);
+      types = listes[portee];
+      if (portee !== '*') {
+        var cbPropre = h('input', { type: 'checkbox', checked: propres[portee], onchange: function () { propres[portee] = cbPropre.checked; if (cbPropre.checked && !listes[portee].length) listes[portee] = copie(listes['*']); dessiner(); } });
+        zone.appendChild(h('label', { class: 'case' }, cbPropre, h('span', { text: 'Liste propre à ce service (sinon : liste de l’établissement)' })));
+        if (!propres[portee]) { zone.appendChild(h('p', { class: 'muted', text: listes['*'].map(function (t) { return t.libelle; }).join(' · ') })); return; }
+      }
       types.forEach(function (t, i) {
         var champ = h('input', { type: 'text', maxlength: 80, value: t.libelle, 'aria-label': 'Libellé du type d’alerte', oninput: function () { t.libelle = champ.value; } });
         zone.appendChild(h('div', { class: 'barre' }, champ,
@@ -169,26 +202,37 @@
     return h('section', { class: 'panneau' }, h('h2', { text: 'Agenda du service' }),
       h('label', {}, 'Patient désigné dans l’agenda par', selId),
       h('small', { class: 'muted', text: 'Initiales par défaut. Le nom complet est le plus exposant : à réserver aux services qui en ont besoin (écran visible de l’équipe).' }),
+      h('label', { class: 'case' }, cbModif, h('span', { text: 'Permettre de modifier un élément d’un autre service qui concerne un patient du service (sinon : consultation et commentaires seulement)' })),
       h('h3', { text: 'Types d’alertes' }),
-      h('p', { class: 'muted', text: 'Liste proposée à la création d’une alerte, dans cet ordre ; « Autre » (libellé libre) est toujours proposé en dernier. Retirer un type n’efface pas les alertes déjà créées.' }),
-      zone,
+      h('p', { class: 'muted', text: 'Liste proposée à la création d’une alerte, dans cet ordre ; « Autre » (libellé libre) est toujours proposé en dernier. Un service peut avoir sa propre liste. Retirer un type n’efface pas les alertes déjà créées.' }),
+      selPortee, zone,
       U.boutonEnregistrer(async function () {
-        var propres = types.map(function (t) { return { code: t.code, libelle: String(t.libelle || '').trim() }; }).filter(function (t) { return t.libelle; });
-        if (!propres.length) throw new Error('Gardez au moins un type d’alerte.');
-        var valeur = { identite: selId.value, typesAlertes: propres };
-        if (JSON.stringify(valeur) === JSON.stringify({ identite: 'initiales', typesAlertes: A.TYPES_ALERTE_DEFAUT })) valeur = {};
+        function nettoyer(l) { return l.map(function (t) { return { code: t.code, libelle: String(t.libelle || '').trim() }; }).filter(function (t) { return t.libelle; }); }
+        var etab = nettoyer(listes['*']);
+        if (!etab.length) throw new Error('Gardez au moins un type d’alerte dans la liste de l’établissement.');
+        var valeur = {};
+        if (selId.value !== 'initiales') valeur.identite = selId.value;
+        if (JSON.stringify(etab) !== JSON.stringify(A.TYPES_ALERTE_DEFAUT)) valeur.typesAlertes = etab;
+        Object.keys(propres).forEach(function (k) {
+          if (!propres[k]) return;
+          var l = nettoyer(listes[k]);
+          if (!l.length) throw new Error('La liste propre au service ' + U.libService(k) + ' est vide : décochez « Liste propre » ou ajoutez un type.');
+          (valeur.typesAlertesServices = valeur.typesAlertesServices || {})[k] = l;
+        });
+        if (cbModif.checked) valeur.modifAutresServices = true;
         await U.enregistrerConfig([['agenda', valeur]]);
       }));
   }
 
   // ------------------------------------------------------------ Journal
-  var LIB = { RDV: 'Agenda : élément', TACHE: 'Agenda : tâche', TACHE_FAITE: 'Agenda : tâche faite', ABSENCE: 'Agenda : absence', ALERTE: 'Agenda : alerte', ALERTE_VUE: 'Agenda : alerte vue' };
+  var LIB = { RDV: 'Agenda : élément', COMMENTAIRE: 'Agenda : commentaire', TACHE: 'Agenda : tâche', TACHE_FAITE: 'Agenda : tâche faite', ABSENCE: 'Agenda : absence', ALERTE: 'Agenda : alerte', ALERTE_VUE: 'Agenda : alerte vue' };
   function resume(e) {
     var d = e.data || {};
     switch (e.type) {
       case 'RDV':
         if (d.supprime) return 'Élément supprimé de l’agenda (' + U.libService(d.service) + ')';
         return (A.NATURES[d.nature] || 'Élément modifié') + (d.titre ? ' « ' + d.titre + ' »' : '') + (d.debut ? ' le ' + U.date(d.debut) : '') + (d.service ? ' — ' + U.libService(d.service) : '') + ((d.patients || []).length ? ', ' + d.patients.length + ' patient(s)' : '');
+      case 'COMMENTAIRE': var rr = st().rdv[d.rdv]; return 'Commentaire sur ' + (rr ? '« ' + (rr.titre || '') + ' »' : 'un élément') + (d.service ? ' (' + U.libService(d.service) + ')' : '') + ' : ' + (d.texte || '');
       case 'TACHE': return (d.supprime ? 'Tâche supprimée' : 'Tâche') + (d.titre ? ' « ' + d.titre + ' »' : '');
       case 'TACHE_FAITE': return (d.annule ? 'Tâche décochée' : 'Tâche faite') + ' (échéance ' + (d.occurrence || '') + ')';
       case 'ABSENCE': return (d.supprime ? 'Absence supprimée : ' : 'Absence : ') + (d.nom || '') + (d.debut ? ' du ' + U.date(d.debut) : '') + (d.fin ? ' au ' + U.date(d.fin) : '') + (d.categorie ? ' (' + (A.CATEGORIES_ABSENCE[d.categorie] || d.categorie).toLowerCase() + ')' : '');

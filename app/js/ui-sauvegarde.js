@@ -76,7 +76,7 @@
   /** Texte à transmettre au service informatique : chemins, dates, identifiants de connexion ; aucune donnée de patient. */
   function texteDSI(r) {
     var d = U.App.dossier, lignes = lignesAnomalies(r);
-    return ['Suivi des mesures d’isolement et de contention — version ' + SIC.VERSION,
+    return ['Tessera Santé — version ' + SIC.VERSION,
       'Contrôle d’intégrité du ' + U.date(r.verifieLe) + (d && d.handle && d.handle.name ? ' — dossier « ' + d.handle.name + ' »' : ''),
       lignes.length + ' anomalie(s). Chemins relatifs au dossier de l’outil. Merci de rechercher ces fichiers dans les sauvegardes (version la plus récente avant la date indiquée ou peu après) et de nous les restituer à l’identique, sans les ouvrir ni les renommer.',
       ''].concat(lignes.map(function (l) {

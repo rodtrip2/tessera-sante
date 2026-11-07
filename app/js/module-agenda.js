@@ -15,7 +15,7 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre) {
   'use strict';
 
-  var TYPES = ['RDV', 'TACHE', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
+  var TYPES = ['RDV', 'COMMENTAIRE', 'TACHE', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
   var NATURES = { accompagnement: 'Accompagnement', activite: 'Activité thérapeutique', reunion: 'Réunion' };
   var CATEGORIES_ABSENCE = { conge: 'Congé', formation: 'Formation', exterieur: 'Réunion extérieure', autre: 'Autre' };
   // Identité du patient affichée dans l'agenda (décision du 4 novembre 2026 ; défaut proposé : initiales)
@@ -27,12 +27,23 @@
     { code: 'transmission', libelle: 'Information à transmettre' }
   ];
 
-  /** Réglages de l'Agenda (`config.agenda`, journal du socle), validés à la lecture. */
-  function optionsAgenda(config) {
-    var a = (config && config.agenda) || {};
-    var types = Array.isArray(a.typesAlertes) ? a.typesAlertes.filter(function (t) { return t && t.code && String(t.libelle || '').trim(); })
-      .map(function (t) { return { code: String(t.code).slice(0, 40), libelle: String(t.libelle).trim().slice(0, 80) }; }) : TYPES_ALERTE_DEFAUT.slice();
-    return { identite: IDENTITES[a.identite] ? a.identite : 'initiales', typesAlertes: types };
+  function listeTypes(v) {
+    return Array.isArray(v) ? v.filter(function (t) { return t && t.code && String(t.libelle || '').trim(); })
+      .map(function (t) { return { code: String(t.code).slice(0, 40), libelle: String(t.libelle).trim().slice(0, 80) }; }) : null;
+  }
+  /**
+   * Réglages de l'Agenda (`config.agenda`, journal du socle), validés à la lecture. `service` : la liste des types
+   * d'alertes propre au service si elle existe (décision du porteur du 7 novembre 2026), sinon celle de l'établissement.
+   * `modifAutresServices` : modifier un élément d'un autre service qui concerne un patient du service (faux par défaut :
+   * lecture seule et commentaires).
+   */
+  function optionsAgenda(config, service) {
+    var a = (config && config.agenda) || {}, parService = {};
+    Object.keys(a.typesAlertesServices || {}).forEach(function (k) { var l = listeTypes(a.typesAlertesServices[k]); if (l && l.length) parService[k] = l; });
+    var etab = listeTypes(a.typesAlertes);
+    return { identite: IDENTITES[a.identite] ? a.identite : 'initiales', typesAlertesEtablissement: etab && etab.length ? etab : TYPES_ALERTE_DEFAUT.slice(),
+      typesAlertes: (service && parService[service]) || (etab && etab.length ? etab : TYPES_ALERTE_DEFAUT.slice()), typesAlertesServices: parService,
+      modifAutresServices: a.modifAutresServices === true };
   }
 
   /** Désignation d'un patient selon le réglage : initiales, IPP, nom complet, ou « patient ». */
@@ -104,6 +115,13 @@
         r.evts.push(e.id);
         st.rdv[d.id] = r;
         break;
+      case 'COMMENTAIRE':
+        // Commentaire sur un élément, y compris d'un autre service (décision du porteur : le service du patient commente)
+        var rc = st.rdv[d.rdv];
+        if (!rc || !d.id) break;
+        rc.commentaires = (rc.commentaires || []).filter(function (x) { return x.id !== d.id; });
+        rc.commentaires.push({ id: d.id, texte: d.texte || '', service: d.service || null, par: e.by, le: e.at, evt: e.id });
+        break;
       case 'TACHE':
         if (!d.id) break;
         var t = st.taches[d.id] || { id: d.id, cree: e.at, par: e.by, faites: {}, evts: [] };
@@ -145,8 +163,12 @@
     return sv ? [sv] : [];
   }
 
-  /** Une saisie que chacun peut faire pour lui-même : ses propres absences (décision du porteur). */
+  /**
+   * Saisies permises sans accès particulier à qui a un rôle dans l'Agenda (et donc sa clé) : ses propres absences, et
+   * un commentaire sur un élément (décisions du porteur du 7 novembre 2026).
+   */
   function permisPourSoi(type, data, compte) {
+    if (type === 'COMMENTAIRE') return !!compte && !!data && !data.supprime;   // retrait : annulation depuis le journal
     return type === 'ABSENCE' && !!compte && !!data && data.agent === compte.id;
   }
 

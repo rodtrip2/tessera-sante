@@ -148,8 +148,8 @@
 
   function marque(sousTitre) {
     return h('div', { class: 'marque' },
-      logoEtablissement() ? h('img', { class: 'logo-etab', src: logoEtablissement(), alt: '' }) : h('div', { class: 'logo', 'aria-hidden': 'true', text: 'IC' }),
-      h('div', {}, h('b', { text: 'Suivi des mesures d’isolement et de contention' }), h('small', { text: sousTitre || ('Version ' + SIC.VERSION) })));
+      logoEtablissement() ? h('img', { class: 'logo-etab', src: logoEtablissement(), alt: '' }) : h('div', { class: 'logo', 'aria-hidden': 'true', text: 'TS' }),
+      h('div', {}, h('b', { text: 'Tessera Santé' }), h('small', { text: sousTitre || ('Version ' + SIC.VERSION) })));
   }
 
   // ---------------------------------------------------------------- Accueil
