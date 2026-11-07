@@ -84,9 +84,9 @@ const rdv = (id, sv) => ({ id, nature: 'accompagnement', titre: 'Rendez-vous ext
 test('Agenda : accès par défaut des rôles fournis, saisie de ses propres absences', () => {
   const A = SIC.modules.obtenir('agenda');
   const peut = (r, t) => A.droits.peut([r], t, {});
-  assert.ok(peut('IDE', 'RDV') && peut('IDE', 'TACHE_FAITE') && peut('IDE', 'ALERTE_MEDECIN') && !peut('IDE', 'ABSENCE'));
+  assert.ok(peut('IDE', 'RDV') && peut('IDE', 'TACHE_FAITE') && peut('IDE', 'ALERTE') && !peut('IDE', 'ABSENCE'));
   assert.ok(!peut('AS', 'RDV') && peut('AS', 'TACHE_FAITE') && peut('AS', 'ALERTE_VUE'));
-  assert.ok(peut('SECRETAIRE', 'RDV') && !peut('SECRETAIRE', 'ALERTE_MEDECIN'));
+  assert.ok(peut('SECRETAIRE', 'RDV') && !peut('SECRETAIRE', 'ALERTE'));
   assert.ok(peut('CADRE', 'ABSENCE'));
   assert.ok(A.droits.membre(['IDE'], {}) && A.droits.membre(['ADMIN'], {}));
   assert.ok(!A.droits.membre(['R_DIR'], { roles: { R_DIR: { libelle: 'D', acces: [] } } }), 'rôle créé sans accès à l’Agenda');
@@ -132,4 +132,29 @@ test('Agenda : activation par service, accès retirés au rôle (nouvelle géné
   assert.ok(admin.coffre.cles.agenda.courante > g);
   assert.ok(!admin.coffre.enveloppes.some((e) => e.pour === id('as.a') && e.cle === 'agenda' && e.g === admin.coffre.cles.agenda.courante));
   assert.ok(admin.coffre.enveloppes.some((e) => e.pour === id('as.a') && e.cle === 'isocont'), 'Isocont inchangé pour l’AS');
+});
+
+test('Agenda du service : éléments de la période, patient d’un autre service affiché en lecture, identité selon le réglage', () => {
+  const A = require('../app/js/module-agenda.js');
+  const t0 = new Date(2026, 10, 9).getTime(), H = 3600e3;
+  const fiches = {
+    P1: { id: 'P1', nom: 'DURAND', prenom: 'Alice', ipp: '1001', service: 'U1', sejours: [{ id: 'S', entree: '2026-11-01', service: 'U1' }] },
+    P2: { id: 'P2', nom: 'MARTIN', prenom: 'Jean-Paul', ipp: '1002', service: 'U2' } };
+  const st = A.reduire([
+    { id: 'a', at: '2026-11-08T10:00:00.000Z', by: 'u', type: 'RDV', data: { id: 'R1', nature: 'accompagnement', titre: 'Consultation extérieure (fictif)', debut: t0 + 10 * H, fin: t0 + 11 * H, service: 'U1', patients: ['P1'] } },
+    { id: 'b', at: '2026-11-08T10:00:01.000Z', by: 'u', type: 'RDV', data: { id: 'R2', nature: 'activite', titre: 'Atelier (fictif)', debut: t0 + 14 * H, fin: t0 + 15 * H, service: 'U2', patients: ['P1', 'P2'] } },
+    { id: 'c', at: '2026-11-08T10:00:02.000Z', by: 'u', type: 'RDV', data: { id: 'R3', nature: 'reunion', titre: 'Staff U2 (fictif)', debut: t0 + 9 * H, fin: t0 + 10 * H, service: 'U2' } },
+    { id: 'd', at: '2026-11-08T10:00:03.000Z', by: 'u', type: 'RDV', data: { id: 'R4', nature: 'accompagnement', titre: 'Annulé (fictif)', debut: t0 + 16 * H, service: 'U1', patients: ['P1'] } },
+    { id: 'e', at: '2026-11-08T10:00:04.000Z', by: 'u', type: 'RDV', data: { id: 'R4', supprime: true } },
+    { id: 'f', at: '2026-11-08T10:00:05.000Z', by: 'u', type: 'RDV', data: { id: 'R5', nature: 'accompagnement', titre: 'Autre jour (fictif)', debut: t0 + 34 * H, service: 'U1' } }]);
+  const els = A.elements(st, fiches, ['U1'], t0, t0 + 24 * H);
+  assert.deepEqual(els.map((x) => [x.rdv.id, x.externe, x.patients]), [['R1', false, ['P1']], ['R2', true, ['P1']]]);
+  assert.deepEqual(A.elements(st, fiches, ['U2'], t0, t0 + 24 * H).map((x) => x.rdv.id), ['R3', 'R2']);
+  assert.equal(A.identite(fiches.P2, 'initiales'), 'JP.M.');   // prénom composé
+  assert.equal(A.identite(fiches.P1, 'ipp'), 'IPP 1001');
+  assert.equal(A.identite(fiches.P1, 'nom'), 'DURAND Alice');
+  assert.equal(A.identite(fiches.P1, 'aucune'), 'patient');
+  assert.equal(A.optionsAgenda({}).identite, 'initiales');
+  assert.equal(A.optionsAgenda({}).typesAlertes[0].libelle, 'À voir par le médecin');
+  assert.deepEqual(A.optionsAgenda({ agenda: { identite: 'xx', typesAlertes: [{ code: 'a', libelle: ' Bilan social ' }, { code: 'b', libelle: '' }] } }), { identite: 'initiales', typesAlertes: [{ code: 'a', libelle: 'Bilan social' }] });
 });

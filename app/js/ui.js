@@ -1161,6 +1161,9 @@
     // -- Organisation des envois au JLD (texte affiché en tête de l'onglet JLD)
     // Panneaux du module (onglets propres et contributions aux onglets communs) : ui-isocont.js
     var pModule = interfaceModule().admin.panneaux(!!s.formation);
+    // Sous-onglets d'administration des autres modules affichés (Agenda…) : un onglet par module
+    var ongletsAutres = SIC.modules.affiches().filter(function (m) { return m !== moduleActif() && m.interface && m.interface.admin && m.interface.admin.onglets; })
+      .reduce(function (r, m) { return r.concat(m.interface.admin.onglets(!!s.formation)); }, []);
 
     var demo = App.dossier.mode === 'demo' ? h('section', { class: 'panneau' }, h('h2', { text: 'Démonstration' }),
       h('p', { class: 'muted', text: 'Efface toutes les données de démonstration de ce navigateur et revient à l’accueil.' }),
@@ -1184,14 +1187,14 @@
         h('p', { text: 'Le paramétrage ci-dessous ne concerne que le jeu de formation. Les comptes, les clés de sécurité et l’import se gèrent depuis les données réelles.' }));
       return sousOngletsAdmin([].concat(
         [['services', 'Établissement et services', [note, pServices, pModulesServices, pFiche].concat(pModule.services)]],
-        pModule.onglets.map(function (o) { return [o[0], o[1], [note].concat(o[2])]; }),
+        pModule.onglets.map(function (o) { return [o[0], o[1], [note].concat(o[2])]; }), ongletsAutres.map(function (o) { return [o[0], o[1], [note].concat(o[2])]; }),
         [['sauvegardes', 'Sauvegardes et exports', [note, pExports].concat(pModule.sauvegardes)],
           ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos]]]));
     }
     return sousOngletsAdmin([].concat(
       [['comptes', 'Comptes et sécurité', [pAttestation, pTrousseau, pIncomplets, comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
         ['services', 'Établissement et services', [pServices, pModulesServices, pFiche].concat(pModule.services)]],
-      pModule.onglets,
+      pModule.onglets, ongletsAutres,
       [['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
         ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos, SIC.ui.version.panneau(), demo]]]));
 
