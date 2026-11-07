@@ -78,7 +78,7 @@
     occurrenceCourante = x.occurrence;
     var r = x.rdv, sp = r.nature === 'permission' ? A.statutPermission(r, x.occurrence) : null, plage = (x.debut < jour ? '…' : hm(x.debut)) + (x.fin ? '–' + (x.fin >= plusJours(jour, 1) ? '…' : hm(x.fin)) : '');
     var cl = x.checklist.items.length ? A.etatChecklist(r, x.occurrence, Date.now()) : null;
-    var el = h('article', { class: 'ag-bloc nature-' + (r.nature || 'autre') + (x.externe ? ' externe' : '') + (sp && sp !== 'validee' ? ' demande' : '') + (x.annulee ? ' annulee' : '') + (A.enAttente(r) ? ' en-attente' : ''), tabindex: 0, role: 'button',
+    var el = h('article', { class: 'ag-bloc nature-' + (r.nature || 'autre') + (x.externe ? ' externe' : '') + (sp && sp !== 'validee' ? ' demande' : '') + (x.annulee ? ' annulee' : '') + (A.enAttente(r, U.config()) ? ' en-attente' : ''), tabindex: 0, role: 'button',
       'aria-label': (A.NATURES[r.nature] || '') + ' ' + libelleElement(r) + ' ' + plage, onclick: function () { ouvrirElement(x); }, onkeydown: function (ev) { if (ev.key === 'Enter') ouvrirElement(x); } },
       h('div', { class: 'ag-bloc-tete' }, h('b', { text: plage + ' ' + libelleElement(r) })),
       x.patients.length ? h('div', { class: 'ag-ligne', text: nomsPatients(x.patients).join(', ') }) : null,
@@ -86,14 +86,14 @@
       (r.professionnels || []).length ? h('div', { class: 'ag-ligne muted', text: r.professionnels.map(function (p) { return p.nom; }).join(', ') }) : null,
       h('div', { class: 'ag-badges' },
         x.annulee ? h('span', { class: 'badge bad', text: 'Annulée' + (r.motifAnnulation ? ' : ' + r.motifAnnulation : '') }) : null,
-        !x.annulee && A.enAttente(r) ? h('span', { class: 'badge', text: 'Aucun patient prévu' }) : null,
+        !x.annulee && A.enAttente(r, U.config()) ? h('span', { class: 'badge', text: 'Aucun patient prévu' }) : null,
         (r.surchargee || []).length && !x.annulee ? h('span', { class: 'badge', title: 'Réglages propres à cette date : ' + r.surchargee.map(function (k) { return LIB_CHAMPS[k] || k; }).join(', '), text: 'Date modifiée' }) : null,
         sp ? h('span', { class: 'badge ' + (sp === 'validee' ? 'ok' : (sp === 'refusee' ? 'bad' : 'warn')), text: sp === 'validee' ? 'Validée' : (sp === 'refusee' ? 'Refusée' : 'Demande') }) : null,
         (function () { var vs = A.etatValidations(r, x.occurrence, x.debut, fiches(), U.config(), Date.now()).filter(function (v) { return v.type !== 'permission' || !sp; }); var att = vs.filter(function (v) { return !v.fait; });
           return vs.length ? h('span', { class: 'badge ' + (att.some(function (v) { return v.niveau === 'retard'; }) ? 'bad' : (att.length ? 'warn' : 'ok')), title: vs.map(function (v) { return v.libelle + (v.fait ? ' : ' + (v.fait.statut === 'validee' ? 'validée' : 'refusée') : ' : à faire valider'); }).join(' ; '), text: att.length ? att.length + ' à valider' : 'Validé' }) : null; })(),
         A.etatTransports(r, x.occurrence).map(function (t) { return h('span', { class: 'badge ' + (t.reserve ? 'ok' : 'warn'), text: (t.nombre > 1 ? t.nombre + ' ' : '') + A.TRANSPORTS[t.type] + (t.reserve ? ' réservé' : ' à réserver') }); }),
         x.externe ? h('span', { class: 'badge warn', text: U.libService(r.service) }) : null,
-        x.annulee || A.enAttente(r) ? null : [badgeAccompagnateurs(x), boutonInscription(x, true)],
+        x.annulee || A.enAttente(r, U.config()) ? null : [badgeAccompagnateurs(x), boutonInscription(x, true)],
         cl ? h('span', { class: 'badge ' + (cl.alertes ? 'bad' : (cl.reste ? 'warn' : 'ok')), text: 'Check-list ' + (cl.items.length - cl.reste) + '/' + cl.items.length }) : null,
         x.absents.length ? h('span', { class: 'badge bad', text: 'Absent(e) : ' + x.absents.map(function (p) { return p.nom; }).join(', ') }) : null,
         A.regularite(r.regularite).type !== 'aucune' ? h('span', { class: 'ag-repete', title: A.libelleRepetition(r.regularite), text: '↻' }) : null));
@@ -174,7 +174,7 @@
       var quoi = p.validation.type === 'permission' ? 'la permission' : '« ' + p.validation.libelle + ' »';
       ajouter(jourDe(p.echeance, true), puce('validation' + (p.niveau === 'retard' ? ' retard' : ''), 'Faire valider ' + quoi + ' — ' + (nomsPatients(p.rdv.patients || []).join(', ') || libelleElement(p.rdv)) + ' (avant ' + libJour(p.echeance) + ' ' + hm(p.echeance) + ')', function () { modaleElement(p.rdv, null, !peut('RDV'), null, false, p.occurrence); }));
     });
-    A.transportsAReserver(st(), fiches(), svs, maintenant, 7).forEach(function (t) {
+    A.transportsAReserver(st(), fiches(), svs, maintenant, 7, U.config()).forEach(function (t) {
       ajouter(aujourdhui, puce('transport' + (t.niveau === 'proche' ? ' retard' : ''), 'Réserver : ' + (t.transport.nombre > 1 ? t.transport.nombre + ' ' : '') + A.TRANSPORTS[t.transport.type] + ' — ' + libelleElement(t.rdv) + ' (' + libJour(t.debut) + ' ' + hm(t.debut) + ')', function () { modaleElement(t.rdv, null, !peut('RDV'), null, false, t.occurrence); }));
     });
     A.alertesChecklists(st(), fiches(), svs, maintenant).forEach(function (c) { ajouter(aujourdhui, puce('alerte', 'Check-list en retard : ' + c.item.libelle + ' (' + libelleElement(c.rdv) + ')', function () { modaleElement(c.rdv, null, !peut('RDV'), null, false, c.occurrence); }, couleurs().alerte)); });
@@ -939,7 +939,7 @@
     if (al.length) parts.push(al.length + (al.length > 1 ? ' alertes de l’équipe' : ' alerte de l’équipe') + (al.some(function (a) { return a.depassee; }) ? ' (dont en retard)' : ''));
     if (jld.length) parts.push(jld.length + (jld.length > 1 ? ' échéances' : ' échéance') + ' JLD sous 72 h');
     if (cl.length) parts.push(cl.length + (cl.length > 1 ? ' points de check-list en retard' : ' point de check-list en retard'));
-    var pv = A.aFaireValider(st(), fiches(), U.config(), svs, maintenant), tr = A.transportsAReserver(st(), fiches(), svs, maintenant, 7), am = A.accompagnateursManquants(st(), fiches(), svs, maintenant, 7);
+    var pv = A.aFaireValider(st(), fiches(), U.config(), svs, maintenant), tr = A.transportsAReserver(st(), fiches(), svs, maintenant, 7, U.config()), am = A.accompagnateursManquants(st(), fiches(), svs, maintenant, 7, U.config());
     if (pv.length) parts.push(pv.length + (pv.length > 1 ? ' validations à obtenir' : ' validation à obtenir') + (pv.some(function (p) { return p.niveau === 'retard'; }) ? ' (dont en retard)' : ''));
     if (tr.length) parts.push(tr.length + (tr.length > 1 ? ' transports à réserver' : ' transport à réserver'));
     if (am.length) parts.push(am.length + (am.length > 1 ? ' éléments sans tous leurs accompagnateurs' : ' élément sans tous ses accompagnateurs'));
@@ -995,7 +995,7 @@
           h('small', { class: 'muted', text: 'Permission de sortie : validation médicale attendue avant le début selon le mode d’hospitalisation (réglage de l’établissement). Autres validations : délai choisi sur l’élément. Ouvrez l’élément pour enregistrer la validation (qui a signé).' }));
       })(),
       (function () {
-        var tr = A.transportsAReserver(st(), fiches(), svs, maintenant, 15), am = A.accompagnateursManquants(st(), fiches(), svs, maintenant, 7);
+        var tr = A.transportsAReserver(st(), fiches(), svs, maintenant, 15, U.config()), am = A.accompagnateursManquants(st(), fiches(), svs, maintenant, 7, U.config());
         return h('div', { class: 'grille-2' },
           h('section', { class: 'panneau' }, h('h2', { text: 'Transports à réserver (15 jours)' }),
             tr.length ? h('ul', { class: 'liste-simple' }, tr.map(function (t) {
@@ -1120,6 +1120,9 @@
     var modes = (U.config().modesHospitalisation || []).map(function (m) { return m.code; });
     Object.keys(o.delaisPermission).forEach(function (k) { if (modes.indexOf(k) < 0) modes.push(k); });
     var champsDelais = modes.map(function (m) { return { m: m, c: h('input', { type: 'number', min: 0, max: 168, step: 1, class: 'champ-court', value: A.delaiPermission(U.config(), m), 'aria-label': 'Délai de validation : ' + m }) }; });
+    // Types affichés en transparence tant qu'aucun patient n'est prévu (audience JLD par défaut)
+    var attente = A.typesEnAttente(U.config());
+    var casesAttente = Object.keys(A.NATURES).filter(function (k) { return k !== 'reunion'; }).map(function (k) { return { k: k, cb: h('input', { type: 'checkbox', checked: attente.indexOf(k) >= 0 }) }; });
     var zoneCL = h('div', { class: 'pile' });
     function dessinerCL() {
       U.vider(zoneCL);
@@ -1164,6 +1167,9 @@
       h('h3', { text: 'Couleurs des éléments' }),
       h('div', { class: 'ag-couleurs' }, champsCouleurs.map(function (x) { return h('label', { class: 'en-ligne' }, x.c, h('span', { text: LIB_COULEURS[x.k] })); })),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { champsCouleurs.forEach(function (x) { x.c.value = A.COULEURS_DEFAUT[x.k]; }); } }, 'Couleurs proposées'),
+      h('h3', { text: 'Éléments sans patient prévu' }),
+      h('p', { class: 'muted', text: 'Types affichés en transparence tant qu’aucun patient n’y est prévu (ex. audience JLD hebdomadaire complétée chaque semaine), sans rappel de transport ni d’accompagnateur :' }),
+      h('div', { class: 'actions gauche' }, casesAttente.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: A.NATURES[c.k] })); })),
       h('h3', { text: 'Permissions de sortie : validation médicale' }),
       h('p', { class: 'muted', text: 'Délai, en heures avant le début de la permission, avant lequel la validation (signature du médecin) est attendue, selon le mode d’hospitalisation du patient. Une alerte s’affiche dans l’agenda jusqu’à la validation ; 0 : jusqu’au dernier moment.' }),
       h('div', { class: 'ag-couleurs' }, champsDelais.map(function (x) { return h('label', { class: 'en-ligne' }, h('span', { text: x.m }), x.c, h('span', { text: 'h' })); })),
@@ -1198,6 +1204,8 @@
         if (Object.keys(cs).length) valeur.couleurs = cs;
         var ds = {}; champsDelais.forEach(function (x) { var v = Math.max(0, Math.min(168, Math.round(+x.c.value || 0))); if (v !== A.DELAIS_PERMISSION_DEFAUT[x.m] && !(A.DELAIS_PERMISSION_DEFAUT[x.m] === undefined && v === A.delaiPermission({ modesHospitalisation: U.config().modesHospitalisation }, x.m))) ds[x.m] = v; });
         if (Object.keys(ds).length) valeur.delaisPermission = ds;
+        var at = casesAttente.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.k; });
+        if (JSON.stringify(at) !== JSON.stringify(A.ATTENTE_DEFAUT)) valeur.attenteSansPatient = at;
         await U.enregistrerConfig([['agenda', valeur]]);
       }));
   }

@@ -318,20 +318,29 @@
       return { id: t.id, type: TRANSPORTS[t.type] ? t.type : 'autre', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: t.precision || '', reserve: (r.reservations || {})[occurrence + '|' + t.id] || null };
     });
   }
-  /** Audience JLD sans patient convoqué : affichée en transparence, sans rappel de transport ni d'accompagnateur (8 nov. 2026). */
-  function enAttente(r) { return r.nature === 'audience' && !(r.patients || []).length; }
+  /**
+   * Élément « en attente » : aucun patient prévu, pour un type où l'établissement l'a activé (`config.agenda.attenteSansPatient`,
+   * audience JLD par défaut ; décisions du porteur du 8 novembre 2026) : affiché en transparence, sans rappel de transport
+   * ni d'accompagnateur.
+   */
+  var ATTENTE_DEFAUT = ['audience'];
+  function typesEnAttente(config) {
+    var v = ((config && config.agenda) || {}).attenteSansPatient;
+    return Array.isArray(v) ? v.filter(function (k) { return NATURES[k]; }) : ATTENTE_DEFAUT.slice();
+  }
+  function enAttente(r, config) { return typesEnAttente(config).indexOf(r.nature) >= 0 && !(r.patients || []).length; }
   /** Transports à réserver pour les occurrences des `jours` prochains jours (15 par défaut) ; « proche » à moins de 24 h. */
-  function transportsAReserver(st, fiches, services, maintenant, jours) {
+  function transportsAReserver(st, fiches, services, maintenant, jours, config) {
     var res = [];
     elements(st, fiches, services, maintenant - 36e5, plusJours(maintenant, jours || 15)).forEach(function (x) {
-      if (x.externe || enAttente(x.rdv)) return;
+      if (x.externe || enAttente(x.rdv, config)) return;
       etatTransports(x.rdv, x.occurrence).forEach(function (t) { if (!t.reserve) res.push({ rdv: x.rdv, occurrence: x.occurrence, debut: x.debut, transport: t, niveau: x.debut - maintenant < 864e5 ? 'proche' : 'attente' }); });
     });
     return res.sort(function (a, b) { return a.debut - b.debut; });
   }
   /** Occurrences des `jours` prochains jours (7 par défaut) où il manque des accompagnateurs. */
-  function accompagnateursManquants(st, fiches, services, maintenant, jours) {
-    return elements(st, fiches, services, maintenant, plusJours(maintenant, jours || 7)).filter(function (x) { return !x.externe && !enAttente(x.rdv) && x.accompagnateurs.manque > 0; });
+  function accompagnateursManquants(st, fiches, services, maintenant, jours, config) {
+    return elements(st, fiches, services, maintenant, plusJours(maintenant, jours || 7)).filter(function (x) { return !x.externe && !enAttente(x.rdv, config) && x.accompagnateurs.manque > 0; });
   }
   /**
    * Informations reçues par un agent (inscrit ou désinscrit comme accompagnateur par un collègue) qu'il n'a pas encore
@@ -708,7 +717,7 @@
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
     libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
-    enAttente: enAttente, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
+    enAttente: enAttente, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
     alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
     etatChecklist: etatChecklist, checklists: checklists, alertesChecklists: alertesChecklists, optionsTaches: optionsTaches, AJUSTABLES: AJUSTABLES, affectation: affectation, controler: controler, tachePour: tachePour, tachesDues: tachesDues, absences: absences, prevusAbsents: prevusAbsents, jourISO: jourISO, depuisISO: depuisISO };
