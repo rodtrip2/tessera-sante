@@ -13,6 +13,8 @@ Projet en cours de présentation :
 - [Fiche projet](docs/fiche-projet.md) ([PDF](docs/fiche-projet.pdf)), pour la direction des soins ;
 - [Fiche technique](docs/fiche-technique.md) ([PDF](docs/fiche-technique.pdf)), pour le service informatique et le responsable de la sécurité informatique.
 
+Pour le développement : [architecture](docs/architecture.md) ([PDF](docs/architecture.pdf)) et consignes du projet (`CLAUDE.md`).
+
 Pistes gardées pour plus tard, hors du périmètre soumis à validation : [évolutions futures](docs/evolutions-futures.md).
 
 Le module Isocont reprend l'application [Suivi-mesures-isocont](https://github.com/rodtrip2/Suivi-mesures-isocont).

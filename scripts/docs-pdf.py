@@ -13,6 +13,7 @@ from playwright.sync_api import sync_playwright
 
 RACINE = pathlib.Path(__file__).resolve().parent.parent
 DOCS = RACINE / 'docs'
+EXCLUS = {'consignes-isocont'}  # documents de travail, sans PDF
 
 CSS = """
 @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
@@ -54,6 +55,8 @@ def main():
         navigateur = p.chromium.launch()
         page = navigateur.new_page()
         for f in sorted(DOCS.glob('*.md')):
+            if f.stem in EXCLUS:
+                continue
             texte = f.read_text(encoding='utf-8')
             titre = re.search(r'^# (.+)$', texte, flags=re.M).group(1)
             tmp = DOCS / ('.' + f.stem + '.html')
