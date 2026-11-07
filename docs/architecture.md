@@ -188,6 +188,25 @@ Module de référence, partagé par tous les modules qui concernent des patients
 4. **Import de la liste des patients du DPI (0.6.4).** `import-patients.js` (logique, sous Node) et `ui-import-patients.js` (onglet *Patients → Importer la liste du DPI…*) : lecture CSV (UTF-8 puis Windows-1252) ou Excel, lecteur CSV commun déplacé dans `xlsx.js` ; colonnes proposées par nom d'en-tête, colonnes découpées (« Nom prénom » selon les règles du § 8, « Loc. » en chambre et lit) ; unités du DPI → services (ou écartées), valeurs du sexe ; aperçu (nouveaux, mis à jour, écarts gardés, doublons à confirmer, découpages à vérifier, erreurs, absents) ; saisies `PATIENT` et `SEJOUR` marquées `origine: 'import-dpi'` en un lot annulable ; source de chaque champ (`sources` : import ou saisie) : une saisie dans Tessera n'est jamais écrasée ; découpage validé gardé (`decoupageNom`) ; sortie des absents seulement si cochée. Modèle mémorisé (`config.importPatients.modeles`, établissement ou service ; noms de colonnes et correspondances seulement), groupe d'export des réglages « Module Patients ».
 5. **Reprise de l'historique (0.7.0).** Les imports du registre et du classeur sont rangés en deux lots liés (Patients : fiches et modes ; Isocont : mesures, pauses, JLD, tiers, surveillance), annulés ensemble ; calculs identiques à ceux d'un lot unique (registre vérifié par test) ; fiches marquées `origine: 'import-historique'` (source « import » : la liste du DPI peut les compléter) ; rattachement par l'IPP, pas de doublon si relancé (mécanique d'Isocont) ; ordre conseillé : historique, puis liste du DPI. Droit d'accès : export réunissant la fiche complète, les séjours, les modes, les changements datés et les mesures. Durée de conservation : dernière activité dans tous les modules (fin de mesure, sortie de séjour ; un séjour en cours retient le patient).
 
+## 7 bis. Module Agenda (besoins exprimés par le porteur le 7 novembre 2026)
+
+L'Agenda organise le service ; il ne contient **aucune donnée clinique** (le contenu des accompagnements, des activités et des entretiens reste dans le DPI).
+
+| Élément | Contenu | Règles |
+| --- | --- | --- |
+| **Accompagnement** | Patient(s), professionnels prévus, plage horaire (début, fin), lieu ou motif court (ex. « rendez-vous extérieur ») | Professionnels choisis parmi les comptes du service (nom libre possible) ; identité du patient affichée selon le réglage de l'établissement (§ 6) |
+| **Activité thérapeutique** | Intitulé, plage horaire, lieu, professionnels, **liste des patients prévus** | Planification seulement : la présence effective n'est pas tracée (elle relève du DPI) |
+| **Réunion** | Intitulé (synthèse, staff, réunion institutionnelle…), plage horaire, lieu, participants | Affichée dans les alertes « réunions à venir » |
+| **Tâche** | Intitulé, échéance (date, heure facultative), **ponctuelle ou régulière** (chaque jour, certains jours de la semaine, chaque mois), attribuée à un rôle ou à un agent | **Simple coche « faite »** (décision du porteur) : nom de l'agent et heure gardés ; une tâche régulière crée une occurrence par échéance |
+| **Absence d'un professionnel** | Professionnel, période, catégorie : congé, formation, réunion extérieure, autre | Saisie par le cadre (ou un rôle autorisé) **et par l'agent pour lui-même** (décision du porteur) ; jamais de motif médical ; les accompagnements et activités de la période où il est prévu sont signalés |
+| **Alerte « à voir par le médecin »** | Patient, « avant le » (date, heure facultative), médecin visé facultatif | **Saisie par l'équipe** (décision du porteur) ; visible jusqu'à « vu » ; les certificats légaux calculés viendront plus tard (`docs/evolutions-futures.md`) |
+| **Alertes JLD** | Échéances des mesures en cours | Fourniture `isocont.echeancesJLD` v1 lue à la volée (§ 6), seulement pour qui a droit à Isocont |
+| **Réunions à venir** | Réunions des prochains jours | Calculées depuis les réunions de l'agenda |
+
+- **Vues** : agenda du service (jour, semaine), filtre par type ; **« Mon agenda »** (décision du porteur : vue dans Tessera seulement, tous services confondus, aucune copie hors de l'outil) : accompagnements, activités et réunions où l'agent est prévu, ses tâches (à lui ou à son rôle), ses absences, ses alertes.
+- **Saisies** (journal `modules\agenda\`, clé de l'Agenda) : `RDV` (accompagnement, activité, réunion : `nature`), `TACHE` (création, modification), `TACHE_FAITE` (occurrence cochée), `ABSENCE`, `ALERTE_MEDECIN`, `ALERTE_VUE` ; corrections et annulations par les mécanismes communs. L'Agenda lit les fiches (fourniture `patients.fiches`) et les échéances JLD ; il n'écrit dans aucun autre module.
+- **Droits** (accès de l'Agenda dans *Rôles et accès*) : consulter ; planifier (accompagnements, activités, réunions, tâches, alertes) ; cocher les tâches ; saisir les absences de l'équipe ; chacun saisit ses propres absences.
+
 ## 8. Imports
 
 ### Liste des patients exportée du DPI (décisions des 4 au 7 novembre 2026)
@@ -268,7 +287,11 @@ Sept étapes, chacune publiable seule avec tous les tests au vert.
 3. **Comptes et services au socle.** Réglages `services` et `roles` au journal du socle ; activation des modules par service.
 4. **Trousseau.** Clés personnelles, clé de plateforme, clés de module par générations ; code de secours unique.
 5. **Module Patients.** Fiches, modes, séjours, fusion et doublons sortent d'Isocont ; import de la liste du DPI ; imports du registre et du classeur adaptés pour peupler les deux modules ; registre, cumuls et échéances identiques avant / après.
-6. **Module Agenda.** Frontière, activation par service, premier échange (échéances JLD en lecture à la volée), écran d'accueil des modules.
+6. **Module Agenda** (§ 7 bis). Sous-étapes, chacune publiable :
+   1. **Plusieurs modules affichés** : écran d'accueil des modules et choix du module (en-tête) ; état, droits et onglets par module ; accès des rôles regroupés par module dans *Rôles et accès* ; module Agenda déclaré (journal, clé, activation par service), onglet vide.
+   2. **Agenda du service** : accompagnements, activités thérapeutiques, réunions ; vues jour et semaine ; identité du patient selon le réglage.
+   3. **Tâches et absences** : tâches ponctuelles et régulières, coche « faite » ; absences (cadre, agent pour lui-même) et signalement des conflits.
+   4. **Alertes et « Mon agenda »** : à voir par le médecin, échéances JLD (lecture à la volée), réunions à venir ; vue individuelle tous services.
 7. **Kit de déploiement.** Fiche technique, éléments RGPD (un traitement par module), guides d'installation et d'utilisation.
 
 **État du plan** (au 7 novembre 2026) :
@@ -281,7 +304,8 @@ Sept étapes, chacune publiable seule avec tous les tests au vert.
 | 3. Comptes et services au socle | **Faite (0.4.0).** Journal du socle et rangement par journal (0.3.1) : `socle\`, `modules\isocont\` (jeu de formation dessous) ; réglages communs (établissement, services, rôles) au journal du socle ; intégrité, copies, réparation, quarantaine, dossier de secours et déplacement journal par journal. Activation des modules par service (0.4.0) : réglage `modulesServices` au journal du socle, services visibles et saisies refusées selon l'activation (`droits.js` : `activation`, `serviceActif`, `consulteInactifs` ; contrat : `saisies.cibles`), panneau *Modules activés par service* |
 | 4. Trousseau | Fait. Briques (0.4.1), coffre version 2 (0.4.2), migration et retour à la clé unique (0.4.3), remise et retrait des clés selon les droits (0.4.4) : clé du module selon le rôle et l'activation, nouvelle génération automatique au retrait, nouvelle clé maîtresse au retrait d'un administrateur, clé personnelle créée par l'agent, postes ouverts mis à jour, réémission des clés. Corrections de la relecture indépendante (0.4.5). Attestation du coffre, renouvellement après restauration, compromission, panneau *Intégrité du coffre* (0.5.0) |
 | 5. Module Patients | Fait. Journal et clé propres (0.6.0) ; fiche reconstituée par Patients, lue à la volée par Isocont, lots liés (0.6.1) ; droits de la fiche et onglet en tête (0.6.2) ; fiche commune complète et séjours (0.6.3) ; import de la liste des patients du DPI (0.6.4) ; reprise de l'historique, droit d'accès et conservation sur tous les modules (0.7.0) |
-| 6 et 7 | À faire |
+| 6. Module Agenda | Besoins et plan arrêtés (§ 7 bis, 7 novembre 2026). À faire : sous-étapes 1 à 4 |
+| 7. Kit de déploiement | À faire |
 
 Restent propres à Isocont dans la coquille : quelques aides d'affichage liées aux patients et aux mesures (`patient`, `lieu`, réglages d'affichage de l'accueil), à reprendre avec le module Patients (étape 5) ; textes (titre, « Informations techniques », fichier lisez-moi du jeu de formation), à généraliser avec l'écran d'accueil des modules (étape 6). À l'étape 3 : le panneau « Règles légales et sécurité » d'Isocont porte aussi le verrouillage après inactivité, réglage du socle.
 
@@ -302,6 +326,11 @@ Points de vigilance : `ui.js` est le découpage le plus long, à faire par blocs
 | Rôle selon le service | Pas dès le départ, mais prévu dans le modèle | 4 nov. 2026 |
 | Échanges entre modules | Lecture à la volée ; publication activable plus tard | 4 nov. 2026 |
 | Identité dans l'agenda | Au choix : aucune, initiales, IPP, nom complet | 4 nov. 2026 |
+| Contenu de l'Agenda | Accompagnements (patients, professionnels, plage horaire), tâches ponctuelles ou régulières, absences, activités thérapeutiques avec patients prévus, alertes (à voir par le médecin, JLD, réunions), agenda individuel par professionnel | 7 nov. 2026 |
+| Agenda individuel | Vue « Mon agenda » dans Tessera seulement, tous services confondus (pas d'export vers une messagerie) | 7 nov. 2026 |
+| Absences | Saisies par le cadre et par l'agent pour lui-même ; catégorie seulement (congé, formation, réunion extérieure, autre) | 7 nov. 2026 |
+| Tâches | Validation = simple coche « faite » (nom et heure gardés) | 7 nov. 2026 |
+| Alerte « à voir par le médecin » | Saisie par l'équipe ; certificats légaux calculés plus tard | 7 nov. 2026 |
 | Création des fiches patient | Paramétrable ; IDE, secrétaire, cadre par défaut | 4 nov. 2026 |
 | Patients sans mesure | Saisie manuelle et import CSV exporté du DPI | 4 nov. 2026 |
 | Champs de la fiche | Voir § 7 | 5 nov. 2026 |
@@ -317,4 +346,4 @@ Points de vigilance : `ui.js` est le découpage le plus long, à faire par blocs
 | Séjours | Historique des séjours successifs (IEP, entrée, sortie, unité, chambre et lit) ; la fiche montre le séjour en cours | 7 nov. 2026 |
 | Discipline d'un service | Réglage par service « service de psychiatrie » (coché par défaut pour les services existants), libellés modifiables | 7 nov. 2026 |
 
-**Questions restantes** : ajout de l'IPP à l'export de Sillage (à demander à l'administrateur du DPI) ; contenu de l'Agenda au-delà des échéances JLD (à définir avec les équipes) ; devenir du dépôt `Suivi-mesures-isocont` une fois Tessera en service.
+**Questions restantes** : ajout de l'IPP à l'export de Sillage (à demander à l'administrateur du DPI) ; devenir du dépôt `Suivi-mesures-isocont` une fois Tessera en service.
