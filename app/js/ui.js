@@ -698,6 +698,12 @@
     var focus = document.activeElement && document.activeElement.closest && document.activeElement.closest('dialog');
     if (focus) return; // ne pas reconstruire derrière une fenêtre ouverte
     if (s.utilisateur && s.utilisateur.mdpProvisoire) return rendre();
+    // Journaux en cours de relecture (clés reçues, jeu de formation ouvert ou fermé) : attente, puis affichage
+    if (!s.etat) {
+      vider(zoneContenu).appendChild(h('div', { class: 'panneau vide', text: 'Lecture des données en cours…' }));
+      s.synchroniser().catch(function () {});
+      return;
+    }
     // Module affiché retenu sur le poste (étape 6) ; un module devenu inaccessible ramène au module principal
     if (s.moduleChoisi === undefined) { try { s.choisirModule(localStorage.getItem('sic-module') || ''); } catch (e) { s.moduleChoisi = null; } }
     else if (s.moduleChoisi && !s.modulesAccessibles().some(function (m) { return m.id === s.moduleChoisi; })) s.choisirModule(null);

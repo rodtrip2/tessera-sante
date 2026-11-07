@@ -518,6 +518,12 @@
     var racine;
     try { racine = await this.sousDossier(['evenements'], false); } catch (e) { return res; }
     var maintenant = Date.now();
+    // Parcours interrompu (dossier modifié pendant la lecture par une saisie d'un autre poste, partage momentanément
+    // indisponible) : les saisies déjà lues sont rendues avec `interrompu`, jamais perdues (elles sont déjà dans
+    // `connus`) ; le reste est lu à la synchronisation suivante.
+    try { await parcourirMois(this); } catch (e) { res.interrompu = (e && (e.name + ' ' + e.message)) || String(e); }
+    return res;
+    async function parcourirMois(dossier) {
     for await (var an of racine.values()) {
       if (an.kind !== 'directory') continue;
       for await (var mois of an.values()) {
@@ -530,7 +536,7 @@
         var clos = moisClos(cleMois, maintenant) && !(options && options.sansInstantanes);
         var duMois = {}, rejetsMois = 0;
         if (clos) {
-          var snap = await this.lireInstantane(cle, cleMois);
+          var snap = await dossier.lireInstantane(cle, cleMois);
           if (snap) snap.evenements.forEach(function (e) { duMois[e.id + '.enc'] = e; });
         }
         for (var i = 0; i < fichiers.length; i++) {
@@ -554,12 +560,12 @@
         if (clos && !rejetsMois && fichiers.every(function (x) { return duMois[x.name]; })) {
           var evts = fichiers.map(function (x) { return duMois[x.name]; });
           if (!snap || snap.evenements.length !== evts.length) {
-            try { await this.ecrireInstantane(cle, cleMois, evts); res.instantanes++; } catch (err) { /* sans conséquence */ }
+            try { await dossier.ecrireInstantane(cle, cleMois, evts); res.instantanes++; } catch (err) { /* sans conséquence */ }
           }
         }
       }
     }
-    return res;
+    }
   };
 
   Dossier.prototype.lireInstantane = async function (cle, cleMois) {

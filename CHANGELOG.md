@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.9.3 — 7 novembre 2026
+
+Défaut signalé par le porteur pendant ses essais : patients et mesures disparus de l'écran, avec une erreur de fichier illisible, revenus après rechargement et reconnexion.
+
+- **Cause** : une lecture des journaux interrompue (dossier modifié pendant la lecture, par exemple par une saisie faite dans un autre onglet ou un autre poste) faisait perdre à la session les saisies déjà lues des autres journaux : elles étaient marquées comme lues sans être ajoutées à l'écran, et la session ne les relisait plus avant la reconnexion. Deux synchronisations pouvaient aussi se chevaucher (lecture complète lente, changement de clés ou ouverture du jeu de formation pendant une lecture).
+- **Correction** : les synchronisations se suivent, une à la fois ; une lecture interrompue rend ce qu'elle a déjà lu et le reste est lu à la synchronisation suivante ; un journal momentanément illisible n'empêche plus la lecture des autres ; une lecture commencée avant un changement de clés ou de jeu est écartée. Pendant une relecture complète, l'écran affiche « Lecture des données en cours… » au lieu d'une erreur.
+- Nouveau test (lecture interrompue, synchronisations simultanées sans doublon ; 210 au vert).
+
 ## 0.9.2 — 7 novembre 2026
 
 - **Nouvelle icône** (choix du porteur) : rosace de tesselles sur le fond vert de l'outil, en plusieurs teintes accordées (verts, bleu pétrole, vert sauge, quelques tesselles ambre) ; les tesselles claires dessinent un T. Version simplifiée pour les petites tailles (onglet du navigateur), où le T reste lisible. Produite par `scripts/icone.py` (icône Windows, PNG de l'en-tête et de l'application installée).
