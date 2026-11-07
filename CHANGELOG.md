@@ -1,5 +1,16 @@
 # Journal des modifications — Tessera Santé
 
+## 0.4.2 — 7 novembre 2026
+
+Étape 4 (trousseau), deuxième sous-étape : **coffre version 2 et trousseau en mémoire**, sans changement à l'écran.
+
+- Un dossier neuf est créé en coffre version 2 (`trousseau.js`) : clé de plateforme et clé d'Isocont tirées de clés maîtresses, clé personnelle de l'administrateur, clé de secours ouverte par le code de secours. Plus aucune clé de données unique.
+- Connexion par mot de passe, YubiKey ou code de secours : ouverture de la clé personnelle (ou de secours), puis des enveloppes. Journal du socle, comptes et préférences chiffrés par la clé de plateforme ; journal d'Isocont par la clé du module ; jeu de formation sous la clé du module ; fichiers au nouvel en-tête « SIC2 ».
+- Comptes : clé personnelle créée à la création du compte ; à la réinitialisation par l'administrateur, nouvelle clé personnelle et nouvelles enveloppes ; changement de mot de passe par l'agent sans changer sa clé. Code de secours renouvelé : nouvelle clé de secours, l'ancien code n'ouvre plus rien.
+- À ce stade, tous les comptes reçoivent toutes les clés de droit (la remise selon les rôles vient en 0.4.4) ; les administrateurs et la clé de secours reçoivent les clés maîtresses.
+- Un coffre version 1 (dossier de la 0.4.0) s'ouvre et s'utilise exactement comme avant jusqu'à sa migration (0.4.3).
+- Nouveau test `tests/trousseau-session.test.js` ; vérification dans Chrome, identique à la version précédente.
+
 ## 0.4.1 — 7 novembre 2026
 
 Étape 4 du plan d'architecture (trousseau), première sous-étape : **briques de chiffrement**, sans effet à l'écran.
