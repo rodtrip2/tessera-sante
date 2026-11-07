@@ -180,7 +180,7 @@
       var der = s.derniereCopie(), n = rappelJours();
       if (n && (!der || Date.now() - der > n * J)) res.push(h('li', {}, h('b', { text: 'Copie de sauvegarde' }), ' — ' + (der ? 'dernière copie complète le ' + U.date(der).slice(0, 10) : 'aucune copie complète téléchargée') + ' (rappel tous les ' + n + ' jours). Administration → Sauvegardes et exports.'));
       var sc = s.etatScelle();
-      if (!sc || !sc.aJour) res.push(h('li', {}, h('b', { text: 'Copie du coffre sous scellé' }), ' — ' + (!sc ? 'jamais faite' : 'à refaire : le code de secours a été renouvelé depuis') + '. Administration → Sauvegardes et exports.'));
+      if (!sc || !sc.aJour) res.push(h('li', {}, h('b', { text: 'Copie du coffre sous scellé' }), ' — ' + (!sc ? 'jamais faite' : 'à refaire : le code de secours ou une clé maîtresse a changé depuis') + '. Administration → Sauvegardes et exports.'));
     }
     return res;
   }
@@ -197,7 +197,7 @@
       var sc = s.etatScelle(), der = s.derniereCopie(), r = s.integrite, pbs = texteIntegrite(r);
       U.vider(zone).appendChild(h('div', { class: 'recap' },
         h('div', { text: 'Coffre : révision ' + s.coffre.rev + ' — ' + versions.filter(function (v) { return v.valide; }).length + ' version(s) conservée(s) dans le dossier, la version actuelle comprise' + (versions[0] && versions[0].archiveLe ? ' (la plus récente du ' + U.date(Date.parse(versions[0].archiveLe)) + ')' : '') + (s.coffre.restaureLe ? ' — coffre restauré le ' + U.date(Date.parse(s.coffre.restaureLe)) : '') }),
-        h('div', { class: !sc || !sc.aJour ? 'texte-bad' : '', text: 'Copie du coffre sous scellé : ' + (!sc ? 'jamais faite' : 'faite le ' + U.date(Date.parse(sc.creeLe)) + (sc.aJour ? '' : ' — à refaire, le code de secours a été renouvelé depuis')) }),
+        h('div', { class: !sc || !sc.aJour ? 'texte-bad' : '', text: 'Copie du coffre sous scellé : ' + (!sc ? 'jamais faite' : 'faite le ' + U.date(Date.parse(sc.creeLe)) + (sc.aJour ? '' : ' — à refaire, le code de secours ou une clé maîtresse a changé depuis')) }),
         h('div', { class: der && Date.now() - der <= (rappelJours() || 9999) * J ? '' : 'texte-bad', text: 'Dernière copie de sauvegarde complète : ' + (der ? U.date(der) : 'aucune') }),
         h('div', { class: pbs && pbs.length ? 'texte-bad' : '', text: 'Contrôle d’intégrité : ' + (!r ? 'non encore effectué' : (pbs.length ? pbs.join(' ; ') : 'aucune anomalie') + ' (le ' + U.date(r.verifieLe) + ')') })));
       U.vider(zoneIntegrite).appendChild(blocIntegrite(r, function () { U.rendreContenu(); }));

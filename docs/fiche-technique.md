@@ -14,7 +14,7 @@
 | Organisation | Un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** : Patients, Isolement et contention (Isocont), Agenda du service | existant : socle commun et contrat de module (registre des modules), module Isocont déclaré ; à construire : Patients, Agenda |
 | Dépendances | Aucune bibliothèque externe ; uniquement les API standard du navigateur | existant |
 | Stockage | Dossier d'un partage réseau (SMB) accédé par l'API *File System Access* du navigateur ; un sous-dossier et un journal par module | existant : un journal du socle et un journal par module |
-| Chiffrement | AES-GCM 256 bits côté poste (Web Crypto API), chiffrement en enveloppe ; **une clé par module**, remise seulement aux agents qui y ont droit | existant (une clé) ; à construire (par module) |
+| Chiffrement | AES-GCM 256 bits côté poste (Web Crypto API), chiffrement en enveloppe ; **une clé par module**, remise seulement aux agents qui y ont droit | existant (depuis la version 0.4.4) |
 | Authentification | Comptes nominatifs, **connexion unique** pour tous les modules ; mot de passe (PBKDF2-SHA-256, 600 000 itérations), clé de sécurité FIDO2 (WebAuthn, extension PRF) ou code de secours ; mot de passe provisoire à changer à la première connexion | existant |
 | Flux réseau | **Aucun flux sortant** : politique de sécurité du contenu `connect-src 'none'` ; seul le chargement des fichiers de l'application depuis l'hébergement choisi | existant |
 | Échanges avec le DPI | Aucun flux : import manuel d'un fichier CSV exporté du DPI (liste des patients), lu dans le navigateur | à construire |
@@ -157,19 +157,20 @@ Les modules qui concernent des patients (Isocont, Agenda) **dépendent** du modu
 
 | Élément | Mise en œuvre | État |
 | --- | --- | --- |
-| Chiffrement d'un fichier | AES-GCM 256 ; en-tête + IV aléatoire de 96 bits + texte chiffré authentifié ; données associées = nom du fichier (un fichier renommé ou échangé est rejeté) | existant |
-| Clé personnelle de l'agent | Paire de clés ECDH (courbe P-256, Web Crypto API) créée à la première connexion ; partie publique en clair dans le coffre ; partie privée emballée par le mot de passe, la clé de sécurité ou, pour l'administrateur, le code de secours | à construire |
-| Clé de plateforme | AES-GCM 256 ; chiffre les comptes, les services, les rôles et le journal du socle (aucune donnée de patient) ; remise à tous les comptes actifs | à construire |
-| Clé d'un module | AES-GCM 256 ; chiffre les saisies et réglages du module ; remise, chiffrée pour lui (ECDH + HKDF-SHA-256), à chaque agent qui y a droit | à construire |
-| Remise d'une clé | L'administrateur chiffre la clé du module avec la partie publique de l'agent : il n'a pas besoin de connaître son mot de passe, et rien ne passe par un serveur | à construire |
-| Retrait d'un droit | Suppression de l'enveloppe de l'agent, puis **nouvelle génération** de la clé du module pour les saisies à venir. Les générations précédentes restent remises aux agents qui gardent l'accès et à tout nouvel agent : ils lisent tout l'historique ; seul l'agent retiré ne reçoit pas la nouvelle | à construire |
+| Chiffrement d'un fichier | AES-GCM 256 ; en-tête portant le numéro de génération de la clé + IV aléatoire de 96 bits + texte chiffré authentifié ; données associées = nom du fichier et numéro de génération (un fichier renommé, échangé ou dont l'en-tête est modifié est rejeté) | existant |
+| Clé personnelle de l'agent | Paire de clés ECDH (courbe P-256, Web Crypto API) créée par l'agent à son premier changement de mot de passe (l'administrateur ne la connaît jamais) ; partie publique en clair dans le coffre ; partie privée emballée par le mot de passe ou la clé de sécurité ; le code de secours ouvre une clé de secours distincte | existant |
+| Clé de plateforme | AES-GCM 256 ; chiffre les comptes, les services, les rôles et le journal du socle (aucune donnée de patient) ; remise à tous les comptes actifs | existant |
+| Clé d'un module | AES-GCM 256 ; chiffre les saisies et réglages du module ; remise, chiffrée pour lui (ECDH + HKDF-SHA-256), à chaque agent qui y a droit (rôle dans le module et service où il est activé) | existant |
+| Remise d'une clé | L'administrateur chiffre la clé du module avec la partie publique de l'agent : il n'a pas besoin de connaître son mot de passe, et rien ne passe par un serveur | existant |
+| Retrait d'un droit | Suppression de l'enveloppe de l'agent, puis **nouvelle génération** de la clé du module pour les saisies à venir. Les générations précédentes restent remises aux agents qui gardent l'accès et à tout nouvel agent : ils lisent tout l'historique ; seul l'agent retiré ne reçoit pas la nouvelle. Automatique (retrait d'un rôle, compte désactivé, module désactivé pour ses services). Générations tirées d'une clé maîtresse (HKDF-SHA-256) détenue par l'administrateur et le code de secours ; nouvelle clé maîtresse au retrait d'un administrateur | existant |
 | Emballage par mot de passe | PBKDF2-SHA-256, 600 000 itérations, sel aléatoire de 128 bits | existant |
 | Emballage par clé de sécurité | Secret WebAuthn PRF (*hmac-secret*) calculé dans la clé, dérivé par HKDF-SHA-256 | existant |
-| Code de secours | **Un seul pour la plateforme** ; 20 caractères tirés au hasard (100 bits d'entropie), PBKDF2-SHA-256 ; ouvre la clé de plateforme et toutes les clés de module | existant (principe) |
+| Code de secours | **Un seul pour la plateforme** ; 20 caractères tirés au hasard (100 bits d'entropie), PBKDF2-SHA-256 ; ouvre une clé de secours (paire ECDH), qui détient les clés maîtresses : clé de plateforme et toutes les clés de module, toutes générations | existant |
 | Mot de passe provisoire | 16 caractères tirés au hasard (80 bits), remplacé à la première connexion | existant |
 | Mode formation | Jeu de données fictives par module, avec sa propre clé, enveloppée par la clé du module | existant (Isocont) |
-| En mémoire | Clés non exportées vers le stockage du navigateur ; effacées au verrouillage, à la fermeture de l'onglet et après inactivité (10 minutes par défaut) | existant |
+| En mémoire | Clés non exportées vers le stockage du navigateur ; clés AES importées non exportables ; partie privée de l'agent gardée en mémoire pendant la session (réemballage) ; tout est effacé au verrouillage, à la fermeture de l'onglet et après inactivité (10 minutes par défaut) | existant |
 | Écriture du coffre | Contrôle de révision (une modification concurrente est refusée), relecture après écriture, historique des 30 dernières versions | existant |
+| Intégrité du coffre | Attestation par l'administrateur des parties publiques, des générations et des droits des comptes, vérifiée avant toute remise de clé (protège contre un agent qui garderait un accès en écriture au partage) | à construire, décision du porteur attendue |
 
 Les mots de passe ne figurent jamais dans le journal. Désactiver un compte supprime ses enveloppes : son mot de passe ne déverrouille plus rien.
 
