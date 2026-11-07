@@ -15,7 +15,7 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre) {
   'use strict';
 
-  var TYPES = ['RDV', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
+  var TYPES = ['RDV', 'OCCURRENCE', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
   // Types d'éléments (décisions du porteur du 7 novembre 2026 : entretien médical ou infirmier, individuel ou avec la
   // famille ; permission de sortie demandée puis validée, distincte de la sortie du patient)
   // Audience JLD (services de psychiatrie) et Examen : décisions du porteur du 8 novembre 2026
@@ -172,14 +172,42 @@
     for (var t = depart, n = 0; t < fin && t < limite && n < 800; t = plusJours(t, 1), n++) if (retenu(t)) res.push(jourISO(t));
     return res;
   }
-  /** Occurrences d'un élément qui chevauchent [debut, fin[ : { occurrence, debut, fin } (même heure, même durée). */
+  // Réglages propres à une date d'un élément répété (décision du porteur du 8 novembre 2026 : patients, accompagnateurs,
+  // transports, check-list… peuvent changer à chaque date ; une date peut être décalée ou annulée)
+  var CHAMPS_OCCURRENCE = ['debut', 'fin', 'lieu', 'titre', 'patients', 'professionnels', 'accompagnateurs', 'transports', 'validations', 'checklist', 'annulee', 'motifAnnulation'];
+  /**
+   * Élément tel qu'il est à une date : réglages de toutes les dates, remplacés par ceux propres à cette date
+   * (`surcharges[occurrence]`). `surchargee` : liste des champs propres à la date (vide : aucun).
+   */
+  function rdvOccurrence(r, occurrence) {
+    var sc = r && r.surcharges && r.surcharges[occurrence];
+    if (!sc) return r;
+    var m = Object.assign({}, r), propres = [];
+    CHAMPS_OCCURRENCE.forEach(function (k) { if (sc[k] !== undefined && k !== 'debut' && k !== 'fin' && k !== 'annulee' && k !== 'motifAnnulation') { m[k] = sc[k]; propres.push(k); } });
+    if (sc.debut !== undefined) propres.push('debut');
+    m.surchargee = propres; m.annulee = !!sc.annulee; m.motifAnnulation = sc.motifAnnulation || '';
+    return m;
+  }
+  /**
+   * Occurrences d'un élément qui chevauchent [debut, fin[ : { occurrence, debut, fin, annulee } (même heure, même durée,
+   * sauf date décalée). `occurrence` reste la date prévue par la répétition, même si la date est décalée : elle repère les
+   * inscriptions, réservations, validations et check-lists de cette date.
+   */
   function occurrences(r, debut, fin) {
-    var duree = (r.fin || r.debut) - r.debut, b = new Date(r.debut), exc = r.exceptions || [];
+    var duree = (r.fin || r.debut) - r.debut, b = new Date(r.debut), exc = r.exceptions || [], sc = r.surcharges || {};
     function aLHeure(j) { var d = new Date(depuisISO(j)); d.setHours(b.getHours(), b.getMinutes(), 0, 0); return d.getTime(); }   // heure locale gardée
     var reg = regularite(r.regularite);
-    if (reg.type === 'aucune') return r.debut < fin && (r.fin || r.debut) >= debut ? [{ occurrence: jourISO(r.debut), debut: r.debut, fin: r.fin || null }] : [];
-    return datesOccurrences(r.debut, reg, plusJours(debut, -Math.ceil(duree / 864e5) - 1), fin).filter(function (j) { return exc.indexOf(j) < 0; })
-        .map(function (j) { var d0 = aLHeure(j); return { occurrence: j, debut: d0, fin: r.fin ? d0 + duree : null }; })
+    if (reg.type === 'aucune') return r.debut < fin && (r.fin || r.debut) >= debut ? [{ occurrence: jourISO(r.debut), debut: r.debut, fin: r.fin || null, annulee: false }] : [];
+    // Marge de 7 jours : une date décalée peut entrer dans la période, ou en sortir
+    return datesOccurrences(r.debut, reg, plusJours(debut, -Math.ceil(duree / 864e5) - 8), plusJours(fin, 8)).filter(function (j) { return exc.indexOf(j) < 0; })
+      .map(function (j) {
+        var d0 = aLHeure(j), o = { occurrence: j, debut: d0, fin: r.fin ? d0 + duree : null, annulee: false }, s0 = sc[j];
+        if (s0) {
+          if (typeof s0.debut === 'number') { o.debut = s0.debut; o.fin = typeof s0.fin === 'number' ? s0.fin : (r.fin ? s0.debut + duree : null); }
+          o.annulee = !!s0.annulee;
+        }
+        return o;
+      })
       .filter(function (o) { return o.debut < fin && (o.fin || o.debut) >= debut; });
   }
 
@@ -290,18 +318,20 @@
       return { id: t.id, type: TRANSPORTS[t.type] ? t.type : 'autre', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: t.precision || '', reserve: (r.reservations || {})[occurrence + '|' + t.id] || null };
     });
   }
+  /** Audience JLD sans patient convoqué : affichée en transparence, sans rappel de transport ni d'accompagnateur (8 nov. 2026). */
+  function enAttente(r) { return r.nature === 'audience' && !(r.patients || []).length; }
   /** Transports à réserver pour les occurrences des `jours` prochains jours (15 par défaut) ; « proche » à moins de 24 h. */
   function transportsAReserver(st, fiches, services, maintenant, jours) {
     var res = [];
     elements(st, fiches, services, maintenant - 36e5, plusJours(maintenant, jours || 15)).forEach(function (x) {
-      if (x.externe) return;
+      if (x.externe || enAttente(x.rdv)) return;
       etatTransports(x.rdv, x.occurrence).forEach(function (t) { if (!t.reserve) res.push({ rdv: x.rdv, occurrence: x.occurrence, debut: x.debut, transport: t, niveau: x.debut - maintenant < 864e5 ? 'proche' : 'attente' }); });
     });
     return res.sort(function (a, b) { return a.debut - b.debut; });
   }
   /** Occurrences des `jours` prochains jours (7 par défaut) où il manque des accompagnateurs. */
   function accompagnateursManquants(st, fiches, services, maintenant, jours) {
-    return elements(st, fiches, services, maintenant, plusJours(maintenant, jours || 7)).filter(function (x) { return !x.externe && x.accompagnateurs.manque > 0; });
+    return elements(st, fiches, services, maintenant, plusJours(maintenant, jours || 7)).filter(function (x) { return !x.externe && !enAttente(x.rdv) && x.accompagnateurs.manque > 0; });
   }
   /**
    * Informations reçues par un agent (inscrit ou désinscrit comme accompagnateur par un collègue) qu'il n'a pas encore
@@ -447,19 +477,22 @@
    * d'un autre service qui concernent un patient hospitalisé dans l'un d'eux (décision du porteur du 7 novembre 2026 :
    * affichés en lecture seule, avec les seuls patients concernés). Triés par heure de début.
    */
-  function elements(st, fiches, services, debut, fin) {
+  function elements(st, fiches, services, debut, fin, avecAnnulees) {
     var res = [];
     Object.keys(st.rdv).forEach(function (k) {
-      var r = st.rdv[k];
-      if (r.supprime) return;
-      var externe = services.indexOf(r.service) < 0, concernes = r.patients || [];
-      if (externe) {
-        if (r.nature === 'reunion') return;
-        concernes = concernes.filter(function (pid) { return services.indexOf(serviceDuPatient(fiches[pid])) >= 0; });
-        if (!concernes.length) return;
-      }
-      occurrences(r, debut, fin).forEach(function (o) {
-        res.push({ rdv: r, externe: externe, patients: concernes, occurrence: o.occurrence, debut: o.debut, fin: o.fin, checklist: etatChecklist(r, o.occurrence), absents: prevusAbsents(st, r, o),
+      var base = st.rdv[k];
+      if (base.supprime) return;
+      var externe = services.indexOf(base.service) < 0;
+      if (externe && base.nature === 'reunion') return;
+      occurrences(base, debut, fin).forEach(function (o) {
+        // Dates annulées : seulement pour l'affichage de l'agenda (jamais dans les alertes ni Mon agenda)
+        if (o.annulee && !avecAnnulees) return;
+        var r = rdvOccurrence(base, o.occurrence), concernes = r.patients || [];
+        if (externe) {
+          concernes = concernes.filter(function (pid) { return services.indexOf(serviceDuPatient(fiches[pid])) >= 0; });
+          if (!concernes.length) return;
+        }
+        res.push({ rdv: r, externe: externe, patients: concernes, occurrence: o.occurrence, debut: o.debut, fin: o.fin, annulee: o.annulee, checklist: etatChecklist(r, o.occurrence), absents: prevusAbsents(st, r, o),
           accompagnateurs: accompagnateurs(r, o.occurrence) });
       });
     });
@@ -469,7 +502,7 @@
   // Accès cochables dans « Rôles et accès » (rangés dans config.roles[CODE].accesModules.agenda)
   var ACCES = [
     { code: 'agenda.consulter', libelle: 'Consulter l’agenda du service', types: [] },
-    { code: 'agenda.planifier', libelle: 'Planifier : accompagnements, entretiens, examens, activités, réunions, audiences, permissions, sorties ; réserver les transports', types: ['RDV', 'TRANSPORT'] },
+    { code: 'agenda.planifier', libelle: 'Planifier : accompagnements, entretiens, examens, activités, réunions, audiences, permissions, sorties ; réserver les transports', types: ['RDV', 'OCCURRENCE', 'TRANSPORT'] },
     { code: 'agenda.valider', libelle: 'Enregistrer les validations : permission signée, validation médicale ou autre', types: ['VALIDATION'] },
     { code: 'agenda.inscrire', libelle: 'Inscrire ou désinscrire un collègue comme accompagnateur (chacun s’inscrit lui-même sans cet accès)', types: ['INSCRIPTION'] },
     { code: 'agenda.reglerTaches', libelle: 'Régler les tâches du service (ponctuelles et récurrentes ; seuls ces rôles les suppriment)', types: ['TACHE'] },
@@ -482,9 +515,9 @@
   // Accès par défaut des rôles fournis (proposition, réglable par l'établissement)
   var DROITS = {
     // Régler les tâches du service : cadre seulement par défaut (proposition, réglable dans « Rôles et accès »)
-    IDE: ['RDV', 'TRANSPORT', 'VALIDATION', 'INSCRIPTION', 'TACHE_AJUSTEMENT', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK', 'ALERTE', 'ALERTE_VUE'],
+    IDE: ['RDV', 'OCCURRENCE', 'TRANSPORT', 'VALIDATION', 'INSCRIPTION', 'TACHE_AJUSTEMENT', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK', 'ALERTE', 'ALERTE_VUE'],
     AS: ['INSCRIPTION', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK', 'ALERTE', 'ALERTE_VUE'],
-    SECRETAIRE: ['RDV', 'TRANSPORT', 'VALIDATION', 'INSCRIPTION', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK'],
+    SECRETAIRE: ['RDV', 'OCCURRENCE', 'TRANSPORT', 'VALIDATION', 'INSCRIPTION', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK'],
     CADRE: TYPES.slice()
   };
 
@@ -506,6 +539,18 @@
           'entretien', 'accompagnateurs', 'statut', 'validation', 'examen', 'transports', 'validations'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
         r.evts.push(e.id);
         st.rdv[d.id] = r;
+        break;
+      case 'OCCURRENCE':
+        // Réglages propres à une date d'un élément répété : remplacés (null : retour aux réglages de toutes les dates),
+        // annulation de la date (rétablie par annulee: false) ; `reset` : la date reprend tous les réglages communs
+        var ro = st.rdv[d.rdv];
+        if (!ro || !d.occurrence) break;
+        ro.surcharges = ro.surcharges || {};
+        if (d.reset) { delete ro.surcharges[d.occurrence]; break; }
+        var so = Object.assign({}, ro.surcharges[d.occurrence] || {});
+        CHAMPS_OCCURRENCE.forEach(function (c) { if (d[c] === null || (c === 'annulee' && d[c] === false)) delete so[c]; else if (d[c] !== undefined) so[c] = d[c]; });
+        if (!so.annulee) delete so.motifAnnulation;
+        if (Object.keys(so).length) ro.surcharges[d.occurrence] = so; else delete ro.surcharges[d.occurrence];
         break;
       case 'COMMENTAIRE':
         // Commentaire sur un élément, y compris d'un autre service (décision du porteur : le service du patient commente)
@@ -601,7 +646,7 @@
   function cibles(st, e) {
     var d = e.data || {}, x = null;
     if (e.type === 'TACHE_FAITE') x = st && st.taches && st.taches[d.tache];
-    else if (['CHECK', 'COMMENTAIRE', 'INSCRIPTION', 'VALIDATION', 'TRANSPORT'].indexOf(e.type) >= 0) x = d.service ? null : st && st.rdv && st.rdv[d.rdv];
+    else if (['OCCURRENCE', 'CHECK', 'COMMENTAIRE', 'INSCRIPTION', 'VALIDATION', 'TRANSPORT'].indexOf(e.type) >= 0) x = d.service ? null : st && st.rdv && st.rdv[d.rdv];
     else if (e.type === 'TACHE_AJUSTEMENT') x = st && st.taches && st.taches[d.tache];
     else if (e.type === 'ALERTE_VUE') x = st && st.alertes && st.alertes[d.alerte];
     var sv = d.service || (x && x.service);
@@ -663,7 +708,7 @@
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
     libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
-    TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
+    enAttente: enAttente, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
     alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
     etatChecklist: etatChecklist, checklists: checklists, alertesChecklists: alertesChecklists, optionsTaches: optionsTaches, AJUSTABLES: AJUSTABLES, affectation: affectation, controler: controler, tachePour: tachePour, tachesDues: tachesDues, absences: absences, prevusAbsents: prevusAbsents, jourISO: jourISO, depuisISO: depuisISO };

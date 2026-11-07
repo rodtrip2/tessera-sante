@@ -78,19 +78,22 @@
     occurrenceCourante = x.occurrence;
     var r = x.rdv, sp = r.nature === 'permission' ? A.statutPermission(r, x.occurrence) : null, plage = (x.debut < jour ? '…' : hm(x.debut)) + (x.fin ? '–' + (x.fin >= plusJours(jour, 1) ? '…' : hm(x.fin)) : '');
     var cl = x.checklist.items.length ? A.etatChecklist(r, x.occurrence, Date.now()) : null;
-    var el = h('article', { class: 'ag-bloc nature-' + (r.nature || 'autre') + (x.externe ? ' externe' : '') + (sp && sp !== 'validee' ? ' demande' : ''), tabindex: 0, role: 'button',
+    var el = h('article', { class: 'ag-bloc nature-' + (r.nature || 'autre') + (x.externe ? ' externe' : '') + (sp && sp !== 'validee' ? ' demande' : '') + (x.annulee ? ' annulee' : '') + (A.enAttente(r) ? ' en-attente' : ''), tabindex: 0, role: 'button',
       'aria-label': (A.NATURES[r.nature] || '') + ' ' + libelleElement(r) + ' ' + plage, onclick: function () { ouvrirElement(x); }, onkeydown: function (ev) { if (ev.key === 'Enter') ouvrirElement(x); } },
       h('div', { class: 'ag-bloc-tete' }, h('b', { text: plage + ' ' + libelleElement(r) })),
       x.patients.length ? h('div', { class: 'ag-ligne', text: nomsPatients(x.patients).join(', ') }) : null,
       r.lieu ? h('div', { class: 'ag-ligne muted', text: r.lieu }) : null,
       (r.professionnels || []).length ? h('div', { class: 'ag-ligne muted', text: r.professionnels.map(function (p) { return p.nom; }).join(', ') }) : null,
       h('div', { class: 'ag-badges' },
+        x.annulee ? h('span', { class: 'badge bad', text: 'Annulée' + (r.motifAnnulation ? ' : ' + r.motifAnnulation : '') }) : null,
+        !x.annulee && A.enAttente(r) ? h('span', { class: 'badge', text: 'Aucun patient prévu' }) : null,
+        (r.surchargee || []).length && !x.annulee ? h('span', { class: 'badge', title: 'Réglages propres à cette date : ' + r.surchargee.map(function (k) { return LIB_CHAMPS[k] || k; }).join(', '), text: 'Date modifiée' }) : null,
         sp ? h('span', { class: 'badge ' + (sp === 'validee' ? 'ok' : (sp === 'refusee' ? 'bad' : 'warn')), text: sp === 'validee' ? 'Validée' : (sp === 'refusee' ? 'Refusée' : 'Demande') }) : null,
         (function () { var vs = A.etatValidations(r, x.occurrence, x.debut, fiches(), U.config(), Date.now()).filter(function (v) { return v.type !== 'permission' || !sp; }); var att = vs.filter(function (v) { return !v.fait; });
           return vs.length ? h('span', { class: 'badge ' + (att.some(function (v) { return v.niveau === 'retard'; }) ? 'bad' : (att.length ? 'warn' : 'ok')), title: vs.map(function (v) { return v.libelle + (v.fait ? ' : ' + (v.fait.statut === 'validee' ? 'validée' : 'refusée') : ' : à faire valider'); }).join(' ; '), text: att.length ? att.length + ' à valider' : 'Validé' }) : null; })(),
         A.etatTransports(r, x.occurrence).map(function (t) { return h('span', { class: 'badge ' + (t.reserve ? 'ok' : 'warn'), text: (t.nombre > 1 ? t.nombre + ' ' : '') + A.TRANSPORTS[t.type] + (t.reserve ? ' réservé' : ' à réserver') }); }),
         x.externe ? h('span', { class: 'badge warn', text: U.libService(r.service) }) : null,
-        badgeAccompagnateurs(x), boutonInscription(x, true),
+        x.annulee || A.enAttente(r) ? null : [badgeAccompagnateurs(x), boutonInscription(x, true)],
         cl ? h('span', { class: 'badge ' + (cl.alertes ? 'bad' : (cl.reste ? 'warn' : 'ok')), text: 'Check-list ' + (cl.items.length - cl.reste) + '/' + cl.items.length }) : null,
         x.absents.length ? h('span', { class: 'badge bad', text: 'Absent(e) : ' + x.absents.map(function (p) { return p.nom; }).join(', ') }) : null,
         A.regularite(r.regularite).type !== 'aucune' ? h('span', { class: 'ag-repete', title: A.libelleRepetition(r.regularite), text: '↻' }) : null));
@@ -229,7 +232,7 @@
 
   function vueAgenda(maintenant) {
     var semaine = vue.mode !== 'jour', debut = semaine ? lundi(vue.ref) : vue.ref, n = semaine ? 7 : 1, fin = plusJours(debut, n), svs = servicesAffiches();
-    var els = vue.nature === 'tache' ? [] : A.elements(st(), fiches(), svs, debut, fin).filter(function (x) { return !vue.nature || x.rdv.nature === vue.nature; });
+    var els = vue.nature === 'tache' ? [] : A.elements(st(), fiches(), svs, debut, fin, true).filter(function (x) { return !vue.nature || x.rdv.nature === vue.nature; });
     var dues = !vue.nature || vue.nature === 'tache' ? A.tachesDues(st(), svs, debut, fin) : [];
     var abs = A.absences(st(), debut, fin).filter(function (a) { return !a.service || svs.indexOf(a.service) >= 0; });
     var reperes = reperesParJour(debut, n, maintenant);
@@ -378,12 +381,22 @@
    * 8 novembre 2026) : patients, transports, accompagnateurs (désignés ou non), permission à faire valider, validation.
    */
   function modaleElement(r, jour, lecture, patientsVisibles, externe, occurrence, init) {
-    var x = r || {}, nouveau = !r, dis = lecture ? { disabled: true } : {}, ini = init || {}, s = U.App.session, moi = s.compteEffectif();
+    // Toujours l'élément enregistré (réglages de toutes les dates), même ouvert depuis une date qui a ses propres réglages
+    if (r && r.id && st().rdv[r.id]) r = st().rdv[r.id];
+    var ini = init || {}, s = U.App.session, moi = s.compteEffectif();
+    var repete = !!r && !!occurrence && A.regularite(r.regularite).type !== 'aucune';
+    // Portée de la modification d'un élément répété : cette date seulement (par défaut) ou toutes les dates (décision du 8 novembre 2026)
+    var portee = repete ? (ini.portee || 'date') : 'toutes', parDate = portee === 'date';
+    var occ = parDate ? A.occurrences(r, plusJours(A.depuisISO(occurrence), -8), plusJours(A.depuisISO(occurrence), 9)).filter(function (o) { return o.occurrence === occurrence; })[0] : null;
+    var x = r ? (parDate ? Object.assign({}, A.rdvOccurrence(r, occurrence), occ ? { debut: occ.debut, fin: occ.fin } : {}) : r) : {};
+    var nouveau = !r, dis = lecture ? { disabled: true } : {};
+    function courant() { var b = st().rdv[x.id] || r || x; return occurrence ? A.rdvOccurrence(b, occurrence) : b; }
     var reg = A.regularite(x.regularite), checklist = (x.checklist || []).map(function (it) { return { id: it.id, libelle: it.libelle, delai: it.delai === undefined ? null : it.delai }; });
     var serviceInitial = x.service || ini.service || (U.App.service !== '*' ? U.App.service : '');
-    var sv = h('select', dis, (lecture ? U.tousServices() : U.services()).map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === serviceInitial }); }));
+    var disCommun = parDate ? { disabled: true, title: 'Commun à toutes les dates : choisissez « toutes les dates » pour le changer' } : dis;
+    var sv = h('select', disCommun, (lecture ? U.tousServices() : U.services()).map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === serviceInitial }); }));
     var natureInitiale = x.nature || ini.nature || 'accompagnement';
-    var nature = h('select', dis, Object.keys(A.NATURES).filter(function (k) { return k !== 'audience' || k === natureInitiale || U.services().some(function (v) { return servicePsy(v.code); }); })
+    var nature = h('select', disCommun, Object.keys(A.NATURES).filter(function (k) { return k !== 'audience' || k === natureInitiale || U.services().some(function (v) { return servicePsy(v.code); }); })
       .map(function (k) { return h('option', { value: k, text: A.NATURES[k], selected: natureInitiale === k }); }));
     var titre = h('input', Object.assign({ type: 'text', maxlength: 120, value: x.titre || '' }, dis));
     // Entretien : médical ou infirmier, individuel ou avec la famille
@@ -465,7 +478,7 @@
       var champ = h('input', Object.assign({ type: 'number', min: 0, max: 20, step: 1, value: nbAcc, class: 'champ-court', 'aria-label': 'Accompagnateurs à trouver', oninput: function () { nbAcc = Math.max(0, Math.min(20, Math.round(+champ.value || 0))); } }, dis));
       zoneAcc.appendChild(h('label', { class: 'en-ligne' }, 'Accompagnateurs nécessaires', champ, h('small', { class: 'muted', text: 'sans les nommer : les agents s’inscrivent ; les professionnels prévus comptent' })));
       if (nouveau || !occurrence) return;
-      var etatR = st().rdv[x.id] || x, acc = A.accompagnateurs(etatR, occurrence), peutAutres = peut('INSCRIPTION') && !s.apercu && !externe;
+      var etatR = courant(), acc = A.accompagnateurs(etatR, occurrence), peutAutres = peut('INSCRIPTION') && !s.apercu && !externe;
       zoneAcc.appendChild(h('div', {}, h('b', { text: 'Le ' + occurrence.split('-').reverse().join('/') + ' : ' }), badgeAccompagnateurs({ accompagnateurs: acc })));
       acc.inscrits.forEach(function (i) {
         var lui = i.agent === moi.id;
@@ -496,7 +509,7 @@
     var zoneTr = h('div', { class: 'pile' });
     function dessinerTransports() {
       U.vider(zoneTr);
-      var etatR = st().rdv[x.id] || x, reserves = occurrence && !nouveau ? A.etatTransports(etatR, occurrence) : [];
+      var etatR = courant(), reserves = occurrence && !nouveau ? A.etatTransports(etatR, occurrence) : [];
       transports.forEach(function (t, i) {
         var selT = h('select', Object.assign({ 'aria-label': 'Transport', onchange: function () { t.type = selT.value; } }, dis), Object.keys(A.TRANSPORTS).map(function (k) { return h('option', { value: k, text: A.TRANSPORTS[k], selected: (t.type || 'vsl') === k }); }));
         var nb = h('input', Object.assign({ type: 'number', min: 1, max: 9, value: t.nombre || 1, class: 'champ-court', 'aria-label': 'Nombre', oninput: function () { t.nombre = Math.max(1, Math.min(9, Math.round(+nb.value || 1))); } }, dis));
@@ -521,7 +534,7 @@
     function dessinerValidations() {
       U.vider(zoneVal);
       var d0 = date.value && hDebut.value ? new Date(date.value + 'T' + hDebut.value).getTime() : Date.now();
-      var etatR = Object.assign({}, st().rdv[x.id] || x, { patients: patients, validations: validations });
+      var etatR = Object.assign({}, courant(), { patients: patients, validations: validations });
       var etats = A.etatValidations(etatR, occurrence || jourISO(d0), d0, fiches(), U.config(), Date.now());
       validations.forEach(function (v, i) {
         var e = etats.filter(function (y) { return y.id === v.id; })[0] || {};
@@ -567,12 +580,12 @@
         try { await s.enregistrer('COMMENTAIRE', { id: 'K' + C.hex(C.aleatoire(5)), rdv: x.id, texte: txt.value.trim(), service: monService }); dessinerCommentaires(); } catch (e) { alert(e.message); }
       } }, 'Ajouter le commentaire')));
     }
-    var rep = champsRepetition(reg, dis);
+    var rep = champsRepetition(reg, parDate ? { disabled: true } : dis);
     // Check-list (points à réaliser avant l'événement, ex. sortie d'un patient)
     var zoneCheck = h('div', { class: 'pile' });
     function dessinerChecklist() {
       U.vider(zoneCheck);
-      var etat = r && occurrence ? A.etatChecklist(st().rdv[x.id] || x, occurrence, Date.now()) : null, peutCocher = !nouveau && occurrence && peut('CHECK');
+      var etat = r && occurrence ? A.etatChecklist(courant(), occurrence, Date.now()) : null, peutCocher = !nouveau && occurrence && peut('CHECK');
       checklist.forEach(function (it, i) {
         var f = etat && etat.items.filter(function (y) { return y.id === it.id; })[0];
         var cb = h('input', { type: 'checkbox', checked: !!(f && f.fait), disabled: !peutCocher || !f, onchange: async function () {
@@ -634,20 +647,36 @@
     if (!nouveau) dessinerCommentaires();
     dessinerPatients(); dessinerPros(); dessinerChecklist();
 
-    var boutons = [{ texte: lecture ? 'Fermer' : 'Annuler' }];
-    if (!lecture && !nouveau && occurrence && A.regularite(x.regularite).type !== 'aucune') boutons.push({ texte: 'Retirer cette date', action: async function () {
-      if (!confirm('Retirer l’occurrence du ' + occurrence.split('-').reverse().join('/') + ' ? Les autres dates sont gardées.')) return false;
-      await s.enregistrer('RDV', { id: x.id, exceptions: (x.exceptions || []).concat([occurrence]), service: x.service });
+    var boutons = [{ texte: lecture || repete ? 'Fermer' : 'Annuler' }];
+    var propres = (x.surchargee || []).map(function (k) { return LIB_CHAMPS[k] || k; });
+    if (!lecture && parDate && x.annulee) boutons.push({ texte: 'Rétablir cette date', action: async function () {
+      await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, annulee: false, service: x.service });
+      U.toast('Date rétablie.');
+    } });
+    else if (!lecture && parDate) boutons.push({ texte: 'Annuler cette date…', action: async function () {
+      var motif = prompt('Annuler le ' + occurrence.split('-').reverse().join('/') + ' (la date reste affichée, barrée). Motif (facultatif) :', x.nature === 'audience' ? 'Aucun patient convoqué' : '');
+      if (motif === null) return false;
+      await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, annulee: true, motifAnnulation: motif.trim(), service: x.service });
+      U.toast('Date annulée.');
+    } });
+    if (!lecture && parDate && propres.length) boutons.push({ texte: 'Reprendre les réglages communs', action: async function () {
+      if (!confirm('Le ' + occurrence.split('-').reverse().join('/') + ' reprend les réglages de toutes les dates (' + propres.join(', ') + ' propres à cette date seront oubliés) ?')) return false;
+      await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, reset: true, service: x.service });
+      U.toast('Réglages communs repris pour cette date.');
+    } });
+    if (!lecture && !nouveau && repete && !parDate) boutons.push({ texte: 'Retirer cette date', action: async function () {
+      if (!confirm('Retirer définitivement l’occurrence du ' + occurrence.split('-').reverse().join('/') + ' ? Les autres dates sont gardées.')) return false;
+      await s.enregistrer('RDV', { id: x.id, exceptions: (r.exceptions || []).concat([occurrence]), service: x.service });
       U.toast('Date retirée.');
     } });
-    if (!lecture && !nouveau && occurrence && A.regularite(x.regularite).type !== 'aucune' && occurrence > A.jourISO(x.debut)) boutons.push({ texte: 'Retirer cette date et les suivantes', action: async function () {
+    if (!lecture && !nouveau && repete && !parDate && occurrence > A.jourISO(r.debut)) boutons.push({ texte: 'Arrêter à cette date', action: async function () {
       if (!confirm('Arrêter la répétition : retirer le ' + occurrence.split('-').reverse().join('/') + ' et toutes les dates suivantes ? Les dates précédentes sont gardées.')) return false;
-      var rg = A.regularite(x.regularite); rg.jusquAu = A.jourISO(plusJours(A.depuisISO(occurrence), -1));
+      var rg = A.regularite(r.regularite); rg.jusquAu = A.jourISO(plusJours(A.depuisISO(occurrence), -1));
       await s.enregistrer('RDV', { id: x.id, regularite: rg, service: x.service });
       U.toast('Dates retirées à partir du ' + occurrence.split('-').reverse().join('/') + '.');
     } });
-    if (!lecture && !nouveau) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
-      if (!confirm('Supprimer « ' + libelleElement(x) + ' » de l’agenda ?')) return false;
+    if (!lecture && !nouveau && !parDate) boutons.push({ texte: repete ? 'Supprimer toutes les dates' : 'Supprimer', classe: 'danger', action: async function () {
+      if (!confirm('Supprimer « ' + libelleElement(x) + ' »' + (repete ? ' et toutes ses dates' : '') + ' de l’agenda ?')) return false;
       await s.enregistrer('RDV', { id: x.id, supprime: true, service: x.service });
       U.toast('Élément supprimé.');
     } });
@@ -661,6 +690,7 @@
       if (d1 !== null && d1 <= d0) throw new Error('L’heure de fin doit suivre l’heure de début.');
       var rg = rep.lire();
       if (rg.jusquAu && rg.jusquAu < date.value) throw new Error('La date de fin de répétition précède la première date.');
+      if (parDate) rg = A.regularite(r.regularite);
       if (rg.type === 'semaine' && !rg.jours.length) rg.jours = [new Date(d0).getDay()];
       if (validations.some(function (v) { return v.type !== 'permission' && !String(v.libelle || '').trim(); })) throw new Error('Précisez l’intitulé de chaque validation médicale ou autre (ex. avis du psychiatre).');
       var d = { id: x.id || 'R' + C.hex(C.aleatoire(6)), nature: nv, titre: titre.value.trim(), debut: d0, fin: d1, lieu: lieu.value.trim(), service: sv.value,
@@ -670,6 +700,19 @@
         validations: visibles.validations ? validations.map(function (v) { var o = { id: v.id, type: v.type, libelle: String(v.libelle || '').trim() }; if (v.type !== 'permission') o.delai = v.delai === undefined ? 24 : v.delai; return o; }) : [] };
       if (nv === 'entretien') d.entretien = { type: selEnt.value, avec: selAvec.value };
       if (nv === 'examen') d.examen = { type: typeExamen.value.trim() };
+      if (parDate) {
+        // Cette date seulement : champs modifiés par rapport à cette date, rangés comme réglages propres à la date
+        var od = { rdv: x.id, occurrence: occurrence, service: r.service }, n0 = 0;
+        ['titre', 'lieu', 'patients', 'professionnels', 'accompagnateurs', 'transports', 'validations', 'checklist'].forEach(function (k) {
+          var av = x[k] === undefined ? (Array.isArray(d[k]) ? [] : (k === 'accompagnateurs' ? 0 : '')) : x[k];
+          if (JSON.stringify(d[k]) !== JSON.stringify(av)) { od[k] = d[k]; n0++; }
+        });
+        if (d0 !== x.debut || d1 !== (x.fin || null)) { od.debut = d0; od.fin = d1; n0++; }
+        if (!n0) return true;
+        await s.enregistrer('OCCURRENCE', od);
+        U.toast('Modifié pour le ' + occurrence.split('-').reverse().join('/') + ' seulement.');
+        return;
+      }
       if (!nouveau) Object.keys(d).forEach(function (k) { if (k !== 'id' && k !== 'service' && JSON.stringify(d[k]) === JSON.stringify(x[k])) delete d[k]; });
       if (!nouveau && Array.isArray(d.validations) && !Array.isArray(x.validations) && !d.validations.length && !A.validationsDe(x).length) delete d.validations;
       if (nouveau) ['accompagnateurs', 'transports', 'validations'].forEach(function (k) { if (!d[k] || (Array.isArray(d[k]) && !d[k].length)) delete d[k]; });
@@ -677,15 +720,22 @@
       await s.enregistrer('RDV', d);
       U.toast(nouveau ? 'Ajouté à l’agenda.' : 'Élément modifié.');
     } });
-    U.modale(nouveau ? 'Nouvel élément de l’agenda' : (lecture ? libelleElement(x) + (externe ? ' — ' + U.libService(x.service) : '') : 'Modifier l’élément'), h('div', { class: 'pile' },
+    U.modale(nouveau ? 'Nouvel élément de l’agenda' : (lecture ? libelleElement(x) + (externe ? ' — ' + U.libService(x.service) : '') : (parDate ? 'Modifier le ' + occurrence.split('-').reverse().join('/') : 'Modifier l’élément')), h('div', { class: 'pile' },
       externe ? h('p', { class: 'muted', text: 'Élément de l’agenda du service ' + U.libService(x.service) + ', qui concerne un patient hospitalisé dans votre service' + (lecture ? ' : consultation et commentaires.' : '.') }) : null,
+      repete && !lecture ? h('fieldset', { class: 'ag-portee' }, h('legend', { text: 'Élément répété (' + A.libelleRepetition(r.regularite) + ') : modifier' }),
+        h('div', { class: 'actions gauche' }, [['date', 'cette date seulement (' + occurrence.split('-').reverse().join('/') + ')'], ['toutes', 'toutes les dates']].map(function (o) {
+          var rb = h('input', { type: 'radio', name: 'portee-' + x.id, checked: portee === o[0], onchange: function () { fermerPuisAgenda(function () { modaleElement(r, jour, lecture, patientsVisibles, externe, occurrence, Object.assign({}, ini, { portee: o[0] })); }); } });
+          return h('label', { class: 'case' }, rb, h('span', { text: o[1] }));
+        })),
+        parDate ? h('small', { class: 'muted', text: (x.annulee ? 'Date annulée' + (x.motifAnnulation ? ' : ' + x.motifAnnulation : '') + '. ' : '') + (propres.length ? 'Réglages propres à cette date : ' + propres.join(', ') + '. ' : '') + 'Patients, accompagnateurs, transports, validations, check-list, horaires et lieu se règlent pour cette date ; le type, le service et la répétition sont communs à toutes les dates.' }) :
+          h('small', { class: 'muted', text: 'Les dates qui ont leurs propres réglages les gardent.' })) : null,
       h('div', { class: 'grille-2' }, h('label', {}, 'Type', nature), h('label', {}, 'Service', sv)),
       zoneEnt, zoneExamen, zoneAudience,
       h('label', {}, 'Intitulé', titre),
       h('div', { class: 'grille-3' }, h('label', {}, 'Date', date), h('label', {}, 'Début', hDebut), h('label', {}, 'Fin', hFin)),
       h('label', {}, 'Lieu', lieu),
-      rep.noeuds,
-      occurrence && reg.type !== 'aucune' ? h('small', { class: 'muted', text: 'Date affichée : ' + occurrence.split('-').reverse().join('/') + '. Une modification s’applique à toutes les dates.' }) : null,
+      parDate ? null : rep.noeuds,
+
       barreAjout, secPatients,
       section('Professionnels prévus (accompagnateurs désignés)', zonePro), secAcc, secTransports, secVal,
       section('Check-list (à réaliser avant l’événement)', zoneCheck),
@@ -695,6 +745,8 @@
   }
 
   function libRepetition(v) { return A.libelleRepetition(v); }
+  var LIB_CHAMPS = { debut: 'horaires', lieu: 'lieu', titre: 'intitulé', patients: 'patients', professionnels: 'professionnels prévus', accompagnateurs: 'accompagnateurs', transports: 'transports', validations: 'validations', checklist: 'check-list' };
+  function fermerPuisAgenda(fn) { var dlg = document.querySelector('dialog[open]'); if (dlg) dlg.dispatchEvent(new Event('cancel')); setTimeout(fn, 0); }
 
   // Délai d'alerte d'un point de check-list (jours avant l'événement)
   var DELAIS = [[null, 'Sans alerte'], [0, 'Le jour même'], [1, 'La veille'], [2, '2 jours avant'], [3, '3 jours avant'], [5, '5 jours avant'], [7, '7 jours avant'], [14, '14 jours avant']];
@@ -1151,7 +1203,7 @@
   }
 
   // ------------------------------------------------------------ Journal
-  var LIB = { VALIDATION: 'Agenda : validation', TRANSPORT: 'Agenda : transport', RDV: 'Agenda : élément', COMMENTAIRE: 'Agenda : commentaire', CHECK: 'Agenda : check-list', INSCRIPTION: 'Agenda : inscription d’un accompagnateur', TACHE: 'Agenda : tâche du service', TACHE_EQUIPE: 'Agenda : tâche de l’équipe', TACHE_AJUSTEMENT: 'Agenda : tâche ajustée', TACHE_FAITE: 'Agenda : tâche faite', ABSENCE: 'Agenda : absence', ALERTE: 'Agenda : alerte', ALERTE_VUE: 'Agenda : alerte vue' };
+  var LIB = { OCCURRENCE: 'Agenda : réglage d’une date', VALIDATION: 'Agenda : validation', TRANSPORT: 'Agenda : transport', RDV: 'Agenda : élément', COMMENTAIRE: 'Agenda : commentaire', CHECK: 'Agenda : check-list', INSCRIPTION: 'Agenda : inscription d’un accompagnateur', TACHE: 'Agenda : tâche du service', TACHE_EQUIPE: 'Agenda : tâche de l’équipe', TACHE_AJUSTEMENT: 'Agenda : tâche ajustée', TACHE_FAITE: 'Agenda : tâche faite', ABSENCE: 'Agenda : absence', ALERTE: 'Agenda : alerte', ALERTE_VUE: 'Agenda : alerte vue' };
   function resume(e) {
     var d = e.data || {};
     switch (e.type) {
@@ -1159,6 +1211,11 @@
         if (d.supprime) return 'Élément supprimé de l’agenda (' + U.libService(d.service) + ')';
         if (d.statut === 'validee' && !d.nature) return 'Permission de sortie validée' + (d.validation && d.validation.par ? ' (signée par ' + d.validation.par + ')' : '');
         return (A.NATURES[d.nature] || 'Élément modifié') + (d.entretien ? ' ' + (A.ENTRETIENS[d.entretien.type] || '') + (d.entretien.avec === 'famille' ? ' avec la famille' : '') : '') + (d.nature === 'permission' ? ' (' + (d.statut === 'validee' ? 'validée' : 'demande') + ')' : '') + (d.titre ? ' « ' + d.titre + ' »' : '') + (d.debut ? ' le ' + U.date(d.debut) : '') + (d.service ? ' — ' + U.libService(d.service) : '') + ((d.patients || []).length ? ', ' + d.patients.length + ' patient(s)' : '');
+      case 'OCCURRENCE': var roc = st().rdv[d.rdv], jo = String(d.occurrence || '').split('-').reverse().join('/');
+        if (d.reset) return '« ' + (roc ? libelleElement(roc) : 'élément') + ' » du ' + jo + ' : retour aux réglages de toutes les dates';
+        if (d.annulee === true) return '« ' + (roc ? libelleElement(roc) : 'élément') + ' » du ' + jo + ' annulé' + (d.motifAnnulation ? ' (' + d.motifAnnulation + ')' : '');
+        if (d.annulee === false) return '« ' + (roc ? libelleElement(roc) : 'élément') + ' » du ' + jo + ' rétabli';
+        return '« ' + (roc ? libelleElement(roc) : 'élément') + ' » du ' + jo + ', cette date seulement : ' + A.CHAMPS_OCCURRENCE.filter(function (k) { return d[k] !== undefined && k !== 'fin'; }).map(function (k) { return LIB_CHAMPS[k] || k; }).join(', ') + ((d.patients || []).length ? ' (' + d.patients.length + ' patient(s))' : '');
       case 'VALIDATION': var rv = st().rdv[d.rdv], vv = rv && A.validationsDe(rv).filter(function (y) { return y.id === d.validation; })[0];
         return (vv ? (vv.libelle || A.TYPES_VALIDATION[vv.type]) : 'Validation') + ' — « ' + (rv ? libelleElement(rv) : 'élément') + ' » le ' + String(d.occurrence || '').split('-').reverse().join('/') + ' : ' + (d.statut === 'attente' ? 'remise en attente' : (d.statut === 'refusee' ? 'refusée' : 'validée') + (d.nom ? ' par ' + d.nom : ''));
       case 'TRANSPORT': var rtr = st().rdv[d.rdv], tt = rtr && (rtr.transports || []).filter(function (y) { return y.id === d.transport; })[0];

@@ -133,3 +133,36 @@ test('Éléments ajoutables (0.11.0) : transports à réserver, validations méd
   assert.ok(A.droits.peut(['IDE'], 'INSCRIPTION', {}) && A.droits.peut(['AS'], 'INSCRIPTION', {}));
   assert.ok(A.droits.peut(['SECRETAIRE'], 'VALIDATION', {}) && !A.droits.peut(['AS'], 'VALIDATION', {}));
 });
+
+test('Réglages propres à une date (0.11.1) : patients, VSL et accompagnateurs d’une audience, date décalée, date annulée, retour aux réglages communs', () => {
+  const mer = j('2026-11-04') + 9.5 * 36e5;   // mercredi 4 novembre 2026, 9 h 30 - 12 h
+  const evts = [{ id: 'e1', at: '2026-11-01T08:00:00Z', by: 'c', type: 'RDV', data: { id: 'A', nature: 'audience', titre: '', debut: mer, fin: mer + 2.5 * 36e5, service: 'U1', patients: [], accompagnateurs: 1, transports: [{ id: 't', type: 'vsl', nombre: 1 }], regularite: { type: 'semaine', jours: [3] } } }];
+  const st0 = A.reduire(evts), fiches = { P1: { id: 'P1', service: 'U1', modes: [] }, P2: { id: 'P2', service: 'U1', modes: [] } };
+  // Sans patient : en attente, aucun rappel
+  assert.ok(A.enAttente(st0.rdv.A));
+  assert.equal(A.transportsAReserver(st0, fiches, ['U1'], j('2026-11-09')).length, 0);
+  evts.push({ id: 'e2', at: '2026-11-08T08:00:00Z', by: 'c', type: 'OCCURRENCE', data: { rdv: 'A', occurrence: '2026-11-11', patients: ['P1', 'P2'], accompagnateurs: 2, transports: [{ id: 't', type: 'vsl', nombre: 2 }], service: 'U1' } });
+  evts.push({ id: 'e3', at: '2026-11-08T08:01:00Z', by: 'c', type: 'OCCURRENCE', data: { rdv: 'A', occurrence: '2026-11-18', debut: j('2026-11-19') + 14 * 36e5, fin: j('2026-11-19') + 16 * 36e5, service: 'U1' } });
+  evts.push({ id: 'e4', at: '2026-11-08T08:02:00Z', by: 'c', type: 'OCCURRENCE', data: { rdv: 'A', occurrence: '2026-11-25', annulee: true, motifAnnulation: 'Aucun patient convoqué', service: 'U1' } });
+  const st = A.reduire(evts);
+  const semaine = (d) => A.elements(st, fiches, ['U1'], j(d), j(d) + 7 * 864e5, true);
+  const x11 = semaine('2026-11-09')[0];
+  assert.deepEqual(x11.rdv.patients, ['P1', 'P2']); assert.equal(x11.accompagnateurs.requis, 2); assert.equal(A.etatTransports(x11.rdv, x11.occurrence)[0].nombre, 2);
+  assert.ok(!A.enAttente(x11.rdv)); assert.deepEqual(x11.rdv.surchargee.sort(), ['accompagnateurs', 'patients', 'transports']);
+  assert.equal(A.transportsAReserver(st, fiches, ['U1'], j('2026-11-09')).length, 1);
+  // Les autres dates gardent les réglages communs
+  assert.deepEqual(semaine('2026-11-02')[0].rdv.patients, []);
+  // Date décalée : jeudi 19 à 14 h, repérée par le mercredi 18
+  const x18 = semaine('2026-11-16')[0];
+  assert.equal(x18.occurrence, '2026-11-18'); assert.equal(x18.debut, j('2026-11-19') + 14 * 36e5);
+  // Date annulée : affichée dans l'agenda seulement
+  const x25 = semaine('2026-11-23')[0];
+  assert.ok(x25.annulee); assert.equal(x25.rdv.motifAnnulation, 'Aucun patient convoqué');
+  assert.equal(A.elements(st, fiches, ['U1'], j('2026-11-23'), j('2026-11-30')).length, 0);
+  // Retour aux réglages communs, rétablissement
+  evts.push({ id: 'e5', at: '2026-11-08T08:03:00Z', by: 'c', type: 'OCCURRENCE', data: { rdv: 'A', occurrence: '2026-11-11', reset: true, service: 'U1' } });
+  evts.push({ id: 'e6', at: '2026-11-08T08:04:00Z', by: 'c', type: 'OCCURRENCE', data: { rdv: 'A', occurrence: '2026-11-25', annulee: false, service: 'U1' } });
+  const st2 = A.reduire(evts);
+  assert.deepEqual(A.elements(st2, fiches, ['U1'], j('2026-11-09'), j('2026-11-16'))[0].rdv.patients, []);
+  assert.equal(A.elements(st2, fiches, ['U1'], j('2026-11-23'), j('2026-11-30')).length, 1);
+});
