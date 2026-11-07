@@ -148,7 +148,7 @@
 
   function marque(sousTitre) {
     return h('div', { class: 'marque' },
-      logoEtablissement() ? h('img', { class: 'logo-etab', src: logoEtablissement(), alt: '' }) : h('div', { class: 'logo', 'aria-hidden': 'true', text: 'TS' }),
+      logoEtablissement() ? h('img', { class: 'logo-etab', src: logoEtablissement(), alt: '' }) : h('img', { class: 'logo', src: 'img/icone-256.png', alt: '' }),
       h('div', {}, h('b', { text: 'Tessera Santé' }), h('small', { text: sousTitre || ('Version ' + SIC.VERSION) })));
   }
 
@@ -707,8 +707,12 @@
     // Rôle « registre seulement » : un seul onglet, le registre tel qu'il s'affiche habituellement
     var anonyme = droits().registreSeul(s.roles(), config());
     // Onglets affichés : réglage des rôles (Rôles et accès), journal selon son niveau, administration pour l'administrateur
+    // Onglets réservés à un droit (ex. « Tâches du service » : régler les tâches), déclarés par le module affiché
+    var droitOnglet = {};
+    SIC.modules.onglets(s.moduleAffiche()).forEach(function (o) { if (o.droit) droitOnglet[o.code] = o.droit; });
     function affichable(o) {
       if (o === 'admin') return estAdmin;
+      if (droitOnglet[o] && !estAdmin && !s.peut(droitOnglet[o])) return false;
       if (o === 'journal') return nivJournal !== 'aucun' && !anonyme;
       if (anonyme) return o === 'registre';
       return droits().ongletVisible(s.roles(), config(), o);
