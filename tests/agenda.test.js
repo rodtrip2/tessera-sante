@@ -276,3 +276,55 @@ test('Tâches de l’équipe et ajustement : contrôles appliqués par la sessio
   assert.equal(st.taches.T1.affectations['2026-11-03'].agent, id('as.a'));
   assert.equal(st.taches.T2.supprime, true);
 });
+
+test('Alertes de l’équipe : actives jusqu’à « vu », en retard, personne ou rôle visé ; réunions à venir ; Mon agenda', () => {
+  const A = require('../app/js/module-agenda.js');
+  const L = (a, m, j, h) => new Date(a, m - 1, j, h || 0).getTime();
+  let n = 0;
+  const ev = (type, data, at) => ({ id: 'e' + (++n), at: at || '2026-11-05T08:00:00.000Z', by: 'u', type, data });
+  const st = A.reduire([
+    ev('ALERTE', { id: 'A1', type: 'medecin', patientId: 'P1', service: 'U1', avant: '2026-11-06', pour: { role: 'IDE' } }),
+    ev('ALERTE', { id: 'A2', type: 'autre', libelle: 'Appeler la famille (fictif)', service: 'U1', avant: '2026-11-12', pour: { agent: 'u1', nom: 'IDE A (fictif)' } }),
+    ev('ALERTE', { id: 'A3', type: 'social', service: 'U2' }),
+    ev('ALERTE', { id: 'A4', type: 'rdv', service: 'U1' }),
+    ev('ALERTE_VUE', { alerte: 'A4' }, '2026-11-08T09:00:00.000Z'),
+    ev('RDV', { id: 'R1', nature: 'reunion', titre: 'Synthèse (fictif)', debut: L(2026, 11, 10, 14), service: 'U1' }),
+    ev('RDV', { id: 'R2', nature: 'accompagnement', titre: 'Accompagnement (fictif)', debut: L(2026, 11, 11, 10), service: 'U2', patients: [], professionnels: [{ id: 'u1', nom: 'IDE A (fictif)' }] }),
+    ev('TACHE', { id: 'T1', titre: 'Chariot (fictif)', service: 'U1', debut: '2026-11-09', regularite: { type: 'jour' }, pour: { roles: ['AS'] } }),
+    ev('TACHE_AJUSTEMENT', { tache: 'T1', occurrence: '2026-11-10', agent: 'u1', nom: 'IDE A (fictif)' }),
+    ev('ABSENCE', { id: 'B1', agent: 'u1', nom: 'IDE A (fictif)', debut: L(2026, 11, 13), fin: L(2026, 11, 13) })]);
+  const maintenant = L(2026, 11, 9, 10);
+  const al = A.alertesEquipe(st, {}, ['U1'], maintenant);
+  assert.deepEqual(al.map((a) => a.id), ['A1', 'A2']);
+  assert.equal(al[0].titre, 'À voir par le médecin');
+  assert.equal(al[0].depassee, true);
+  assert.equal(al[1].titre, 'Appeler la famille (fictif)');
+  assert.deepEqual(A.alertesEquipe(st, {}, ['U1'], maintenant, 7).map((a) => a.id), ['A1', 'A2', 'A4']);
+  const st2 = A.reduire([...[ev('ALERTE', { id: 'A5', type: 'rdv', service: 'U1' }), ev('ALERTE_VUE', { alerte: 'A5' }), ev('ALERTE_VUE', { alerte: 'A5', annule: true })]]);
+  assert.equal(A.alertesEquipe(st2, {}, ['U1'], maintenant).length, 1, 'alerte remise à voir');
+  assert.ok(A.alertePour(st.alertes.A1, { id: 'x', roles: ['IDE'] }) && !A.alertePour(st.alertes.A1, { id: 'x', roles: ['AS'] }));
+  assert.ok(A.alertePour(st.alertes.A4, { id: 'x', roles: [] }), 'pour toute l’équipe');
+  assert.deepEqual(A.reunionsAVenir(st, {}, ['U1'], maintenant).map((x) => x.rdv.id), ['R1']);
+  const moi = { id: 'u1', roles: ['IDE'] };
+  const m = A.monAgenda(st, {}, {}, moi, ['U1', 'U2'], L(2026, 11, 9), L(2026, 11, 16), maintenant);
+  assert.deepEqual(m.elements.map((x) => x.rdv.id), ['R2'], 'élément où il est prévu, autre service compris');
+  assert.deepEqual(m.taches.map((x) => x.occurrence), ['2026-11-10'], 'tâche du rôle AS, mais affectée ce jour-là');
+  assert.deepEqual(m.absences.map((a) => a.id), ['B1']);
+  assert.deepEqual(m.alertes.map((a) => a.id), ['A1', 'A2']);
+});
+
+test('Fourniture isocont.echeancesJLD : échéances non tracées des mesures en cours, lues par l’Agenda', () => {
+  const L = (a, m, j, h) => new Date(a, m - 1, j, h || 0).getTime();
+  let n = 0;
+  const ev = (type, data) => ({ id: 'e' + String(++n).padStart(4, '0'), at: new Date(L(2026, 11, 1, 12) + n * 1000).toISOString(), by: 'u', type, data });
+  const st = M.reduire([
+    ev('PATIENT', { patientId: 'P1' }), ev('MODE_HOSPI', { patientId: 'P1', mode: 'SDT', date: L(2026, 10, 1) }),
+    ev('MESURE_DEBUT', { mesureId: 'M1', patientId: 'P1', service: 'U1', typeMesure: 'Isolement', debut: L(2026, 11, 1, 10), csi: true }),
+    ev('MESURE_DEBUT', { mesureId: 'M2', patientId: 'P1', service: 'U2', typeMesure: 'Contention', debut: L(2026, 11, 1, 10), csi: true })]);
+  const l = SIC.modules.lire('isocont.echeancesJLD', st, { maintenant: L(2026, 11, 2, 12), services: ['U1'] });
+  assert.equal(l.length, 1, 'prochaine démarche seulement');
+  assert.ok(l.every((x) => x.service === 'U1' && x.mesure === 'M1' && x.patientId === 'P1'));
+  assert.equal(l[0].nature, 'info');
+  assert.equal(l[0].date, L(2026, 11, 3, 10), 'information à 48 h du début');
+  assert.deepEqual(SIC.modules.lire('isocont.echeancesJLD', null, {}), []);
+});

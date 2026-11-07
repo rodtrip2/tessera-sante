@@ -494,3 +494,10 @@ fieldset.role { margin-bottom: 12px; }
 .agenda-point > .case { flex: 1 1 14rem; }
 .agenda-point select.delai { width: auto; flex: 0 0 auto; }
 .agenda-point input[type=text] { flex: 1 1 14rem; width: auto; }
+/* Agenda : alertes */
+.agenda-resume-alertes { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; padding: .5rem .75rem; margin: .5rem 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.agenda-resume-alertes.grave { border-color: var(--warn); background: var(--warn-soft); }
+.agenda-alerte { border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: var(--radius); background: var(--surface); padding: .5rem .75rem; display: flex; flex-direction: column; gap: .25rem; }
+.agenda-alerte.depassee { border-left-color: var(--bad); }
+.agenda-alerte.vue { border-left-color: var(--ok); opacity: .8; }
+.liste-simple { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: .25rem; }

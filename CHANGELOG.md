@@ -1,5 +1,18 @@
 # Journal des modifications — Tessera Santé
 
+## 0.8.5 — 7 novembre 2026
+
+Étape 6 (module Agenda), dernière sous-étape : **alertes et « Mon agenda »**. L'étape 6 est terminée.
+
+- **Onglet Alertes** :
+  - *alertes de l'équipe* : type de la liste du service (ou « Autre » avec un intitulé), patient du service facultatif, « à faire avant le » (date, heure), pour toute l'équipe, un rôle ou une personne, précision sans donnée clinique ; affichées jusqu'à **Vu** (qui, quand ; *Remettre à voir* possible), en rouge une fois la date passée ; option pour revoir les alertes vues depuis 7 jours ;
+  - *échéances JLD* : prochaine démarche non tracée de chaque mesure en cours (information, saisine, décision attendue), dépassée ou dans les 72 heures, **calculée à la volée par le module Isolement et contention** (jamais recopiée) ; affichée seulement à qui a l'accès aux envois au JLD ;
+  - *points de check-list en retard* (selon le délai de chaque point) et *réunions des 7 prochains jours*, qui ouvrent l'élément.
+- Résumé en tête de l'agenda (« 2 alertes de l'équipe · 1 échéance JLD sous 72 h… ») avec *Voir les alertes*.
+- **Onglet Mon agenda** : la semaine de l'agent, tous ses services réunis : éléments où il est prévu, tâches qui lui sont affectées ou qui reviennent à son rôle, ses absences, alertes qui lui sont adressées (personne ou rôle). Vue dans Tessera seulement.
+- Journal : alerte et « vu » décrits avec le type et le patient (selon la désignation réglée).
+- Nouveaux tests (alertes, réunions, Mon agenda, fourniture des échéances JLD ; 209 au vert) ; écrans vérifiés dans Chrome.
+
 ## 0.8.4 — 7 novembre 2026
 
 Agenda : décisions du porteur du 7 novembre 2026 sur les tâches, les check-lists et la répétition.
