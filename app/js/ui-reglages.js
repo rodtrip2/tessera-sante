@@ -82,7 +82,7 @@
 
   function panneau() {
     var cfg = U.config(), zoneErr = h('div'), cases = {};
-    var groupes = h('div', { class: 'pile' }, M.GROUPES_REGLAGES.map(function (g) {
+    var groupes = h('div', { class: 'pile' }, SIC.modules.actif().reglages.groupes.map(function (g) {
       var cb = h('input', { type: 'checkbox', checked: true });
       cases[g.code] = cb;
       return h('label', { class: 'case' }, cb, h('span', { text: g.libelle }));

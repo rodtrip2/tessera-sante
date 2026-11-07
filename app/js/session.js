@@ -3,7 +3,7 @@
  * Session (socle) — coffre de clés, comptes, journal et synchronisation.
  * Aucune règle métier : droits, journal et rangement des exports viennent du socle (droits.js,
  * noyau-journal.js, exports-rangement.js) ; la reconstitution de l'état et les réglages par défaut
- * viennent du module (`moduleActif()`), seul point d'appel au métier.
+ * viennent du module (`moduleActif()`, son contrat au registre des modules), seul point d'appel au métier.
  */
 (function (root) {
   'use strict';
@@ -11,11 +11,19 @@
   var C = SIC.crypto;
   // Fichiers du socle : chargés par la page, ou lus directement sous Node (tests).
   function socle(nom, fichier) { return SIC[nom] || (typeof require === 'function' ? require(fichier) : undefined); }
-  var D = socle('droits', './droits.js'), N = socle('noyauJournal', './noyau-journal.js'), X = socle('exportsRangement', './exports-rangement.js');
-  /** Module dont la session tient le journal. Jusqu'au registre des modules (étape 2) : le modèle d'Isocont. */
-  function moduleActif() { return SIC.model; }
+  var Droits = socle('droits', './droits.js'), N = socle('noyauJournal', './noyau-journal.js'), X = socle('exportsRangement', './exports-rangement.js');
+  /**
+   * Module dont la session tient le journal : celui du registre des modules (contrat, modules.js). Sans registre
+   * (tests qui ne chargent que le modèle), le modèle d'Isocont est lu comme un contrat.
+   */
+  function moduleActif() {
+    var m = SIC.modules && SIC.modules.actif();
+    if (m) return m;
+    return { saisies: { reduire: SIC.model.reduire }, reglages: { defaut: SIC.model.CONFIG_DEFAUT }, droits: SIC.model.droits };
+  }
+  function D() { return moduleActif().droits; }
   /** Réglages en vigueur, ou réglages par défaut du module avant la première lecture du journal. */
-  function config(s) { return s.etat ? s.etat.config : moduleActif().CONFIG_DEFAUT; }
+  function config(s) { return s.etat ? s.etat.config : moduleActif().reglages.defaut; }
 
   function id8() { return C.hex(C.aleatoire(4)); }
 
@@ -271,7 +279,7 @@
   /** Rôles de l'utilisateur : les mêmes dans les données réelles et dans le jeu de formation. */
   Session.prototype.roles = function () { var c = this.compteEffectif(); return c ? c.roles : []; };
   /** Codes des services visibles (tous pour un administrateur). */
-  Session.prototype.mesServices = function () { return this.etat ? D.servicesDe(this.compteEffectif(), this.etat.config) : []; };
+  Session.prototype.mesServices = function () { return this.etat ? D().servicesDe(this.compteEffectif(), this.etat.config) : []; };
 
   // ---------------------------------------------------------- Aperçu de l'affichage d'un rôle (administrateur)
   /**
@@ -282,7 +290,7 @@
     if (!code) { this.apercu = null; return; }
     if (!this.utilisateur || (this.utilisateur.roles || []).indexOf('ADMIN') < 0) throw new Error('Réservé à l’administrateur.');
     var cfg = config(this);
-    var r = D.rolesConfig(cfg).filter(function (x) { return x.code === code && !x.admin; })[0];
+    var r = D().rolesConfig(cfg).filter(function (x) { return x.code === code && !x.admin; })[0];
     if (!r) throw new Error('Rôle inconnu : ' + code);
     this.apercu = { code: code, libelle: r.libelle };
   };
@@ -293,8 +301,8 @@
     var cfg = config(this);
     return Object.assign({}, this.utilisateur, { roles: [this.apercu.code], services: (cfg.services || []).map(function (s) { return s.code; }) });
   };
-  Session.prototype.accesFormation = function () { return D.accesFormation(this.utilisateur); };
-  Session.prototype.peut = function (type) { return D.peut(this.roles(), type, config(this)); };
+  Session.prototype.accesFormation = function () { return Droits.accesFormation(this.utilisateur); };
+  Session.prototype.peut = function (type) { return D().peut(this.roles(), type, config(this)); };
 
   Session.prototype.nomAuteur = function (userId) {
     var c = this.comptes.filter(function (x) { return x.id === userId; })[0];
@@ -549,7 +557,7 @@
   };
 
   Session.prototype.recalculer = function (info) {
-    this.etat = moduleActif().reduire(this.evts);
+    this.etat = moduleActif().saisies.reduire(this.evts);
     this.notifier(info);
   };
 

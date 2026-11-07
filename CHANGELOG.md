@@ -1,5 +1,16 @@
 # Journal des modifications — Tessera Santé
 
+## 0.3.0 — 7 novembre 2026
+
+**Étape 2 du plan d'architecture : contrat de module et registre des modules**, sans changement de fonctionnement.
+
+- `modules.js` (socle) : registre des modules. Chaque module déclare son contrat (identité, accès, droits, saisies, réglages, onglets, migrations, formation, fournitures, besoins), contrôlé à la déclaration ; son fichier d'interface y ajoute ses vues, les libellés du journal et ses panneaux d'administration. Le registre signale les besoins non satisfaits et les migrations à faire.
+- `module-isocont.js` : contrat d'Isocont. La fourniture `isocont.echeancesJLD` (v1) est décrite ; son calcul sera branché avec l'Agenda (étape 6). Aucun besoin tant que le module Patients n'existe pas.
+- `droits.js` devient un moule : le socle porte les règles des rôles, des accès et de la visibilité du journal ; les accès cochables, les rôles fournis et leurs droits historiques sont des données d'Isocont (`model.js`).
+- La session, la coquille (onglets, vues, journal, administration), *Rôles et accès*, l'export des réglages et le mode formation lisent le contrat du module au lieu du modèle d'Isocont.
+- Nouveau test `tests/modules.test.js` : contrat d'Isocont identique à ce qu'exposait le modèle, contrats incomplets refusés, besoins satisfaits par un faux fournisseur, migrations.
+- Vérification dans Chrome, comparée à Isocont 1.67 : vues, fenêtres, journal, administration (démonstration et formation), aperçu de chaque rôle et modification d'un rôle identiques.
+
 ## 0.2.0 — 7 novembre 2026
 
 **Étape 1 du plan d'architecture terminée** (découper sans changer le comportement).

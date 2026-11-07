@@ -2,8 +2,8 @@
 /*
  * Module Isocont — vues et fenêtres de saisie (étape 1 du plan d'architecture, premier bloc d'écran sorti de ui.js) :
  * tableau de bord, mesures, JLD, surveillance, registre ; nouvelle mesure, fin, pause, reprise, tiers, JLD, détail,
- * lieu, correction, proposition, professionnels ; libellés du journal (SIC.ui.journal) ;
- * panneaux d'administration (SIC.ui.admin). Les outils d'affichage et la coquille (en-tête, onglets, fenêtres)
+ * lieu, correction, proposition, professionnels ; libellés du journal ; panneaux d'administration. Ces éléments
+ * s'ajoutent au contrat du module (SIC.modules.completerInterface), que la coquille lit. Les outils d'affichage et la coquille (en-tête, onglets, fenêtres)
  * viennent de ui.js (SIC.ui) ; les vues sont déclarées dans SIC.ui.vues, que la coquille affiche.
  * Doit être chargé juste après ui.js (les autres fichiers d'interface lisent les aides déclarées ici).
  * Construction du DOM sans innerHTML : aucune donnée saisie n'est jamais interprétée comme du HTML.
@@ -1386,7 +1386,7 @@
   function actionJournal(e) {
     return e.type === 'COMPTE' && e.data && (e.data.action === 'EDITION_CADA' || e.data.action === 'REGISTRE_ANONYME') ? 'Communication du registre' : e.type === 'COMPTE' && e.data && e.data.action === 'EXPORT_PATIENT' ? 'Droit d’accès' : e.type === 'COMPTE' && e.data && e.data.action === 'ARCHIVE' ? 'Archivage' : e.type === 'COMPTE' && e.data && (e.data.action === 'SCELLE' || e.data.action === 'SAUVEGARDE' || e.data.action === 'REPARATION' || e.data.action === 'QUARANTAINE' || /^(MIROIR|DEPLACEMENT|HORS_RESEAU)/.test(e.data.action)) ? 'Sauvegarde' : e.type === 'COMPTE' && e.data && (e.data.action === 'EXPORT' || e.data.action === 'REGLAGES_EXPORT' || e.data.action === 'EXPORT_SUPPRIME' || e.data.action === 'PURGE_EXPORTS') ? 'Export' : (lieu(LIB_EVT[e.type]) || e.type);
   }
-  U.journal = {
+  var journal = {
     preparer: index,
     resume: resumeEvt,
     action: actionJournal,
@@ -1396,7 +1396,7 @@
 
   // ================================================================ Administration : panneaux d'Isocont
   /**
-   * Panneaux d'administration du module, lus par la coquille (SIC.ui.admin) : contributions aux onglets communs
+   * Panneaux d'administration du module, lus par la coquille (contrat, interface.admin) : contributions aux onglets communs
    * (« Établissement et services », « Sauvegardes et exports ») et onglets propres au module, dans l'ordre d'affichage.
    * `formation` : jeu de formation ouvert (paramétrage du seul jeu de formation, sans import ni archive).
    */
@@ -1704,10 +1704,11 @@
       ]
     };
   }
-  U.admin = { panneaux: panneauxAdmin };
 
   // ================================================================ Déclaration auprès de la coquille
   U.vues.tableau = vueTableau; U.vues.mesures = vueMesures; U.vues.jld = vueJLD; U.vues.surveillance = vueSurveillance; U.vues.registre = vueRegistre;
+  // Interface ajoutée au contrat du module (module-isocont.js) ; Patients et Statistiques s'ajoutent à U.vues depuis leurs fichiers
+  SIC.modules.completerInterface('isocont', { vues: U.vues, journal: journal, admin: { panneaux: panneauxAdmin } });
   Object.assign(U, {
     mesuresVisibles: mesuresVisibles, badgeType: badgeType, badgePause: badgePause, alerteChamp: alerteChamp, tiersBadge: tiersBadge,
     detailMesure: function (m) { modaleDetail(m); }, cellEcheance: cellEcheance, selectPsychiatre: selectPsychiatre, recapMesure: recapMesure,

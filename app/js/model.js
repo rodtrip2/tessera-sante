@@ -8,17 +8,75 @@
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./rules.js'), require('./noyau-journal.js'), require('./droits.js'), require('./exports-rangement.js'));
   else (root.SIC = root.SIC || {}).model = factory(root.SIC.rules, root.SIC.noyauJournal, root.SIC.droits, root.SIC.exportsRangement);
-})(typeof self !== 'undefined' ? self : this, function (rules, N, D, X) {
+})(typeof self !== 'undefined' ? self : this, function (rules, N, Droits, X) {
   'use strict';
 
   var H = rules.H, J = rules.J;
 
-  // ---------------------------------------------------------------- Rôles, accès, services : socle (droits.js)
-  var ROLES = D.ROLES, DROITS = D.DROITS, ACCES = D.ACCES, ROLES_FOURNIS = D.ROLES_FOURNIS, ROLES_DE_SERVICE = D.ROLES_DE_SERVICE;
+  // ---------------------------------------------------------------- Rôles et accès d'Isocont (règles : socle, droits.js)
+  var ROLES = {
+    IDE: 'IDE',
+    AS: 'Aide-soignant(e)',
+    SECRETAIRE: 'Secrétaire',
+    CADRE: 'Cadre de santé',
+    ADMIN: 'Administrateur'
+  };
+
+  // Rôles qui exigent au moins un service affecté.
+  var ROLES_DE_SERVICE = ['IDE', 'AS', 'SECRETAIRE', 'CADRE'];
+
+  // Types d'événements autorisés par rôle. L'IDE dispose en permanence des
+  // actions JLD (usage prévu le week-end et en l'absence de la secrétaire).
+  var DROITS = {
+    IDE: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],
+    AS: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],   // mêmes droits que l'IDE
+    SECRETAIRE: ['JLD', 'RECOURS'],
+    CADRE: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'ENTRETIEN', 'CORRECTION', 'REFUS_PROPOSITION', 'ANNULATION', 'STATS', 'FUSION'],
+    ADMIN: ['CONFIG', 'ANNULATION', 'COMPTE', 'LOT', 'INTEGRITE']
+  };
+
+  /**
+   * Accès regroupés, cochés pour chaque rôle (Administration → Comptes et sécurité → Rôles et accès).
+   * Chaque accès ouvre un ou plusieurs types de saisie (ou d'action) contrôlés par `peut`.
+   * Le rôle Administrateur est fixe : droits d'administration, non modifiable (choix du porteur).
+   */
+  var ACCES = [
+    { code: 'patients', libelle: 'Fiches patient et mode d’hospitalisation', types: ['PATIENT', 'MODE_HOSPI'] },
+    { code: 'mesures', libelle: 'Début et fin des mesures, changement de lieu', types: ['MESURE_DEBUT', 'MESURE_FIN'] },
+    { code: 'pauses', libelle: 'Pauses (levées temporaires) et reprises', types: ['PAUSE', 'REPRISE'] },
+    { code: 'tiers', libelle: 'Information du tiers', types: ['TIERS'] },
+    { code: 'jld', libelle: 'Envois au JLD et décisions reçues', types: ['JLD'] },
+    { code: 'recours', libelle: 'Recours et appels', types: ['RECOURS'] },
+    { code: 'surveillance', libelle: 'Surveillance : professionnels par poste', types: ['PROFESSIONNEL'] },
+    { code: 'alertes', libelle: 'Tracer l’information demandée par une alerte', types: ['INFORMATION'] },
+    { code: 'parcours', libelle: 'Transferts, soins somatiques ou urgences', types: ['TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR'] },
+    { code: 'entretien', libelle: 'Entretien après la mesure', types: ['ENTRETIEN'] },
+    { code: 'proposition', libelle: 'Proposer une correction (validée ensuite par un cadre)', types: ['PROPOSITION'] },
+    { code: 'correction', libelle: 'Corriger une saisie, valider ou refuser les corrections proposées', types: ['CORRECTION', 'REFUS_PROPOSITION'] },
+    { code: 'annulation', libelle: 'Annuler une saisie (mesures et patients)', types: ['ANNULATION'] },
+    { code: 'fusion', libelle: 'Fusionner deux fiches patient', types: ['FUSION'] },
+    { code: 'stats', libelle: 'Statistiques : saisir les effectifs', types: ['STATS'] },
+    { code: 'communication', libelle: 'Registre pour communication (CADA) et export des données d’un patient', types: ['EDITION_CADA', 'EXPORT_PATIENT'] }
+  ];
+
+  var TYPES_ADMIN = ['CONFIG', 'ANNULATION', 'COMPTE', 'LOT', 'INTEGRITE', 'EDITION_CADA', 'EXPORT_PATIENT'];
+
+  var ROLES_FOURNIS = ['IDE', 'AS', 'SECRETAIRE', 'CADRE'];
+
+  // Onglets que l'établissement peut masquer rôle par rôle (demande du porteur).
+  // (Journal : réglage « Journal des saisies » du rôle ; Administration : administrateur seulement.)
+  var ONGLETS_MASQUABLES = ['tableau', 'mesures', 'patients', 'jld', 'surveillance', 'registre', 'stats'];
+
+  var D = Droits.creer({
+    roles: ROLES, rolesDeService: ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: TYPES_ADMIN, rolesFournis: ROLES_FOURNIS,
+    ongletsMasquables: ONGLETS_MASQUABLES,
+    typesEnPlus: { CADRE: ['EDITION_CADA', 'EXPORT_PATIENT'] },   // registre communiqué et droit d'accès : cadre par défaut
+    rolesJournalComplet: ['CADRE'],                               // journal complet par défaut (choix du porteur)
+    ongletRegistreSeul: 'registre'
+  });
   var accesFormation = D.accesFormation, accesDefaut = D.accesDefaut, rolesConfig = D.rolesConfig, libRole = D.libRole, peut = D.peut;
   var voitTousServices = D.voitTousServices, exigeService = D.exigeService, servicesDe = D.servicesDe;
-  var NIVEAUX_JOURNAL = D.NIVEAUX_JOURNAL, niveauJournal = D.niveauJournal, ONGLETS_MASQUABLES = D.ONGLETS_MASQUABLES;
-  var ongletVisible = D.ongletVisible, registreSeul = D.registreSeul;
+  var NIVEAUX_JOURNAL = D.NIVEAUX_JOURNAL, niveauJournal = D.niveauJournal, ongletVisible = D.ongletVisible, registreSeul = D.registreSeul;
 
   // Saisies propres à l'administration (comptes, paramétrage, imports, intégrité) : journal complet seulement.
   var TYPES_JOURNAL_ADMIN = { CONFIG: 1, COMPTE: 1, LOT: 1, INTEGRITE: 1 };
@@ -2070,7 +2128,7 @@
   }
 
   return {
-    ROLES: ROLES, DROITS: DROITS, ACCES: ACCES, ROLES_FOURNIS: ROLES_FOURNIS, rolesConfig: rolesConfig, libRole: libRole, accesDefaut: accesDefaut, voitTousServices: voitTousServices, exigeService: exigeService, ROLES_DE_SERVICE: ROLES_DE_SERVICE, accesFormation: accesFormation, CONFIG_DEFAUT: CONFIG_DEFAUT, LIB_CATEGORIES: LIB_CATEGORIES,
+    droits: D, champ: champ, ROLES: ROLES, DROITS: DROITS, ACCES: ACCES, ROLES_FOURNIS: ROLES_FOURNIS, rolesConfig: rolesConfig, libRole: libRole, accesDefaut: accesDefaut, voitTousServices: voitTousServices, exigeService: exigeService, ROLES_DE_SERVICE: ROLES_DE_SERVICE, accesFormation: accesFormation, CONFIG_DEFAUT: CONFIG_DEFAUT, LIB_CATEGORIES: LIB_CATEGORIES,
     peut: peut, servicesDe: servicesDe, periodesDe: periodesDe, estContrainte: estContrainte,
     reduire: reduire, optionsSurveillance: optionsSurveillance, agentsSurveillance: agentsSurveillance, dossierExports: dossierExports, optionsExports: optionsExports, exportsAPurger: exportsAPurger, dossierExportService: dossierExportService, cheminWindowsExports: cheminWindowsExports, DOSSIER_ETABLISSEMENT: DOSSIER_ETABLISSEMENT, CONSERVATION_EXPORTS: CONSERVATION_EXPORTS, annulabilite: annulabilite, profilAnnuelPatient: profilAnnuelPatient, libLieu: libLieu, txtLieu: txtLieu, lieuDetaille: lieuDetaille, listesConfig: listesConfig, libRaccourci: libRaccourci, optionsVigilance: optionsVigilance, optionsAffichage: optionsAffichage, comparerVersions: comparerVersions, commandesRobocopy: commandesRobocopy, cheminWindows: cheminWindows, INTERVALLES_ROBOCOPY: INTERVALLES_ROBOCOPY, registreSeul: registreSeul, ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, NIVEAUX_JOURNAL: NIVEAUX_JOURNAL, niveauJournal: niveauJournal, servicesSaisie: servicesSaisie, journalVisible: journalVisible, GROUPES_REGLAGES: GROUPES_REGLAGES, REGLAGES_EXCLUS: REGLAGES_EXCLUS, exporterReglages: exporterReglages, analyserReglages: analyserReglages, reglagesAImporter: reglagesAImporter, LIEUX_ISOLEMENT: LIEUX_ISOLEMENT, cheminEvenement: cheminEvenement, filtrerIntegrite: filtrerIntegrite, trierEvenements: trierEvenements, deplier: deplier,
     listeMesures: listeMesures, suiviJLD: suiviJLD, dureeHeures: dureeHeures,
