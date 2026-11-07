@@ -712,7 +712,7 @@
     SIC.modules.onglets(s.moduleAffiche()).forEach(function (o) { if (o.droit) droitOnglet[o.code] = o.droit; });
     function affichable(o) {
       if (o === 'admin') return estAdmin;
-      if (droitOnglet[o] && !estAdmin && !s.peut(droitOnglet[o])) return false;
+      if (droitOnglet[o] && !estAdmin && ![].concat(droitOnglet[o]).some(function (t) { return s.peut(t); })) return false;
       if (o === 'journal') return nivJournal !== 'aucun' && !anonyme;
       if (anonyme) return o === 'registre';
       return droits().ongletVisible(s.roles(), config(), o);

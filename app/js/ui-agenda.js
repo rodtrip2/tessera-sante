@@ -74,7 +74,11 @@
       x.patients.length ? h('div', {}, h('small', { text: (x.patients.length > 1 ? 'Patients : ' : 'Patient : ') + nomsPatients(x.patients).join(', ') })) : null,
       (r.professionnels || []).length ? h('div', {}, h('small', { class: 'muted', text: r.professionnels.map(function (p) { return p.nom; }).join(', ') })) : null,
       (r.commentaires || []).length ? h('div', {}, h('small', { class: 'muted', text: r.commentaires.length + ' commentaire(s)' })) : null,
-      x.checklist.items.length ? h('div', {}, h('span', { class: 'badge ' + (x.checklist.reste ? 'warn' : 'ok'), text: 'Check-list : ' + (x.checklist.items.length - x.checklist.reste) + '/' + x.checklist.items.length })) : null,
+      x.checklist.items.length ? (function () {
+        var e = A.etatChecklist(r, x.occurrence, Date.now());
+        return h('div', {}, h('span', { class: 'badge ' + (e.reste ? 'warn' : 'ok'), text: 'Check-list : ' + (e.items.length - e.reste) + '/' + e.items.length }),
+          e.alertes ? h('span', { class: 'badge bad', text: e.alertes + (e.alertes > 1 ? ' points en retard' : ' point en retard') }) : null);
+      })() : null,
       x.absents.length ? h('div', {}, h('span', { class: 'badge bad', text: 'Absent(e) : ' + x.absents.map(function (p) { return p.nom; }).join(', ') })) : null,
       A.regularite(r.regularite).type !== 'aucune' ? h('div', {}, h('small', { class: 'muted', text: '↻ ' + libRepetition(r.regularite) })) : null);
   }
@@ -82,7 +86,7 @@
   /** Fenêtre d'un élément : création (r nul), modification, ou consultation (lecture seule / autre service). */
   function modaleElement(r, jour, lecture, patientsVisibles, externe, occurrence) {
     var x = r || {}, nouveau = !r, dis = lecture ? { disabled: true } : {};
-    var reg = A.regularite(x.regularite), checklist = (x.checklist || []).map(function (it) { return { id: it.id, libelle: it.libelle }; });
+    var reg = A.regularite(x.regularite), checklist = (x.checklist || []).map(function (it) { return { id: it.id, libelle: it.libelle, delai: it.delai === undefined ? null : it.delai }; });
     var sv = h('select', dis, (lecture ? U.tousServices() : U.services()).map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === (x.service || (U.App.service !== '*' ? U.App.service : '')) }); }));
     var nature = h('select', dis, Object.keys(A.NATURES).map(function (k) { return h('option', { value: k, text: A.NATURES[k], selected: (x.nature || 'accompagnement') === k }); }));
     var titre = h('input', Object.assign({ type: 'text', maxlength: 120, value: x.titre || '', placeholder: 'ex. Rendez-vous extérieur, atelier, synthèse' }, dis));
@@ -161,14 +165,17 @@
     var zoneCheck = h('div', { class: 'pile' });
     function dessinerChecklist() {
       U.vider(zoneCheck);
-      var etat = r && occurrence ? A.etatChecklist(st().rdv[x.id] || x, occurrence) : null, peutCocher = !nouveau && occurrence && peut('CHECK');
+      var etat = r && occurrence ? A.etatChecklist(st().rdv[x.id] || x, occurrence, Date.now()) : null, peutCocher = !nouveau && occurrence && peut('CHECK');
       checklist.forEach(function (it, i) {
         var f = etat && etat.items.filter(function (y) { return y.id === it.id; })[0];
         var cb = h('input', { type: 'checkbox', checked: !!(f && f.fait), disabled: !peutCocher || !f, onchange: async function () {
           try { await U.App.session.enregistrer('CHECK', { rdv: x.id, item: it.id, occurrence: occurrence, fait: cb.checked, service: externe ? (U.App.service !== '*' ? U.App.service : U.App.session.mesServices()[0]) : x.service }); dessinerChecklist(); }
           catch (e) { cb.checked = !cb.checked; alert(e.message); }
         } });
-        zoneCheck.appendChild(h('div', { class: 'barre' }, h('label', { class: 'case' }, cb, h('span', { text: it.libelle })),
+        var selDelai = lecture ? null : selectDelai(it.delai, function (v) { it.delai = v; });
+        zoneCheck.appendChild(h('div', { class: 'agenda-point' }, h('label', { class: 'case' }, cb, h('span', { text: it.libelle })),
+          lecture ? (it.delai !== null && it.delai !== undefined ? h('small', { class: 'muted', text: libDelai(it.delai) }) : null) : selDelai,
+          f && f.alerte ? h('span', { class: 'badge bad', text: 'En retard (attendu ' + (f.delai ? 'le ' + libJour(f.echeance) : 'le jour même') + ')' }) : null,
           f && f.fait ? h('small', { class: 'muted', text: U.App.session.nomAuteur(f.fait.par) + ', ' + U.date(Date.parse(f.fait.le)) }) : null,
           !lecture ? h('button', { class: 'btn petit', type: 'button', onclick: function () { checklist.splice(i, 1); dessinerChecklist(); } }, 'Retirer') : null));
       });
@@ -178,11 +185,11 @@
         var selModele = h('select', { 'aria-label': 'Modèle de check-list' }, [h('option', { value: '', text: 'Ajouter un modèle…' })].concat(modeles.map(function (m) { return h('option', { value: m.code, text: m.libelle }); })));
         selModele.addEventListener('change', function () {
           var m = modeles.filter(function (y) { return y.code === selModele.value; })[0];
-          if (m) m.items.forEach(function (lib) { if (!checklist.some(function (y) { return y.libelle === lib; })) checklist.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: lib }); });
+          if (m) m.items.forEach(function (it) { if (!checklist.some(function (y) { return y.libelle === it.libelle; })) checklist.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: it.libelle, delai: it.delai }); });
           dessinerChecklist();
         });
-        var libre = h('input', { type: 'text', maxlength: 120, placeholder: 'Autre point à réaliser' });
-        zoneCheck.appendChild(h('div', { class: 'barre' }, selModele, libre, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (libre.value.trim()) { checklist.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: libre.value.trim() }); dessinerChecklist(); } } }, 'Ajouter')));
+        var libre = h('input', { type: 'text', maxlength: 120, placeholder: 'Autre point à réaliser' }), delaiLibre = null, selLibre = selectDelai(null, function (v) { delaiLibre = v; });
+        zoneCheck.appendChild(h('div', { class: 'agenda-point' }, selModele, libre, selLibre, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (libre.value.trim()) { checklist.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: libre.value.trim(), delai: delaiLibre }); dessinerChecklist(); } } }, 'Ajouter')));
         if (!nouveau) zoneCheck.appendChild(h('small', { class: 'muted', text: 'Les points se cochent après l’enregistrement, élément par élément (pour un élément répété : à chaque date).' }));
       }
     }
@@ -192,6 +199,12 @@
       if (!confirm('Retirer l’occurrence du ' + occurrence.split('-').reverse().join('/') + ' ? Les autres dates sont gardées.')) return false;
       await U.App.session.enregistrer('RDV', { id: x.id, exceptions: (x.exceptions || []).concat([occurrence]), service: x.service });
       U.toast('Date retirée.');
+    } });
+    if (!lecture && !nouveau && occurrence && A.regularite(x.regularite).type !== 'aucune' && occurrence > A.jourISO(x.debut)) boutons.push({ texte: 'Retirer cette date et les suivantes', action: async function () {
+      if (!confirm('Arrêter la répétition : retirer le ' + occurrence.split('-').reverse().join('/') + ' et toutes les dates suivantes ? Les dates précédentes sont gardées.')) return false;
+      var rg = A.regularite(x.regularite); rg.jusquAu = A.jourISO(plusJours(A.depuisISO(occurrence), -1));
+      await U.App.session.enregistrer('RDV', { id: x.id, regularite: rg, service: x.service });
+      U.toast('Dates retirées à partir du ' + occurrence.split('-').reverse().join('/') + '.');
     } });
     if (!lecture && !nouveau) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
       if (!confirm('Supprimer « ' + (x.titre || 'cet élément') + ' » de l’agenda ?')) return false;
@@ -234,16 +247,28 @@
     return t + (r.jusquAu ? ' jusqu’au ' + r.jusquAu.split('-').reverse().join('/') : '');
   }
 
-  /** Tâche due un jour : case « faite » (accès « Cocher »), qui et quand. */
+  // Délai d'alerte d'un point de check-list (jours avant l'événement)
+  var DELAIS = [[null, 'Sans alerte'], [0, 'Le jour même'], [1, 'La veille'], [2, '2 jours avant'], [3, '3 jours avant'], [5, '5 jours avant'], [7, '7 jours avant'], [14, '14 jours avant']];
+  function libDelai(v) { var x = DELAIS.filter(function (d) { return d[0] === v; })[0]; return x ? x[1] : v + ' jours avant'; }
+  function selectDelai(v, f) {
+    var opts0 = DELAIS.slice(); if (v !== null && v !== undefined && !DELAIS.some(function (d) { return d[0] === v; })) opts0.push([v, v + ' jours avant']);
+    var s = h('select', { class: 'delai', 'aria-label': 'Alerte si non fait', onchange: function () { f(s.value === '' ? null : +s.value); } }, opts0.map(function (d) { return h('option', { value: d[0] === null ? '' : String(d[0]), text: d[1], selected: d[0] === (v === undefined ? null : v) }); }));
+    return s;
+  }
+
+  /** Tâche due un jour : case « faite » (accès « Cocher »), qui et quand ; agent affecté ; « Affecter » pour qui ajuste. */
   function ligneTache(x) {
-    var t = x.tache, moi = U.App.session.compteEffectif(), pourMoi = A.tachePour(t, moi);
+    var t = x.tache, moi = U.App.session.compteEffectif(), pourMoi = x.affecte ? x.affecte.agent === moi.id : A.tachePour(t, moi);
+    var peutAffecter = t.niveau === 'service' && peut('TACHE_AJUSTEMENT') && A.optionsTaches(U.config()).ajustables.indexOf('affectation') >= 0;
     var cb = h('input', { type: 'checkbox', checked: !!x.fait, disabled: !peut('TACHE_FAITE'), 'aria-label': 'Tâche faite : ' + t.titre, onchange: async function () {
       try { await U.App.session.enregistrer('TACHE_FAITE', { tache: t.id, occurrence: x.occurrence, annule: !cb.checked }); }
       catch (e) { cb.checked = !cb.checked; alert(e.message); }
     } });
     return h('div', { class: 'agenda-tache' + (x.fait ? ' faite' : '') + (pourMoi ? '' : ' autre') },
       h('label', { class: 'case' }, cb, h('span', { text: (t.heure ? t.heure + ' ' : '') + t.titre })),
-      x.fait ? h('small', { class: 'muted', text: ' ' + U.App.session.nomAuteur(x.fait.par) + ', ' + hm(Date.parse(x.fait.le)) }) : null);
+      x.affecte ? h('small', { class: 'muted', text: ' → ' + (x.affecte.nom || U.App.session.nomAuteur(x.affecte.agent)) }) : null,
+      x.fait ? h('small', { class: 'muted', text: ' ' + U.App.session.nomAuteur(x.fait.par) + ', ' + hm(Date.parse(x.fait.le)) }) : null,
+      peutAffecter && !x.fait ? h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleAjustement(t, x.occurrence); } }, 'Affecter') : null);
   }
 
   /** Absence (motif facultatif) : chacun la sienne ; l'équipe avec l'accès « Absences de l'équipe ». */
@@ -279,26 +304,41 @@
     var etat = st(), svs = servicesAffiches();
     var liste = Object.keys(etat.taches).map(function (k) { return etat.taches[k]; }).filter(function (t) { return !t.supprime && svs.indexOf(t.service) >= 0; })
       .sort(function (a, b) { return String(a.heure || '99').localeCompare(String(b.heure || '99')) || String(a.titre).localeCompare(String(b.titre)); });
-    return h('div', {}, h('div', { class: 'barre' }, h('h1', { text: 'Tâches du service' }), h('button', { class: 'btn primaire', onclick: function () { modaleTache(null); } }, '+ Nouvelle tâche')),
-      h('p', { class: 'muted', text: 'Tâches ponctuelles ou récurrentes du service. Elles apparaissent chaque jour où elles sont dues dans l’agenda, où les agents les cochent « faites » (nom et heure gardés).' }),
+    var ot = A.optionsTaches(U.config());
+    function actions(t) {
+      if (t.niveau === 'service') {
+        if (peut('TACHE')) return h('button', { class: 'btn petit', onclick: function () { modaleTache(t, 'TACHE'); } }, 'Modifier');
+        if (peut('TACHE_AJUSTEMENT') && ot.ajustables.length) return h('button', { class: 'btn petit', onclick: function () { modaleAjustement(t, null); } }, 'Ajuster');
+        return null;
+      }
+      return peut('TACHE_EQUIPE') || peut('TACHE') ? h('button', { class: 'btn petit', onclick: function () { modaleTache(t, 'TACHE_EQUIPE'); } }, 'Modifier') : null;
+    }
+    return h('div', {}, h('div', { class: 'barre' }, h('h1', { text: 'Tâches du service' }),
+        peut('TACHE') ? h('button', { class: 'btn primaire', onclick: function () { modaleTache(null, 'TACHE'); } }, '+ Tâche du service') : null,
+        peut('TACHE_EQUIPE') ? h('button', { class: 'btn' + (peut('TACHE') ? '' : ' primaire'), onclick: function () { modaleTache(null, 'TACHE_EQUIPE'); } }, '+ Tâche de l’équipe') : null),
+      h('p', { class: 'muted', text: 'Les tâches apparaissent chaque jour où elles sont dues dans l’agenda, où les agents les cochent « faites » (nom et heure gardés). Une tâche du service est réglée par les rôles qui règlent les tâches : les autres rôles la cochent, l’ajustent si le réglage le permet (agent affecté, heure, précision), mais ne la suppriment pas. Une tâche de l’équipe se modifie et se supprime par toute l’équipe.' }),
       liste.length ? h('div', { class: 'table-wrap' }, h('table', {},
-        h('thead', {}, h('tr', {}, ['Tâche', 'Service', 'Répétition', 'Heure', 'Pour', ''].map(function (t) { return h('th', { text: t }); }))),
+        h('thead', {}, h('tr', {}, ['Tâche', 'Type', 'Service', 'Répétition', 'Heure', 'Pour', ''].map(function (t) { return h('th', { text: t }); }))),
         h('tbody', {}, liste.map(function (t) {
           var p = t.pour || {}, pour = (p.roles || []).map(function (r) { return SIC.modules.obtenir('agenda').droits.libRole(U.config(), r); }).concat((p.agents || []).map(function (id) { return U.App.session.nomAuteur(id); }));
+          var aj = Object.keys(t.affectationsJours || {}).filter(function (j) { return t.affectationsJours[j]; }).map(function (j) { return JOURS[j] + ' : ' + t.affectationsJours[j].nom; });
+          if (aj.length) pour = pour.concat(['affectée (' + aj.join(', ') + ')']);
           return h('tr', {}, h('td', {}, h('b', { text: t.titre }), t.consigne ? h('div', {}, h('small', { class: 'muted', text: t.consigne })) : null),
+            h('td', {}, h('span', { class: 'badge' + (t.niveau === 'service' ? '' : ' ok'), text: t.niveau === 'service' ? 'Service' : 'Équipe' })),
             h('td', { text: U.libService(t.service) }), h('td', { text: 'à partir du ' + String(t.debut || '').split('-').reverse().join('/') + ', ' + libRepetition(t.regularite) }),
             h('td', { text: t.heure || '—' }), h('td', { text: pour.length ? pour.join(', ') : 'toute l’équipe' }),
-            h('td', { class: 'actions-ligne' }, h('button', { class: 'btn petit', onclick: function () { modaleTache(t); } }, 'Modifier')));
+            h('td', { class: 'actions-ligne' }, actions(t)));
         })))) : h('div', { class: 'panneau vide', text: 'Aucune tâche.' }));
   }
 
-  function modaleTache(t) {
-    var x = t || {}, reg = A.regularite(x.regularite || { type: 'jour' }), pour = x.pour || {};
+  function modaleTache(t, type) {
+    var equipe = type === 'TACHE_EQUIPE', recurrentes = !equipe || A.optionsTaches(U.config()).equipeRecurrentes || peut('TACHE');
+    var x = t || {}, reg = A.regularite(x.regularite || { type: recurrentes ? 'jour' : 'aucune' }), pour = x.pour || {};
     var titre = h('input', { type: 'text', maxlength: 120, value: x.titre || '', placeholder: 'ex. Vérifier le chariot d’urgence' });
     var consigne = h('input', { type: 'text', maxlength: 200, value: x.consigne || '', placeholder: 'Précision (facultatif, pas de donnée clinique)' });
     var sv = h('select', {}, U.services().map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === (x.service || (U.App.service !== '*' ? U.App.service : '')) }); }));
     var debut = h('input', { type: 'date', value: x.debut || A.jourISO(Date.now()) }), heure = h('input', { type: 'time', value: x.heure || '' });
-    var selReg = h('select', { onchange: function () { majReg(); } }, Object.keys(A.REGULARITES).map(function (k) { return h('option', { value: k, text: A.REGULARITES[k], selected: reg.type === k }); }));
+    var selReg = h('select', { onchange: function () { majReg(); }, disabled: !recurrentes && reg.type === 'aucune' }, Object.keys(A.REGULARITES).filter(function (k) { return recurrentes || k === 'aucune' || k === reg.type; }).map(function (k) { return h('option', { value: k, text: A.REGULARITES[k], selected: reg.type === k }); }));
     var casesJours = [1, 2, 3, 4, 5, 6, 0].map(function (j) { return { j: j, cb: h('input', { type: 'checkbox', checked: reg.jours.indexOf(j) >= 0 }) }; });
     var jusquAu = h('input', { type: 'date', value: reg.jusquAu });
     var zoneJours = h('div', { class: 'actions gauche' }, casesJours.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: JOURS[c.j] })); }));
@@ -310,22 +350,65 @@
     var boutons = [{ texte: 'Annuler' }];
     if (t) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
       if (!confirm('Supprimer la tâche « ' + x.titre + ' » ? Les dates déjà cochées restent au journal.')) return false;
-      await U.App.session.enregistrer('TACHE', { id: x.id, supprime: true, service: x.service });
+      await U.App.session.enregistrer(type, { id: x.id, supprime: true, service: x.service });
       U.toast('Tâche supprimée.');
     } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       if (!titre.value.trim()) throw new Error('Indiquez la tâche.');
       if (!debut.value) throw new Error('Indiquez la première date.');
       var rg = A.regularite({ type: selReg.value, jours: selReg.value === 'semaine' ? casesJours.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.j; }) : [], jusquAu: selReg.value === 'aucune' ? '' : jusquAu.value });
-      await U.App.session.enregistrer('TACHE', { id: x.id || 'T' + C.hex(C.aleatoire(5)), titre: titre.value.trim(), consigne: consigne.value.trim(), service: sv.value, debut: debut.value, heure: heure.value || '', regularite: rg,
+      await U.App.session.enregistrer(type, { id: x.id || 'T' + C.hex(C.aleatoire(5)), titre: titre.value.trim(), consigne: consigne.value.trim(), service: sv.value, debut: debut.value, heure: heure.value || '', regularite: rg,
         pour: { roles: casesRoles.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.code; }), agents: (pour.agents || []) } });
       U.toast(t ? 'Tâche modifiée.' : 'Tâche ajoutée.');
     } });
-    U.modale(t ? 'Modifier la tâche' : 'Nouvelle tâche', h('div', { class: 'pile' },
+    U.modale((t ? 'Modifier la tâche' : 'Nouvelle tâche') + (equipe ? ' de l’équipe' : ' du service'), h('div', { class: 'pile' },
+      h('p', { class: 'muted', text: equipe ? 'Tâche de l’équipe : toute l’équipe peut la modifier ou la supprimer.' + (recurrentes ? '' : ' Les tâches récurrentes sont réglées par les rôles qui règlent les tâches du service.') : 'Tâche du service : seuls les rôles qui règlent les tâches la modifient ou la suppriment ; les autres la cochent et l’ajustent selon le réglage.' }),
       h('label', {}, 'Tâche', titre), h('label', {}, 'Précision', consigne),
       h('div', { class: 'grille-3' }, h('label', {}, 'Service', sv), h('label', {}, 'Première date', debut), h('label', {}, 'Heure (facultatif)', heure)),
       h('div', { class: 'grille-2' }, h('label', {}, 'Répétition', selReg), zoneJusqu), zoneJours,
       h('div', { class: 'pile' }, h('b', { text: 'Pour (aucune case : toute l’équipe du service)' }), h('div', { class: 'actions gauche' }, casesRoles.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: c.libelle })); })))), boutons, { large: true });
+  }
+
+  /**
+   * Ajustement d'une tâche du service par un rôle qui ne la règle pas (décision du porteur) : agent affecté à une date
+   * ou à certains jours de la répétition, heure et précision si le réglage le permet. Jamais de suppression.
+   */
+  function modaleAjustement(t, occurrence) {
+    var o = A.optionsTaches(U.config()), aj = function (k) { return o.ajustables.indexOf(k) >= 0; }, reg = A.regularite(t.regularite);
+    var comptes = (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && (!(c.services || []).length || (c.services || []).indexOf(t.service) >= 0); })
+      .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
+    var actuel = occurrence ? A.affectation(t, occurrence) : null;
+    var selAgent = h('select', {}, [h('option', { value: '', text: 'Personne (retirer l’affectation)' })].concat(comptes.map(function (c) { return h('option', { value: c.id, text: c.nom, selected: !!(actuel && actuel.agent === c.id) }); })));
+    var date = h('input', { type: 'date', value: occurrence || A.jourISO(Date.now()) });
+    var portee = h('select', { 'aria-label': 'Portée de l’affectation' }, [h('option', { value: 'date', text: 'Cette date seulement' })].concat(reg.type !== 'aucune' ? [h('option', { value: 'jours', text: 'Certains jours de la répétition' })] : []));
+    var casesJours = [1, 2, 3, 4, 5, 6, 0].map(function (j) { return { j: j, cb: h('input', { type: 'checkbox', checked: occurrence ? new Date(A.depuisISO(occurrence)).getDay() === j : false }) }; });
+    var zoneJours = h('div', { class: 'actions gauche' }, casesJours.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: JOURS[c.j] })); }));
+    var zoneDate = h('label', {}, 'Date', date);
+    function majPortee() { zoneJours.hidden = portee.value !== 'jours'; zoneDate.hidden = portee.value !== 'date'; }
+    portee.addEventListener('change', majPortee); majPortee();
+    var heure = h('input', { type: 'time', value: t.heure || '' }), consigne = h('input', { type: 'text', maxlength: 200, value: t.consigne || '' });
+    var boutons = [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: async function () {
+      var d = { tache: t.id, service: t.service }, agent = comptes.filter(function (c) { return c.id === selAgent.value; })[0];
+      if (aj('affectation')) {
+        var change = portee.value === 'jours' ? true : (actuel ? actuel.agent : '') !== selAgent.value || !occurrence || date.value !== occurrence;
+        if (change) {
+          if (portee.value === 'date') { if (!date.value) throw new Error('Indiquez la date.'); d.occurrence = date.value; }
+          else { d.jours = casesJours.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.j; }); if (!d.jours.length) throw new Error('Cochez au moins un jour.'); }
+          d.agent = agent ? agent.id : null; d.nom = agent ? agent.nom : '';
+        }
+      }
+      if (aj('heure') && heure.value !== (t.heure || '')) d.heure = heure.value;
+      if (aj('consigne') && consigne.value.trim() !== (t.consigne || '')) d.consigne = consigne.value.trim();
+      if (Object.keys(d).length <= 2) return true;
+      await U.App.session.enregistrer('TACHE_AJUSTEMENT', d);
+      U.toast('Tâche ajustée.');
+    } }];
+    U.modale('Ajuster la tâche « ' + t.titre + ' »', h('div', { class: 'pile' },
+      h('p', { class: 'muted', text: 'Tâche du service (' + libRepetition(t.regularite) + '). Vous pouvez l’ajuster dans les limites du réglage de l’établissement ; seuls les rôles qui règlent les tâches la modifient entièrement ou la suppriment.' }),
+      aj('affectation') ? h('fieldset', { class: 'role' }, h('legend', { text: 'Agent affecté' }), h('div', { class: 'grille-2' }, h('label', {}, 'Agent', selAgent), h('label', {}, 'Pour', portee)), zoneDate, zoneJours,
+        h('small', { class: 'muted', text: 'L’affectation d’une date l’emporte sur celle des jours de la répétition.' })) : null,
+      aj('heure') ? h('label', {}, 'Heure', heure) : null,
+      aj('consigne') ? h('label', {}, 'Précision (pas de donnée clinique)', consigne) : null), boutons, { large: true });
   }
 
   // ------------------------------------------------------------ Réglages (Administration → Agenda)
@@ -340,17 +423,27 @@
     var selPortee = h('select', { 'aria-label': 'Liste des types d’alertes', onchange: function () { portee = selPortee.value; types = listes[portee]; dessiner(); } },
       [h('option', { value: '*', text: 'Liste de l’établissement' })].concat(U.tousServices().map(function (s) { return h('option', { value: s.code, text: 'Service ' + s.libelle }); })));
     // Modèles de check-lists proposés sur les événements (ex. sortie d'un patient)
-    var modelesCL = A.checklists(U.config()).map(function (c) { return { code: c.code, libelle: c.libelle, texte: c.items.join('\n') }; });
+    var modelesCL = A.checklists(U.config()).map(function (c) { return { code: c.code, libelle: c.libelle, items: c.items.map(function (it) { return { libelle: it.libelle, delai: it.delai }; }) }; });
+    var ot = A.optionsTaches(U.config());
+    var casesAj = Object.keys(A.AJUSTABLES).map(function (k) { return { k: k, cb: h('input', { type: 'checkbox', checked: ot.ajustables.indexOf(k) >= 0 }) }; });
+    var cbEqRec = h('input', { type: 'checkbox', checked: ot.equipeRecurrentes });
     var zoneCL = h('div', { class: 'pile' });
     function dessinerCL() {
       U.vider(zoneCL);
       modelesCL.forEach(function (c, i) {
         var lib = h('input', { type: 'text', maxlength: 80, value: c.libelle, 'aria-label': 'Nom du modèle de check-list', oninput: function () { c.libelle = lib.value; } });
-        var items = h('textarea', { rows: 5, 'aria-label': 'Points du modèle, un par ligne', oninput: function () { c.texte = items.value; } }, c.texte);
-        zoneCL.appendChild(h('fieldset', { class: 'role' }, h('legend', { text: c.libelle || 'Nouveau modèle' }), h('label', {}, 'Nom', lib), h('label', {}, 'Points à réaliser (un par ligne)', items),
-          h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit danger', type: 'button', onclick: function () { modelesCL.splice(i, 1); dessinerCL(); } }, 'Retirer ce modèle'))));
+        var lignes = c.items.map(function (it, k) {
+          var champ = h('input', { type: 'text', maxlength: 120, value: it.libelle, 'aria-label': 'Point à réaliser', oninput: function () { it.libelle = champ.value; } });
+          return h('div', { class: 'agenda-point' }, champ, selectDelai(it.delai, function (v) { it.delai = v; }),
+            h('button', { class: 'btn petit', type: 'button', disabled: k === 0, title: 'Monter', onclick: function () { c.items.splice(k - 1, 0, c.items.splice(k, 1)[0]); dessinerCL(); } }, '▲'),
+            h('button', { class: 'btn petit danger', type: 'button', onclick: function () { c.items.splice(k, 1); dessinerCL(); } }, 'Retirer'));
+        });
+        zoneCL.appendChild(h('fieldset', { class: 'role' }, h('legend', { text: c.libelle || 'Nouveau modèle' }), h('label', {}, 'Nom', lib),
+          h('div', { class: 'pile' }, h('b', { text: 'Points à réaliser et alerte si non fait' }), lignes),
+          h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { c.items.push({ libelle: '', delai: null }); dessinerCL(); } }, '+ Ajouter un point'),
+            h('button', { class: 'btn petit danger', type: 'button', onclick: function () { modelesCL.splice(i, 1); dessinerCL(); } }, 'Retirer ce modèle'))));
       });
-      zoneCL.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { modelesCL.push({ code: 'c' + Date.now().toString(36), libelle: '', texte: '' }); dessinerCL(); } }, '+ Ajouter un modèle de check-list')));
+      zoneCL.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { modelesCL.push({ code: 'c' + Date.now().toString(36), libelle: '', items: [{ libelle: '', delai: null }] }); dessinerCL(); } }, '+ Ajouter un modèle de check-list')));
     }
     dessinerCL();
     var zone = h('div', { class: 'pile' });
@@ -364,7 +457,7 @@
       }
       types.forEach(function (t, i) {
         var champ = h('input', { type: 'text', maxlength: 80, value: t.libelle, 'aria-label': 'Libellé du type d’alerte', oninput: function () { t.libelle = champ.value; } });
-        zone.appendChild(h('div', { class: 'barre' }, champ,
+        zone.appendChild(h('div', { class: 'agenda-point' }, champ,
           h('button', { class: 'btn petit', type: 'button', disabled: i === 0, title: 'Monter', onclick: function () { types.splice(i - 1, 0, types.splice(i, 1)[0]); dessiner(); } }, '▲'),
           h('button', { class: 'btn petit danger', type: 'button', onclick: function () { types.splice(i, 1); dessiner(); } }, 'Retirer')));
       });
@@ -375,7 +468,12 @@
       h('label', {}, 'Patient désigné dans l’agenda par', selId),
       h('small', { class: 'muted', text: 'Initiales par défaut. Le nom complet est le plus exposant : à réserver aux services qui en ont besoin (écran visible de l’équipe).' }),
       h('label', { class: 'case' }, cbModif, h('span', { text: 'Permettre de modifier un élément d’un autre service qui concerne un patient du service (sinon : consultation et commentaires seulement)' })),
-      h('h3', { text: 'Modèles de check-lists' }), zoneCL,
+      h('h3', { text: 'Tâches' }),
+      h('p', { class: 'muted', text: 'Les tâches du service, réglées par les rôles qui en ont l’accès, ne sont supprimées que par eux. Les rôles qui ont l’accès « Ajuster les tâches du service » peuvent changer :' }),
+      h('div', { class: 'pile' }, casesAj.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: A.AJUSTABLES[c.k] })); })),
+      h('label', { class: 'case' }, cbEqRec, h('span', { text: 'Permettre à l’équipe de créer des tâches récurrentes (sinon : ponctuelles seulement, les récurrentes étant réglées par les rôles qui règlent les tâches)' })),
+      h('h3', { text: 'Modèles de check-lists' }),
+      h('p', { class: 'muted', text: 'Pour chaque point, le moment où il devient en retard s’il n’est pas coché (ex. infirmier libéral prévenu 2 jours avant la sortie, transport commandé la veille, ordonnance le jour même).' }), zoneCL,
       h('h3', { text: 'Types d’alertes' }),
       h('p', { class: 'muted', text: 'Liste proposée à la création d’une alerte, dans cet ordre ; « Autre » (libellé libre) est toujours proposé en dernier. Un service peut avoir sa propre liste. Retirer un type n’efface pas les alertes déjà créées.' }),
       selPortee, zone,
@@ -393,14 +491,16 @@
           (valeur.typesAlertesServices = valeur.typesAlertesServices || {})[k] = l;
         });
         if (cbModif.checked) valeur.modifAutresServices = true;
-        var cl = modelesCL.map(function (c) { return { code: c.code, libelle: String(c.libelle || '').trim(), items: String(c.texte || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean) }; }).filter(function (c) { return c.libelle && c.items.length; });
+        var cl = modelesCL.map(function (c) { return { code: c.code, libelle: String(c.libelle || '').trim(), items: c.items.map(function (it) { return { libelle: String(it.libelle || '').trim(), delai: it.delai === undefined ? null : it.delai }; }).filter(function (it) { return it.libelle; }) }; }).filter(function (c) { return c.libelle && c.items.length; });
         if (JSON.stringify(cl) !== JSON.stringify(A.CHECKLISTS_DEFAUT)) valeur.checklists = cl;
+        var ajs = casesAj.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.k; });
+        if (JSON.stringify(ajs) !== JSON.stringify(['affectation']) || cbEqRec.checked) valeur.taches = { ajustables: ajs, equipeRecurrentes: cbEqRec.checked };
         await U.enregistrerConfig([['agenda', valeur]]);
       }));
   }
 
   // ------------------------------------------------------------ Journal
-  var LIB = { RDV: 'Agenda : élément', COMMENTAIRE: 'Agenda : commentaire', CHECK: 'Agenda : check-list', TACHE: 'Agenda : tâche', TACHE_FAITE: 'Agenda : tâche faite', ABSENCE: 'Agenda : absence', ALERTE: 'Agenda : alerte', ALERTE_VUE: 'Agenda : alerte vue' };
+  var LIB = { RDV: 'Agenda : élément', COMMENTAIRE: 'Agenda : commentaire', CHECK: 'Agenda : check-list', TACHE: 'Agenda : tâche du service', TACHE_EQUIPE: 'Agenda : tâche de l’équipe', TACHE_AJUSTEMENT: 'Agenda : tâche ajustée', TACHE_FAITE: 'Agenda : tâche faite', ABSENCE: 'Agenda : absence', ALERTE: 'Agenda : alerte', ALERTE_VUE: 'Agenda : alerte vue' };
   function resume(e) {
     var d = e.data || {};
     switch (e.type) {
@@ -409,6 +509,9 @@
         return (A.NATURES[d.nature] || 'Élément modifié') + (d.titre ? ' « ' + d.titre + ' »' : '') + (d.debut ? ' le ' + U.date(d.debut) : '') + (d.service ? ' — ' + U.libService(d.service) : '') + ((d.patients || []).length ? ', ' + d.patients.length + ' patient(s)' : '');
       case 'COMMENTAIRE': var rr = st().rdv[d.rdv]; return 'Commentaire sur ' + (rr ? '« ' + (rr.titre || '') + ' »' : 'un élément') + (d.service ? ' (' + U.libService(d.service) + ')' : '') + ' : ' + (d.texte || '');
       case 'CHECK': var rk = st().rdv[d.rdv], it = rk && (rk.checklist || []).filter(function (y) { return y.id === d.item; })[0]; return 'Check-list de « ' + (rk ? rk.titre : '') + ' » (' + String(d.occurrence || '').split('-').reverse().join('/') + ') : ' + (it ? it.libelle : 'point') + (d.fait === false ? ' décoché' : ' fait');
+      case 'TACHE_AJUSTEMENT': var ta = st().taches[d.tache];
+        return 'Tâche « ' + (ta ? ta.titre : '') + ' » ajustée' + (d.occurrence || (d.jours || []).length ? ' : ' + (d.agent ? d.nom + ' affecté(e)' : 'affectation retirée') + ' ' + (d.occurrence ? 'le ' + d.occurrence.split('-').reverse().join('/') : 'les ' + d.jours.map(function (j) { return JOURS[j]; }).join(', ')) : '') + (d.heure !== undefined ? ', heure ' + (d.heure || 'retirée') : '') + (d.consigne !== undefined ? ', précision modifiée' : '');
+      case 'TACHE_EQUIPE':
       case 'TACHE': return (d.supprime ? 'Tâche supprimée' : 'Tâche') + (d.titre ? ' « ' + d.titre + ' »' : '') + (d.regularite ? ', ' + libRepetition(d.regularite) : '');
       case 'TACHE_FAITE': return (d.annule ? 'Tâche décochée' : 'Tâche faite') + ' (échéance ' + (d.occurrence || '') + ')';
       case 'ABSENCE': return (d.supprime ? 'Absence supprimée : ' : 'Absence : ') + (d.nom || '') + (d.debut ? ' du ' + U.date(d.debut) : '') + (d.fin ? ' au ' + U.date(d.fin) : '') + (d.categorie ? ' (' + (A.CATEGORIES_ABSENCE[d.categorie] || d.categorie).toLowerCase() + ')' : '');

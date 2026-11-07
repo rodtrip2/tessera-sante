@@ -134,6 +134,12 @@
       throw new Error('Le module « ' + (m.libelle || m.id) + ' » est désactivé pour ' + (inactifs.length > 1 ? 'les services ' : 'le service ') + lib + ' : consultation seule, aucune saisie possible.');
     }
   }
+  /** Contrôles propres au module avant l'enregistrement (contrat : `saisies.controler(type, data, ctx)`), ex. tâches de l'Agenda. */
+  function controlerModule(s, type, data) {
+    var m = moduleDe(type);
+    if (!m || !m.saisies || typeof m.saisies.controler !== 'function') return;
+    m.saisies.controler(type, data || {}, { etat: etatDe(s, m), config: config(s), peut: function (t) { return s.peut(t); } });
+  }
   // ---------------------------------------------------------- Trousseau (étape 4)
   function v2(s) { return !!(s.coffre && s.coffre.version === 2); }
   function idModule() { return moduleActif().id || 'isocont'; }
@@ -1089,7 +1095,7 @@
     // Aperçu d'un rôle : rien n'est enregistré (seules les traces techniques des opérations réellement faites passent)
     if (this.apercu && type !== 'COMPTE') throw new Error('Aperçu de l’affichage du rôle « ' + this.apercu.libelle + ' » : aucune saisie n’est enregistrée. Revenez à votre affichage (liste « Affichage » en haut de l’écran) pour saisir.');
     if (!(options && options.sansControle) && !this.peut(type) && !permisPourSoi(this, type, data)) throw new Error("Votre rôle ne permet pas cette action.");
-    if (!(options && options.sansControle)) controlerActivation(this, type, data);
+    if (!(options && options.sansControle)) { controlerActivation(this, type, data); controlerModule(this, type, data); }
     var at = (options && options.at) || new Date().toISOString();
     var by = (options && options.by) || this.utilisateur.id;
     var j = options && options.journalLot ? journaux(this).filter(function (x) { return x.nom === options.journalLot; })[0] : journalPour(this, journaux(this), type, data);
