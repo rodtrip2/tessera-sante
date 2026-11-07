@@ -52,7 +52,11 @@ test('Rôle AS : mêmes droits que l\'IDE, sauf la création et la correction de
   // Fiches patient : IDE, secrétaire et cadre par défaut (décisions du porteur des 4 et 7 novembre 2026)
   assert.equal(M.peut(['AS'], 'PATIENT'), false);
   for (const r of ['IDE', 'SECRETAIRE', 'CADRE']) assert.equal(M.peut([r], 'PATIENT'), true, r);
-  assert.equal(M.peut(['SECRETAIRE'], 'MODE_HOSPI'), false);
+  // Mode d'hospitalisation : partie de la fiche (décision du porteur du 7 novembre 2026), gardé par l'AS avec la mesure
+  assert.equal(M.peut(['SECRETAIRE'], 'MODE_HOSPI'), true);
+  assert.equal(M.peut(['AS'], 'MODE_HOSPI'), true);
+  assert.ok(M.ACCES.find((a) => a.code === 'patients').types.includes('MODE_HOSPI'));
+  assert.equal(M.peut(['R_X'], 'MODE_HOSPI', { roles: { R_X: { libelle: 'Accueil (fictif)', acces: ['patients'] } } }), true, 'rôle créé avec les fiches seulement');
   assert.deepEqual(M.accesDefaut('AS').includes('patients'), false);
   assert.deepEqual(M.accesDefaut('SECRETAIRE'), ['patients', 'jld', 'recours']);
 });

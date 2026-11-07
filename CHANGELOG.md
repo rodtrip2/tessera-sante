@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.9.1 — 7 novembre 2026
+
+Décisions du porteur du 7 novembre 2026.
+
+- **Mode d'hospitalisation dans la fiche patient** (il servira à d'autres modules) : l'accès « Fiches patient » comprend désormais le mode d'hospitalisation ; à la création d'une fiche (service de psychiatrie), mode et date de début ; dans la fiche, mode actuel et *Historique et changement…*. La secrétaire le saisit par défaut ; un rôle créé par l'établissement qui a les fiches sans les mesures le saisit aussi. L'IDE et l'AS le saisissent toujours avec la mesure.
+- **Sexe** : valeurs Féminin, Masculin, Indéterminé validées.
+- Test des droits mis à jour (209 au vert) ; fiche vérifiée dans Chrome.
+
 ## 0.9.0 — 7 novembre 2026
 
 Étape 7 : **kit de déploiement**. Toutes les étapes du plan de développement sont faites.

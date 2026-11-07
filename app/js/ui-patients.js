@@ -258,6 +258,16 @@
     var datalist = h('datalist', { id: listeMed }, (U.config().psychiatres || []).map(function (n) { return h('option', { value: n }); }));
     var medecin1 = champ(f.medecin1, { list: listeMed }), medecin2 = champ(f.medecin2, { list: listeMed });
     var lib1 = h('span'), lib2 = h('span'), zoneDetenu = h('label', { class: 'case' }, detenu, h('span', { text: 'Patient détenu' }));
+    // Mode d'hospitalisation : partie de la fiche (décision du porteur du 7 novembre 2026), lu par les autres modules ;
+    // historique daté, changement par la fenêtre « Mode » ; services de psychiatrie seulement
+    var peutMode = U.App.session.peut('MODE_HOSPI'), modes = U.config().modesHospitalisation || [];
+    var selMode = h('select', peutMode ? {} : { disabled: true }, [h('option', { value: '', text: '— Non renseigné —' })].concat(modes.map(function (x) { return h('option', { value: x.code, text: x.code + ' — ' + x.libelle }); })));
+    var modeDepuis = h('input', { type: 'datetime-local', value: U.versSaisie(Date.now()), disabled: !peutMode });
+    var actuel = nouveau ? '' : U.modeActuel(f), libActuel = (modes.filter(function (x) { return x.code === actuel; })[0] || {}).libelle;
+    var zoneMode = h('div', { class: 'pile' }, h('b', { text: 'Mode d’hospitalisation' }),
+      nouveau ? h('div', { class: 'grille-2' }, h('label', {}, 'Mode', selMode), h('label', {}, 'À compter du', modeDepuis))
+        : h('div', { class: 'barre' }, h('span', { text: actuel ? actuel + (libActuel ? ' — ' + libActuel : '') + (f.modes.length ? ', depuis le ' + U.date(f.modes[f.modes.length - 1].date) : '') : 'Non renseigné' }),
+          h('button', { class: 'btn petit', type: 'button', onclick: function () { fermerPuis(function () { modaleMode(f); }); } }, peutMode ? 'Historique et changement…' : 'Historique')));
     // Référents soignants : comptes du service (rôles de la liste de surveillance), ou nom libre
     var referents = (f.referents || []).map(function (r) { return { id: r.id || null, nom: r.nom }; });
     var zoneRef = h('div', { class: 'pile' });
@@ -283,7 +293,7 @@
     function majService() {
       var o = P.optionsFiche(U.config(), sv.value);
       lib1.textContent = o.medecin1; lib2.textContent = o.medecin2;
-      zoneDetenu.hidden = !o.psychiatrie;
+      zoneDetenu.hidden = !o.psychiatrie; zoneMode.hidden = !o.psychiatrie;
       dessinerRef();
     }
     sv.addEventListener('change', majService);
@@ -303,7 +313,7 @@
       h('div', { class: 'grille-2' }, h('label', {}, 'Nom (nom d’usage)', nom), h('label', {}, 'Prénom', prenom)),
       h('div', { class: 'grille-2' }, h('label', {}, 'Nom de naissance', nomNaissance), h('label', {}, 'Sexe', sexe)),
       h('div', { class: 'grille-2' }, h('label', {}, 'Date de naissance', naissance), h('label', {}, 'Mesure de protection juridique', protection)),
-      zoneDetenu,
+      zoneDetenu, zoneMode,
       h('div', { class: 'grille-2' }, h('label', {}, lib1, medecin1), h('label', {}, lib2, medecin2)), datalist,
       h('div', { class: 'pile' }, h('b', { text: 'Référents soignants' }), zoneRef),
       h('small', { class: 'muted', text: 'Médecins et référents sont propres à Tessera (distincts du médecin responsable du dossier patient informatisé). Chaque changement est gardé avec sa date. Une mesure garde le nom affiché au moment de sa création dans le journal ; les écrans utilisent la fiche à jour.' }),
@@ -324,8 +334,11 @@
         });
         if (!!f.detenu !== detenu.checked && !zoneDetenu.hidden) { d.detenu = detenu.checked; ch++; }
         if (JSON.stringify(f.referents || []) !== JSON.stringify(referents)) { d.referents = referents; ch++; }
+        var avecMode = nouveau && !zoneMode.hidden && selMode.value;
+        if (avecMode && U.depuisSaisie(modeDepuis.value) > Date.now() + 10 * 60000) throw new Error('La date du mode d’hospitalisation ne peut pas être dans le futur.');
         if (!ch) return true;
         await U.App.session.enregistrer('PATIENT', d);
+        if (avecMode) await U.App.session.enregistrer('MODE_HOSPI', { patientId: id, mode: selMode.value, date: U.depuisSaisie(modeDepuis.value) || Date.now() });
         U.toast(nouveau ? 'Fiche créée.' : 'Fiche mise à jour.');
       } } : null].filter(Boolean), { large: true });
   }
