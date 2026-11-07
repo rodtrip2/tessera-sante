@@ -127,9 +127,17 @@
     for (var i = 0; i < miennes.length; i++) {
       var e = miennes[i], jeu = t[e.cle];
       if (!jeu) continue;
-      var o = await C.ouvrirEnveloppe(e, privee, contexte(e.cle, e.g, pour));
+      var o;
+      // Une enveloppe abîmée ou modifiée n'empêche pas d'ouvrir les autres (elle est comptée et signalée)
+      try { o = await C.ouvrirEnveloppe(e, privee, contexte(e.cle, e.g, pour)); } catch (err) { jeu.illisibles = (jeu.illisibles || 0) + 1; continue; }
       if (e.g === 'm') jeu.maitresse = o; else jeu.octets[e.g] = o;
     }
+    // Génération d'écriture : jamais en deçà de la plus haute génération reçue (une génération courante remise en
+    // arrière dans le coffre ne fait pas réécrire avec une génération que détient un agent retiré)
+    Object.keys(t).forEach(function (nom) {
+      var recues = Object.keys(t[nom].octets).map(Number);
+      t[nom].courante = Math.max.apply(null, [t[nom].courante].concat(recues));
+    });
     return t;
   }
 
@@ -141,7 +149,20 @@
     return res;
   }
 
-  function effacer(trousseau) { Object.keys(trousseau || {}).forEach(function (n) { trousseau[n].effacer(); }); }
+  /** Copie de travail indépendante (octets recopiés) : modifiée puis installée seulement après l'écriture du coffre. */
+  function copier(trousseau) {
+    var c = {};
+    Object.keys(trousseau).forEach(function (n) {
+      var j = trousseau[n];
+      if (j.v1) { c[n] = j; return; }
+      var o = {};
+      Object.keys(j.octets).forEach(function (g) { o[g] = j.octets[g].slice(); });
+      c[n] = nouveauJeu(n, j.courante, o, j.maitresse && j.maitresse.slice(), j.base);
+    });
+    return c;
+  }
+
+  function effacer(trousseau) { Object.keys(trousseau || {}).forEach(function (n) { if (!trousseau[n].v1) trousseau[n].effacer(); }); }
 
   /**
    * Prépare un coffre version 2 pour un dossier vide : clés maîtresses, première génération, clé de secours
@@ -330,6 +351,6 @@
   return {
     PLATEFORME: PLATEFORME, migrerCoffre: migrerCoffre, enveloppesSecours: enveloppesSecours, SECOURS: SECOURS, jeuV1: jeuV1, nouveauJeu: nouveauJeu, droitsDe: droitsDe, enveloppesPour: enveloppesPour,
     ouvrir: ouvrir, manquantes: manquantes, effacer: effacer, creerCoffre: creerCoffre, nouvelAgent: nouvelAgent,
-    appliquerDroits: appliquerDroits, incomplets: incomplets, nouveauSecours: nouveauSecours, baseDe: baseDe
+    appliquerDroits: appliquerDroits, incomplets: incomplets, copier: copier, contexte: contexte, nouveauSecours: nouveauSecours, baseDe: baseDe
   };
 });

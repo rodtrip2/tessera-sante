@@ -187,10 +187,12 @@ test('Premier changement de mot de passe : l’agent crée sa propre clé person
   await a.enregistrer('MESURE_DEBUT', mesure('M3'));                      // la session continue avec la nouvelle clé
   const a2 = await co(racine, 'ide.a', 'mot de passe personnel a');
   assert.ok(a2.etat.mesures.M1 && a2.etat.mesures.M3);
-  // Second changement : même clé personnelle
+  // Chaque changement par l'agent : nouvelle clé personnelle (un ancien mot de passe resté dans l'historique n'ouvre plus rien)
   const pub1 = a2.coffre.agents[id('ide.a')].publique;
   await a2.changerMonMotDePasse('mot de passe personnel a2');
-  assert.equal(a2.coffre.agents[id('ide.a')].publique, pub1);
+  assert.notEqual(a2.coffre.agents[id('ide.a')].publique, pub1);
+  const a3 = await co(racine, 'ide.a', 'mot de passe personnel a2');
+  assert.ok(a3.etat.mesures.M3);
   // Enveloppe perdue (coffre modifié à la main) : signalée, puis réémise par l'administrateur
   await admin.modifierCoffre(async (cf) => { cf.enveloppes = cf.enveloppes.filter((e) => !(e.pour === id('ide.b') && e.cle === 'isocont')); });
   assert.deepEqual(admin.trousseauxIncomplets().map((x) => [x.nom, x.cles]), [['IDE B (fictif)', ['isocont']]]);
@@ -199,4 +201,29 @@ test('Premier changement de mot de passe : l’agent crée sa propre clé person
   assert.deepEqual(r.generations, []);
   assert.deepEqual(admin.trousseauxIncomplets(), []);
   assert.equal((await admin.appliquerDroits()).change, false);            // plus rien à faire : coffre non réécrit
+});
+
+test('Copie sous scellé : à refaire après un changement de clé maîtresse ; résumé du trousseau', async () => {
+  const { racine, admin } = await nouveauDossier();
+  await admin.creerComptes([{ nom: 'Admin 2 (fictif)', login: 'admin2', motDePasse: 'mot de passe admin 2', roles: ['CADRE', 'ADMIN'], services: [] },
+    { nom: 'Sans rôle (fictif)', login: 'sans', motDePasse: 'mot de passe sans', roles: [], services: [] }]);
+  await admin.copieSousScelle();
+  assert.equal(admin.etatScelle().aJour, true);
+  const id2 = admin.comptes.find((c) => c.login === 'admin2').id, idS = admin.comptes.find((c) => c.login === 'sans').id;
+  let r = admin.resumeTrousseau();
+  assert.deepEqual(r.cles, { plateforme: 1, isocont: 1 });
+  assert.deepEqual(r.comptes[id2], { cles: ['isocont', 'plateforme'], maitresses: true });
+  assert.deepEqual(r.comptes[idS], { cles: ['plateforme'], maitresses: false });
+  // Nouvelle génération sans changement de clé maîtresse : la copie reste valable
+  await admin.modifierRoles(idS, ['SECRETAIRE'], true, ['U1']);
+  await admin.modifierRoles(idS, [], true, ['U1']);
+  assert.equal(admin.coffre.cles.isocont.courante, 2);
+  assert.equal(admin.etatScelle().aJour, true);
+  // Retrait d'un administrateur : nouvelle clé maîtresse, copie à refaire
+  await admin.modifierRoles(id2, ['CADRE'], true, ['U1']);
+  assert.equal(admin.etatScelle().aJour, false);
+  await admin.copieSousScelle();
+  assert.equal(admin.etatScelle().aJour, true);
+  r = admin.resumeTrousseau();
+  assert.equal(r.comptes[id2].maitresses, false);
 });

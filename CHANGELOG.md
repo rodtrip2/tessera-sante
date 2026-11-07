@@ -1,5 +1,18 @@
 # Journal des modifications — Tessera Santé
 
+## 0.4.5 — 7 novembre 2026
+
+Étape 4 (trousseau) : **corrections après une relecture indépendante** du code des clés.
+
+- Un compte temporaire arrivé à expiration est traité comme désactivé pour les clés (nouvelle génération, plus de remise) ; la connexion par clé de sécurité est refusée pour un compte expiré ou désactivé.
+- Chaque changement de son mot de passe crée une nouvelle clé personnelle : l'ancienne, même copiée, n'ouvre plus les clés remises ensuite. Les clés de sécurité de l'agent sont alors retirées ; l'écran de changement de mot de passe le signale.
+- Retrait de sa propre clé de sécurité : le mot de passe est redemandé et la clé personnelle renouvelée (une clé perdue puis retrouvée n'ouvre plus rien). La clé d'un autre agent se retire en réinitialisant son mot de passe.
+- Avant chaque écriture du coffre, le trousseau du poste est confronté au coffre relu : clés changées entre-temps → trousseau rouvert ; clé personnelle retirée ou remplacée → verrouillage. Une écriture interrompue ne laisse plus de clé à moitié installée.
+- La génération courante d'une clé ne recule jamais ; une enveloppe illisible n'empêche plus d'ouvrir les autres.
+- Copie sous scellé signalée « à refaire » aussi quand une clé maîtresse a changé.
+- Point ouvert, à trancher par le porteur : signature (attestation) du coffre par l'administrateur, contre un agent qui garderait un accès en écriture au partage (`docs/architecture.md` § 4).
+- Nouveau test `tests/trousseau-revue.test.js` (173 au vert) ; retrait d'une clé vérifié dans Chrome.
+
 ## 0.4.4 — 7 novembre 2026
 
 Étape 4 (trousseau), quatrième sous-étape : **remise et retrait des clés selon les droits**. Un droit = une clé est désormais effectif.

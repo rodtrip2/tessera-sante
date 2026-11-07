@@ -848,7 +848,9 @@
   // ---------------------------------------------------------------- Mot de passe
   function modaleMonMotDePasse() {
     var a = h('input', { type: 'password', autocomplete: 'new-password' }), b = h('input', { type: 'password', autocomplete: 'new-password' });
-    modale('Changer mon mot de passe', h('div', { class: 'pile' }, h('label', {}, 'Nouveau mot de passe (12 caractères minimum)', a), h('label', {}, 'Confirmation', b)), [
+    var s = App.session, mesCles = (s.coffre.emballages || []).filter(function (e) { return e.methode === 'cle' && e.userId === s.utilisateur.id; }).length;
+    var avis = s.coffre.version === 2 && mesCles ? h('p', { class: 'alerte', text: 'Votre clé personnelle sera renouvelée : vos clés de sécurité (' + mesCles + ') seront retirées et seront à réenregistrer.' }) : null;
+    modale('Changer mon mot de passe', h('div', { class: 'pile' }, avis, h('label', {}, 'Nouveau mot de passe (12 caractères minimum)', a), h('label', {}, 'Confirmation', b)), [
       { texte: 'Annuler' },
       { texte: 'Changer', classe: 'primaire', action: async function () {
         verifierNouveauMotDePasse(a.value, b.value);
@@ -913,10 +915,21 @@
       h('div', { class: 'actions' }, h('button', { class: 'btn primaire', onclick: async function () {
         try { s.erreurDroits = null; var r = await s.appliquerDroits(); toast(r.change ? 'Clés réémises.' : 'Aucune clé à réémettre.'); rendreContenu(); } catch (err) { alert(err.message); }
       } }, 'Réémettre les clés'))) : null;
+    // Trousseau : clés détenues par chaque compte (coffre version 2)
+    var resume = s.resumeTrousseau ? s.resumeTrousseau() : null;
+    function libCle(n) { if (n === 'plateforme') return 'Plateforme'; var m = SIC.modules.obtenir(n); return m ? m.libelle : n; }
+    function celluleCles(c) {
+      var x = resume.comptes[c.id];
+      if (!c.actif) return h('td', {}, h('small', { class: 'muted', text: '—' }));
+      if (!x) return h('td', {}, h('span', { class: 'badge', text: 'aucune : à réémettre' }));
+      var ordre = x.cles.slice().sort(function (a, b) { return a === 'plateforme' ? -1 : b === 'plateforme' ? 1 : 0; });
+      return h('td', {}, h('small', { text: ordre.map(libCle).join(', ') + (x.maitresses ? ' · clés maîtresses' : '') }));
+    }
     var comptes = h('section', { class: 'panneau' }, h('h2', { text: 'Comptes' }),
+      resume ? h('p', { class: 'muted', text: 'Trousseau de clés : ' + Object.keys(resume.cles).map(function (n) { return libCle(n) + ' (génération ' + resume.cles[n] + ')'; }).join(' · ') + '. Un agent ne reçoit que les clés de ce à quoi il a droit ; une nouvelle génération est créée à chaque retrait de droit.' }) : null,
       h('p', { class: 'muted', text: 'Un compte peut cumuler plusieurs rôles. Les services affectés limitent ce que l’agent voit, à la connexion comme à la création d’une mesure ; un administrateur voit tous les services.' }),
       h('div', { class: 'table-wrap' }, h('table', {},
-        h('thead', {}, h('tr', {}, ['Nom', 'Identifiant', 'Rôles', 'Services', 'État', ''].map(function (t) { return h('th', { text: t }); }))),
+        h('thead', {}, h('tr', {}, ['Nom', 'Identifiant', 'Rôles', 'Services', 'État'].concat(resume ? ['Clés'] : [], ['']).map(function (t) { return h('th', { text: t }); }))),
         h('tbody', {}, s.comptes.map(function (c) {
           var admin = droits().voitTousServices(c.roles, config());
           return h('tr', { class: c.actif ? '' : 'ancienne' },
@@ -930,6 +943,7 @@
               return h('div', {}, h('span', { class: 'badge ' + (v.expire ? 'bad' : v.bientot ? 'warn' : ''), title: 'Compte temporaire : dernier jour d’accès le ' + fin, text: v.expire ? 'expiré le ' + fin : v.bientot ? 'expire le ' + fin + ' (' + v.jours + ' j)' : 'jusqu’au ' + fin }));
             })(), c.actif && c.mdpProvisoire ? h('div', {}, h('span', { class: 'badge warn', title: 'Le mot de passe sera changé à la prochaine connexion', text: 'mot de passe provisoire' })) : null,
               c.formation === false ? h('div', {}, h('span', { class: 'badge', text: 'sans mode formation' })) : null),
+            resume ? celluleCles(c) : null,
             h('td', { class: 'actions-ligne' },
               h('button', { class: 'btn petit', onclick: function () { modaleCompte(c); } }, 'Modifier'), ' ',
               h('button', { class: 'btn petit', onclick: function () { modaleReinit(c); } }, c.actif ? 'Réinitialiser le mot de passe' : 'Réactiver avec un mot de passe')));
@@ -956,7 +970,16 @@
         var lib = e.methode === 'mdp' ? 'Mot de passe — ' + e.login : e.methode === 'cle' ? (e.libelle || 'Clé de sécurité') + ' — ' + s.nomAuteur(e.userId) + ' — ' + e.rpId : 'Code de secours papier';
         return h('tr', {}, h('td', {}, h('span', { class: 'badge', text: e.methode === 'mdp' ? 'mot de passe' : e.methode === 'cle' ? 'clé de sécurité' : 'secours' })), h('td', { text: lib }),
           h('td', { class: 'actions-ligne' }, e.methode === 'cle' ? h('button', { class: 'btn petit danger', onclick: async function () {
-            if (!confirm('Retirer cette clé de sécurité ?')) return;
+            // Trousseau : sa propre clé → mot de passe demandé, clé personnelle renouvelée (une clé perdue ne sert plus)
+            if (s.coffre.version === 2 && e.userId && e.userId === s.utilisateur.id) {
+              var mdp = h('input', { type: 'password', autocomplete: 'current-password' });
+              modale('Retirer ma clé de sécurité', h('div', { class: 'pile' },
+                h('p', { text: 'Votre clé personnelle sera renouvelée : la clé retirée n’ouvrira plus rien, même retrouvée. Vos autres clés de sécurité seront aussi à réenregistrer.' }),
+                h('label', {}, 'Votre mot de passe', mdp)),
+                [{ texte: 'Annuler' }, { texte: 'Retirer', classe: 'danger', action: async function () { await s.retirerEmballage(e.id, mdp.value); toast('Clé retirée, clé personnelle renouvelée.'); } }], { focus: mdp });
+              return;
+            }
+            if (!confirm(e.userId ? 'Retirer cette clé de sécurité ?' : 'Retirer cette clé de sécurité de secours ?\n\nSi elle est perdue, renouvelez aussi le code de secours : la clé retrouvée ouvrirait encore la clé de secours d’une ancienne version du coffre.')) return;
             try { await s.retirerEmballage(e.id); toast('Clé retirée.'); } catch (err) { alert(err.message); }
           } }, 'Retirer') : null));
       })))),
