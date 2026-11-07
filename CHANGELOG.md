@@ -1,5 +1,14 @@
 # Journal des modifications — Tessera Santé
 
+## 0.6.1 — 7 novembre 2026
+
+Étape 5 (module Patients), deuxième sous-étape : **la fiche patient est tenue par le module Patients**. Aucun changement de calcul : registre, cumuls et échéances identiques.
+
+- Isocont ne reconstitue plus la fiche : il lit à la volée les fiches calculées par Patients (identité, protection, détenu, service, modes d'hospitalisation, fiches fusionnées).
+- Historique daté, jamais écrasé : chaque changement de protection juridique, du statut de détenu et du service est gardé avec sa date ; il figure dans l'export du droit d'accès (« Changements de la fiche »).
+- Imports et jeu de démonstration : rangés en un lot par journal (réglages communs, fiches patient, mesures), liés. Annuler l'un des lots depuis le journal annule les autres ; « Rétablir » les rétablit ensemble. Le journal indique les lots liés.
+- Nouveaux tests (lots liés, annulation et rétablissement conjoints, historique daté, fourniture lue par Isocont ; 189 au vert) ; création d'une mesure pour un nouveau patient vérifiée dans Chrome (fiche et mode dans le journal de Patients, mesure dans celui d'Isocont).
+
 ## 0.6.0 — 7 novembre 2026
 
 Étape 5 (module Patients), première sous-étape : **journal et clé propres au module Patients**. Aucun changement à l'écran pour les agents.

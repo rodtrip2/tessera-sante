@@ -220,12 +220,21 @@
   }
 
   // ------------------------------------------------------------ Droit d'accès
+  /** Historique daté de la fiche (module Patients) : protection juridique, patient détenu, service. */
+  function changementsFiche(p) {
+    var lib = { protection: 'Protection juridique', detenu: 'Détenu', service: 'Service' }, res = [];
+    Object.keys(p.historique || {}).forEach(function (k) {
+      (p.historique[k] || []).forEach(function (x) { res.push([U.date(Date.parse(x.le)), lib[k] || k, k === 'detenu' ? (x.valeur ? 'oui' : 'non') : k === 'service' ? U.libService(x.valeur) : (x.valeur || '—')]); });
+    });
+    return res;
+  }
   function exporterPatient(p) {
     var d = M.donneesPatient(U.st(), p.id, Date.now());
     var o = M.optionsQualite(U.config());
     var lignes = [['Données concernant ' + (p.nom || '') + ' ' + (p.prenom || '') + ' — IPP ' + (p.ipp || '—') + ' — édité le ' + U.date(Date.now())], [],
       ['Fiche'], ['Nom', p.nom || ''], ['Prénom', p.prenom || ''], ['Date de naissance', p.naissance ? p.naissance.split('-').reverse().join('/') : ''], ['Protection juridique', p.protection || ''], ['Détenu', p.detenu ? 'oui' : 'non'], [],
-      ['Modes d’hospitalisation'], ['Date', 'Mode']].concat((p.modes || []).map(function (x) { return [U.date(x.date), x.mode]; }), [[], ['Mesures'],
+      ['Modes d’hospitalisation'], ['Date', 'Mode']].concat((p.modes || []).map(function (x) { return [U.date(x.date), x.mode]; }),
+      [[], ['Changements de la fiche'], ['Date', 'Donnée', 'Valeur']], changementsFiche(p), [[], ['Mesures'],
       ['Type', 'Début', 'Fin', 'Lieu', 'Psychiatre (début)', 'Psychiatre (fin)', 'Motif de fin', 'Motif du recours', 'Levées temporaires', 'Étapes JLD', 'Recours', 'Information du tiers', o.nomEntretien]]);
     d.mesures.forEach(function (m) {
       var jld = [];

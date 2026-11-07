@@ -15,14 +15,28 @@
   'use strict';
 
   var CHAMPS = ['ipp', 'nom', 'prenom', 'naissance', 'protection', 'service', 'detenu'];
+  var COMPLETES_A_LA_FUSION = ['ipp', 'nom', 'prenom', 'naissance', 'protection', 'service'];
+  /** Champs dont les changements sont gardés, datés, dans l'historique de la fiche (jamais écrasés). */
+  var DATES = ['protection', 'detenu', 'service'];
 
-  /** Fiche reconstituée : identité, protection, détenu, service, modes d'hospitalisation datés, fiches fusionnées. */
+  /**
+   * Fiche reconstituée : identité, protection, détenu, service, modes d'hospitalisation datés, fiches fusionnées, et
+   * historique daté des changements (`historique[champ]` : [{ le, valeur, evt }]). Même contenu que la fiche
+   * qu'Isocont reconstituait lui-même jusqu'à la version 0.6.0.
+   */
   function appliquer(st, e) {
     var d = e.data || {}, id = d.patientId && st.fusions[d.patientId] ? cible(st, d.patientId) : d.patientId;
     switch (e.type) {
       case 'PATIENT':
         var p = st.fiches[id] || { id: id, modes: [] };
-        CHAMPS.forEach(function (k) { if (d[k] !== undefined) p[k] = d[k]; });
+        CHAMPS.forEach(function (k) {
+          if (d[k] === undefined) return;
+          if (DATES.indexOf(k) >= 0 && p[k] !== d[k]) {
+            var h = (p.historique = p.historique || {})[k] = (p.historique && p.historique[k]) || [];
+            h.push({ le: e.at, valeur: d[k], evt: e.id });
+          }
+          p[k] = d[k];
+        });
         st.fiches[id] = p;
         break;
       case 'MODE_HOSPI':
@@ -32,8 +46,9 @@
       case 'FUSION':
         var g = cible(st, d.garde), a = cible(st, d.absorbe), pg = st.fiches[g], pa = st.fiches[a];
         if (!pg || !pa || g === a) break;
-        CHAMPS.forEach(function (k) { if (!pg[k] && pa[k]) pg[k] = pa[k]; });
+        COMPLETES_A_LA_FUSION.forEach(function (k) { if (!pg[k] && pa[k]) pg[k] = pa[k]; });
         pg.modes = pg.modes.concat(pa.modes).sort(function (x, y) { return x.date - y.date; });
+        pg.fusionnes = (pg.fusionnes || []).concat([{ id: a, ipp: pa.ipp || '', nom: pa.nom || '', prenom: pa.prenom || '', naissance: pa.naissance || '', evt: e.id, motif: d.motif || '' }], pa.fusionnes || []);
         delete st.fiches[a];
         st.fusions[a] = g;
         break;
@@ -43,6 +58,24 @@
 
   function reduire(evts) {
     return N.reduire(evts, { etat: function () { return { fiches: {}, fusions: {} }; }, appliquer: appliquer });
+  }
+
+  /** Valeur d'un champ daté en vigueur à une date (ms) : la dernière fixée avant elle, sinon la première connue. */
+  function valeurAu(fiche, champ, date) {
+    var h = fiche && fiche.historique && fiche.historique[champ];
+    if (!h || !h.length) return fiche ? fiche[champ] : undefined;
+    var v = h[0].valeur;
+    h.forEach(function (x) { if (Date.parse(x.le) <= date) v = x.valeur; });
+    return v;
+  }
+
+  /**
+   * Fourniture `patients.fiches` v1, lue à la volée : fiches en vigueur et fusions, calculées à partir des saisies
+   * de la fiche (les autres saisies sont ignorées). Lecture seule : le consommateur reçoit des copies.
+   */
+  function fiches(evts) {
+    var st = reduire(evts);
+    return JSON.parse(JSON.stringify({ fiches: st.fiches, fusions: st.fusions }));
   }
 
   var contrat = {
@@ -62,12 +95,12 @@
     vues: { onglets: [] },
     migrations: [],
     fournitures: [
-      { nom: 'patients.fiches', version: 1, acces: 'lecture',
-        champs: ['id', 'ipp', 'nom', 'prenom', 'naissance', 'protection', 'detenu', 'service', 'modes'] }
+      { nom: 'patients.fiches', version: 1, acces: 'lecture', calculer: fiches,
+        champs: ['id', 'ipp', 'nom', 'prenom', 'naissance', 'protection', 'detenu', 'service', 'modes', 'fusionnes', 'historique'] }
     ],
     besoins: []
   };
 
   registre.declarer(contrat);
-  return { contrat: contrat, reduire: reduire };
+  return { contrat: contrat, reduire: reduire, fiches: fiches, valeurAu: valeurAu };
 });

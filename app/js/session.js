@@ -1049,7 +1049,8 @@
     if (!(options && options.sansControle)) controlerActivation(this, type, data);
     var at = (options && options.at) || new Date().toISOString();
     var by = (options && options.by) || this.utilisateur.id;
-    var j = journalPour(this, journaux(this), type, data), d = await dossierJournal(this, j, true);
+    var j = options && options.journalLot ? journaux(this).filter(function (x) { return x.nom === options.journalLot; })[0] : journalPour(this, journaux(this), type, data);
+    var d = await dossierJournal(this, j, true);
     var mesUns = j.evts.filter(function (e) { return e.by === by; });   // chaînage et repère : propres à chaque journal
     var evt = {
       v: 1,
@@ -1072,6 +1073,13 @@
     j.reperesLus[by] = n;
     try { await d.ecrireRepere(j.cle, by, { n: n, dernier: evt.id, at: at }); } catch (e) { /* sans conséquence sur la saisie */ }
     this.recalculer();
+    // Saisies liées (lots d'un même import rangés dans plusieurs journaux) : annuler l'un annule les autres. Les
+    // annulations produites citent l'annulation d'origine (`origine`) : « Rétablir » l'une les rétablit toutes.
+    if (type === 'ANNULATION' && data && data.cible && !(options && options.conjointe)) {
+      var visee = this.evts.filter(function (x) { return x.id === data.cible; })[0];
+      var autres = visee ? saisiesLiees(this.evts, visee).filter(function (x) { return !(this.etat && this.etat.annules[x.id]); }, this) : [];
+      for (var k = 0; k < autres.length; k++) await this.enregistrer('ANNULATION', { cible: autres[k].id, motif: data.motif, origine: evt.id, conjointe: true }, undefined, Object.assign({}, options, { conjointe: true }));
+    }
     // Réglages qui changent les droits (rôles, services, activation des modules), annulations, imports : clés à jour
     if (v2(this) && !this.formation && (type === 'CONFIG' || type === 'ANNULATION' || type === 'LOT') && this.trousseau[T.PLATEFORME].maitresse) {
       try { await this.appliquerDroits(); } catch (e) { this.erreurDroits = e.message; }
@@ -1302,8 +1310,40 @@
   };
 
   /** Enregistre plusieurs saisies dans un seul fichier (import, données de démonstration). */
-  Session.prototype.enregistrerLot = function (evenements, options) {
-    return this.enregistrer('LOT', { evenements: evenements, libelle: (options && options.libelle) || '' }, undefined, options);
+  /** Saisies liées à `v` : autres lots d'un même enregistrement (`lien`), ou annulations conjointes (même `origine`). */
+  function saisiesLiees(evts, v) {
+    var d = v.data || {};
+    if (v.type === 'LOT' && d.lien) return evts.filter(function (x) { return x.id !== v.id && x.type === 'LOT' && x.data && x.data.lien === d.lien; });
+    if (v.type === 'ANNULATION') {
+      var cle = d.origine || v.id;
+      return evts.filter(function (x) { return x.id !== v.id && x.type === 'ANNULATION' && ((x.data && x.data.origine) || x.id) === cle; });
+    }
+    return [];
+  }
+
+  /**
+   * Lot de saisies (import, jeu de démonstration, réglages importés). Les saisies de plusieurs modules sont rangées en
+   * un lot par journal (fiches patient dans celui de Patients, le reste dans celui du module), liés par un même `lien` :
+   * annuler l'un annule les autres. Retourne le lot du module affiché (ou le seul lot).
+   */
+  Session.prototype.enregistrerLot = async function (evenements, options) {
+    var s = this, js = journaux(this), groupes = {}, ordre = [];
+    evenements.forEach(function (x) {
+      var nom = journalPour(s, js, x.type, x.data).nom;
+      if (!groupes[nom]) { groupes[nom] = []; ordre.push(nom); }
+      groupes[nom].push(x);
+    });
+    var libelle = (options && options.libelle) || '';
+    if (ordre.length <= 1) return this.enregistrer('LOT', { evenements: evenements, libelle: libelle }, undefined, options);
+    // Fournisseurs d'abord (Patients avant Isocont), comme la lecture
+    var rang = {}; js.forEach(function (j, i) { rang[j.nom] = i; });
+    ordre.sort(function (a, b) { return rang[a] - rang[b]; });
+    var lien = 'l' + id8() + id8(), res = null;
+    for (var i = 0; i < ordre.length; i++) {
+      var e = await this.enregistrer('LOT', { evenements: groupes[ordre[i]], libelle: libelle, lien: lien, journal: ordre[i] }, undefined, Object.assign({}, options, { journalLot: ordre[i] }));
+      if (ordre[i] === idModule() || !res) res = e;
+    }
+    return res;
   };
 
   Session.prototype.recalculer = function (info) {

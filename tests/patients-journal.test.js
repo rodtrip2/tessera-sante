@@ -134,3 +134,49 @@ test('Coffre créé avant le module Patients : fiches dans le journal d’Isocon
   assert.deepEqual(a.journauxActifs.map((j) => j.nom), ['socle', 'patients', 'isocont']);
   assert.ok(a.etat.patients.P2);
 });
+
+test('Lots : fiches dans le journal de Patients, mesures dans celui d’Isocont, liés ; annulés et rétablis ensemble', async () => {
+  const { racine } = await equipe();
+  const ad = await connecter(racine);
+  const t = Date.now() - 7200e3;
+  const lot = await ad.enregistrerLot([
+    { type: 'PATIENT', at: new Date(t).toISOString(), data: { patientId: 'PL', ipp: '5005 (fictif)', nom: 'LOT (fictif)', naissance: '1970-07-07', service: 'U1' } },
+    { type: 'MODE_HOSPI', at: new Date(t).toISOString(), data: { patientId: 'PL', date: t, mode: 'SDT' } },
+    { type: 'MESURE_DEBUT', at: new Date(t).toISOString(), data: mesure('ML', 'PL') }], { libelle: 'Import (fictif)' });
+  const lots = ad.evts.filter((e) => e.type === 'LOT');
+  assert.equal(lots.length, 2);
+  assert.equal(lots[0].data.lien, lots[1].data.lien);
+  const lp = lots.find((e) => e.data.journal === 'patients');
+  assert.ok(fichier(racine, PATIENTS, lp.id) && fichier(racine, ISOCONT, lot.id));
+  assert.deepEqual(lp.data.evenements.map((x) => x.type), ['PATIENT', 'MODE_HOSPI']);
+  assert.equal(ad.etat.mesures.ML.patientId, 'PL');
+  assert.equal(ad.etat.patients.PL.modes.length, 1);
+  // Annulation du lot d'Isocont : celui de Patients l'est aussi
+  const ann = await ad.enregistrer('ANNULATION', { cible: lot.id, motif: 'import à refaire (fictif)' });
+  assert.ok(!ad.etat.mesures.ML && !ad.etat.patients.PL);
+  const conj = ad.evts.find((e) => e.type === 'ANNULATION' && e.data.origine === ann.id);
+  assert.ok(conj && fichier(racine, PATIENTS, conj.id));
+  // « Rétablir » : les deux lots reviennent
+  await ad.enregistrer('ANNULATION', { cible: ann.id, motif: 'rétabli (fictif)' });
+  assert.ok(ad.etat.mesures.ML && ad.etat.patients.PL);
+  const relu = await connecter(racine);
+  assert.ok(relu.etat.mesures.ML && relu.etat.patients.PL.ipp === '5005 (fictif)');
+});
+
+test('Fiche : historique daté des changements (protection, détenu, service), valeur en vigueur à une date', async () => {
+  const P = require('../app/js/module-patients.js');
+  const at = (j) => new Date(Date.UTC(2026, 0, j)).toISOString();
+  const st = P.reduire([
+    { id: '1', at: at(1), by: 'u', type: 'PATIENT', data: { patientId: 'P', nom: 'X (fictif)', protection: '' , service: 'U1' } },
+    { id: '2', at: at(10), by: 'u', type: 'PATIENT', data: { patientId: 'P', protection: 'Curatelle' } },
+    { id: '3', at: at(20), by: 'u', type: 'PATIENT', data: { patientId: 'P', protection: 'Tutelle', service: 'U2' } }]);
+  const f = st.fiches.P;
+  assert.equal(f.protection, 'Tutelle');
+  assert.deepEqual(f.historique.protection.map((x) => x.valeur), ['', 'Curatelle', 'Tutelle']);
+  assert.equal(P.valeurAu(f, 'protection', Date.UTC(2026, 0, 15)), 'Curatelle');
+  assert.equal(P.valeurAu(f, 'service', Date.UTC(2026, 0, 5)), 'U1');
+  // Isocont lit la fourniture qu'on lui passe (lecture à la volée), sans reconstituer la fiche
+  const etat = M.reduire([{ id: '9', at: at(2), by: 'u', type: 'MESURE_DEBUT', data: Object.assign(mesure('M9', 'Q'), { debut: Date.UTC(2026, 0, 2) }) }],
+    { patients: { fiches: { Q: { id: 'Q', ipp: '42 (fictif)', modes: [] } }, fusions: {} } });
+  assert.equal(etat.patients.Q.ipp, '42 (fictif)');
+});

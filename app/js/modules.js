@@ -120,6 +120,17 @@
         liste.forEach(visiter);
         return res;
       },
+      /**
+       * Lecture à la volée d'une fourniture (architecture § 6) : le module fournisseur calcule, sur le poste, à partir
+       * des saisies qu'on lui passe ; rien n'est écrit. null si aucun module ne la fournit.
+       */
+      fournir: function (nom, evts) {
+        for (var i = 0; i < liste.length; i++) {
+          var f = liste[i].fournitures.filter(function (x) { return x.nom === nom && typeof x.calculer === 'function'; })[0];
+          if (f) return f.calculer(evts);
+        }
+        return null;
+      },
       /** Module qui déclare un type de saisie (null : saisie du socle ou inconnue). */
       moduleDuType: function (type) { return liste.filter(function (m) { return m.saisies.types.indexOf(type) >= 0; })[0] || null; },
       /** Modules qui ont besoin d'une fourniture du module `id`. */
