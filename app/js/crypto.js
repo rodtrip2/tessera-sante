@@ -261,7 +261,11 @@
     return new Uint8Array(await subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: enc.encode('Tessera generation'), info: enc.encode(nom + ':' + n) }, base, 256));
   }
   /** Clé AES-GCM depuis ses octets ; non exportable sauf demande (l'administrateur doit pouvoir la remettre). */
-  async function importerCleOctets(octets, exportable) { return subtle.importKey('raw', octets, { name: 'AES-GCM' }, !!exportable, ['encrypt', 'decrypt']); }
+  async function importerCleOctets(octets, exportable) {
+    // Garde-fou : une clé entièrement nulle trahit des octets effacés par erreur ; jamais utilisée pour chiffrer
+    if (!octets || octets.length !== 32 || octets.every(function (x) { return x === 0; })) throw new Error('Clé invalide (octets absents ou effacés).');
+    return subtle.importKey('raw', octets, { name: 'AES-GCM' }, !!exportable, ['encrypt', 'decrypt']);
+  }
 
   async function empreinte(texte) {
     return hex(new Uint8Array(await subtle.digest('SHA-256', enc.encode(texte))));

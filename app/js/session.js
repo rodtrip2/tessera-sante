@@ -66,7 +66,7 @@
   function journaux(s) {
     if (!s.journauxActifs) {
       s.journauxActifs = s.formation ? [nouveauJournal('formation', s.donnees, s.cleDonnees)]
-        : [nouveauJournal(SOCLE, null, s.cle), nouveauJournal(idModule(), null, jeuModule(s))];
+        : [nouveauJournal(SOCLE, null, s.cle)].concat(accesModule(s) ? [nouveauJournal(idModule(), null, jeuModule(s))] : []);
     }
     return s.journauxActifs;
   }
@@ -79,12 +79,13 @@
   function prefixeJournal(s, nom) { return s.formation ? '' : SIC.Dossier.cheminJournal(nom).join('/') + '/'; }
   /** Journal qui reçoit une saisie : celui de la saisie visée pour une annulation, le socle pour ses saisies, sinon le module. */
   function journalPour(js, type, data) {
-    if (js.length === 1) return js[0];
+    if (js.length === 1 && js[0].nom !== SOCLE) return js[0];   // jeu de formation : un seul journal
     if (type === 'ANNULATION' && data && data.cible) {
       var vise = js.filter(function (j) { return j.evts.some(function (e) { return e.id === data.cible; }); })[0];
       if (vise) return vise;
     }
     if (TYPES_SOCLE[type] || (type === 'CONFIG' && data && REGLAGES_SOCLE[data.cle])) return js[0];
+    if (!js[1]) throw new Error('Vous n’avez pas la clé du module « ' + (moduleActif().libelle || idModule()) + ' » : saisie impossible.');
     return js[1];
   }
   /**
@@ -116,6 +117,30 @@
     installerTrousseau(s, await T.ouvrir(s.coffre, pour, await C.importerPrivee(privee8)), privee8);
   }
   function nouvelId() { return 'k' + id8(); }
+
+  /**
+   * Règle de remise de la clé d'un module (0.4.4) : un rôle dans le module et au moins un service où il est activé
+   * (l'encadrement et les rôles « tous services » suivent l'activation du module ; l'administrateur a toujours la clé).
+   */
+  function aDroitPour(s) {
+    var m = moduleActif(), d = m.droits, cfg = config(s);
+    var codes = d.rolesConfig(cfg).map(function (r) { return r.code; });
+    return function (nom, compte) {
+      if (nom !== (m.id || 'isocont')) return true;
+      var roles = compte.roles || [];
+      if (roles.indexOf('ADMIN') >= 0) return true;
+      if (!roles.some(function (r) { return codes.indexOf(r) >= 0; })) return false;
+      if (!d.activation || !d.activation(cfg) || d.consulteInactifs(roles)) return true;
+      var svs = d.voitTousServices(roles, cfg) ? (cfg.services || []).map(function (x) { return x.code; }) : (compte.services || []);
+      return svs.some(function (c) { return d.serviceActif(cfg, c); });
+    };
+  }
+  /** Vrai si la session détient la clé du module (coffre version 1 : toujours). */
+  function accesModule(s) {
+    if (!v2(s) || s.formation) return true;
+    var j = s.trousseau && s.trousseau[idModule()];
+    return !!j && (!!j.maitresse || Object.keys(j.octets).length > 0);
+  }
 
   function oublierJournaux(s) {
     s.journauxActifs = null; s.evts = []; s.rejetes = []; s.etat = null; s.integrite = null;
@@ -154,7 +179,16 @@
   };
 
   async function lireComptes(session) {
-    var o = await C.dechiffrerJSON(session.cle, C.deb64(session.coffre.comptes), 'comptes');
+    var o;
+    try { o = await C.dechiffrerJSON(session.cle, C.deb64(session.coffre.comptes), 'comptes'); }
+    catch (e) {
+      if (v2(session)) throw new Error('Votre trousseau ne permet pas d’ouvrir la liste des comptes : votre accès a été retiré ou vos clés ne sont pas à jour. Demandez à l’administrateur de réémettre vos clés.');
+      throw e;
+    }
+    session.comptes = o.comptes;
+  }
+  async function lireComptesAvec(session, coffre) {
+    var o = await C.dechiffrerJSON(session.cle, C.deb64(coffre.comptes), 'comptes');
     session.comptes = o.comptes;
   }
 
@@ -279,7 +313,7 @@
       var c = liste[i], id = 'u' + id8(), it = c.aleatoire ? C.ITERATIONS_PROVISOIRE : undefined;
       var compte = { id: id, login: c.login, nom: c.nom.trim(), roles: c.roles, services: c.services || [], actif: true, mdpProvisoire: true, formation: c.formation !== false, finValidite: c.finValidite || '' };
       var agent = null, emb;
-      if (v2(s)) { agent = await T.nouvelAgent(s.trousseau, s.coffre, compte, c.motDePasse, it); agent.privee8.fill(0); emb = agent.emballage; }
+      if (v2(s)) { agent = await T.nouvelAgent(s.trousseau, s.coffre, compte, c.motDePasse, it, aDroitPour(s)); agent.privee8.fill(0); emb = agent.emballage; }
       else emb = await C.emballerMotDePasse(s.cleV1, c.motDePasse, it);
       emb.id = nouvelId(); emb.userId = id; emb.login = c.login;
       prepares.push({ compte: compte, emb: emb, agent: agent });
@@ -309,8 +343,9 @@
       if (typeof finValidite === 'string') c.finValidite = finValidite;
       if (!actif) {
         coffre.emballages = coffre.emballages.filter(function (e) { return e.userId !== userId; });
-        if (coffre.version === 2) coffre.enveloppes = coffre.enveloppes.filter(function (e) { return e.pour !== userId; });
-      } else if (coffre.version === 2 && coffre.agents[userId]) await T.renouvelerEnveloppes(s.trousseau, coffre, c);   // droits selon les rôles
+        // Enveloppes : retirées par l'application des droits ci-dessous, qui crée alors les nouvelles générations
+      }
+      if (coffre.version === 2) await T.appliquerDroits(s.trousseau, coffre, comptes, aDroitPour(s));   // clés selon les droits, nouvelle génération si retrait
     });
     var c2 = this.comptes.filter(function (x) { return x.id === userId; })[0];
     await this.tracer('ROLES', { login: c2 ? c2.login : userId, roles: roles, actif: actif, services: services || [], formation: c2 ? c2.formation !== false : undefined, finValidite: c2 && c2.finValidite ? c2.finValidite : undefined });
@@ -326,14 +361,17 @@
     var s = this, provisoire = userId !== this.utilisateur.id, it = options && options.aleatoire ? C.ITERATIONS_PROVISOIRE : undefined;
     // Par l'agent lui-même : sa partie privée réemballée. Par l'administrateur (version 2) : il ne connaît pas la partie
     // privée de l'agent, il lui crée une nouvelle clé personnelle et lui remet de nouvelles enveloppes.
-    var emb = v2(this) ? (provisoire ? null : await C.emballerMotDePasse(s.privee8, motDePasse, it)) : await C.emballerMotDePasse(s.cleV1, motDePasse, it);
+    // Premier changement par l'agent (mot de passe provisoire) : il crée sa propre clé personnelle, que l'administrateur
+    // n'a jamais connue (décision du porteur) ; il se remet lui-même ses clés.
+    var nouvellePaire = v2(this) && (provisoire || !!this.utilisateur.mdpProvisoire);
+    var emb = v2(this) ? (nouvellePaire ? null : await C.emballerMotDePasse(s.privee8, motDePasse, it)) : await C.emballerMotDePasse(s.cleV1, motDePasse, it);
     await this.modifierCoffre(async function (coffre, comptes) {
       var c = comptes.filter(function (x) { return x.id === userId; })[0];
       if (!c) throw new Error('Compte introuvable.');
       coffre.emballages = coffre.emballages.filter(function (e) { return !(e.methode === 'mdp' && e.userId === userId); });
       if (!emb) {
-        var a = await T.nouvelAgent(s.trousseau, coffre, c, motDePasse, it);
-        a.privee8.fill(0);
+        var a = await T.nouvelAgent(s.trousseau, coffre, c, motDePasse, it, aDroitPour(s));
+        if (provisoire) a.privee8.fill(0); else { if (s.privee8) s.privee8.fill(0); s.privee8 = a.privee8; }
         emb = a.emballage;
         coffre.agents[userId] = { publique: a.publique };
         coffre.emballages = coffre.emballages.filter(function (e) { return e.userId !== userId; });   // clés de sécurité de l'ancienne paire
@@ -349,6 +387,44 @@
 
   Session.prototype.changerMonMotDePasse = function (motDePasse) {
     return this.reinitialiserMotDePasse(this.utilisateur.id, motDePasse);
+  };
+
+  /** Vrai si la session détient la clé du module affiché (sinon : aucune donnée du module n'est lue). */
+  Session.prototype.accesModule = function () { return accesModule(this); };
+
+  /**
+   * Applique les droits actuels aux clés (administrateur, données réelles, coffre version 2) : enveloppes à remettre
+   * ou à retirer, nouvelle génération si un détenteur perd une clé. Sans effet si rien n'a changé.
+   * Retourne { change, generations, maitresses }.
+   */
+  Session.prototype.appliquerDroits = async function () {
+    var s = this, res = { change: false, generations: [], maitresses: [] };
+    if (!v2(this) || this.formation || !this.trousseau || !this.trousseau[T.PLATEFORME].maitresse || !this.etat) return res;
+    var coffre = await this.dossier.lireCoffre(), aDroit = aDroitPour(this);
+    var essai = JSON.parse(JSON.stringify(coffre));
+    await lireComptesAvec(this, coffre);
+    var gens = {};
+    Object.keys(coffre.cles).forEach(function (n) { gens[n] = coffre.cles[n].courante; });
+    // Calcul à blanc sur une copie : le coffre n'est réécrit que s'il y a quelque chose à faire
+    var jeuxCopie = {};
+    Object.keys(this.trousseau).forEach(function (n) {
+      var j = s.trousseau[n], o = {};
+      Object.keys(j.octets).forEach(function (g) { o[g] = j.octets[g].slice(); });   // vraie copie : la copie est effacée ensuite
+      jeuxCopie[n] = T.nouveauJeu(n, j.courante, o, j.maitresse && j.maitresse.slice(), j.base);
+    });
+    var blanc = await T.appliquerDroits(jeuxCopie, essai, this.comptes, aDroit);
+    T.effacer(jeuxCopie);
+    if (!blanc.change) return res;
+    await this.modifierCoffre(async function (cf, comptes) { res = await T.appliquerDroits(s.trousseau, cf, comptes, aDroit); });
+    if (res.generations.length) await this.tracer('GENERATION', { cles: res.generations, maitresses: res.maitresses.length ? res.maitresses : undefined, libelle: 'nouvelle génération de clé après un retrait de droit' });
+    return res;
+  };
+
+  /** Comptes actifs dont le trousseau est incomplet : [{ id, nom, cles }] (administrateur, coffre version 2). */
+  Session.prototype.trousseauxIncomplets = function () {
+    if (!v2(this) || this.formation || !this.etat) return [];
+    var s = this;
+    return T.incomplets(this.coffre, this.comptes, aDroitPour(this)).map(function (x) { var c = s.comptes.filter(function (y) { return y.id === x.id; })[0]; return { id: x.id, nom: c ? c.nom : x.id, cles: x.cles }; });
   };
 
   /** Vrai si le coffre est encore en version 1 (clé de données unique) : migration vers le trousseau à proposer. */
@@ -378,7 +454,7 @@
       try { await C.deballerCodeSecours(embSec, code); } catch (e) { throw new Error('Code de secours incorrect : laissez le champ vide pour en créer un nouveau.'); }
     } else { code = nouveau = C.nouveauCodeSecours(); }
     await lireComptes(this);
-    var r = await T.migrerCoffre(coffre, this.cleV1, this.comptes, { modules: modulesDeclares(), adminId: this.utilisateur.id, motDePasseAdmin: motDePasse, codeSecours: code, provisoire: C.nouveauMotDePasseProvisoire, id: nouvelId });
+    var r = await T.migrerCoffre(coffre, this.cleV1, this.comptes, { modules: modulesDeclares(), adminId: this.utilisateur.id, motDePasseAdmin: motDePasse, codeSecours: code, provisoire: C.nouveauMotDePasseProvisoire, id: nouvelId, aDroit: aDroitPour(this) });
     var provisoires = r.provisoires.map(function (p) { p.compte.mdpProvisoire = true; return { nom: p.compte.nom, login: p.compte.login, motDePasse: p.motDePasse, roles: p.compte.roles, services: p.compte.services || [], finValidite: p.compte.finValidite || '' }; });
     r.coffre.comptes = await chiffrerComptes(r.trousseau[T.PLATEFORME], this.comptes);
     this.coffre = await this.dossier.ecrireCoffre(r.coffre, coffre.rev);
@@ -523,6 +599,10 @@
     j.reperesLus[by] = n;
     try { await d.ecrireRepere(j.cle, by, { n: n, dernier: evt.id, at: at }); } catch (e) { /* sans conséquence sur la saisie */ }
     this.recalculer();
+    // Réglages qui changent les droits (rôles, services, activation des modules), annulations, imports : clés à jour
+    if (v2(this) && !this.formation && (type === 'CONFIG' || type === 'ANNULATION' || type === 'LOT') && this.trousseau[T.PLATEFORME].maitresse) {
+      try { await this.appliquerDroits(); } catch (e) { this.erreurDroits = e.message; }
+    }
     return evt;
   };
 
@@ -764,6 +844,23 @@
           this.verrouiller();
           this.notifier({ source: 'verrou', message: 'Le dossier a été migré vers le trousseau de clés depuis un autre poste : reconnectez-vous.' });
           return 0;
+        }
+        if (coffre && this.coffre && coffre.rev !== this.coffre.rev && v2(this) && !this.formation && this.privee8) {
+          // Coffre modifié ailleurs (droits, générations) : trousseau rouvert ; accès retiré ou clés changées → verrouillage
+          var pour = this.utilisateur.id === 'secours' ? T.SECOURS : this.utilisateur.id;
+          var cleChangee = !coffre.agents[pour] || (this.coffre.agents[pour] && coffre.agents[pour].publique !== this.coffre.agents[pour].publique);
+          var t = cleChangee ? null : await T.ouvrir(coffre, pour, await C.importerPrivee(this.privee8));
+          if (!t || !(await t[T.PLATEFORME].cle(t[T.PLATEFORME].courante))) {
+            if (t) T.effacer(t);
+            this.verrouiller();
+            this.notifier({ source: 'verrou', message: cleChangee ? 'Vos clés ont été renouvelées par l’administrateur : reconnectez-vous.' : 'Votre accès a été retiré ou vos clés ne sont plus à jour : reconnectez-vous ou adressez-vous à l’administrateur.' });
+            return 0;
+          }
+          var avaitModule = accesModule(this), ancien = this.trousseau;
+          this.trousseau = t; this.cle = t[T.PLATEFORME];
+          T.effacer(ancien);
+          if (avaitModule !== accesModule(this)) oublierJournaux(this);
+          else (this.journauxActifs || []).forEach(function (j) { j.cle = j.nom === SOCLE ? t[T.PLATEFORME] : (t[j.nom] || j.cle); });
         }
         if (coffre && this.coffre && coffre.rev !== this.coffre.rev) {
           var jeuChange = this.formation && JSON.stringify(coffre.formation || null) !== JSON.stringify(this.coffre.formation || null);

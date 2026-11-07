@@ -726,6 +726,10 @@
     var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: vueAdmin };
     var vuesModule = interfaceModule().vues || {};
     var vue = vues[App.onglet] || vuesModule[App.onglet] || vuesModule[moduleActif().vues.onglets[0].code];
+    if (!s.accesModule() && App.onglet !== 'journal' && App.onglet !== 'admin') {
+      zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Les données du module « ' + moduleActif().libelle + ' » ne vous sont pas remises : vous n’y avez pas de rôle, ou il n’est activé pour aucun de vos services. Demandez à l’administrateur si vous devez y avoir accès.' }));
+      return;
+    }
     var affectes = (s.compteEffectif().services || []).filter(function (c) { return tousServices().some(function (x) { return x.code === c; }); });
     if (!mesSv.length && !estAdmin && affectes.length) { zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Le module « ' + moduleActif().libelle + ' » n’est activé pour aucun de vos services. Demandez à l’administrateur de vérifier son activation (Administration → Établissement et services).' })); return; }
     if (!mesSv.length && !estAdmin) { zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Aucun service ne vous est affecté. Demandez à l’administrateur de vous en attribuer un.' })); return; }
@@ -900,6 +904,15 @@
           } catch (err) { alert(err.message); }
         } }, 'Revenir à la clé unique…')));
     }
+    // -- Trousseaux incomplets (coffre version 2) : clés à réémettre
+    var incomplets = s.trousseauxIncomplets ? s.trousseauxIncomplets() : [];
+    var pIncomplets = incomplets.length || s.erreurDroits ? h('section', { class: 'panneau' }, h('h2', { text: 'Clés à réémettre' }),
+      incomplets.length ? h('div', { class: 'alerte', text: incomplets.length + ' compte(s) n’ont pas toutes les clés auxquelles ils ont droit : ' + incomplets.map(function (x) { return x.nom; }).join(', ') + '.' }) : null,
+      s.erreurDroits ? h('div', { class: 'alerte', text: 'Dernière mise à jour des clés en échec : ' + s.erreurDroits }) : null,
+      h('p', { class: 'muted', text: 'Un compte réactivé reçoit sa clé personnelle à la réinitialisation de son mot de passe. Pour les autres, la réémission remet les clés manquantes selon les droits actuels.' }),
+      h('div', { class: 'actions' }, h('button', { class: 'btn primaire', onclick: async function () {
+        try { s.erreurDroits = null; var r = await s.appliquerDroits(); toast(r.change ? 'Clés réémises.' : 'Aucune clé à réémettre.'); rendreContenu(); } catch (err) { alert(err.message); }
+      } }, 'Réémettre les clés'))) : null;
     var comptes = h('section', { class: 'panneau' }, h('h2', { text: 'Comptes' }),
       h('p', { class: 'muted', text: 'Un compte peut cumuler plusieurs rôles. Les services affectés limitent ce que l’agent voit, à la connexion comme à la création d’une mesure ; un administrateur voit tous les services.' }),
       h('div', { class: 'table-wrap' }, h('table', {},
@@ -1086,7 +1099,7 @@
           ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos]]]));
     }
     return sousOngletsAdmin([].concat(
-      [['comptes', 'Comptes et sécurité', [pTrousseau, comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
+      [['comptes', 'Comptes et sécurité', [pTrousseau, pIncomplets, comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
         ['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)]],
       pModule.onglets,
       [['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],

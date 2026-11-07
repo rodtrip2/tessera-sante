@@ -208,7 +208,7 @@ test('Migration d’un coffre version 1 : historique lisible, génération 2 clo
   assert.deepEqual(r.provisoires.map((p) => p.login), ['ide']);          // compte désactivé : pas de clé
   assert.equal(admin.coffre.version, 2);
   assert.equal(admin.coffre.creeLe, '2026-11-01T08:00:00.000Z');        // même dossier (dossier de secours, verrou)
-  assert.deepEqual(admin.coffre.cles, { plateforme: { courante: 2, origine: true }, isocont: { courante: 2, origine: true } });
+  assert.deepEqual(admin.coffre.cles, { plateforme: { courante: 2, base: 2 }, isocont: { courante: 2, base: 2 } });
   assert.ok(admin.etat.mesures.M1);                                     // historique relu (génération 1)
   assert.equal(admin.rejetes.length, 0);
   // Saisies à venir : génération 2, clés distinctes pour le socle et Isocont
