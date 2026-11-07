@@ -64,15 +64,6 @@
     setTimeout(function () { t.remove(); }, 3500);
   }
 
-  var LIB_TIERS = { INFORME: 'Tiers informé', TENTATIVE: 'Tentative sans succès', PAS_DE_TIERS: 'Pas de tiers identifié', REFUS_PATIENT: 'Refus du patient', AUTRE: 'Non informé — autre motif' };
-  var LIB_NATURE = { INFO: 'Information du JLD', SAISINE: 'Saisine du JLD', DECISION: 'Décision reçue du JLD' };
-  var LIB_EVT = {
-    CONFIG: 'Paramétrage', PATIENT: 'Patient', MODE_HOSPI: "Mode d'hospitalisation", MESURE_DEBUT: 'Début de mesure',
-    MESURE_FIN: 'Fin de mesure', PAUSE: 'Pause de mesure', REPRISE: 'Reprise de mesure', TIERS: 'Information du tiers', INFORMATION: 'Information (alerte de l’établissement)', FUSION: 'Fusion de fiches patient', PROPOSITION: 'Correction proposée', REFUS_PROPOSITION: 'Correction proposée refusée', TRANSFERT: 'Transfert entre services', SOMATIQUE: 'Soins somatiques ou urgences', SOMATIQUE_RETOUR: 'Retour dans le service', RECOURS: 'Recours ou appel (JLD)', ENTRETIEN: 'Entretien après la mesure', INTEGRITE: 'Intégrité des données', JLD: 'JLD', PROFESSIONNEL: 'Professionnel en CSI',
-    CORRECTION: 'Correction', ANNULATION: 'Annulation', COMPTE: 'Comptes et clés', LOT: 'Lot de saisies', STATS: 'Statistiques'
-  };
-  var LIB_COMPTE = { EDITION_CADA: 'registre édité pour communication (CADA)', EXPORT_PATIENT: 'données d’un patient exportées (droit d’accès)', ARCHIVE: 'archive annuelle téléchargée', SCELLE: 'copie du coffre sous scellé téléchargée', SAUVEGARDE: 'copie de sauvegarde complète téléchargée', EXPORT: 'fichier exporté', EXPORT_SUPPRIME: 'fichier exporté supprimé', PURGE_EXPORTS: 'purge des anciens exports', REPARATION: 'réparation depuis une copie de sauvegarde', QUARANTAINE: 'mise en quarantaine', FORMATION_CREEE: 'jeu de formation créé ou régénéré', CREATION_LOT: 'comptes créés en lot', CREATION: 'compte créé', ROLES: 'rôles modifiés', MDP_CHANGE: 'mot de passe changé', MDP_REINIT: 'mot de passe réinitialisé', CLE_AJOUT: 'clé de sécurité enregistrée', CLE_RETRAIT: 'clé de sécurité retirée', CODE_SECOURS: 'nouveau code de secours généré', MIROIR: 'synchronisation avec le dossier de secours', MIROIR_REPRISE: 'saisies reprises du dossier de secours', MIROIR_LIEN: 'dossier de secours relié', DEPLACEMENT: 'données déplacées vers un nouveau dossier', HORS_RESEAU: 'travail hors réseau sur un poste', REGLAGES_EXPORT: 'réglages téléchargés', REGISTRE_ANONYME: 'registre anonymisé imprimé ou exporté' };
-  var LIB_STATUT = { ok: 'dans les temps', proche: 'échéance proche', depasse: 'dépassée', fait: 'fait à temps', 'fait-retard': 'fait hors délai', na: 'sans objet' };
 
   // ================================================================ État
   var App = { dossier: null, session: null, onglet: 'tableau', service: '*', minuteurs: [], derniereActivite: Date.now(), message: null };
@@ -734,211 +725,7 @@
   }
 
   // ---------------------------------------------------------------- Journal
-  // ---------------------------------------------------------------- Journal : libellés lisibles
-  var LIB_ONGLET_MASQUABLE = { tableau: 'Tableau de bord', mesures: 'Mesures', patients: 'Patients', jld: 'JLD', surveillance: 'Surveillance CSI', registre: 'Registre', stats: 'Statistiques' };
-  var LIB_CONFIG = {
-    etablissement: 'Nom de l’établissement', services: 'Services', exports: 'Dossier des exports', surveillance: 'Surveillance : professionnels attendus par poste', roles: 'Rôles et accès', organisationJLD: 'Organisation des envois au JLD', verificationVersion: 'Vérification de la version (page GitHub)', listes: 'Listes de saisie (fonctions, motifs, raccourcis)', miroir: 'Dossier de secours', verrouDossier: 'Choix du dossier bloqué sur les postes', vigilance: 'Seuils des points de vigilance', affichage: 'Affichage (mesures terminées, connexion, logo)', lieuIsolement: 'Appellation des lieux dédiés à l’isolement', lieuxCSI: 'Chambres de soins intensifs', psychiatres: 'Liste des psychiatres',
-    periodes: 'Postes de surveillance par défaut', periodesService: 'Postes de surveillance propres aux services', modesHospitalisation: 'Modes d’hospitalisation',
-    parametres: 'Règles légales (seuils et cycles JLD)', delaiModeHospiHeures: 'Délai de bascule du mode d’hospitalisation (registre)',
-    compteursRegistre: 'Numérotation du registre antérieur', decompte: 'Masques du décompte JLD', imagesDecompte: 'Papier à en-tête du décompte',
-    inactiviteMinutes: 'Verrouillage après inactivité', pauses: 'Pauses (levées temporaires)', alertes: 'Alertes de l’établissement', casParticuliers: 'Cas particuliers', qualite: 'Qualité, conservation et archivage', statsMethode: 'Méthode des statistiques', sauvegarde: 'Rappel des copies de sauvegarde', informateursTiers: 'Fonctions pouvant informer le tiers', rapportsAnnuels: 'Textes du rapport annuel', colonnesPatients: 'Statistiques annuelles de l’onglet Patients', derniersClasseur: 'Derniers numéros du document importé', registreFige: 'Années gardant la numérotation du classeur', registreFigeMesures: 'Numérotation décidée mesure par mesure'
-  };
-  var LIB_CHAMPS = { debut: 'début', fin: 'fin', lieu: 'lieu', csi: 'en CSI', psychiatreDebut: 'psychiatre (début)', psychiatreFin: 'psychiatre (fin)', modeHospi: 'mode d’hospitalisation', exception: 'exception (contention hors espace d’isolement)', debutInitial: 'début de la décision initiale (avant l’arrivée)', lieuInitial: 'lieu d’origine', type: 'type de mesure' };
-
-  var indexJournal = { etat: null, debuts: {}, patients: {} };
-  /** Index des débuts de mesure et des fiches patient (y compris annulés), pour décrire une saisie hors de son contexte. */
-  function index() {
-    var etat = st();
-    if (indexJournal.etat === etat) return indexJournal;
-    indexJournal = { etat: etat, debuts: {}, patients: {} };
-    Object.keys(etat.parId).forEach(function (k) {
-      var e = etat.parId[k], d = e.data || {};
-      if (e.type === 'MESURE_DEBUT') indexJournal.debuts[d.mesureId] = d;
-      if (e.type === 'PATIENT') (indexJournal.patients[d.patientId] = indexJournal.patients[d.patientId] || []).push(e);
-    });
-    return indexJournal;
-  }
-  /** « NOM Prénom — isolement du 28/10/2026 17:00 » pour une mesure, même annulée. */
-  function libMesure(mesureId) {
-    var m = st().mesures[mesureId], d = index().debuts[mesureId];
-    var patientId = m ? m.patientId : d && d.patientId, type = m ? m.type : d && d.typeMesure, debut = m ? m.debut : d && d.debut;
-    if (!patientId) return 'mesure inconnue';
-    return nomPatient(patientId).trim() + ' — ' + (type || 'mesure').toLowerCase() + ' du ' + date(debut);
-  }
-  function valeurChamp(k, v) {
-    if (k === 'debut' || k === 'fin') return v == null ? 'aucune (mesure en cours)' : date(v);
-    if (k === 'debutInitial') return v == null ? 'aucun (mesure débutée dans le service)' : date(v);
-    if (k === 'csi' || k === 'exception') return v ? 'oui' : 'non';
-    return v === '' || v == null ? '—' : String(v);
-  }
-  function resumePauses(v) {
-    var o = M.optionsPauses({ pauses: v });
-    return (o.active ? 'levée temporaire active' : 'levée temporaire désactivée') +
-      (o.retrancher ? ', pauses déduites ' + (o.portee === 'partout' ? 'partout' : 'pour les délais JLD seulement') : ', pauses comptées') +
-      (o.repriseAuto ? ', reprise automatique' : '') + ', alerte ' + (o.alerteHeures ? 'au-delà de ' + o.alerteHeures + ' h' : 'désactivée') + ', refus à ' + o.refusHeures + ' h' +
-      (o.colonneRegistre ? ', colonne au registre' : '');
-  }
-  /** Changements des réglages des pauses, un par un (« reprise automatique : non → oui »). */
-  function diffPauses(avant, apres) {
-    var a = M.optionsPauses({ pauses: avant }), b = M.optionsPauses({ pauses: apres });
-    var ouiNon = function (x) { return x ? 'oui' : 'non'; };
-    var champs = [
-      ['active', 'levée temporaire active', ouiNon], ['retrancher', 'pauses déduites', ouiNon],
-      ['portee', 'déduction', function (x) { return x === 'partout' ? 'partout' : 'délais JLD seulement'; }],
-      ['contentionSeule', 'pause de la contention seule au registre', function (x) { return x === 'contention' ? 'dans l’entrée C' : 'en isolement seul (A)'; }],
-      ['verrouContention', 'pause de l’isolement seul interdite pendant une contention', ouiNon],
-      ['colonneRegistre', 'colonne au registre', ouiNon], ['repriseAuto', 'reprise automatique', ouiNon],
-      ['alerteHeures', 'alerte', function (x) { return x ? 'au-delà de ' + x + ' h' : 'aucune'; }], ['refusHeures', 'refus', function (x) { return 'à ' + x + ' h'; }]
-    ];
-    var diff = champs.filter(function (c) { return a[c[0]] !== b[c[0]] && !(c[0] === 'portee' && !b.retrancher && !a.retrancher); })
-      .map(function (c) { return c[1] + ' : ' + c[2](a[c[0]]) + ' → ' + c[2](b[c[0]]); });
-    return diff.length ? diff.join(' ; ') : 'aucun changement';
-  }
-
-  function resumeConfig(cle, v) {
-    switch (cle) {
-      case 'etablissement': return '« ' + (v || '') + ' »';
-      case 'inactiviteMinutes': return v + ' min';
-      case 'delaiModeHospiHeures': return v + ' h';
-      case 'psychiatres': return (v || []).length + ' psychiatre(s)';
-      case 'services': return (v || []).map(function (x) { return x.libelle + ' (' + x.code + ')'; }).join(', ');
-      case 'lieuxCSI': return Object.keys(v || {}).map(function (k) { return k + ' : ' + (v[k] || []).join(', '); }).join(' ; ');
-      case 'pauses': return resumePauses(v);
-      case 'casParticuliers': return SIC.ui.cas.resumeConfig(v);
-      case 'qualite': var oq = M.optionsQualite({ qualite: v }); return 'motif du recours ' + (oq.motifRecours ? 'proposé (' + oq.motifsRecours.length + ' motifs)' : 'non proposé') + ', ' + oq.nomEntretien.toLowerCase() + ' ' + (oq.entretien ? 'tracé' : 'non tracé') + lieu(', surveillance hors CSI ') + (oq.surveillanceHorsCSI ? 'tracée' : 'non tracée') + ', conservation ' + (oq.conservationAns ? oq.conservationAns + ' ans' : 'non fixée');
-      case 'statsMethode': return SIC.ui.methode.resumeConfig(v);
-      case 'informateursTiers': return ['psychiatre'].concat((v || []).map(function (x) { return x.libelle; })).join(', ');
-      case 'roles': return M.rolesConfig({ roles: v }).filter(function (r) { return !r.admin; }).map(function (r) { return r.registreSeul ? r.libelle + (r.services ? '' : ' (tous les services)') + ' : registre seulement' : r.libelle + (r.services ? '' : ' (tous les services)') + ' : ' + SIC.ui.roles.resumeAcces(r.acces) + (r.ongletsMasques.length ? ' ; onglets masqués : ' + r.ongletsMasques.map(function (o) { return lieu(LIB_ONGLET_MASQUABLE[o]); }).join(', ') : '') + ' ; journal ' + ({ complet: 'complet', services: 'de ses services', siennes: 'de ses saisies', aucun: 'masqué' })[r.journal]; }).join(' ; ');
-      case 'exports': var oe = M.optionsExports({ exports: v }); return '« ' + oe.dossier + ' », ' + (oe.conservationJours ? 'conservation ' + oe.conservationJours + ' jours' : 'sans purge automatique') + (oe.cheminReseau ? ', chemin réseau ' + oe.cheminReseau : '');
-      case 'surveillance': return (function (o) { return o.minParPoste + ' par poste ; agents proposés : ' + (o.rolesListe.map(function (r) { return M.libRole(config(), r); }).join(', ') || 'aucun'); })(M.optionsSurveillance(Object.assign({}, config(), { surveillance: v })));
-      case 'verrouDossier': return v === true ? 'activé' : 'désactivé';
-      case 'miroir': return v && v.attendu ? '« ' + v.nom + ' »' : 'aucun';
-      case 'listes': return (v && v.fonctionsSurveillance ? v.fonctionsSurveillance.length : 0) + ' fonction(s), ' + (v && v.motifsPause ? v.motifsPause.length : 0) + ' motif(s) de pause, ' + (v && v.motifsFin ? v.motifsFin.length : 0) + ' motif(s) de fin propres, raccourcis ' + ((v && v.raccourcisPause) || []).map(M.libRaccourci).join(', ');
-      case 'vigilance': return v ? 'rouge ' + v.isolementRouge + ' h / ' + v.contentionRouge + ' h, orange ' + v.isolementJaune + ' h / ' + v.contentionJaune + ' h (isolement / contention)' : '—';
-      case 'affichage': return v ? 'mesures terminées visibles ' + v.mesuresTermineesJours + ' j' + (v.contact ? ', contact renseigné' : '') + (v.consigne ? ', consigne renseignée' : '') + (v.logo ? ', logo' : ', sans logo') : '—';
-      case 'verificationVersion': return v === false ? 'désactivée' : 'activée';
-      case 'organisationJLD': return String(v || '').trim() ? '« ' + String(v).trim() + ' »' : 'aucun texte';
-      case 'lieuIsolement': var ll = M.libLieu({ lieuIsolement: v }); return ll.long + ' (' + ll.court + ')';
-      case 'sauvegarde': return v && v.rappelJours ? 'tous les ' + v.rappelJours + ' jours' : 'aucun rappel';
-      case 'rapportsAnnuels': return Object.keys(v || {}).join(', ') || 'aucun';
-      case 'alertes': return M.alertesConfig({ alertes: v }).map(function (r) {
-        return '« ' + r.libelle + ' » ' + (r.active ? 'active' : 'inactive') + ' (' + lieu(M.DECLENCHEURS_ALERTE[r.declencheur]).toLowerCase() + ', ' +
-          (r.nature === 'information' ? 'informer ' + r.destinataires + ' ' + SIC.ui.alertes.delaiTexte(r.delaiMinutes) : 'rappel à la saisie') + ', ' + SIC.ui.alertes.servicesTexte(r) + ')';
-      }).join(' ; ') || 'aucune alerte';
-      case 'compteursRegistre': case 'derniersClasseur': return Object.keys(v || {}).map(function (k) { return libService(k) + ' : ' + Object.keys(v[k]).map(function (an) { return an + ' → ' + v[k][an]; }).join(', '); }).join(' ; ') || 'aucun';
-      case 'registreFigeMesures': var vals = Object.keys(v || {}).map(function (k) { return v[k]; }); return vals.filter(Boolean).length + ' mesure(s) gardant leur n° d’origine, ' + vals.filter(function (x) { return x === false; }).length + ' recalculée(s)';
-      case 'registreFige': return Object.keys(v || {}).map(function (k) { return libService(k) + ' : ' + Object.keys(v[k]).join(', '); }).join(' ; ') || 'aucune année (tout est recalculé)';
-      case 'colonnesPatients': return (v || []).map(function (c) { return c.libelle + ' (' + (c.categories || []).join(', ') + ')'; }).join(', ');
-      case 'decompte': return Object.keys(v || {}).map(function (k) { return k === '*' ? 'établissement' : libService(k); }).join(', ') || 'aucun masque';
-      case 'imagesDecompte': return Object.keys(v || {}).map(function (k) { return v[k].nom; }).join(', ') || 'aucune image';
-      default: return '';
-    }
-  }
-  /** Valeur d'un paramètre juste avant la saisie `e` (null s'il n'avait jamais été modifié). */
-  function configAvant(e) {
-    var etat = st(), avant = null;
-    etat.journal.forEach(function (x) {
-      if (x.type === 'CONFIG' && x.data.cle === e.data.cle && x.id < e.id && !etat.annules[x.id]) avant = x.data.valeur;
-      if (x.type === 'LOT' && x.id < e.id && !etat.annules[x.id]) (x.data.evenements || []).forEach(function (s) { if (s.type === 'CONFIG' && s.data.cle === e.data.cle) avant = s.data.valeur; });
-    });
-    return avant;
-  }
-
-  /** Valeurs d'une mesure juste avant la saisie `e` (début, fin, lieu…), pour montrer ce qu'une correction a changé. */
-  function mesureAvant(mesureId, e) {
-    var etat = st(), dd = index().debuts[mesureId];
-    if (!dd) return {};
-    var v = { debut: dd.debut, fin: null, lieu: dd.lieu || '', csi: !!dd.csi, psychiatreDebut: dd.psychiatre || '', psychiatreFin: '', modeHospi: dd.modeHospi || '', exception: !!dd.exception, type: dd.typeMesure };
-    Object.keys(etat.parId).sort().forEach(function (k) {
-      var x = etat.parId[k];
-      if (k >= e.id || !x.data || x.data.mesureId !== mesureId || etat.annules[k] || (x.lot && etat.annules[x.lot])) return;
-      if (x.type === 'MESURE_FIN') { v.fin = x.data.fin; v.psychiatreFin = x.data.psychiatre || ''; }
-      if (x.type === 'CORRECTION') Object.keys(x.data.champs || {}).forEach(function (c) { v[c] = x.data.champs[c]; });
-    });
-    return v;
-  }
-
-  /** Description lisible d'une saisie du journal. */
-  function resumeEvt(e) {
-    var d = e.data || {};
-    var sur = d.mesureId ? libMesure(d.mesureId) + ' : ' : '';
-    switch (e.type) {
-      case 'MESURE_DEBUT':
-        var fem = d.typeMesure === 'Contention' ? 'e' : '';
-        if (typeof d.debutInitial === 'number') return nomPatient(d.patientId).trim() + ' — ' + (d.typeMesure || '').toLowerCase() + ' débuté' + fem + ' le ' + date(d.debutInitial) + ' (' + (d.lieuInitial || 'hors du service') + '), arrivée dans le service le ' + date(d.debut) + ', décidé' + fem + ' par ' + (d.psychiatre || '?') + ', ' + (d.lieu || 'lieu non précisé');
-        return nomPatient(d.patientId).trim() + ' — ' + (d.typeMesure || '').toLowerCase() + ' débuté' + fem + ' le ' + date(d.debut) + ', décidé' + fem + ' par ' + (d.psychiatre || '?') + ', ' + (d.lieu || 'lieu non précisé') + (d.suiteDe ? ' (suite d’un changement de lieu)' : '') + (d.origine ? ' — ' + d.origine + (d.numeroOrigine ? ', n° ' + d.numeroOrigine : '') : '') + (d.correctionImport ? ' — ' + d.correctionImport : '');
-      case 'MESURE_FIN': return sur + 'fin le ' + date(d.fin) + ', décidée par ' + (d.psychiatre || '?') + (d.motif ? ' (' + d.motif.toLowerCase() + ')' : '');
-      case 'PAUSE': return sur + 'pause à partir du ' + date(d.debut) + ', reprise prévue le ' + date(d.reprisePrevue) + (d.motif ? ' — motif : ' + d.motif : '') + (d.psychiatre ? ' — décidée par ' + d.psychiatre : '');
-      case 'REPRISE': return sur + 'reprise après pause le ' + date(d.date);
-      case 'TRANSFERT': return sur + 'transfert le ' + date(d.date) + ' vers ' + libService(d.service) + ' (' + (d.lieu || 'lieu non précisé') + ')';
-      case 'SOMATIQUE': return sur + 'départ en soins somatiques ou aux urgences le ' + date(d.date) + ' (' + (d.lieu || '') + ') — ' + (SIC.ui.cas.LIB_SOMA[d.mode] || d.mode) + (d.mode === 'poursuite-registre' ? ' (' + libService(d.serviceRegistre) + ')' : '');
-      case 'SOMATIQUE_RETOUR': return sur + 'retour dans le service le ' + date(d.date) + (d.lieu ? ' (' + d.lieu + ')' : '');
-      case 'RECOURS': return sur + SIC.ui.parcours.libRecours(d);
-      case 'ENTRETIEN': return sur + M.optionsQualite(config()).nomEntretien.toLowerCase() + ' — ' + (d.realise === false ? 'non réalisé (' + (d.motif || '') + ')' : 'réalisé le ' + date(d.date)) + (d.commentaire ? ' — ' + d.commentaire : '');
-      case 'INTEGRITE': return 'Prise d’acte d’anomalies d’intégrité irrécupérables (' + [(d.manquants || []).length ? (d.manquants || []).length + ' saisie(s) perdue(s)' : '', (d.fichiers || []).length ? (d.fichiers || []).length + ' fichier(s) illisible(s)' : '', (d.reperes || []).length ? (d.reperes || []).length + ' repère(s) d’agent' : ''].filter(Boolean).join(', ') + '). Motif : ' + (d.motif || '') + '.';
-      case 'FUSION':
-        var fg = st().patients[M.ciblePatient(st(), d.garde)] || {}, fa = ((fg.fusionnes || []).filter(function (x) { return x.id === d.absorbe; })[0]) || {};
-        return 'Fiches fusionnées : ' + ((fa.nom || '?') + ' ' + (fa.prenom || '')).trim() + (fa.ipp ? ' (IPP ' + fa.ipp + ')' : '') + ' rattachée à ' + nomPatient(d.garde).trim() + (fg.ipp ? ' (IPP ' + fg.ipp + ')' : '') + '. Motif : ' + (d.motif || 'non précisé') + '.';
-      case 'INFORMATION': return sur + 'information tracée (' + (d.libelle || d.regle) + ') — ' + d.personne + ' informé(e) le ' + date(d.date) + ' (' + String(d.moyen || '').toLowerCase() + ')' + (d.commentaire ? ' — ' + d.commentaire : '');
-      case 'TIERS': return sur + 'information du tiers (cycle ' + d.cycle + ') le ' + date(d.date) + ' — ' + (LIB_TIERS[d.statut] || d.statut).toLowerCase() + (d.personne ? ' (' + d.personne + ')' : '') + ', par ' + M.libInformateur(config(), d) + (d.motif ? ' — ' + d.motif : '');
-      case 'JLD': return sur + LIB_NATURE[d.nature].toLowerCase() + ' — cycle ' + d.cycle + ' — le ' + date(d.date) + (d.decision ? ' — décision : ' + (d.decision === 'LEVEE' ? 'mainlevée' : 'maintien') : '');
-      case 'PROFESSIONNEL':
-        var per = M.periodesDe(config(), d.service).filter(function (q) { return q.code === d.periode; })[0];
-        return lieu('Surveillance en CSI — ') + libService(d.service) + ', ' + (d.date ? d.date.split('-').reverse().join('/') : '') + ', ' + (per ? per.libelle.toLowerCase() : d.periode) + ' : ' + d.nom + (d.fonction ? ' (' + d.fonction + ')' : '') + (d.lieux && d.lieux.length ? ' — lieux : ' + d.lieux.join(', ') : '');
-      case 'PATIENT':
-        var fiches = index().patients[d.patientId] || [], premiere = !fiches.length || fiches[0].id === e.id;
-        return 'Fiche patient ' + (premiere ? 'créée' : 'modifiée') + ' : ' + [((d.nom || '') + ' ' + (d.prenom || '')).trim(), d.ipp ? 'IPP ' + d.ipp : '', d.naissance ? 'né(e) le ' + d.naissance.split('-').reverse().join('/') : '', d.protection ? 'protection : ' + d.protection.toLowerCase() : '', d.service ? 'service : ' + libService(d.service) : '', d.detenu === true ? 'patient détenu' : d.detenu === false ? 'n’est plus détenu' : ''].filter(Boolean).join(', ') + (premiere ? '' : ' (' + nomPatient(d.patientId).trim() + ')');
-      case 'MODE_HOSPI':
-        var def = (config().modesHospitalisation || []).filter(function (x) { return x.code === d.mode; })[0];
-        return nomPatient(d.patientId).trim() + ' — mode d’hospitalisation : ' + d.mode + (def ? ' (' + def.libelle.toLowerCase() + ')' : '') + ' à partir du ' + date(d.date);
-      case 'CONFIG':
-        var lib = lieu(LIB_CONFIG[d.cle]) || d.cle, apres = resumeConfig(d.cle, d.valeur);
-        if (!apres) return lib + ' : modifié';
-        var av = configAvant(e); if (av == null) av = M.CONFIG_DEFAUT[d.cle];
-        if (d.cle === 'pauses') return lib + ' : ' + diffPauses(av, d.valeur);
-        var avant = av == null ? '' : resumeConfig(d.cle, av);
-        return lib + ' : ' + (avant && avant !== apres ? avant + ' → ' : '') + apres;
-      case 'ANNULATION':
-        var cible = st().parId[d.cible];
-        if (!cible) return 'Annulation d’une saisie introuvable (' + (d.cible || '?') + ')' + (d.motif ? ' — motif : ' + d.motif : '');
-        if (cible.type === 'ANNULATION') {
-          var origine = st().parId[cible.data && cible.data.cible];
-          return 'Rétablissement' + (origine ? ' de la saisie « ' + (lieu(LIB_EVT[origine.type]) || origine.type) + ' » du ' + date(Date.parse(origine.at)) + ' (' + resumeEvt(origine) + ')' : '') + ' : son annulation du ' + date(Date.parse(cible.at)) + ' est annulée. Motif : ' + (d.motif || 'non précisé') + '.';
-        }
-        var libCible = cible.type === 'COMPTE' ? 'Comptes et clés' : (lieu(LIB_EVT[cible.type]) || cible.type);
-        return 'Annulation de la saisie « ' + libCible + ' » faite le ' + date(Date.parse(cible.at)) + ' par ' + App.session.nomAuteur(cible.by) + ' : ' + resumeEvt(cible) +
-          (cible.type === 'MESURE_DEBUT' ? ' (toute la mesure est annulée)' : cible.type === 'LOT' ? ' (toutes les saisies du lot sont annulées)' : '') +
-          '. Motif : ' + (d.motif || 'non précisé') + '.';
-      case 'COMPTE': if (d.comptes) return LIB_COMPTE[d.action] + ' : ' + d.comptes.length + ' — ' + d.comptes.map(function (x) { return x.login; }).join(', ');
-        return (LIB_COMPTE[d.action] || d.action) + (d.login ? ' — ' + d.login : '') + (d.roles ? ' (' + d.roles.map(function (r) { return M.libRole(config(), r); }).join(', ') + ')' : '') + (d.libelle ? ' — ' + d.libelle : '') + (d.finValidite ? ' — accès jusqu’au ' + d.finValidite.split('-').reverse().join('/') : '');
-      case 'PROPOSITION':
-        return sur + 'correction proposée (à valider par le cadre) — ' + Object.keys(d.champs || {}).map(function (k) { return (lieu(LIB_CHAMPS[k]) || k) + ' : ' + valeurChamp(k, d.champs[k]); }).join(' ; ') + '. Motif : ' + (d.motif || 'non précisé') + '.';
-      case 'REFUS_PROPOSITION':
-        var prRef = st().parId[d.proposition];
-        return sur + 'correction proposée' + (prRef ? ' par ' + App.session.nomAuteur(prRef.by) : '') + ' refusée. Motif : ' + (d.motif || 'non précisé') + '.';
-      case 'CORRECTION':
-        var ch = d.champs || {}, avantCorr = mesureAvant(d.mesureId, e);
-        var prVal = d.proposition && st().parId[d.proposition];
-        if (prVal) sur += '(correction proposée par ' + App.session.nomAuteur(prVal.by) + ', validée) ';
-        return sur + 'correction — ' + Object.keys(ch).map(function (k) {
-          var av2 = avantCorr[k] !== undefined && valeurChamp(k, avantCorr[k]) !== valeurChamp(k, ch[k]) ? valeurChamp(k, avantCorr[k]) + ' → ' : '';
-          return (lieu(LIB_CHAMPS[k]) || k) + ' : ' + av2 + valeurChamp(k, ch[k]);
-        }).join(' ; ') + '. Motif : ' + (d.motif || 'non précisé') + '.';
-      case 'LOT': return (d.libelle || 'Lot de saisies') + ' — ' + (d.evenements || []).length + ' saisies enregistrées en une fois';
-      case 'STATS': return 'Statistiques ' + libService(d.service) + ' ' + d.annee + ' : patients en hospitalisation complète ' + (d.hc == null ? '—' : d.hc) + ', sous contrainte ' + (d.ssc == null ? '—' : d.ssc);
-      default: return e.type;
-    }
-  }
-
   // ---------------------------------------------------------------- Annulation depuis le journal
-  var EFFET_ANNULATION = {
-    MESURE_DEBUT: 'Toute la mesure est annulée (doublon, mauvais patient…), avec les saisies qui la concernent.',
-    LOT: 'Toutes les saisies de ce lot (import ou données de démonstration) sont annulées.',
-    CONFIG: 'Le réglage reprend la valeur qu’il avait avant cette saisie.',
-    FUSION: 'Les deux fiches patient sont de nouveau séparées.',
-    INTEGRITE: 'Les anomalies dont il avait été pris acte seront de nouveau signalées.',
-    PATIENT: 'La fiche du patient reprend les valeurs précédentes.'
-  };
   function boutonAnnulationJournal(etat, e) {
     var a = M.annulabilite(etat, e);
     if (!a || !App.session.peut(a.droit) || !App.session.peut('ANNULATION')) return null;
@@ -947,11 +734,11 @@
   function modaleAnnulationJournal(e, a) {
     var motif = h('textarea', { rows: 2, placeholder: a.action === 'retablir' ? 'Ex. : annulation faite par erreur' : 'Ex. : saisie en double, erreur de patient…' });
     var cible = a.cible;
-    var effet = a.action === 'retablir' ? 'La saisie annulée produit de nouveau son effet.' : (EFFET_ANNULATION[cible.type] || 'La saisie cesse de produire son effet (échéances, registre et statistiques sont recalculés).');
+    var effet = a.action === 'retablir' ? 'La saisie annulée produit de nouveau son effet.' : (SIC.ui.journal.effetAnnulation(cible) || 'La saisie cesse de produire son effet (échéances, registre et statistiques sont recalculés).');
     modale(a.action === 'retablir' ? 'Rétablir une saisie annulée' : 'Annuler une saisie', h('div', { class: 'pile' },
       h('div', { class: 'recap' },
-        h('div', {}, h('b', { text: (lieu(LIB_EVT[cible.type]) || cible.type) + ' — ' }), date(Date.parse(cible.at)) + ', ' + App.session.nomAuteur(cible.by)),
-        h('div', { text: resumeEvt(cible) })),
+        h('div', {}, h('b', { text: SIC.ui.journal.libelleType(cible.type) + ' — ' }), date(Date.parse(cible.at)) + ', ' + App.session.nomAuteur(cible.by)),
+        h('div', { text: SIC.ui.journal.resume(cible) })),
       h('div', { class: 'alerte', text: effet + ' Rien n’est effacé : la saisie et son annulation restent au journal, et l’annulation peut elle-même être annulée.' }),
       h('label', {}, 'Motif (obligatoire)', motif)), [
       { texte: 'Fermer' },
@@ -991,8 +778,8 @@
           } }, 'Garder');
         }
         return h('div', { class: 'recap' },
-          h('div', {}, h('b', { text: 'Appliquée : ' }), resumeEvt(a), ' — ', App.session.nomAuteur(a.by), ' ', choix(a, b)),
-          h('div', {}, h('b', { text: 'Concurrente : ' }), resumeEvt(b), ' — ', App.session.nomAuteur(b.by), ' ', choix(b, a)));
+          h('div', {}, h('b', { text: 'Appliquée : ' }), SIC.ui.journal.resume(a), ' — ', App.session.nomAuteur(a.by), ' ', choix(a, b)),
+          h('div', {}, h('b', { text: 'Concurrente : ' }), SIC.ui.journal.resume(b), ' — ', App.session.nomAuteur(b.by), ' ', choix(b, a)));
       })) : null;
     var complet = niveau === 'complet';
     var manquants = complet && etat.manquants.length ? h('div', { class: 'erreur', text: etat.manquants.length + ' saisie(s) manquante(s) dans le dossier (fichier supprimé ou non encore synchronisé) : ' + etat.manquants.map(function (x) { return x.manque; }).join(', ') + '. Détail, réparation depuis une copie ou prise d’acte : Administration → Sauvegardes et exports.' }) : null;
@@ -1000,7 +787,7 @@
 
     var lignes = visibles.slice().reverse().slice(0, 400);
     var portee = complet ? null : h('p', { class: 'muted', text: niveau === 'siennes' ? 'Vous voyez vos propres saisies (réglage de vos rôles).' : 'Vous voyez les saisies concernant vos services et vos propres saisies (réglage de vos rôles).' });
-    index();
+    SIC.ui.journal.preparer();
     return h('div', {},
       h('div', { class: 'barre' }, h('h1', { text: 'Journal des saisies' }), h('div', { class: 'espace' }), h('small', { class: 'muted', text: (complet ? etat.journal.length + ' saisies' : visibles.length + ' saisies affichées') + ', chacune dans un fichier chiffré distinct, jamais modifié.' })),
       portee, rejetes, manquants, blocConflits,
@@ -1011,8 +798,8 @@
           return h('tr', { class: annule ? 'ancienne' : '' },
             h('td', { class: 'nowrap', text: date(Date.parse(e.at)) }),
             h('td', { text: App.session.nomAuteur(e.by) }),
-            h('td', {}, e.type === 'COMPTE' && e.data && (e.data.action === 'EDITION_CADA' || e.data.action === 'REGISTRE_ANONYME') ? 'Communication du registre' : e.type === 'COMPTE' && e.data && e.data.action === 'EXPORT_PATIENT' ? 'Droit d’accès' : e.type === 'COMPTE' && e.data && e.data.action === 'ARCHIVE' ? 'Archivage' : e.type === 'COMPTE' && e.data && (e.data.action === 'SCELLE' || e.data.action === 'SAUVEGARDE' || e.data.action === 'REPARATION' || e.data.action === 'QUARANTAINE' || /^(MIROIR|DEPLACEMENT|HORS_RESEAU)/.test(e.data.action)) ? 'Sauvegarde' : e.type === 'COMPTE' && e.data && (e.data.action === 'EXPORT' || e.data.action === 'REGLAGES_EXPORT' || e.data.action === 'EXPORT_SUPPRIME' || e.data.action === 'PURGE_EXPORTS') ? 'Export' : (lieu(LIB_EVT[e.type]) || e.type)),
-            h('td', {}, resumeEvt(e)),
+            h('td', {}, SIC.ui.journal.action(e)),
+            h('td', {}, SIC.ui.journal.resume(e)),
             h('td', {}, annule ? h('span', { class: 'badge', text: 'annulée' }) : null, conflitsIds[e.id] ? h('span', { class: 'badge bad', text: 'conflit' }) : null),
             h('td', { class: 'actions-ligne' }, boutonAnnulationJournal(etat, e)));
         })))),
@@ -1673,8 +1460,7 @@
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, changerDossier: function () { return changerDossier(); },
     lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu,
-    LIB_TIERS: LIB_TIERS, LIB_STATUT: LIB_STATUT, LIB_NATURE: LIB_NATURE, LIB_CHAMPS: LIB_CHAMPS, resumeEvt: resumeEvt, valeurChamp: valeurChamp,
     demarrer: demarrer, verrouiller: verrouiller,
-    libConfig: function (cle) { return lieu(LIB_CONFIG[cle]) || cle; }, retenirAccueil: function () { retenirAccueil(); }
+    retenirAccueil: function () { retenirAccueil(); }
   };
 })();

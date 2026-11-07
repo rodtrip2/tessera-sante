@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.1.4 — 7 novembre 2026
+
+Étape 1 du plan d'architecture, découpage de l'interface (deuxième bloc d'écran).
+
+- **Journal** : l'affichage (liste, conflits à arbitrer, annulation et rétablissement) reste dans la coquille ; les libellés des saisies d'Isocont (résumés, colonne « Action », effet d'une annulation) passent dans `ui-isocont.js`, que la coquille lit par `SIC.ui.journal`.
+- **Correction (défaut de la 0.1.3)** : l'export du registre en PDF et en CSV depuis l'onglet *Registre* ne se faisait plus (aide `exporter` non reprise dans `ui-isocont.js`). Nouveau test `tests/interface-noms.test.js` : tout nom de la coquille employé par un fichier d'interface d'un module doit y être importé.
+- Vérification dans Chrome, comparée à Isocont 1.67 : journal, fenêtre d'annulation, annulation enregistrée et export du registre identiques.
+
 ## 0.1.3 — 7 novembre 2026
 
 Étape 1 du plan d'architecture, découpage de l'interface (premier bloc d'écran), sans changement de fonctionnement.
