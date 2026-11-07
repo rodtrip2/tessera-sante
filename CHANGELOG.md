@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.1.3 — 7 novembre 2026
+
+Étape 1 du plan d'architecture, découpage de l'interface (premier bloc d'écran), sans changement de fonctionnement.
+
+- `ui-isocont.js` (module Isocont) : tableau de bord, mesures, JLD, surveillance, registre et fenêtres de saisie (nouvelle mesure, fin, pause, reprise, tiers, JLD, détail, lieu, correction, proposition, professionnels), sortis de `ui.js`. Les vues sont déclarées auprès de la coquille (`SIC.ui.vues`), comme l'étaient déjà *Patients* et *Statistiques*.
+- `ui.js` garde la coquille : outils d'affichage, accueil, connexion, en-tête, onglets, fenêtres, exports, thème ; le journal et l'administration seront découpés aux blocs suivants.
+- Vérification dans Chrome : écrans et fenêtres identiques à Isocont 1.67, saisie enregistrée normalement.
+
 ## 0.1.2 — 7 novembre 2026
 
 Étape 1 du plan d'architecture, deuxième découpage, sans changement de fonctionnement.
