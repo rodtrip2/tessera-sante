@@ -1,5 +1,16 @@
 # Journal des modifications — Tessera Santé
 
+## 0.8.1 — 7 novembre 2026
+
+Étape 6 (module Agenda), deuxième sous-étape : **agenda du service**. Besoins complétés par le porteur le 7 novembre 2026 (types d'alertes paramétrables, patient suivi par un autre service).
+
+- Onglet *Agenda* : vues jour et semaine, navigation (précédent, aujourd'hui, suivant), filtre par type. *+ Nouveau* (accès « Planifier ») : accompagnement, activité thérapeutique ou réunion ; intitulé, date, heures de début et de fin, lieu, service, patients du service (recherche), professionnels prévus (comptes du service ou nom libre). Modification et suppression depuis l'élément.
+- Patient suivi par un autre service : l'accompagnement ou l'activité d'un service B qui concerne un patient hospitalisé dans le service A s'affiche dans l'agenda de A, marqué du nom de B, en lecture seule et avec les seuls patients de A.
+- Patients désignés selon le réglage de l'établissement : initiales par défaut, ou aucune, IPP, nom complet.
+- *Administration → Agenda* : identité affichée ; types d'alertes (« À voir par le médecin », psychologue, service social, rendez-vous à organiser, information à transmettre), modifiables, à compléter par l'établissement ; « Autre » toujours proposé à la saisie. Réglage `agenda` au journal du socle (export des réglages, jeu de formation, libellé du journal).
+- Les alertes de l'Agenda deviennent génériques (saisie `ALERTE` avec son type) ; leurs écrans viennent avec la sous-étape 4.
+- Nouveaux tests (éléments de la période, autre service, identité, réglages ; 201 au vert) ; vues, saisie, élément d'un autre service et réglages vérifiés dans Chrome.
+
 ## 0.8.0 — 7 novembre 2026
 
 Étape 6 (module Agenda), première sous-étape : **plusieurs modules affichés** et **module Agenda déclaré**. Besoins de l'Agenda et décisions du porteur consignés dans `docs/architecture.md` § 7 bis.
