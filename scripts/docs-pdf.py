@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: EUPL-1.2
-"""Génère les PDF des documents de docs/ à partir des fichiers Markdown.
+"""Génère les PDF des documents de docs/ (à côté des fichiers) et du kit (kit/pdf/) à partir des fichiers Markdown.
 
 Prérequis : python3 -m pip install markdown playwright && python3 -m playwright install chromium
 Usage     : python3 scripts/docs-pdf.py
@@ -13,7 +13,8 @@ from playwright.sync_api import sync_playwright
 
 RACINE = pathlib.Path(__file__).resolve().parent.parent
 DOCS = RACINE / 'docs'
-EXCLUS = {'consignes-isocont'}  # documents de travail, sans PDF
+KIT = RACINE / 'kit'
+EXCLUS = {'consignes-isocont', 'README'}  # documents de travail ou index, sans PDF
 
 CSS = """
 @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
@@ -54,12 +55,14 @@ def main():
     with sync_playwright() as p:
         navigateur = p.chromium.launch()
         page = navigateur.new_page()
-        for f in sorted(DOCS.glob('*.md')):
+        (KIT / 'pdf').mkdir(exist_ok=True)
+        fichiers = [(f, f.with_suffix('.pdf')) for f in sorted(DOCS.glob('*.md'))] + [(f, KIT / 'pdf' / (f.stem + '.pdf')) for f in sorted(KIT.glob('*.md'))]
+        for f, cible in fichiers:
             if f.stem in EXCLUS:
                 continue
             texte = f.read_text(encoding='utf-8')
             titre = re.search(r'^# (.+)$', texte, flags=re.M).group(1)
-            tmp = DOCS / ('.' + f.stem + '.html')
+            tmp = f.parent / ('.' + f.stem + '.html')  # à côté du fichier : les images relatives restent trouvées
             tmp.write_text(f'<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>{html.escape(titre)}</title>'
                            f'<style>{CSS}</style></head><body>{convertir(texte)}</body></html>', encoding='utf-8')
             page.goto(tmp.as_uri())
@@ -67,7 +70,7 @@ def main():
             pied = ('<div style="font-size:7.5pt;color:#777;width:100%;padding:0 16mm;display:flex;justify-content:space-between">'
                     f'<span>{html.escape(titre)}</span>'
                     '<span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>')
-            page.pdf(path=str(f.with_suffix('.pdf')), format='A4', print_background=True, display_header_footer=True,
+            page.pdf(path=str(cible), format='A4', print_background=True, display_header_footer=True,
                      header_template='<div></div>', footer_template=pied,
                      margin={'top': '16mm', 'bottom': '18mm', 'left': '16mm', 'right': '16mm'})
             tmp.unlink()

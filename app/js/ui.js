@@ -1119,7 +1119,7 @@
     // -- Dossier des exports
     var tExports = h('input', { type: 'text', maxlength: 120, value: X.dossierExports(cfg), placeholder: 'exports' });
     var oExp = X.optionsExports(cfg);
-    var tReseau = h('input', { type: 'text', maxlength: 200, value: oExp.cheminReseau, placeholder: '\\\\serveur\\partage\\SuiviIsoCont' });
+    var tReseau = h('input', { type: 'text', maxlength: 200, value: oExp.cheminReseau, placeholder: '\\\\serveur\\partage\\TesseraSante' });
     function libConservation(j) { return !j ? 'Aucune purge automatique' : j < 365 ? Math.round(j / 30.5) + ' mois' : Math.round(j / 365.25) + ' an' + (Math.round(j / 365.25) > 1 ? 's' : ''); }
     var selConservation = h('select', {}, X.CONSERVATION_EXPORTS.map(function (j) { return h('option', { value: j, text: libConservation(j), selected: j === oExp.conservationJours }); }));
     var apercuPurge = h('small', { class: 'muted' });
@@ -1137,7 +1137,7 @@
       h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: modaleExports }, 'Voir les fichiers exportés')),
       h('label', {}, 'Sous-dossier (ex. « exports », « exports/unite-1 »)', tExports),
       h('label', {}, 'Chemin réseau du dossier des données (facultatif, pour l’accès direct depuis Windows)', tReseau),
-      h('small', { class: 'muted', text: 'Ex. \\\\serveur\\partage\\SuiviIsoCont ou Z:\\SuiviIsoCont. La fenêtre « Exports » propose alors de copier le chemin du dossier de chaque service et explique comment créer un raccourci sur le bureau. Le navigateur ne connaît pas ce chemin : il est à recopier depuis l’Explorateur.' }),
+      h('small', { class: 'muted', text: 'Ex. \\\\serveur\\partage\\TesseraSante ou Z:\\TesseraSante. La fenêtre « Exports » propose alors de copier le chemin du dossier de chaque service et explique comment créer un raccourci sur le bureau. Le navigateur ne connaît pas ce chemin : il est à recopier depuis l’Explorateur.' }),
       h('label', {}, 'Durée de conservation des exports', selConservation), h('div', {}, h('b', {}, apercuPurge)),
       h('small', { class: 'muted', text: 'Purge automatique : à la première connexion de la journée sur chaque poste, les fichiers du dossier des exports plus anciens que cette durée (date d’enregistrement) sont supprimés, et la purge est inscrite au journal. La durée est à fixer avec le délégué à la protection des données ; elle ne concerne que les exports, jamais les données de l’outil ni le registre.' }),
       h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: async function () {
@@ -1183,7 +1183,7 @@
         h('div', { text: 'Saisies dans le journal : ' + s.evts.length + (s.rejetes.length ? ' — ' + s.rejetes.length + ' fichier(s) illisible(s)' : '') }),
         h('div', { text: 'Coffre : révision ' + s.coffre.rev + ', ' + embs.length + ' moyen(s) de déblocage' }),
         h('div', { text: 'Adresse : ' + location.protocol + '//' + (location.host || '(fichier local)') }),
-        h('div', { text: 'Licence : EUPL-1.2 — code source : github.com/rodtrip2/Suivi-mesures-isocont' })));
+        h('div', { text: 'Licence : EUPL-1.2 — code source : github.com/rodtrip2/tessera-sante' })));
 
     if (s.formation) {
       // Les comptes et les clés sont ceux des données réelles : ils ne se gèrent pas depuis le jeu de formation.

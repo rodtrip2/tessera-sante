@@ -1911,28 +1911,28 @@
 
   /**
    * `o` : { type 'serveur' | 'local', principal, secours, exports (sous-dossier), intervalle (min), compte 'service' | 'agents',
-   * utilisateur (compte de service, ex. DOMAINE\svc-isocont), script (texte du script), dossierOutil (C:\SuiviIsoCont) }.
+   * utilisateur (compte de service, ex. DOMAINE\svc-tessera), script (texte du script), dossierOutil (C:\TesseraSante) }.
    * Retourne { erreurs: [texte], texte (bloc à coller), tache (nom de la tâche planifiée) }.
    */
   function commandesRobocopy(o) {
     o = o || {};
     var erreurs = [], type = o.type === 'local' ? 'local' : 'serveur';
-    var p = cheminWindows(o.principal), sv = cheminWindows(o.secours), outil = cheminWindows(o.dossierOutil || 'C:\\SuiviIsoCont');
+    var p = cheminWindows(o.principal), sv = cheminWindows(o.secours), outil = cheminWindows(o.dossierOutil || 'C:\\TesseraSante');
     // compte : 'service' (compte du domaine), 'agents' (groupe Utilisateurs, administrateur requis pour l'installer),
     // 'session' (session Windows de la personne qui colle les commandes, sans droits d'administrateur ; copie locale seulement)
     var compte = o.compte === 'agents' || o.compte === 'session' ? o.compte : 'service', utilisateur = String(o.utilisateur || '').trim();
     var intervalle = INTERVALLES_ROBOCOPY.indexOf(+o.intervalle) >= 0 ? +o.intervalle : 15;
     var exports = String(o.exports || 'exports').replace(/\//g, '\\').replace(/^\\+|\\+$/g, '') || 'exports';
-    if (!p) erreurs.push('Chemin du dossier des données : indiquez un chemin réseau complet (ex. \\\\serveur\\partage\\SuiviIsoCont) ou un lecteur (ex. Z:\\SuiviIsoCont).');
-    if (!sv) erreurs.push(type === 'local' ? 'Dossier de la copie locale : indiquez un dossier du disque du poste (ex. C:\\SuiviIsoCont-local).' : 'Dossier de secours : indiquez un chemin réseau complet (ex. \\\\serveur-secours\\partage\\SuiviIsoCont-secours).');
-    if (sv && type === 'local' && sv.unc) erreurs.push('La copie locale doit être sur le disque du poste (ex. C:\\SuiviIsoCont-local), pas sur le réseau.');
+    if (!p) erreurs.push('Chemin du dossier des données : indiquez un chemin réseau complet (ex. \\\\serveur\\partage\\TesseraSante) ou un lecteur (ex. Z:\\TesseraSante).');
+    if (!sv) erreurs.push(type === 'local' ? 'Dossier de la copie locale : indiquez un dossier du disque du poste (ex. C:\\TesseraSante-local).' : 'Dossier de secours : indiquez un chemin réseau complet (ex. \\\\serveur-secours\\partage\\TesseraSante-secours).');
+    if (sv && type === 'local' && sv.unc) erreurs.push('La copie locale doit être sur le disque du poste (ex. C:\\TesseraSante-local), pas sur le réseau.');
     if (p && sv && p.chemin.toLowerCase() === sv.chemin.toLowerCase()) erreurs.push('Le dossier des données et le dossier de copie doivent être différents.');
     if (p && sv && sv.chemin.toLowerCase().indexOf(p.chemin.toLowerCase() + '\\') === 0) erreurs.push('Le dossier de copie ne doit pas se trouver à l’intérieur du dossier des données.');
-    if (!outil || outil.unc) erreurs.push('Dossier du script : indiquez un dossier du disque de la machine (ex. C:\\SuiviIsoCont).');
+    if (!outil || outil.unc) erreurs.push('Dossier du script : indiquez un dossier du disque de la machine (ex. C:\\TesseraSante).');
     if (compte === 'service' && !/^[^\\\s'"]+\\[^\\\s'"]+$/.test(utilisateur) && !/^[^@\s'"]+@[^@\s'"]+$/.test(utilisateur)) erreurs.push('Compte de service : indiquez-le sous la forme DOMAINE\\nom-du-compte.');
     if (compte === 'session' && type !== 'local') erreurs.push('« Ma session seulement » est réservé à la copie locale d’un poste : un dossier de secours sur un serveur doit être copié par un compte de service, même quand personne n’est connecté.');
     if (!o.script) erreurs.push('Script de copie introuvable dans l’outil.');
-    var tache = type === 'local' ? 'SuiviIsoCont - copie locale' : 'SuiviIsoCont - dossier de secours';
+    var tache = type === 'local' ? 'TesseraSante - copie locale' : 'TesseraSante - dossier de secours';
     if (compte === 'session') tache += ' - <votre identifiant Windows>';
     if (erreurs.length) return { erreurs: erreurs, texte: '', tache: tache };
     function q(v) { return "'" + String(v).replace(/'/g, "''") + "'"; }
@@ -1944,11 +1944,11 @@
     L.push('$Principal = ' + q(p.chemin) + '; $Secours = ' + q(sv.chemin) + '; $Exports = ' + q(exports) + "; $Type = '" + type + "'");
     if (compte === 'session') {
       // Sans droits d'administrateur : script et journal dans le profil de la personne, tâche à son nom
-      L.push("$Outil = Join-Path $env:LOCALAPPDATA 'SuiviIsoCont'; $Script = Join-Path $Outil 'miroir-robocopy.ps1'; $Journal = $Outil");
+      L.push("$Outil = Join-Path $env:LOCALAPPDATA 'TesseraSante'; $Script = Join-Path $Outil 'miroir-robocopy.ps1'; $Journal = $Outil");
       L.push("$Moi = $env:USERDOMAIN + '\\' + $env:USERNAME; $Tache = " + q(tache.replace(' - <votre identifiant Windows>', '')) + " + ' - ' + $env:USERNAME");
     } else {
       L.push('$Outil = ' + q(outil.chemin) + "; $Script = Join-Path $Outil 'miroir-robocopy.ps1'; $Tache = " + q(tache));
-      L.push("$Journal = Join-Path $env:ProgramData 'SuiviIsoCont'");
+      L.push("$Journal = Join-Path $env:ProgramData 'TesseraSante'");
       L.push("$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)");
       L.push("if (-not $admin) { throw 'PowerShell n’est pas ouvert en administrateur : clic droit sur PowerShell, « Exécuter en tant qu’administrateur », puis recollez ces commandes.' }");
     }

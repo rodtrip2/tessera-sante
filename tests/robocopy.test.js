@@ -10,7 +10,7 @@ const M = require('../app/js/model.js');
 global.self = global;
 require('../app/js/outils-robocopy.js');
 const SCRIPT = fs.readFileSync(path.join(__dirname, '..', 'kit', 'outils', 'miroir-robocopy.ps1'), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
-const base = { principal: '\\\\serveur-fictif\\partage\\SuiviIsoCont', script: global.SIC.scriptRobocopy };
+const base = { principal: '\\\\serveur-fictif\\partage\\TesseraSante', script: global.SIC.scriptRobocopy };
 
 test('Robocopy : le script intégré à l’outil est celui du kit (lancer node scripts/outils-js.mjs après une modification)', () => {
   assert.equal(global.SIC.scriptRobocopy, SCRIPT);
@@ -18,7 +18,7 @@ test('Robocopy : le script intégré à l’outil est celui du kit (lancer node 
 
 test('Robocopy : chemins Windows reconnus et refusés', () => {
   assert.deepEqual(M.cheminWindows('\\\\srv\\partage\\dossier\\'), { chemin: '\\\\srv\\partage\\dossier', unc: true });
-  assert.deepEqual(M.cheminWindows('c:/SuiviIsoCont-local'), { chemin: 'c:\\SuiviIsoCont-local', unc: false });
+  assert.deepEqual(M.cheminWindows('c:/TesseraSante-local'), { chemin: 'c:\\TesseraSante-local', unc: false });
   assert.deepEqual(M.cheminWindows('D:'), { chemin: 'D:\\', unc: false });
   ['', 'dossier', '\\\\srv', 'C:\\a"b', 'C:\\a\nb', 'C:\\a:b', 'https://x'].forEach((c) => assert.equal(M.cheminWindows(c), null, c));
 });
@@ -33,10 +33,10 @@ test('Robocopy : erreurs de saisie signalées, aucune commande produite', () => 
 });
 
 test('Robocopy : copie locale par les agents connectés (sans mot de passe)', () => {
-  const r = M.commandesRobocopy(Object.assign({}, base, { type: 'local', secours: 'C:\\SuiviIsoCont-local', compte: 'agents', intervalle: 10 }));
+  const r = M.commandesRobocopy(Object.assign({}, base, { type: 'local', secours: 'C:\\TesseraSante-local', compte: 'agents', intervalle: 10 }));
   assert.deepEqual(r.erreurs, []);
-  assert.equal(r.tache, 'SuiviIsoCont - copie locale');
-  assert.match(r.texte, /\$Principal = '\\\\serveur-fictif\\partage\\SuiviIsoCont'; \$Secours = 'C:\\SuiviIsoCont-local'; \$Exports = 'exports'; \$Type = 'local'/);
+  assert.equal(r.tache, 'TesseraSante - copie locale');
+  assert.match(r.texte, /\$Principal = '\\\\serveur-fictif\\partage\\TesseraSante'; \$Secours = 'C:\\TesseraSante-local'; \$Exports = 'exports'; \$Type = 'local'/);
   assert.match(r.texte, /New-ScheduledTaskPrincipal -GroupId 'S-1-5-32-545'/);
   assert.match(r.texte, /-AtLogOn/);
   assert.match(r.texte, /-RepetitionInterval \(New-TimeSpan -Minutes 10\)/);
@@ -45,11 +45,11 @@ test('Robocopy : copie locale par les agents connectés (sans mot de passe)', ()
 });
 
 test('Robocopy : dossier de secours par un compte de service ; guillemets et apostrophes sûrs pour PowerShell', () => {
-  const r = M.commandesRobocopy(Object.assign({}, base, { type: 'serveur', principal: '\\\\srv\\Données d\'essai (fictif)', secours: '\\\\srv2\\secours', compte: 'service', utilisateur: 'FICTIF\\svc-isocont', intervalle: 30, exports: 'exports/u1' }));
+  const r = M.commandesRobocopy(Object.assign({}, base, { type: 'serveur', principal: '\\\\srv\\Données d\'essai (fictif)', secours: '\\\\srv2\\secours', compte: 'service', utilisateur: 'FICTIF\\svc-tessera', intervalle: 30, exports: 'exports/u1' }));
   assert.deepEqual(r.erreurs, []);
   assert.match(r.texte, /\$Principal = '\\\\srv\\Données d''essai \(fictif\)'/);
   assert.match(r.texte, /\$Exports = 'exports\\u1'/);
-  assert.match(r.texte, /Get-Credential -UserName 'FICTIF\\svc-isocont'/);
+  assert.match(r.texte, /Get-Credential -UserName 'FICTIF\\svc-tessera'/);
   assert.doesNotMatch(r.texte, /AtLogOn|GroupId/);
   // Hors script intégré et commentaires, aucune apostrophe typographique (PowerShell la lit comme un guillemet)
   const hors = r.texte.split("$contenu = @'")[0] + r.texte.split("\r\n'@")[1];
@@ -59,10 +59,10 @@ test('Robocopy : dossier de secours par un compte de service ; guillemets et apo
 });
 
 test('Robocopy : « ma session » sans droits d’administrateur (copie locale seulement)', () => {
-  const r = M.commandesRobocopy(Object.assign({}, base, { type: 'local', secours: 'C:\\SuiviIsoCont-local', compte: 'session' }));
+  const r = M.commandesRobocopy(Object.assign({}, base, { type: 'local', secours: 'C:\\TesseraSante-local', compte: 'session' }));
   assert.deepEqual(r.erreurs, []);
   assert.doesNotMatch(r.texte, /IsInRole|icacls|Get-Credential|GroupId/);
-  assert.match(r.texte, /\$Outil = Join-Path \$env:LOCALAPPDATA 'SuiviIsoCont'/);
+  assert.match(r.texte, /\$Outil = Join-Path \$env:LOCALAPPDATA 'TesseraSante'/);
   assert.match(r.texte, /New-ScheduledTaskPrincipal -UserId \$Moi -LogonType Interactive/);
   assert.match(r.texte, /-AtLogOn -User \$Moi/);
   assert.match(r.texte, /-Journal \$Log/);

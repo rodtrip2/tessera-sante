@@ -37,7 +37,7 @@ const C = globalThis.SIC.crypto;
 function journalIsocont(racine) { return racine.e.get('modules').e.get('isocont'); }
 
 async function nouveauDossier() {
-  const racine = new Repertoire('SuiviIsoCont');
+  const racine = new Repertoire('TesseraSante');
   const admin = new Session(new Dossier(racine, 'reseau'));
   const code = await admin.initialiser({ nom: 'Admin', login: 'admin', motDePasse: 'mot de passe solide' });
   return { racine, admin, code };
