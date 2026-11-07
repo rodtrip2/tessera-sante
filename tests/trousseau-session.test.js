@@ -174,3 +174,90 @@ test('Coffre version 1 (dossier de la 0.4.0) : ouvert et utilisé comme avant, f
   assert.ok(sec.etat.mesures.M1);
   assert.equal(admin.coffre.version, 1);
 });
+
+/** Dossier tel que l'écrivait la 0.4.0 (coffre version 1), avec un administrateur. */
+async function dossierV1(nom) {
+  const racine = new Repertoire(nom);
+  const d = new Dossier(racine, 'reseau');
+  const cle = await C.nouvelleCleDonnees(), code = C.nouveauCodeSecours();
+  const compte = { id: 'u0000adm', login: 'admin', nom: 'Admin (fictif)', roles: ['CADRE', 'ADMIN'], actif: true };
+  const embMdp = Object.assign(await C.emballerMotDePasse(cle, 'mot de passe solide', 1000), { id: 'k1', userId: compte.id, login: 'admin' });
+  const embSec = Object.assign(await C.emballerCodeSecours(cle, code), { id: 'k2', userId: null });
+  await d.ecrireCoffre({ format: 'SIC-coffre', version: 1, creeLe: '2026-11-01T08:00:00.000Z', emballages: [embMdp, embSec], comptes: C.b64(await C.chiffrerJSON(cle, { comptes: [compte] }, 'comptes')) }, undefined);
+  return { racine, cle, code };
+}
+
+test('Migration d’un coffre version 1 : historique lisible, génération 2 cloisonnée, mots de passe provisoires, code repris', async () => {
+  const { racine, code } = await dossierV1('Dossier à migrer');
+  let admin = await co(racine, 'admin', 'mot de passe solide');
+  await admin.enregistrer('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1 (fictif)' }] });
+  await admin.enregistrer('MESURE_DEBUT', mesure('M1'));
+  await admin.creerComptes([
+    { nom: 'IDE (fictif)', login: 'ide', motDePasse: 'mot de passe ide 1', roles: ['IDE'], services: ['U1'] },
+    { nom: 'Parti (fictif)', login: 'parti', motDePasse: 'mot de passe parti', roles: ['IDE'], services: ['U1'] }]);
+  await admin.modifierRoles(admin.comptes.find((c) => c.login === 'parti').id, ['IDE'], false, ['U1']);
+  await admin.creerFormation([{ type: 'PATIENT', data: { patientId: 'PF', nom: 'Patient (fictif)' } }], 'Jeu (fictif)');
+  assert.equal(admin.migrationTrousseauPossible(), true);
+  // Refus : mauvais mot de passe, mauvais code
+  await assert.rejects(admin.migrerVersTrousseau('faux mot de passe', ''), /Mot de passe incorrect/);
+  await assert.rejects(admin.migrerVersTrousseau('mot de passe solide', 'AAAA-BBBB-CCCC-DDDD-EEEE'), /Code de secours incorrect/);
+  // Un autre poste resté connecté avec l'ancienne clé
+  const autrePoste = await co(racine, 'admin', 'mot de passe solide');
+  const r = await admin.migrerVersTrousseau('mot de passe solide', code);
+  assert.equal(r.codeSecours, null);                                    // code actuel repris
+  assert.deepEqual(r.provisoires.map((p) => p.login), ['ide']);          // compte désactivé : pas de clé
+  assert.equal(admin.coffre.version, 2);
+  assert.equal(admin.coffre.creeLe, '2026-11-01T08:00:00.000Z');        // même dossier (dossier de secours, verrou)
+  assert.deepEqual(admin.coffre.cles, { plateforme: { courante: 2, origine: true }, isocont: { courante: 2, origine: true } });
+  assert.ok(admin.etat.mesures.M1);                                     // historique relu (génération 1)
+  assert.equal(admin.rejetes.length, 0);
+  // Saisies à venir : génération 2, clés distinctes pour le socle et Isocont
+  await admin.enregistrer('MESURE_DEBUT', mesure('M2'));
+  const evtM2 = admin.evts.find((e) => e.data && e.data.mesureId === 'M2');
+  const m = evtM2.at.slice(0, 7).split('-');
+  const f = racine.e.get('modules').e.get('isocont').e.get('evenements').e.get(m[0]).e.get(m[1]).e.get(evtM2.id + '.enc');
+  assert.equal(C.generationFichier(f.data), 2);
+  await assert.rejects(C.dechiffrerJSON(admin.trousseau.plateforme, f.data, 'evt:' + f.name));
+  // Ancien mot de passe de l'IDE refusé, mot de passe provisoire accepté
+  await assert.rejects(co(racine, 'ide', 'mot de passe ide 1'), /incorrect/);
+  const ide = await co(racine, 'ide', r.provisoires[0].motDePasse);
+  assert.ok(ide.utilisateur.mdpProvisoire && ide.etat.mesures.M1 && ide.etat.mesures.M2);
+  // Code de secours repris : ouvre l'historique et la nouvelle génération ; jeu de formation toujours lisible
+  const sec = new Session(new Dossier(racine, 'reseau')); await sec.chargerCoffre(); await sec.connexionCodeSecours(code);
+  assert.ok(sec.etat.mesures.M1 && sec.etat.mesures.M2);
+  admin = await co(racine, 'admin', 'mot de passe solide');
+  await admin.ouvrirFormation();
+  assert.ok(admin.etat.patients.PF);
+  // L'autre poste se verrouille à sa synchronisation suivante
+  let message = null;
+  autrePoste.sur((s, info) => { if (info.source === 'verrou') message = info.message; });
+  autrePoste.dernierCoffre = 0;
+  await autrePoste.synchroniser();
+  assert.match(message, /migré vers le trousseau/);
+  assert.equal(autrePoste.cle, null);
+  await assert.rejects(admin.migrerVersTrousseau('mot de passe solide', ''), /déjà/);
+});
+
+test('Migration sans le code actuel : nouveau code créé, l’ancien n’ouvre plus rien ; retour possible à l’ancien coffre', async () => {
+  const { racine, code } = await dossierV1('Dossier à migrer 2');
+  const admin = await co(racine, 'admin', 'mot de passe solide');
+  await admin.enregistrer('MESURE_DEBUT', mesure('M1'));
+  const ancien = JSON.parse(JSON.stringify(admin.coffre));
+  const r = await admin.migrerVersTrousseau('mot de passe solide', '');
+  assert.match(r.codeSecours, /^[A-Z0-9]{4}(-[A-Z0-9]{4}){4}$/);
+  const t = new Session(new Dossier(racine, 'reseau')); await t.chargerCoffre();
+  await assert.rejects(t.connexionCodeSecours(code), /incorrect/);
+  await t.connexionCodeSecours(r.codeSecours);
+  assert.ok(t.etat.mesures.M1);
+  await admin.enregistrer('MESURE_DEBUT', mesure('M2'));
+  // Retour à la clé unique : l'existant est lu ; les saisies postérieures (génération 2) ne le sont plus
+  assert.equal(await admin.retourAvantTrousseauPossible(), admin.coffre.migreLe);
+  await admin.revenirAvantTrousseau();
+  assert.equal(admin.cle, null);                                         // session fermée
+  const retour = await co(racine, 'admin', 'mot de passe solide');
+  assert.equal(retour.coffre.version, 1);
+  assert.deepEqual(retour.coffre.emballages, ancien.emballages);
+  assert.ok(retour.etat.mesures.M1 && !retour.etat.mesures.M2);
+  assert.ok(retour.rejetes.length >= 2);                                 // M2 et la trace de migration, signalées illisibles
+  assert.equal(retour.migrationTrousseauPossible(), true);
+});

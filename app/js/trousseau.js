@@ -6,7 +6,8 @@
  *   agents      { <id compte> | 'secours': { publique } }       parties publiques ECDH P-256, en clair
  *   emballages  [{ methode: 'mdp' | 'cle' | 'secours', userId, … cle }]  partie privée d'un agent (userId) ou de la clé
  *               de secours (userId null : code de secours, YubiKey de secours), emballée par ce moyen
- *   cles        { plateforme: { courante }, <module>: { courante } }      génération en cours de chaque clé de droit
+ *   cles        { plateforme: { courante, origine? }, <module>: { … } }   génération en cours de chaque clé de droit ;
+ *               origine : la génération 1 est l'ancienne clé de données d'un coffre migré (non tirée de la clé maîtresse)
  *   enveloppes  [{ cle, g, pour, eph, sel, ct }]   g = numéro de génération, ou 'm' pour la clé maîtresse ;
  *               pour = id du compte ou 'secours'
  *   comptes     chiffrés par la clé de plateforme
@@ -88,6 +89,24 @@
     return res;
   }
 
+  /**
+   * Enveloppes de la clé de secours : clés maîtresses (toutes les générations s'en déduisent) et, pour un coffre
+   * migré, la génération d'origine (ancienne clé de données), qui ne se déduit pas de la clé maîtresse.
+   */
+  async function enveloppesSecours(trousseau, coffre, publique) {
+    var res = [], noms = Object.keys(coffre.cles);
+    for (var i = 0; i < noms.length; i++) {
+      var nom = noms[i], jeu = trousseau[nom];
+      if (!jeu || !jeu.maitresse) throw new Error('Seul un administrateur peut préparer la clé de secours.');
+      res.push(Object.assign({ cle: nom, g: 'm', pour: SECOURS }, await C.envelopper(jeu.maitresse, publique, contexte(nom, 'm', SECOURS))));
+      if (coffre.cles[nom].origine) {
+        var o = await jeu.octetsDe(1);
+        res.push(Object.assign({ cle: nom, g: 1, pour: SECOURS }, await C.envelopper(o, publique, contexte(nom, 1, SECOURS))));
+      }
+    }
+    return res;
+  }
+
   /** Ouvre le trousseau du détenteur `pour` (id du compte ou 'secours') avec sa partie privée (CryptoKey). */
   async function ouvrir(coffre, pour, privee) {
     var t = {};
@@ -128,7 +147,7 @@
     var embSec = await C.emballerCodeSecours(sec8, options.codeSecours);
     embSec.id = options.id(); embSec.userId = null;
     coffre.emballages.push(embSec);
-    coffre.enveloppes = coffre.enveloppes.concat(await enveloppesPour(t, coffre, SECOURS, sec.publicKey, { cles: noms.slice(), maitresses: true }).then(function (l) { return l.filter(function (e) { return e.g === 'm'; }); }));
+    coffre.enveloppes = coffre.enveloppes.concat(await enveloppesSecours(t, coffre, sec.publicKey));
     sec8.fill(0);
     // Administrateur
     var adm = await C.nouvellePaire(), adm8 = await C.exporterPrivee(adm.privateKey);
@@ -167,8 +186,7 @@
     var emb = await C.emballerCodeSecours(sec8, code);
     emb.id = id; emb.userId = null;
     sec8.fill(0);
-    var env = [];
-    for (var i = 0; i < noms.length; i++) env.push(Object.assign({ cle: noms[i], g: 'm', pour: SECOURS }, await C.envelopper(trousseau[noms[i]].maitresse, sec.publicKey, contexte(noms[i], 'm', SECOURS))));
+    var env = await enveloppesSecours(trousseau, coffre, sec.publicKey);
     coffre.agents[SECOURS] = { publique: await C.exporterPublique(sec.publicKey) };
     coffre.enveloppes = coffre.enveloppes.filter(function (e) { return e.pour !== SECOURS; }).concat(env);
     // L'ancienne clé de secours n'ouvre plus rien : son code et une éventuelle YubiKey de secours sont retirés
@@ -176,8 +194,49 @@
     return emb;
   }
 
+  /**
+   * Migration d'un coffre version 1 (étape 4, 0.4.3 ; décisions du porteur : aucun rechiffrement, mots de passe
+   * provisoires). L'ancienne clé de données devient la génération 1 (« origine ») de la clé de plateforme et de chaque
+   * clé de module : tout l'existant reste lisible tel quel. Une génération 2 distincte est créée pour chacune : les
+   * saisies à venir sont cloisonnées. Chaque compte actif reçoit une clé personnelle : l'administrateur qui migre garde
+   * son mot de passe, les autres reçoivent un mot de passe provisoire. Les clés de sécurité (YubiKey) sont à
+   * réenregistrer ; la copie sous scellé est à refaire.
+   * options : { modules, adminId, motDePasseAdmin, codeSecours, provisoire() → mot de passe, id() → id d'emballage }.
+   * Retourne { coffre (sans comptes), trousseau, privee8 de l'administrateur, provisoires: [{ compte, motDePasse }] }.
+   */
+  async function migrerCoffre(ancien, cleDonnees, comptes, options) {
+    var origine = C.deb64(await C.exporterCle(cleDonnees));
+    var noms = [PLATEFORME].concat(options.modules || []);
+    var t = {}, cles = {};
+    noms.forEach(function (nom) { var o = {}; o[1] = origine.slice(); t[nom] = nouveauJeu(nom, 2, o, C.nouvelleMaitresse()); cles[nom] = { courante: 2, origine: true }; });
+    origine.fill(0);
+    var coffre = { format: 'SIC-coffre', version: 2, creeLe: ancien.creeLe, migreLe: new Date().toISOString(), agents: {}, emballages: [], cles: cles, enveloppes: [] };
+    if (ancien.formation) coffre.formation = ancien.formation;   // clé du jeu protégée par l'ancienne clé : génération 1 d'Isocont
+    var sec = await C.nouvellePaire(), sec8 = await C.exporterPrivee(sec.privateKey);
+    coffre.agents[SECOURS] = { publique: await C.exporterPublique(sec.publicKey) };
+    var embSec = await C.emballerCodeSecours(sec8, options.codeSecours);
+    embSec.id = options.id(); embSec.userId = null;
+    sec8.fill(0);
+    coffre.emballages.push(embSec);
+    coffre.enveloppes = coffre.enveloppes.concat(await enveloppesSecours(t, coffre, sec.publicKey));
+    var provisoires = [], privee8 = null;
+    for (var i = 0; i < comptes.length; i++) {
+      var c = comptes[i];
+      if (!c.actif) continue;   // compte désactivé : clé personnelle créée à sa réactivation (réinitialisation)
+      var estAdmin = c.id === options.adminId, mdp = estAdmin ? options.motDePasseAdmin : options.provisoire();
+      var a = await nouvelAgent(t, coffre, c, mdp, estAdmin ? undefined : C.ITERATIONS_PROVISOIRE);
+      a.emballage.id = options.id(); a.emballage.userId = c.id; a.emballage.login = c.login;
+      coffre.agents[c.id] = { publique: a.publique };
+      coffre.emballages.push(a.emballage);
+      coffre.enveloppes = coffre.enveloppes.concat(a.enveloppes);
+      if (estAdmin) privee8 = a.privee8; else { a.privee8.fill(0); provisoires.push({ compte: c, motDePasse: mdp }); }
+    }
+    if (!privee8) throw new Error('Compte administrateur introuvable parmi les comptes actifs.');
+    return { coffre: coffre, trousseau: t, privee8: privee8, provisoires: provisoires };
+  }
+
   return {
-    PLATEFORME: PLATEFORME, SECOURS: SECOURS, jeuV1: jeuV1, nouveauJeu: nouveauJeu, droitsDe: droitsDe, enveloppesPour: enveloppesPour,
+    PLATEFORME: PLATEFORME, migrerCoffre: migrerCoffre, enveloppesSecours: enveloppesSecours, SECOURS: SECOURS, jeuV1: jeuV1, nouveauJeu: nouveauJeu, droitsDe: droitsDe, enveloppesPour: enveloppesPour,
     ouvrir: ouvrir, manquantes: manquantes, effacer: effacer, creerCoffre: creerCoffre, nouvelAgent: nouvelAgent,
     renouvelerEnveloppes: renouvelerEnveloppes, nouveauSecours: nouveauSecours
   };

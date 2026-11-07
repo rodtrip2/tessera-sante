@@ -201,7 +201,7 @@
 
   async function demarrerSession() {
     App.session = new SIC.Session(App.dossier);
-    App.session.sur(function (s, info) { if (App.session.cle) apresNotification(info); });
+    App.session.sur(function (s, info) { if (info && info.source === 'verrou') { verrouiller(info.message); return; } if (App.session.cle) apresNotification(info); });
     await App.session.chargerCoffre();
     App.anomalie = App.session.coffre ? null : await App.dossier.anomalie();
     App.deplacement = null; App.secours = false;
@@ -876,6 +876,30 @@
 
   function vueAdmin() {
     var s = App.session, cfg = config();
+    // -- Migration vers le trousseau de clés (coffre version 1, étape 4)
+    var pTrousseau = null;
+    if (s.migrationTrousseauPossible() && !s.formation) {
+      pTrousseau = h('section', { class: 'panneau' }, h('h2', { text: 'Protection des données : passage au trousseau de clés' }),
+        h('p', { text: 'Ce dossier est protégé par une clé unique, détenue par tous les comptes. Le trousseau donne à chaque droit sa propre clé : un agent ne reçoit que les clés de ce à quoi il a droit, et le code de secours ouvre toujours tout.' }),
+        h('ul', {},
+          h('li', { text: 'Aucune saisie n’est modifiée : l’historique reste lisible comme aujourd’hui ; seules les saisies à venir sont cloisonnées.' }),
+          h('li', { text: 'Vous gardez votre mot de passe. Les autres comptes actifs reçoivent un mot de passe provisoire (fiches de remise à imprimer), à changer à leur prochaine connexion.' }),
+          h('li', { text: 'Les clés de sécurité (YubiKey) sont à réenregistrer et la copie du coffre sous scellé est à refaire.' }),
+          h('li', { text: 'L’ancien coffre reste dans l’historique du coffre : il peut être remis en place depuis cet onglet (« Revenir à la clé unique »), mais les saisies faites après la migration ne seraient plus lisibles.' })),
+        h('div', { class: 'actions' }, h('button', { class: 'btn primaire', onclick: function () { modaleMigrationTrousseau(); } }, 'Passer au trousseau…')));
+    }
+    else if (s.coffre && s.coffre.migreLe && !s.formation && s.utilisateur.id !== 'secours' && (s.utilisateur.roles || []).indexOf('ADMIN') >= 0) {
+      pTrousseau = h('section', { class: 'panneau' }, h('h2', { text: 'Trousseau de clés' }),
+        h('p', { class: 'muted', text: 'Trousseau en place depuis le ' + date(Date.parse(s.coffre.migreLe)) + '. En cas de difficulté, l’ancien coffre (clé unique) peut être remis en place tant qu’il figure dans l’historique du coffre.' }),
+        h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: async function () {
+          try {
+            if (!(await s.retourAvantTrousseauPossible())) throw new Error('L’ancien coffre ne figure plus dans l’historique du coffre.');
+            if (!confirm('Revenir à la clé unique ?\n\nLes saisies faites depuis la migration ne seront plus lisibles. Chaque agent se reconnectera avec son mot de passe d’avant la migration ; les mots de passe provisoires et le code de secours créés à la migration ne serviront plus.')) return;
+            await s.revenirAvantTrousseau();
+            verrouiller('Ancien coffre remis en place : reconnectez-vous avec votre mot de passe d’avant la migration.');
+          } catch (err) { alert(err.message); }
+        } }, 'Revenir à la clé unique…')));
+    }
     var comptes = h('section', { class: 'panneau' }, h('h2', { text: 'Comptes' }),
       h('p', { class: 'muted', text: 'Un compte peut cumuler plusieurs rôles. Les services affectés limitent ce que l’agent voit, à la connexion comme à la création d’une mesure ; un administrateur voit tous les services.' }),
       h('div', { class: 'table-wrap' }, h('table', {},
@@ -1062,7 +1086,7 @@
           ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos]]]));
     }
     return sousOngletsAdmin([].concat(
-      [['comptes', 'Comptes et sécurité', [comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()]],
+      [['comptes', 'Comptes et sécurité', [pTrousseau, comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
         ['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)]],
       pModule.onglets,
       [['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
@@ -1081,6 +1105,33 @@
       }));
       return h('div', {}, h('h1', { text: 'Administration' }), nav, h('div', { class: 'contenu-sous-onglet' }, actif[2]));
     }
+  }
+
+  /** Fenêtre de migration vers le trousseau : mot de passe de l'administrateur, code de secours actuel (facultatif). */
+  function modaleMigrationTrousseau() {
+    var mdp = h('input', { type: 'password', autocomplete: 'current-password' });
+    var code = h('input', { type: 'text', autocomplete: 'off', placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX' });
+    var copie = h('input', { type: 'checkbox' });
+    modale('Passer au trousseau de clés', h('div', { class: 'pile' },
+      h('div', { class: 'alerte', text: 'Avant tout dossier réel : faites une copie complète (Sauvegardes et exports), restaurez-la dans un dossier vide et essayez-y la migration.' }),
+      h('label', {}, 'Votre mot de passe', mdp),
+      h('label', {}, 'Code de secours actuel (facultatif : laissé vide, un nouveau code est créé)', code),
+      h('label', { class: 'case' }, copie, h('span', { text: 'J’ai fait une copie complète des données et je l’ai essayée.' }))),
+      [{ texte: 'Annuler' }, { texte: 'Migrer', classe: 'primaire', action: async function () {
+        if (!copie.checked) throw new Error('Faites d’abord une copie complète des données et essayez-la.');
+        var r = await App.session.migrerVersTrousseau(mdp.value, code.value);
+        setTimeout(function () {
+          var suite = function () { if (r.provisoires.length && SIC.ui.actions.fichesRemise) SIC.ui.actions.fichesRemise(r.provisoires, 'Passage au trousseau'); };
+          if (r.codeSecours) {
+            modale('Nouveau code de secours', h('div', { class: 'pile' },
+              h('p', { text: 'Le trousseau est en place. Notez ce nouveau code de secours et conservez-le sous scellé : il ouvre toutes les données. L’ancien code n’ouvre plus rien.' }),
+              h('div', { class: 'code-secours', text: r.codeSecours }),
+              h('p', { class: 'muted', text: 'Refaites ensuite la copie du coffre sous scellé (Sauvegardes et exports).' })),
+              [{ texte: 'J’ai noté le code', classe: 'primaire', action: function () { setTimeout(suite, 0); return true; } }]);
+          } else { toast('Trousseau en place. Refaites la copie du coffre sous scellé.'); suite(); }
+          rendreContenu();
+        }, 0);
+      } }]);
   }
 
   function casesRoles(actuels) {
