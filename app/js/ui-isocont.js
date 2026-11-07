@@ -2,7 +2,8 @@
 /*
  * Module Isocont — vues et fenêtres de saisie (étape 1 du plan d'architecture, premier bloc d'écran sorti de ui.js) :
  * tableau de bord, mesures, JLD, surveillance, registre ; nouvelle mesure, fin, pause, reprise, tiers, JLD, détail,
- * lieu, correction, proposition, professionnels ; libellés du journal (SIC.ui.journal). Les outils d'affichage et la coquille (en-tête, onglets, fenêtres)
+ * lieu, correction, proposition, professionnels ; libellés du journal (SIC.ui.journal) ;
+ * panneaux d'administration (SIC.ui.admin). Les outils d'affichage et la coquille (en-tête, onglets, fenêtres)
  * viennent de ui.js (SIC.ui) ; les vues sont déclarées dans SIC.ui.vues, que la coquille affiche.
  * Doit être chargé juste après ui.js (les autres fichiers d'interface lisent les aides déclarées ici).
  * Construction du DOM sans innerHTML : aucune donnée saisie n'est jamais interprétée comme du HTML.
@@ -16,6 +17,7 @@
   var toast = U.toast, modale = U.modale, fmtJour = U.fmtJour, rendreContenu = U.rendreContenu, exporter = U.exporter;
   var App = U.App, st = U.st, config = U.config, services = U.services, libService = U.libService, etablissement = U.etablissement, lieu = U.lieu;
   var patient = U.patient, nomPatient = U.nomPatient, modeActuel = U.modeActuel, dansService = U.dansService, idMesure = U.idMesure;
+  var boutonEnregistrer = U.boutonEnregistrer, enregistrerConfig = U.enregistrerConfig, lignesDe = U.lignesDe, zoneTexte = U.zoneTexte, periodeDepuis = U.periodeDepuis;
 
   // ================================================================ Libellés
   var LIB_TIERS = { INFORME: 'Tiers informé', TENTATIVE: 'Tentative sans succès', PAS_DE_TIERS: 'Pas de tiers identifié', REFUS_PATIENT: 'Refus du patient', AUTRE: 'Non informé — autre motif' };
@@ -1391,6 +1393,318 @@
     libelleType: function (type) { return lieu(LIB_EVT[type]) || type; },
     effetAnnulation: function (e) { return EFFET_ANNULATION[e.type] || null; }
   };
+
+  // ================================================================ Administration : panneaux d'Isocont
+  /**
+   * Panneaux d'administration du module, lus par la coquille (SIC.ui.admin) : contributions aux onglets communs
+   * (« Établissement et services », « Sauvegardes et exports ») et onglets propres au module, dans l'ordre d'affichage.
+   * `formation` : jeu de formation ouvert (paramétrage du seul jeu de formation, sans import ni archive).
+   */
+  function panneauxAdmin(formation) {
+    var cfg = config();
+    var tOrgJLD = h('textarea', { rows: 2, maxlength: 300, placeholder: 'Ex. : envois assurés par la secrétaire en semaine, par l’IDE le week-end et en son absence.' }, String(cfg.organisationJLD || ''));
+    var pOrgJLD = h('section', { class: 'panneau' }, h('h2', { text: 'Organisation des envois au JLD' }),
+      h('p', { class: 'muted', text: 'Rappel affiché en tête de l’onglet JLD : qui fait les envois au juge, selon la politique de l’établissement. Laissez vide pour ne rien afficher. Les droits de saisie des envois se règlent par les rôles des comptes.' }),
+      h('label', {}, 'Texte affiché', tOrgJLD),
+      boutonEnregistrer(async function () { await enregistrerConfig([['organisationJLD', tOrgJLD.value.trim()]]); }));
+
+    // -- Appellation des lieux dédiés à l'isolement
+    var lieuAct = M.libLieu(cfg), lieuxProp = M.LIEUX_ISOLEMENT;
+    var iCourt = h('input', { type: 'text', maxlength: 12, value: lieuAct.court }), iLong = h('input', { type: 'text', maxlength: 60, value: lieuAct.long }), iLongs = h('input', { type: 'text', maxlength: 60, value: lieuAct.longs });
+    var indexAct = lieuxProp.map(function (x) { return x.court + '|' + x.long; }).indexOf(lieuAct.court + '|' + lieuAct.long);
+    var selLieuNom = h('select', { onchange: function () { var x = lieuxProp[+selLieuNom.value]; if (x) { iCourt.value = x.court; iLong.value = x.long; iLongs.value = x.longs; } majApercuLieu(); } },
+      lieuxProp.map(function (x, i) { return h('option', { value: i, text: x.long + ' (' + x.court + ')', selected: i === indexAct }); }),
+      h('option', { value: 'autre', text: 'Autre appellation…', selected: indexAct < 0 }));
+    var apercuLieu = h('small', { class: 'muted' });
+    function majApercuLieu() {
+      var v = { lieuIsolement: { court: iCourt.value, long: iLong.value, longs: iLongs.value } };
+      apercuLieu.textContent = 'Aperçu : ' + M.txtLieu(v, '« Surveillance CSI » · « Contention hors CSI » · « Chambres de soins intensifs du service »');
+    }
+    [iCourt, iLong, iLongs].forEach(function (i) { i.addEventListener('input', function () { selLieuNom.value = 'autre'; majApercuLieu(); }); });
+    majApercuLieu();
+    var pLieuNom = h('section', { class: 'panneau' }, h('h2', { text: 'Appellation des lieux dédiés à l’isolement' }),
+      h('p', { class: 'muted', text: 'Nom utilisé dans les textes de l’outil (onglets, alertes, registre, statistiques, décompte) : « chambre de soins intensifs (CSI) » par défaut. Les noms des lieux saisis ci-dessus (ex. « CSI 1 ») ne sont pas modifiés. Les règles de calcul et le registre restent identiques.' }),
+      h('label', {}, 'Appellation', selLieuNom),
+      h('div', { class: 'grille-3' }, h('label', {}, 'Sigle (court, pour les onglets et colonnes)', iCourt), h('label', {}, 'Libellé au singulier', iLong), h('label', {}, 'Libellé au pluriel', iLongs)),
+      apercuLieu,
+      boutonEnregistrer(async function () {
+        if (!iCourt.value.trim() || !iLong.value.trim()) throw new Error('Le sigle et le libellé sont obligatoires.');
+        await enregistrerConfig([['lieuIsolement', { court: iCourt.value.trim(), long: iLong.value.trim(), longs: iLongs.value.trim() || iLong.value.trim() }]]);
+      }));
+
+    // -- Surveillance
+    var tPer = zoneTexte((cfg.periodes || []).map(function (p) { return p.code + ' ; ' + p.libelle + ' ; ' + p.debut + ' ; ' + p.fin; }).join('\n'), 3);
+    // -- Information du tiers : fonctions proposées (le psychiatre est toujours en tête)
+    var infoTiers = M.informateursTiers(cfg).filter(function (f) { return !f.psychiatre; });
+    var tTiers = h('textarea', { rows: 4 }, infoTiers.map(function (f) { return f.libelle; }).join('\n'));
+    var pTiers = h('section', { class: 'panneau' }, h('h2', { text: 'Information du tiers : qui peut la réaliser' }),
+      h('p', { class: 'muted', text: 'L’article L. 3222-5-1 confie l’information de la famille ou du proche au médecin. « Le psychiatre » est donc toujours proposé en premier ; ajoutez ici les autres fonctions qui peuvent la réaliser dans votre établissement (une par ligne), par exemple : IDE, cadre de santé, médecin de garde, assistant de service social. Le nom de la personne peut être précisé à chaque saisie.' }),
+      SIC.ui.extraitLoiTiers(true),
+      h('label', {}, 'Autres fonctions proposées (une par ligne)', tTiers),
+      boutonEnregistrer(async function () {
+        var vus = {}, v = [];
+        lignesDe(tTiers).forEach(function (l) {
+          var cle = l.toLowerCase();
+          if (vus[cle] || /^(le )?psychiatre$/i.test(l)) return; vus[cle] = 1;
+          var ancien = infoTiers.filter(function (f) { return f.libelle.toLowerCase() === cle; })[0];
+          v.push({ code: ancien ? ancien.code : 'F:' + l, libelle: l });
+        });
+        await enregistrerConfig([['informateursTiers', v]]);
+      }));
+
+    var lignesPS = [];
+    Object.keys(cfg.periodesService || {}).forEach(function (sv) { (cfg.periodesService[sv] || []).forEach(function (p) { lignesPS.push(sv + ' ; ' + p.code + ' ; ' + p.libelle + ' ; ' + p.debut + ' ; ' + p.fin); }); });
+    var tPerSv = zoneTexte(lignesPS.join('\n'), 3);
+    var rolesSurv = M.optionsSurveillance(cfg).rolesListe, cbRolesSurv = {};
+    var casesRolesSurv = h('div', { class: 'cases-ligne' }, M.rolesConfig(cfg).filter(function (r) { return !r.admin; }).map(function (r) {
+      cbRolesSurv[r.code] = h('input', { type: 'checkbox', checked: rolesSurv.indexOf(r.code) >= 0 });
+      return h('label', { class: 'case' }, cbRolesSurv[r.code], h('span', { text: r.libelle }));
+    }));
+    var minPoste = h('select', {}, [1, 2, 3, 4, 5, 6].map(function (n) { return h('option', { value: n, text: String(n), selected: n === M.optionsSurveillance(cfg).minParPoste }); }));
+    var pSurv = h('section', { class: 'panneau' }, h('h2', { text: lieu('Postes de surveillance en CSI') }),
+      h('div', { class: 'grille-2' },
+        h('label', {}, 'Postes par défaut (code ; libellé ; début ; fin)', tPer),
+        h('label', {}, 'Postes propres à un service (service ; code ; libellé ; début ; fin)', tPerSv)),
+      h('small', { class: 'muted', text: 'Un service qui a ses propres postes n’utilise pas les postes par défaut. Ne changez pas le code d’un poste déjà utilisé.' }),
+      h('label', { class: 'en-ligne' }, 'Professionnels attendus par poste (minimum)', minPoste),
+      h('fieldset', {}, h('legend', { text: 'Agents proposés dans la liste de la fenêtre « Ajouter » (comptes portant ces rôles, affectés au service)' }), casesRolesSurv),
+      h('small', { class: 'muted', text: lieu('En dessous de ce nombre, le poste est signalé « à renseigner » (onglet Surveillance CSI et tableau de bord).') }),
+      boutonEnregistrer(async function () {
+        var pers = lignesDe(tPer).map(function (l) { return periodeDepuis(l.split(';').map(function (v) { return v.trim(); }), l); });
+        var parSv = {};
+        lignesDe(tPerSv).forEach(function (l) { var x = l.split(';').map(function (v) { return v.trim(); }); if (x.length !== 5) throw new Error('Poste mal formé : ' + l); (parSv[x[0]] = parSv[x[0]] || []).push(periodeDepuis(x.slice(1), l)); });
+        await enregistrerConfig([['periodes', pers], ['periodesService', parSv], ['surveillance', { minParPoste: +minPoste.value, rolesListe: Object.keys(cbRolesSurv).filter(function (k) { return cbRolesSurv[k].checked; }) }]]);
+      }));
+
+    // -- Règles légales
+    var champs = [['seuilInfo15j', 'Information du JLD : seuil de cumul sur 15 jours (h)'], ['seuilSaisine15j', 'Saisine du JLD : seuil de cumul sur 15 jours (h)'], ['seuilDecision15j', 'Décision du JLD : seuil de cumul sur 15 jours (h)'],
+      ['intervalleCycle', 'Intervalle entre deux cycles (h)'], ['rythmeLongCycle', 'Rythme des mesures longues à partir du cycle (0 = désactivé)'], ['rythmeLongInfoSaisine', 'Rythme long : information et saisine (h)'], ['rythmeLongDecision', 'Rythme long : décision (h)'], ['seuilJaune', 'Alerte « échéance proche » (h avant)']];
+    var entrees = {};
+    var tbody = h('tbody', {}, champs.map(function (c) {
+      return h('tr', {}, h('td', { text: c[1] }), ['Isolement', 'Contention'].map(function (t) {
+        var p = R.params(t, cfg.parametres);
+        var inp = h('input', { type: 'number', min: 0, step: 1, value: p[c[0]], class: 'champ-court' });
+        entrees[t + c[0]] = inp;
+        return h('td', {}, inp, p[c[0]] !== R.PARAMETRES_DEFAUT[t][c[0]] ? h('small', { class: 'muted', text: ' (défaut ' + R.PARAMETRES_DEFAUT[t][c[0]] + ')' }) : null);
+      }));
+    }));
+    var delaiMode = h('input', { type: 'number', min: 0, max: 72, value: cfg.delaiModeHospiHeures == null ? 12 : cfg.delaiModeHospiHeures });
+    var inact = h('input', { type: 'number', min: 2, max: 60, value: cfg.inactiviteMinutes || 10 });
+    var pRegles = h('section', { class: 'panneau' }, h('h2', { text: 'Règles légales et sécurité' }),
+      h('div', { class: 'alerte', text: 'Les valeurs par défaut traduisent l’article L. 3222-5-1 du code de la santé publique et la circulaire du 25 mars 2022. Ne les modifiez qu’en cas d’évolution des textes, après avis de la direction.' }),
+      h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: 'Paramètre' }), h('th', { text: 'Isolement' }), h('th', { text: 'Contention' }))), tbody)),
+      h('div', { class: 'grille-2' },
+        h('label', {}, 'Registre : passage des soins libres à une hospitalisation sous contrainte retenu s’il survient dans les … heures suivant le début', delaiMode),
+        h('label', {}, 'Verrouillage automatique après inactivité (minutes)', inact)),
+      boutonEnregistrer(async function () {
+        var par = {};
+        ['Isolement', 'Contention'].forEach(function (t) {
+          champs.forEach(function (c) {
+            var v = +entrees[t + c[0]].value;
+            if (!isFinite(v) || v < 0) throw new Error('Valeur invalide : ' + c[1] + ' (' + t + ')');
+            if (v !== R.PARAMETRES_DEFAUT[t][c[0]]) { par[t] = par[t] || {}; par[t][c[0]] = v; }
+          });
+        });
+        await enregistrerConfig([['parametres', par], ['delaiModeHospiHeures', Math.max(0, +delaiMode.value || 0)], ['inactiviteMinutes', Math.max(2, Math.min(60, +inact.value || 10))]]);
+      }));
+
+    // -- Pauses (levées temporaires)
+    var op = M.optionsPauses(cfg);
+    var cbActive = h('input', { type: 'checkbox', checked: op.active });
+    var cbRetr = h('input', { type: 'checkbox', checked: op.retrancher });
+    var radPortee = function (v, texte) { var r = h('input', { type: 'radio', name: 'portee-pauses', value: v, checked: op.portee === v }); return h('label', { class: 'case' }, r, h('span', { text: texte })); };
+    var blocPortee = h('div', { class: 'pile retrait' },
+      h('b', { text: 'Où déduire les pauses ?' }),
+      radPortee('jld', 'Pour les délais JLD seulement (échéances, cumuls sur 15 jours, décompte) : le registre et les statistiques gardent la durée réelle, levées temporaires comprises'),
+      radPortee('partout', 'Partout : délais JLD, et aussi registre anonymisé et statistiques (durées hors pauses)'));
+    var radCS = function (v, texte) { return h('label', { class: 'case' }, h('input', { type: 'radio', name: 'contention-seule', value: v, checked: op.contentionSeule === v }), h('span', { text: texte })); };
+    var blocCS = h('div', { class: 'pile retrait' },
+      h('b', { text: 'Registre : pause de la contention seule (le patient reste à l’isolement)' }),
+      radCS('isolement', 'Compter ce temps en isolement seul : il forme une entrée A supplémentaire (durée de l’isolement exacte, une entrée de plus)'),
+      radCS('contention', 'Le laisser dans l’entrée de contention (C), sans le déduire (pas d’entrée supplémentaire)'),
+      h('small', { class: 'muted', text: lieu('Une pause commune à la contention et à l’isolement (le patient quitte le lieu d’isolement) est toujours déduite.') }));
+    blocPortee.appendChild(blocCS);
+    function majCS() { blocCS.hidden = ((blocPortee.querySelector('input[name=portee-pauses]:checked') || {}).value) !== 'partout'; }
+    blocPortee.addEventListener('change', majCS); majCS();
+    var cbCol = h('input', { type: 'checkbox', checked: op.colonneRegistre });
+    var cbVerrou = h('input', { type: 'checkbox', checked: op.verrouContention });
+    var cbAuto = h('input', { type: 'checkbox', checked: op.repriseAuto });
+    var nAlerte = h('input', { type: 'number', min: 0, max: M.PAUSE_MAX_HEURES, step: 0.5, value: op.alerteHeures, class: 'champ-court' });
+    var nRefus = h('input', { type: 'number', min: 1, max: M.PAUSE_MAX_HEURES, step: 0.5, value: op.refusHeures, class: 'champ-court' });
+    var avertRetr = h('div', { class: 'alerte', text: 'Déduire les pauses reporte les échéances JLD de la durée des pauses. Ce choix relève d’une lecture des textes à valider par la direction (et, si possible, avec le JLD) : la loi prévoit qu’une mesure reprise moins de 48 h après la fin de la précédente s’y ajoute, ce qui plaide pour laisser courir la durée. Le réglage s’applique à toutes les mesures, y compris passées, et il est tracé dans le journal.' });
+    var reglagesPause = h('div', { class: 'pile' },
+      h('label', { class: 'case' }, cbRetr, h('span', { text: 'Déduire la durée des pauses du cumul' })),
+      h('div', { class: 'pile retrait' }, avertRetr, blocPortee, h('small', { class: 'muted', text: 'Une pause sans reprise saisie n’est déduite que jusqu’à son heure de reprise prévue.' })),
+      h('label', { class: 'case' }, cbVerrou, h('span', { text: 'Interdire la pause de l’isolement seul quand une contention est en cours : la contention doit être mise en pause elle aussi, ou terminée dans la même saisie' })),
+      h('label', { class: 'case' }, cbCol, h('span', { text: 'Afficher les levées temporaires dans le registre anonymisé (colonne : nombre et durée), et dans son export' })),
+      h('label', { class: 'case' }, cbAuto, h('span', { text: 'Reprise automatique à l’heure prévue (sans saisie de la reprise)' })),
+      h('small', { class: 'muted', text: 'Sans reprise automatique, une reprise prévue dépassée et non saisie est signalée en rouge. Avec elle, la mesure reprend d’elle-même ; une reprise plus tôt que prévu se saisit avec le bouton Reprise, et un patient qui ne réintègre pas la mesure doit faire l’objet d’une fin de mesure.' }),
+      h('div', { class: 'grille-2' },
+        h('label', {}, 'Alerte : pause de plus de … heures (0 = aucune alerte)', nAlerte),
+        h('label', {}, 'Refus : pause de … heures ou plus (' + M.PAUSE_MAX_HEURES + ' h au maximum)', nRefus)),
+      h('small', { class: 'muted', text: 'Le refus ne peut pas dépasser ' + M.PAUSE_MAX_HEURES + ' h : une interruption de 48 h ou plus n’est pas une levée temporaire, c’est une fin de mesure.' }));
+    var infoInactive = h('div', { class: 'info', text: 'La levée temporaire est désactivée : le bouton « Pause » n’apparaît plus dans la page des mesures. Les pauses déjà saisies restent visibles dans l’historique et comptées dans la durée des mesures ; une pause en cours peut encore être reprise.' });
+    function majPauses() {
+      if (cbRetr.checked) cbActive.checked = true;
+      cbActive.disabled = cbRetr.checked;
+      reglagesPause.hidden = !cbActive.checked; infoInactive.hidden = cbActive.checked;
+      avertRetr.parentNode.hidden = !cbRetr.checked;
+    }
+    cbActive.addEventListener('change', majPauses); cbRetr.addEventListener('change', majPauses);
+    var pPauses = h('section', { class: 'panneau' }, h('h2', { text: 'Pauses (levées temporaires)' }),
+      h('label', { class: 'case' }, cbActive, h('span', { text: 'Activer la levée temporaire (bouton « Pause » dans la page des mesures)' })),
+      h('small', { class: 'muted', text: 'Ne peut être désactivée que si les pauses ne sont pas déduites.' }),
+      infoInactive, reglagesPause,
+      boutonEnregistrer(async function () {
+        var a = +nAlerte.value, r = +nRefus.value;
+        if (!isFinite(r) || r <= 0 || r > M.PAUSE_MAX_HEURES) throw new Error('Le seuil de refus doit être compris entre 0 et ' + M.PAUSE_MAX_HEURES + ' h.');
+        if (!isFinite(a) || a < 0 || (a && a >= r)) throw new Error('Le seuil d’alerte doit être inférieur au seuil de refus (0 pour aucune alerte).');
+        var portee = (blocPortee.querySelector('input[name=portee-pauses]:checked') || {}).value || 'jld';
+        var contentionSeule = (blocCS.querySelector('input:checked') || {}).value || 'isolement';
+        var avant = M.optionsPauses(cfg);
+        var msgs = [];
+        if (cbRetr.checked !== avant.retrancher) msgs.push(cbRetr.checked ? 'Déduire les pauses va reporter les échéances JLD de toutes les mesures concernées.' : 'Ne plus déduire les pauses va avancer les échéances JLD des mesures concernées.');
+        if (cbRetr.checked && portee !== avant.portee) msgs.push(portee === 'partout' ? 'Les durées du registre et des statistiques seront désormais hors pauses.' : 'Le registre et les statistiques reprendront les durées réelles.');
+        if (cbRetr.checked && portee === 'partout' && contentionSeule !== avant.contentionSeule) msgs.push(contentionSeule === 'isolement' ? 'Les pauses de contention seule formeront des entrées A au registre.' : 'Les pauses de contention seule resteront dans l’entrée C du registre.');
+        if (cbActive.checked !== avant.active) msgs.push(cbActive.checked ? 'Le bouton « Pause » sera disponible dans la page des mesures.' : 'Le bouton « Pause » disparaîtra de la page des mesures.');
+        if (msgs.length && !confirm(msgs.join('\n') + '\nConfirmer ?')) return false;
+        await enregistrerConfig([['pauses', { active: cbActive.checked, retrancher: cbRetr.checked, portee: portee, contentionSeule: contentionSeule, verrouContention: cbVerrou.checked, colonneRegistre: cbCol.checked, repriseAuto: cbAuto.checked, alerteHeures: a, refusHeures: r }]]);
+      }));
+    majPauses();
+
+    if (!App.sousOngletAdmin) { try { App.sousOngletAdmin = localStorage.getItem('sic-admin') || ''; } catch (e) { App.sousOngletAdmin = ''; } }
+    var pMasques = SIC.ui.actions.panneauMasquesDecompte && App.sousOngletAdmin === 'decompte' ? SIC.ui.actions.panneauMasquesDecompte() : null;
+
+    // -- Colonnes annuelles de l'onglet Patients
+    var colsP = M.colonnesPatients(cfg).map(function (c) { return { libelle: c.libelle, categories: c.categories.slice(), alerte: c.alerte }; });
+    var corpsCols = h('tbody');
+    function dessinerColsP() {
+      vider(corpsCols);
+      colsP.forEach(function (c, i) {
+        var lib = h('input', { type: 'text', value: c.libelle, oninput: function () { c.libelle = lib.value; } });
+        corpsCols.appendChild(h('tr', {},
+          h('td', {}, lib),
+          ['A', 'B', 'C', 'D', 'E'].map(function (k) {
+            var cb = h('input', { type: 'checkbox', checked: c.categories.indexOf(k) >= 0, 'aria-label': 'Catégorie ' + k, title: lieu(M.LIB_CATEGORIES[k]), onchange: function () { c.categories = ['A', 'B', 'C', 'D', 'E'].filter(function (x) { return x === k ? cb.checked : c.categories.indexOf(x) >= 0; }); } });
+            return h('td', { class: 'centre' }, cb);
+          }),
+          h('td', { class: 'centre' }, h('input', { type: 'checkbox', checked: c.alerte, 'aria-label': 'Alerte si différent de 0', onchange: function (ev) { c.alerte = ev.target.checked; } })),
+          h('td', {}, h('button', { class: 'btn petit', onclick: function () { colsP.splice(i, 1); dessinerColsP(); } }, 'Retirer'))));
+      });
+    }
+    dessinerColsP();
+    var pColsP = h('section', { class: 'panneau' }, h('h2', { text: 'Onglet Patients : statistiques annuelles' }),
+      h('p', { class: 'muted', text: lieu('Chaque colonne regroupe des catégories du registre et affiche, pour l’année choisie, le nombre d’entrées et leur durée cumulée. Rappel : une contention en CSI et l’isolement qui l’accompagne forment une seule entrée en catégorie C, alors que le juge compte une mesure d’isolement et une mesure de contention (colonne « Mesures (JLD) », toujours affichée).') }),
+      h('div', { class: 'table-wrap' }, h('table', {},
+        h('thead', {}, h('tr', {}, h('th', { text: 'Libellé de la colonne' }), ['A', 'B', 'C', 'D', 'E'].map(function (k) { return h('th', { class: 'centre', title: lieu(M.LIB_CATEGORIES[k]), text: k }); }), h('th', { class: 'centre', text: 'Devrait rester à 0' }), h('th'))),
+        corpsCols)),
+      h('small', { class: 'muted', text: Object.keys(M.LIB_CATEGORIES).map(function (k) { return k + ' : ' + lieu(M.LIB_CATEGORIES[k]); }).join(' · ') }),
+      h('div', { class: 'actions' },
+        h('button', { class: 'btn', onclick: function () { colsP.push({ libelle: '', categories: [], alerte: false }); dessinerColsP(); } }, '+ Ajouter une colonne'),
+        h('button', { class: 'btn', onclick: function () { colsP = M.CONFIG_DEFAUT.colonnesPatients.map(function (c) { return { libelle: c.libelle, categories: c.categories.slice(), alerte: c.alerte }; }); dessinerColsP(); } }, 'Colonnes par défaut')),
+      boutonEnregistrer(async function () {
+        var v = colsP.map(function (c) { return { libelle: String(c.libelle || '').trim(), categories: c.categories, alerte: !!c.alerte }; });
+        v.forEach(function (c, i) {
+          if (!c.libelle) throw new Error('Colonne ' + (i + 1) + ' : indiquez un libellé.');
+          if (!c.categories.length) throw new Error('Colonne « ' + c.libelle + ' » : cochez au moins une catégorie.');
+        });
+        await enregistrerConfig([['colonnesPatients', v]]);
+      }));
+
+    // -- Registre
+    var lignesC = [];
+    Object.keys(cfg.compteursRegistre || {}).forEach(function (sv) { Object.keys(cfg.compteursRegistre[sv]).forEach(function (an) { lignesC.push(sv + ' ; ' + an + ' ; ' + cfg.compteursRegistre[sv][an]); }); });
+    var tComp = zoneTexte(lignesC.join('\n'), 3);
+    var pDocs = h('section', { class: 'panneau' }, h('h2', { text: 'Registre' }),
+      h('label', {}, 'Dernier numéro utilisé dans le registre antérieur à l’outil (service ; année ; numéro)', tComp),
+      boutonEnregistrer(async function () {
+        var comp = {};
+        lignesDe(tComp).forEach(function (l) { var x = l.split(';').map(function (v) { return v.trim(); }); if (x.length !== 3 || !/^\d{4}$/.test(x[1]) || !/^\d+$/.test(x[2])) throw new Error('Ligne mal formée : ' + l); comp[x[0]] = comp[x[0]] || {}; comp[x[0]][x[1]] = +x[2]; });
+        await enregistrerConfig([['compteursRegistre', comp]]);
+      }),
+      blocNumerotationImportee());
+
+    /** Années contenant des mesures importées déjà numérotées dans le classeur : numérotation conservée ou recalculée. */
+    function blocNumerotationImportee() {
+      var groupes = {};
+      M.listeMesures(st()).forEach(function (m) {
+        if (!m.numeroOrigine) return;
+        var an = new Date(m.debut).getFullYear(), k = m.service + '|' + an;
+        groupes[k] = groupes[k] || { service: m.service, annee: an, n: 0 }; groupes[k].n++;
+      });
+      var liste = Object.keys(groupes).sort().map(function (k) { return groupes[k]; });
+      if (!liste.length) return null;
+      var fige = cfg.registreFige || {}, anneeCourante = new Date().getFullYear();
+      async function basculer(g, figer) {
+        var passee = g.annee < anneeCourante;
+        var msg = figer ? 'Revenir à la numérotation d’origine pour ' + libService(g.service) + ' ' + g.annee + ' ? Les numéros attribués par l’outil à ces mesures seront remplacés par ceux de leur document d’origine.'
+          : 'Recalculer selon les règles de l’outil les entrées de ' + libService(g.service) + ' ' + g.annee + ' ?' + (passee ? '\n\nATTENTION : année passée. Les numéros, les catégories et le nombre d’entrées du registre peuvent changer, et avec eux les statistiques et rapports déjà produits pour cette année.' : '');
+        var cpt = M.compteurPour(st(), g.service, g.annee, figer, Date.now());
+        if (cpt != null) msg += '\n\nLe compteur du registre de cette année passera à ' + cpt + (figer ? ' (dernier numéro du document importé).' : ' (dernier numéro du document importé moins les entrées que l’outil numérotera lui-même).');
+        if (!confirm(msg)) return;
+        var v = JSON.parse(JSON.stringify(fige));
+        if (figer) { v[g.service] = v[g.service] || {}; v[g.service][g.annee] = true; }
+        else if (v[g.service]) { delete v[g.service][g.annee]; if (!Object.keys(v[g.service]).length) delete v[g.service]; }
+        await App.session.enregistrer('CONFIG', { cle: 'registreFige', valeur: v });
+        if (cpt != null) {
+          var comp = JSON.parse(JSON.stringify(cfg.compteursRegistre || {}));
+          comp[g.service] = comp[g.service] || {}; comp[g.service][g.annee] = cpt;
+          await App.session.enregistrer('CONFIG', { cle: 'compteursRegistre', valeur: comp });
+        }
+        toast(figer ? 'Numérotation d’origine rétablie.' : 'Entrées recalculées selon les règles de l’outil.');
+      }
+      return h('div', { class: 'pile' },
+        h('h3', { text: 'Mesures importées déjà numérotées (classeur ou registre d’origine)' }),
+        h('p', { class: 'muted' }, h('small', { text: lieu('« D’origine » : chaque mesure importée garde la catégorie et le numéro de son document d’origine (classeur : une entrée par mesure ; registre : ses lignes à l’identique), et l’outil numérote les autres mesures en sautant ces numéros. « Outil » : les entrées sont recalculées selon les règles de l’outil (catégories A à E, une contention en CSI et son isolement formant une entrée C). Recalculer une année passée peut modifier les statistiques déjà produites.') })),
+        h('div', { class: 'table-wrap' }, h('table', {},
+          h('thead', {}, h('tr', {}, ['Service', 'Année', 'Mesures importées numérotées', 'Numérotation', ''].map(function (t) { return h('th', { text: t }); }))),
+          h('tbody', {}, liste.map(function (g) {
+            var estFige = !!(fige[g.service] && fige[g.service][g.annee]);
+            return h('tr', {},
+              h('td', { text: libService(g.service) }), h('td', { text: String(g.annee) }), h('td', { text: String(g.n) }),
+              h('td', {}, h('span', { class: 'badge ' + (estFige ? '' : 'ok'), text: estFige ? 'D’origine (conservée)' : 'Outil (recalculée)' })),
+              h('td', { class: 'actions-ligne' }, h('button', { class: 'btn petit' + (!estFige && false ? '' : ''), onclick: function () { basculer(g, !estFige); } }, estFige ? 'Recalculer selon les règles de l’outil' : 'Revenir à la numérotation d’origine')));
+          })))));
+    }
+
+    var pImport = SIC.ui.actions.importer ? h('section', { class: 'panneau' }, h('h2', { text: 'Reprise des données existantes' }),
+      h('h3', { text: 'À partir du registre du service (tout outil)' }),
+      h('p', { class: 'muted', text: 'Le registre est le seul document obligatoirement tenu sous forme numérique : exportez-le de votre outil actuel (CSV ou Excel), puis indiquez la correspondance des colonnes. Les mesures sont reconstituées à partir des entrées ; les cycles JLD et l’information des tiers ne figurant pas au registre, ils ne sont pas repris.' }),
+      h('div', { class: 'actions' },
+        h('button', { class: 'btn', onclick: function () { SIC.ui.actions.importerRegistre(); } }, 'Importer un registre…'),
+        h('button', { class: 'btn', onclick: function () {
+          var a = h('a', { href: URL.createObjectURL(new Blob([SIC.importRegistre.modeleCSV()], { type: 'text/csv;charset=utf-8' })), download: 'modele-registre-import.csv' });
+          document.body.appendChild(a); a.click(); a.remove();
+        } }, 'Télécharger le modèle de registre (CSV)')),
+      h('details', {}, h('summary', { text: 'Cas particulier : classeur Excel « Suivi_Isolement_Contention » (V1.3)' }),
+        h('p', { class: 'muted', text: 'Uniquement pour les établissements qui utilisaient ce classeur, outil Excel dont est issu le projet. Il reprend en plus les cycles JLD, l’information des tiers, la surveillance poste par poste et le paramétrage. Un import relancé ne crée pas de doublon.' }),
+        h('button', { class: 'btn', onclick: function () { SIC.ui.actions.importer('v13'); } }, 'Importer un classeur V1.3…'))) : null;
+
+    if (formation) return {
+      services: [pLieuNom, pSurv, pTiers, pOrgJLD],
+      sauvegardes: [],
+      onglets: [
+        ['regles', 'Règles et pauses', [pRegles, pPauses]],
+        ['alertes', 'Alertes', [SIC.ui.alertes.panneauAdmin()]],
+        ['cas', 'Cas particuliers', [SIC.ui.cas.panneauAdmin()]],
+        ['registre', 'Registre et statistiques', [pDocs, pColsP, SIC.ui.methode.panneauAdmin(), SIC.ui.qualite.panneauAdmin()]],
+        ['decompte', 'Décompte JLD', [pMasques]]
+      ]
+    };
+    return {
+      services: [pLieuNom, SIC.ui.listes.panneauModes(), pSurv, SIC.ui.listes.panneauListes(), pTiers, pOrgJLD, SIC.ui.listes.panneauVigilance(), SIC.ui.listes.panneauAccueil()],
+      sauvegardes: [SIC.ui.qualite.panneauArchive()],
+      onglets: [
+        ['regles', 'Règles et pauses', [pRegles, pPauses]],
+        ['alertes', 'Alertes', [SIC.ui.alertes.panneauAdmin()]],
+        ['cas', 'Cas particuliers', [SIC.ui.cas.panneauAdmin()]],
+        ['registre', 'Registre et statistiques', [pDocs, pColsP, SIC.ui.methode.panneauAdmin(), SIC.ui.qualite.panneauAdmin()]],
+        ['decompte', 'Décompte JLD', [pMasques]],
+        ['reprise', 'Reprise des données', [pImport]]
+      ]
+    };
+  }
+  U.admin = { panneaux: panneauxAdmin };
 
   // ================================================================ Déclaration auprès de la coquille
   U.vues.tableau = vueTableau; U.vues.mesures = vueMesures; U.vues.jld = vueJLD; U.vues.surveillance = vueSurveillance; U.vues.registre = vueRegistre;

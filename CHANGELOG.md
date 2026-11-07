@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.2.0 — 7 novembre 2026
+
+**Étape 1 du plan d'architecture terminée** (découper sans changer le comportement).
+
+- **Administration** : la coquille garde le cadre (sous-onglets) et les éléments communs (comptes, rôles, moyens de déblocage, choix du dossier, mode formation, établissement et services, dossier des exports, sauvegardes, réglages, à propos). Les panneaux d'Isocont (appellation des lieux, surveillance, tiers, organisation JLD, règles et pauses, alertes, cas particuliers, registre et statistiques, décompte JLD, reprise des données, archive annuelle) passent dans `ui-isocont.js`, que la coquille lit par `SIC.ui.admin`, dans le même ordre qu'avant.
+- Bilan du découpage : `model.js` → `noyau-journal.js`, `droits.js`, `exports-rangement.js` + modèle d'Isocont ; `session.js` → session du socle (un seul point d'appel au module) ; `ui.js` → coquille + `ui-isocont.js` (vues, fenêtres, libellés du journal, panneaux d'administration).
+- Vérification dans Chrome, comparée à Isocont 1.67 : chaque sous-onglet de l'administration identique (données de démonstration et mode formation), réglage enregistré depuis un panneau déplacé.
+
 ## 0.1.4 — 7 novembre 2026
 
 Étape 1 du plan d'architecture, découpage de l'interface (deuxième bloc d'écran).
