@@ -163,7 +163,8 @@
     // Réunions répétées : chaque jour ouvré, chaque lundi, le 1er mardi du mois
     rdv({ nature: 'reunion', titre: 'Transmissions', debut: lundiDe(-14, 9), fin: lundiDe(-14, 9, 30), lieu: 'Salle de soins', service: U1, regularite: { type: 'semaine', jours: [1, 2, 3, 4, 5] } });
     rdv({ nature: 'reunion', titre: 'Synthèse clinique', debut: lundiDe(-14, 14), fin: lundiDe(-14, 15), lieu: 'Salle de réunion', service: U1, regularite: { type: 'semaine', jours: [1] } });
-    rdv({ nature: 'reunion', titre: 'Réunion institutionnelle', debut: lundiDe(-35, 14), fin: lundiDe(-35, 15, 30), lieu: 'Salle de réunion', service: U1, regularite: { type: 'rangMois', rang: 1, jour: 2 } });
+    rdv({ nature: 'reunion', titre: 'Réunion institutionnelle', debut: lundiDe(-35, 14), fin: lundiDe(-35, 15, 30), lieu: 'Salle de réunion', service: U1, regularite: { type: 'rangPeriode', rang: 1, jour: 2, periode: 'mois' } });
+    rdv({ nature: 'reunion', titre: 'Réunion de pôle', debut: lundiDe(-100, 10), fin: lundiDe(-100, 12), lieu: 'Salle du pôle (fictive)', service: U1, regularite: { type: 'rangPeriode', rang: 1, jour: 4, periode: 'trimestre' } });
     // Accompagnement avec un accompagnateur à trouver (bouton « S'inscrire »)
     rdv({ nature: 'accompagnement', titre: 'Consultation extérieure', debut: jour(1, 10), fin: jour(1, 12), lieu: 'Hôpital général (fictif)', service: U1, patients: ['P03'], accompagnateurs: 1 });
     // Activité répétée mardi et vendredi, deux accompagnateurs, un agent déjà inscrit cette semaine
@@ -174,12 +175,18 @@
     rdv({ nature: 'entretien', entretien: { type: 'medical', avec: 'famille' }, titre: '', debut: jour(1, 11), fin: jour(1, 12), lieu: 'Bureau médical', service: U1, patients: ['P01'], professionnels: [{ id: null, nom: 'Dr Arnaud (fictif)' }, profA] });
     rdv({ nature: 'entretien', entretien: { type: 'infirmier', avec: 'individuel' }, titre: '', debut: jour(0, 15), fin: jour(0, 15, 45), lieu: 'Bureau infirmier', service: U1, patients: ['P05'], professionnels: [profC] });
     // Permissions : demande d'un patient en SDRE (validation 48 h avant), demande en SDT, permission de week-end validée
-    rdv({ nature: 'permission', statut: 'demande', titre: '', debut: jour(2, 14), fin: jour(2, 18), service: U2, patients: ['P04'] });
-    rdv({ nature: 'permission', statut: 'demande', titre: 'Permission en famille', debut: jour(4, 10), fin: jour(4, 17), service: U1, patients: ['P01'] });
+    rdv({ nature: 'permission', titre: '', debut: jour(2, 14), fin: jour(2, 18), service: U2, patients: ['P04'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
+    rdv({ nature: 'permission', titre: 'Permission en famille', debut: jour(4, 10), fin: jour(4, 17), service: U1, patients: ['P01'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
     var samedi = (6 - new Date(now).getDay() + 7) % 7 || 7;
-    rdv({ nature: 'permission', statut: 'validee', validation: { par: 'Dr Diallo (fictif)', le: new Date(t(-24)).toISOString() }, titre: 'Permission de week-end', debut: jour(samedi, 10), fin: jour(samedi + 1, 18), service: U2, patients: ['P06'] });
+    var permWe = rdv({ nature: 'permission', titre: 'Permission de week-end', debut: jour(samedi, 10), fin: jour(samedi + 1, 18), service: U2, patients: ['P06'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
+    ajouter(avant, 'VALIDATION', { rdv: permWe, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(samedi)), statut: 'validee', nom: 'Dr Diallo (fictif)', service: U2 });
+    // Examen (VSL à réserver, patient accompagné) ; audience JLD (deux patients, deux VSL réservés, soignants à prévoir)
+    rdv({ nature: 'examen', examen: { type: 'Scanner' }, titre: '', debut: jour(2, 9, 30), fin: jour(2, 11), lieu: 'Hôpital général (fictif), imagerie', service: U1, patients: ['P02'], accompagnateurs: 1, transports: [{ id: 'tv', type: 'vsl', nombre: 1, precision: 'Aller-retour' }] });
+    var audience = rdv({ nature: 'audience', titre: '', debut: jour(3, 14), fin: jour(3, 16), lieu: 'Salle d’audience (fictive)', service: U1, patients: ['P01', 'P02'], professionnels: [profA], accompagnateurs: 2, transports: [{ id: 'ta', type: 'vsl', nombre: 2, precision: 'Départ 13 h 15' }] });
+    ajouter(avant, 'TRANSPORT', { rdv: audience, transport: 'ta', occurrence: SIC.model.dateLocaleISO(jour(3)), statut: 'reserve', precision: 'Ambulances du centre (fictif), n° 1234', service: U1 });
+    if (options.moi && options.moi.id) ajouter(avant, 'INSCRIPTION', { rdv: audience, occurrence: SIC.model.dateLocaleISO(jour(3)), agent: options.moi.id, nom: options.moi.nom || '', service: U1 });
     // Sortie du patient avec sa check-list (un point déjà fait)
-    var sortie = rdv({ nature: 'sortie', titre: 'Sortie', debut: jour(3, 11), fin: jour(3, 11, 30), service: U1, patients: ['P03'],
+    var sortie = rdv({ nature: 'sortie', titre: 'Sortie', debut: jour(3, 11), fin: jour(3, 11, 30), service: U1, patients: ['P03'], validations: [{ id: 'va', type: 'medicale', libelle: 'Avis du psychiatre pour la sortie', delai: 48 }],
       checklist: SIC.agenda && SIC.agenda.CHECKLISTS_DEFAUT ? SIC.agenda.CHECKLISTS_DEFAUT[0].items.map(function (it, i) { return { id: 'c' + i, libelle: it.libelle, delai: it.delai }; }) : [] });
     ajouter(avant, 'CHECK', { rdv: sortie, item: 'c0', occurrence: SIC.model.dateLocaleISO(jour(3)), fait: true, service: U1 });
     // Tâches du service (récurrentes) et de l'équipe (ponctuelle)
@@ -188,8 +195,9 @@
     tache('TACHE', { titre: 'Vérification du réfrigérateur à pharmacie', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-14)), heure: '08:00', regularite: { type: 'jour' } });
     tache('TACHE', { titre: 'Commande de pharmacie', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-14)), heure: '', regularite: { type: 'semaine', jours: [1] }, consigne: 'Avant midi' });
     tache('TACHE', { titre: 'Piluliers de la semaine', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-14)), heure: '16:00', regularite: { type: 'semaine', jours: [2, 5] }, pour: { roles: ['IDE'], agents: [] } });
-    tache('TACHE', { titre: 'Contrôle du chariot d’urgence', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-35)), heure: '10:00', regularite: { type: 'rangMois', rang: -1, jour: 5 } });
-    tache('TACHE', { titre: 'Inventaire du linge', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-35)), heure: '', regularite: { type: 'weekendMois', rang: -1 } });
+    tache('TACHE', { titre: 'Contrôle du chariot d’urgence', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-35)), heure: '10:00', regularite: { type: 'rangPeriode', rang: -1, jour: 5, periode: 'mois' } });
+    tache('TACHE', { titre: 'Inventaire du linge', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-35)), heure: '', regularite: { type: 'rangPeriode', rang: -1, jour: 'weekend', periode: 'mois' } });
+    tache('TACHE', { titre: 'Audit des dossiers de soins', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-100)), heure: '', regularite: { type: 'rangPeriode', rang: 1, jour: 1, periode: 'trimestre' } });
     tache('TACHE_EQUIPE', { titre: 'Ranger la réserve', service: U1, debut: SIC.model.dateLocaleISO(now), heure: '', regularite: { type: 'aucune' } });
     // Absence, alertes (dont une en retard)
     ajouter(avant, 'ABSENCE', { id: 'AB001', agent: 'demo-d', nom: 'Agent D (fictif)', debut: jour(1), fin: jour(3), categorie: 'conge', service: U1 });
@@ -202,6 +210,8 @@
   };
 
   SIC.chargerDemo = async function (session) {
-    await session.enregistrerLot(SIC.donneesFictives(), { libelle: 'Données fictives de démonstration', by: 'demo', sansControle: true });
+    // L'agent qui crée la démonstration est inscrit par les « données fictives » à une audience : information reçue
+    var u = session.utilisateur || {};
+    await session.enregistrerLot(SIC.donneesFictives({ moi: { id: u.id, nom: u.nom } }), { libelle: 'Données fictives de démonstration', by: 'demo', sansControle: true });
   };
 })(typeof self !== 'undefined' ? self : this);
