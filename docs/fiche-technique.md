@@ -13,7 +13,7 @@
 | Type d'application | Page web statique (HTML, CSS, JavaScript), sans serveur applicatif, sans base de données, sans étape de construction | existant |
 | Organisation | Un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** : Patients, Isolement et contention (Isocont), Agenda du service | existant : socle commun et contrat de module (registre des modules), module Isocont déclaré ; à construire : Patients, Agenda |
 | Dépendances | Aucune bibliothèque externe ; uniquement les API standard du navigateur | existant |
-| Stockage | Dossier d'un partage réseau (SMB) accédé par l'API *File System Access* du navigateur ; un sous-dossier et un journal par module | existant (un journal) ; à construire (un par module) |
+| Stockage | Dossier d'un partage réseau (SMB) accédé par l'API *File System Access* du navigateur ; un sous-dossier et un journal par module | existant : un journal du socle et un journal par module |
 | Chiffrement | AES-GCM 256 bits côté poste (Web Crypto API), chiffrement en enveloppe ; **une clé par module**, remise seulement aux agents qui y ont droit | existant (une clé) ; à construire (par module) |
 | Authentification | Comptes nominatifs, **connexion unique** pour tous les modules ; mot de passe (PBKDF2-SHA-256, 600 000 itérations), clé de sécurité FIDO2 (WebAuthn, extension PRF) ou code de secours ; mot de passe provisoire à changer à la première connexion | existant |
 | Flux réseau | **Aucun flux sortant** : politique de sécurité du contenu `connect-src 'none'` ; seul le chargement des fichiers de l'application depuis l'hébergement choisi | existant |

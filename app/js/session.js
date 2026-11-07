@@ -33,9 +33,9 @@
     this.coffre = null;
     this.comptes = [];         // [{id, login, nom, roles, actif}]
     this.utilisateur = null;   // compte connecté (ou compte de secours)
-    this.evts = [];
-    this.connus = new Set();
-    this.rejetes = [];
+    this.evts = [];            // saisies de tous les journaux du jeu actif
+    this.rejetes = [];         // fichiers illisibles de tous les journaux ({ journal, nom, chemin… })
+    this.journauxActifs = null;
     this.etat = null;
     this.derniereSynchro = null;
     this.auditeurs = [];
@@ -45,9 +45,50 @@
     this.formation = false;
   }
 
-  var DOSSIER_FORMATION = 'formation';
   function dossierActif(s) { return s.formation ? s.donnees : s.dossier; }
-  function cleActive(s) { return s.formation ? s.cleDonnees : s.cle; }
+  /** Sous-dossier du jeu de formation : dans le dossier du module (modules\<module>\formation). */
+  function cheminFormation() { return SIC.Dossier.cheminJournal(moduleActif().id || 'isocont').concat(['formation']); }
+
+  // ---------------------------------------------------------- Journaux (étape 3 du plan d'architecture)
+  /*
+   * Données réelles : deux journaux, chacun dans son sous-dossier (saisies, repères, instantanés, quarantaine) :
+   * le journal du socle (socle\) et celui du module (modules\<module>\). Le module reconstitue son état à partir
+   * des deux (réglages communs du socle + ses saisies). Jeu de formation : un seul journal, comme avant.
+   */
+  var SOCLE = 'socle';
+  /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
+  var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
+  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1 };
+
+  function nouveauJournal(nom, dossier, cle) { return { nom: nom, dossier: dossier, cle: cle, evts: [], connus: new Set(), rejetes: [], reperesLus: {} }; }
+  /** Journaux du jeu de données actif. */
+  function journaux(s) {
+    if (!s.journauxActifs) {
+      s.journauxActifs = s.formation ? [nouveauJournal('formation', s.donnees, s.cleDonnees)]
+        : [nouveauJournal(SOCLE, null, s.cle), nouveauJournal(moduleActif().id || 'isocont', null, s.cle)];
+    }
+    return s.journauxActifs;
+  }
+  /** Dossier d'un journal (créé à la première saisie) ; null s'il n'existe pas encore et `creer` est faux. */
+  async function dossierJournal(s, j, creer) {
+    if (!j.dossier) j.dossier = await s.dossier.journal(j.nom, creer);
+    return j.dossier;
+  }
+  /** Préfixe des chemins d'un journal depuis le dossier des données (affiché au service informatique). */
+  function prefixeJournal(s, nom) { return s.formation ? '' : SIC.Dossier.cheminJournal(nom).join('/') + '/'; }
+  /** Journal qui reçoit une saisie : celui de la saisie visée pour une annulation, le socle pour ses saisies, sinon le module. */
+  function journalPour(js, type, data) {
+    if (js.length === 1) return js[0];
+    if (type === 'ANNULATION' && data && data.cible) {
+      var vise = js.filter(function (j) { return j.evts.some(function (e) { return e.id === data.cible; }); })[0];
+      if (vise) return vise;
+    }
+    if (TYPES_SOCLE[type] || (type === 'CONFIG' && data && REGLAGES_SOCLE[data.cle])) return js[0];
+    return js[1];
+  }
+  function oublierJournaux(s) {
+    s.journauxActifs = null; s.evts = []; s.rejetes = []; s.etat = null; s.integrite = null;
+  }
 
   Session.prototype.sur = function (fn) { this.auditeurs.push(fn); };
   /** Prévient l'interface. `info` : { source: 'synchro', nouveaux: n } pour une synchronisation, sinon saisie locale. */
@@ -149,8 +190,8 @@
   };
 
   Session.prototype.verrouiller = function () {
-    this.cle = null; this.utilisateur = null; this.evts = []; this.connus = new Set(); this.etat = null; this.comptes = [];
-    this.donnees = null; this.cleDonnees = null; this.formation = false; this.rejetes = []; this.reperesLus = {}; this.integrite = null; this.preferences = null;
+    this.cle = null; this.utilisateur = null; this.comptes = [];
+    this.donnees = null; this.cleDonnees = null; this.formation = false; oublierJournaux(this); this.preferences = null;
     this.apercu = null;
   };
 
@@ -318,7 +359,7 @@
     if (options && options.journalReel && this.formation) {
       var at0 = new Date().toISOString(), by0 = this.utilisateur.id;
       var trace = { v: 1, id: SIC.horodatageCompact(at0) + '_' + by0 + '_' + id8(), at: at0, by: by0, type: type, data: data, prec: null };
-      await this.dossier.ecrireEvenement(this.cle, trace);
+      await (await this.dossier.journal(SOCLE, true)).ecrireEvenement(this.cle, trace);   // journal du socle des données réelles
       return trace;
     }
     // Aperçu d'un rôle : rien n'est enregistré (seules les traces techniques des opérations réellement faites passent)
@@ -326,7 +367,8 @@
     if (!(options && options.sansControle) && !this.peut(type)) throw new Error("Votre rôle ne permet pas cette action.");
     var at = (options && options.at) || new Date().toISOString();
     var by = (options && options.by) || this.utilisateur.id;
-    var mesUns = this.evts.filter(function (e) { return e.by === by; });
+    var j = journalPour(journaux(this), type, data), d = await dossierJournal(this, j, true);
+    var mesUns = j.evts.filter(function (e) { return e.by === by; });   // chaînage et repère : propres à chaque journal
     var evt = {
       v: 1,
       id: SIC.horodatageCompact(at) + '_' + by + '_' + id8(),
@@ -334,19 +376,19 @@
       prec: mesUns.length ? mesUns[mesUns.length - 1].id : null
     };
     if (typeof base === 'number') evt.base = base;
-    await dossierActif(this).ecrireEvenement(cleActive(this), evt);
-    this.connus.add(evt.id + '.enc');
+    await d.ecrireEvenement(j.cle, evt);
+    j.connus.add(evt.id + '.enc');
+    j.evts.push(evt);
     this.evts.push(evt);
-    // Repère d'intégrité de l'agent : permet de détecter la disparition de ses dernières saisies.
+    // Repère d'intégrité de l'agent (par journal) : permet de détecter la disparition de ses dernières saisies.
     // Le compteur ne recule jamais : un poste qui ne voit pas une saisie perdue ne doit pas effacer l'écart.
-    this.reperesLus = this.reperesLus || {};
-    if (this.reperesLus[by] === undefined) {
-      var lu = await dossierActif(this).lireRepere(cleActive(this), by);
-      this.reperesLus[by] = (lu && lu.n) || 0;
+    if (j.reperesLus[by] === undefined) {
+      var lu = await d.lireRepere(j.cle, by);
+      j.reperesLus[by] = (lu && lu.n) || 0;
     }
-    var n = Math.max(mesUns.length, this.reperesLus[by] || 0) + 1;
-    this.reperesLus[by] = n;
-    try { await dossierActif(this).ecrireRepere(cleActive(this), by, { n: n, dernier: evt.id, at: at }); } catch (e) { /* sans conséquence sur la saisie */ }
+    var n = Math.max(mesUns.length, j.reperesLus[by] || 0) + 1;
+    j.reperesLus[by] = n;
+    try { await d.ecrireRepere(j.cle, by, { n: n, dernier: evt.id, at: at }); } catch (e) { /* sans conséquence sur la saisie */ }
     this.recalculer();
     return evt;
   };
@@ -419,23 +461,30 @@
    * listeManquants: [], acquis }.
    */
   Session.prototype.verifierIntegrite = async function () {
-    var s = this, d = dossierActif(this), etat = this.etat || { manquants: [], manquantsAcquis: [] };
+    var s = this, js = journaux(this), etat = this.etat || { manquants: [], manquantsAcquis: [] };
+    var journalDe = {};
+    js.forEach(function (j) { j.evts.forEach(function (e) { journalDe[e.id] = j.nom; }); });
     var res = { verifieLe: Date.now(), reperes: [], disparus: [],
-      fichiersIllisibles: this.rejetes.map(function (r) { return { nom: r.nom, chemin: r.chemin || N.cheminEvenement(r.nom), raison: r.raison || '', taille: r.taille }; }),
-      listeManquants: etat.manquants.map(function (x) { return { id: x.manque, chemin: N.cheminEvenement(x.manque + '.enc'), by: x.by, suivant: x.evt }; }),
+      fichiersIllisibles: this.rejetes.map(function (r) { return { nom: r.nom, journal: r.journal, chemin: prefixeJournal(s, r.journal) + (r.chemin || N.cheminEvenement(r.nom)), raison: r.raison || '', taille: r.taille }; }),
+      listeManquants: etat.manquants.map(function (x) { return { id: x.manque, chemin: prefixeJournal(s, journalDe[x.evt]) + N.cheminEvenement(x.manque + '.enc'), by: x.by, suivant: x.evt }; }),
       manquantsAcquis: (etat.manquantsAcquis || []).length };
     res.manquants = res.listeManquants.length;
-    var ids = {};
-    this.evts.forEach(function (e) { ids[e.id] = e.by; });
-    (await d.lireReperes(cleActive(this))).forEach(function (r) {
-      if (r.illisible) { res.reperes.push({ agent: r.agent, illisible: true }); return; }
-      s.reperesLus = s.reperesLus || {};
-      s.reperesLus[r.agent] = Math.max(s.reperesLus[r.agent] || 0, r.n || 0);
-      var n = s.evts.filter(function (e) { return e.by === r.agent; }).length;
-      if (!ids[r.dernier] || n < r.n) res.reperes.push({ agent: r.agent, attendu: r.n, present: n, dernier: r.dernier, dernierManquant: !ids[r.dernier], dernierLe: r.at });
-    });
-    var surPartage = await d.nomsEvenements();
-    this.connus.forEach(function (nom) { if (!surPartage.has(nom)) res.disparus.push(nom); });
+    // Contrôle journal par journal : repères des agents et fichiers chargés encore présents sur le partage
+    for (var k = 0; k < js.length; k++) {
+      var j = js[k], d = await dossierJournal(this, j, false);
+      if (!d) continue;
+      var ids = {};
+      j.evts.forEach(function (e) { ids[e.id] = e.by; });
+      (await d.lireReperes(j.cle)).forEach(function (r) {
+        var cle = js.length > 1 ? j.nom : undefined;
+        if (r.illisible) { res.reperes.push({ journal: cle, agent: r.agent, illisible: true }); return; }
+        j.reperesLus[r.agent] = Math.max(j.reperesLus[r.agent] || 0, r.n || 0);
+        var n = j.evts.filter(function (e) { return e.by === r.agent; }).length;
+        if (!ids[r.dernier] || n < r.n) res.reperes.push({ journal: cle, agent: r.agent, attendu: r.n, present: n, dernier: r.dernier, dernierManquant: !ids[r.dernier], dernierLe: r.at });
+      });
+      var surPartage = await d.nomsEvenements();
+      j.connus.forEach(function (nom) { if (!surPartage.has(nom)) res.disparus.push(nom); });
+    }
     res = N.filtrerIntegrite(res, etat.integrite);
     this.integrite = res;
     return res;
@@ -461,10 +510,13 @@
       var e = await C.dechiffrerJSON(cle, octets, 'evt:' + nom);
       return !!e && e.id + '.enc' === nom;
     });
-    var charges = {}, s = this;
+    var charges = {};
     this.evts.forEach(function (e) { charges[e.id + '.enc'] = true; });
     var remis = new Set(rapport.remis.map(function (c) { return c.split('/').pop(); }));
-    remis.forEach(function (nom) { if (!charges[nom]) s.connus.delete(nom); });
+    journaux(this).forEach(function (j) {
+      remis.forEach(function (nom) { if (!charges[nom]) j.connus.delete(nom); });
+      j.rejetes = j.rejetes.filter(function (r) { return !remis.has(r.nom); });
+    });
     this.rejetes = this.rejetes.filter(function (r) { return !remis.has(r.nom); });
     if (rapport.remis.length || rapport.invalides.length) await this.tracer('REPARATION', { libelle: rapport.remis.length + ' fichier(s) remis depuis la copie du ' + (copie.creeLe ? copie.creeLe.slice(0, 10) : '?') + (rapport.invalides.length ? ', ' + rapport.invalides.length + ' refusé(s)' : '') });
     await this.synchroniser();
@@ -475,15 +527,20 @@
   /** Met en quarantaine les fichiers illisibles désignés (noms), tracé au journal. Retourne les chemins de destination. */
   Session.prototype.mettreEnQuarantaine = async function (noms) {
     if (!this.peut('INTEGRITE')) throw new Error('Réservé à l’administrateur.');
-    var d = dossierActif(this), voulus = new Set(noms), faits = [], s = this;
+    var voulus = new Set(noms), faits = [], s = this, js = journaux(this);
     for (var i = 0; i < this.rejetes.length; i++) {
       var r = this.rejetes[i];
       if (!voulus.has(r.nom)) continue;
-      faits.push({ nom: r.nom, vers: await d.mettreEnQuarantaine(r.chemin || N.cheminEvenement(r.nom)) });
+      var j = js.filter(function (x) { return x.nom === r.journal; })[0] || js[js.length - 1];
+      var d = await dossierJournal(this, j, false);
+      faits.push({ nom: r.nom, vers: prefixeJournal(this, j.nom) + await d.mettreEnQuarantaine(r.chemin || N.cheminEvenement(r.nom)) });
     }
     var ecartes = new Set(faits.map(function (f) { return f.nom; }));
     this.rejetes = this.rejetes.filter(function (r) { return !ecartes.has(r.nom); });
-    ecartes.forEach(function (nom) { s.connus.delete(nom); });   // jamais chargés : ne pas les signaler comme disparus
+    js.forEach(function (j) {   // jamais chargés : ne pas les signaler comme disparus
+      j.rejetes = j.rejetes.filter(function (r) { return !ecartes.has(r.nom); });
+      ecartes.forEach(function (nom) { j.connus.delete(nom); });
+    });
     if (faits.length) await this.tracer('QUARANTAINE', { libelle: faits.length + ' fichier(s) illisible(s) mis en quarantaine : ' + faits.map(function (f) { return f.nom; }).join(', ') });
     await s.verifierIntegrite();
     return faits;
@@ -504,7 +561,7 @@
     r.disparus.forEach(function (nom) { ids[nom.replace(/\.enc$/, '')] = true; });
     var data = {
       motif: motif,
-      reperes: r.reperes.map(function (x) { return x.illisible ? { agent: x.agent, illisible: true } : { agent: x.agent, ecart: Math.max(0, x.attendu - x.present), dernier: x.dernierManquant ? x.dernier : '' }; }),
+      reperes: r.reperes.map(function (x) { return x.illisible ? { journal: x.journal, agent: x.agent, illisible: true } : { journal: x.journal, agent: x.agent, ecart: Math.max(0, x.attendu - x.present), dernier: x.dernierManquant ? x.dernier : '' }; }),
       manquants: Object.keys(ids),
       fichiers: r.fichiersIllisibles.map(function (f) { return f.nom; })
     };
@@ -580,18 +637,26 @@
         }
       } catch (e) { /* coffre momentanément illisible : nouvelle tentative plus tard */ }
     }
-    var r = await dossierActif(this).lireNouveaux(cleActive(this), this.connus);
-    // Fichiers illisibles : liste tenue à jour à chaque lecture (un fichier relu avec succès en sort)
-    var lus = {}; r.evenements.forEach(function (e) { lus[e.id + '.enc'] = true; });
-    var parNom = {}; this.rejetes.forEach(function (x) { if (!lus[x.nom]) parNom[x.nom] = x; });
-    r.rejetes.forEach(function (x) { var a = parNom[x.nom]; x.essais = (a && a.essais || 0) + 1; parNom[x.nom] = x; });
-    this.rejetes = Object.keys(parNom).map(function (k) { return parNom[k]; });
+    var js = journaux(this), nouveaux = [];
+    for (var k = 0; k < js.length; k++) {
+      var j = js[k], d = await dossierJournal(this, j, false);
+      if (!d) continue;   // journal pas encore créé (aucune saisie)
+      var r = await d.lireNouveaux(j.cle, j.connus);
+      // Fichiers illisibles : liste tenue à jour à chaque lecture (un fichier relu avec succès en sort)
+      var lus = {}; r.evenements.forEach(function (e) { lus[e.id + '.enc'] = true; });
+      var parNom = {}; j.rejetes.forEach(function (x) { if (!lus[x.nom]) parNom[x.nom] = x; });
+      r.rejetes.forEach(function (x) { var a = parNom[x.nom]; x.essais = (a && a.essais || 0) + 1; x.journal = j.nom; parNom[x.nom] = x; });
+      j.rejetes = Object.keys(parNom).map(function (n) { return parNom[n]; });
+      j.evts = j.evts.concat(r.evenements);
+      nouveaux = nouveaux.concat(r.evenements);
+    }
+    this.rejetes = [].concat.apply([], js.map(function (x) { return x.rejetes; }));
     this.derniereSynchro = Date.now();
-    if (r.evenements.length || !this.etat) {
-      this.evts = this.evts.concat(r.evenements);
-      this.recalculer({ source: 'synchro', nouveaux: r.evenements.length });
+    if (nouveaux.length || !this.etat) {
+      this.evts = this.evts.concat(nouveaux);
+      this.recalculer({ source: 'synchro', nouveaux: nouveaux.length });
     } else this.notifier({ source: 'synchro', nouveaux: 0 });
-    return r.evenements.length;
+    return nouveaux.length;
   };
 
   // ------------------------------------------- Dossier de secours (miroir) et déplacement
@@ -653,11 +718,11 @@
     if (!(admin || (this.accesFormation() && !this.jeuFormation()))) throw new Error('Seul un administrateur peut régénérer le jeu de formation.');
     if (this.formation) throw new Error('Revenez d’abord aux données réelles.');
     var s = this;
-    var handle = await this.dossier.sousDossier([DOSSIER_FORMATION], true);
+    var handle = await this.dossier.sousDossier(cheminFormation(), true);
     var df = new SIC.Dossier(handle, 'formation');
     await df.vider();
     await df.ecrireFichier(handle, 'FORMATION-LISEZMOI.txt', new TextEncoder().encode(
-      'Jeu de données FICTIVES de Suivi-mesures-isocont, utilisé pour la formation et les tests.\r\n' +
+      'Jeu de données FICTIVES de Tessera Santé (module ' + (moduleActif().libelle || 'Isocont') + '), utilisé pour la formation et les tests.\r\n' +
       'Ne pas ouvrir ce dossier comme dossier principal. Il peut être supprimé sans perte de données réelles :\r\n' +
       'le formateur le recrée depuis l’application (bouton « Mode formation »).\r\n'));
     var cle = await C.nouvelleCleDonnees();
@@ -685,16 +750,16 @@
     var jeu = this.jeuFormation();
     var o = await C.dechiffrerJSON(this.cle, C.deb64(jeu.cle), 'formation');
     this.cleDonnees = await C.importerCle(o.k);
-    this.donnees = new SIC.Dossier(await this.dossier.sousDossier([DOSSIER_FORMATION], false), 'formation');
+    this.donnees = new SIC.Dossier(await this.dossier.sousDossier(cheminFormation(), false), 'formation');
     this.formation = true;
-    this.evts = []; this.connus = new Set(); this.rejetes = []; this.etat = null; this.reperesLus = {}; this.integrite = null;
+    oublierJournaux(this);
     await this.synchroniser();
   };
 
   /** Revient aux données réelles. */
   Session.prototype.fermerFormation = async function () {
     this.donnees = null; this.cleDonnees = null; this.formation = false;
-    this.evts = []; this.connus = new Set(); this.rejetes = []; this.etat = null; this.reperesLus = {}; this.integrite = null;
+    oublierJournaux(this);
     await this.synchroniser();
   };
 

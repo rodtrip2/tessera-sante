@@ -216,7 +216,11 @@ TesseraSante\
 ```
 
 - Sauvegardes, dossier de secours, copie sous scellé et réparation travaillent sur l'ensemble du dossier.
-- Contrôle d'intégrité journal par journal : socle, puis chaque module.
+- Contrôle d'intégrité journal par journal : socle, puis chaque module. Chaque journal a ses repères, ses instantanés et sa quarantaine ; les prises d'acte (saisies `INTEGRITE`, journal du socle) désignent le journal de chaque repère.
+- **Aiguillage des saisies** (0.3.1) : journal du socle pour les traces des comptes et des clés (`COMPTE`), les prises d'acte d'intégrité et les réglages communs (`etablissement`, `services`, `roles`, `modulesServices`) ; journal de la saisie visée pour une annulation ; journal du module pour tout le reste, imports compris. Chaque journal a son propre chaînage.
+- **État d'un module** = réduction du journal du socle et du journal du module ensemble (réglages communs + saisies du module).
+- **Jeu de formation** : `modules\<module>\formation\`, un seul journal (fictif), comme avant.
+- **Copie de sauvegarde au format d'Isocont** (`evenements\` à la racine) : restaurée dans `modules\isocont\` (reprise d'une sauvegarde d'Isocont).
 
 ## 10. Hébergement
 
@@ -242,7 +246,8 @@ Sept étapes, chacune publiable seule avec tous les tests au vert.
 | Reprise du code d'Isocont 1.67 | Faite : historique d'Isocont relié à celui de Tessera (commit de fusion), 139 tests repris au vert |
 | 1. Découper | **Faite (0.2.0).** `model.js` → `noyau-journal.js` (tri, lots, annulations et rétablissements, chaînage, conflits, intégrité), `droits.js` (rôles, accès, services, visibilité du journal et des onglets), `exports-rangement.js` (rangement et purge des exports) + modèle d'Isocont, même interface. `session.js` → session du socle, seul point d'appel au module : `moduleActif()` (reconstitution de l'état, réglages par défaut). `ui.js` → coquille + `ui-isocont.js` : vues et fenêtres, libellés du journal (`SIC.ui.journal`), panneaux d'administration (`SIC.ui.admin`). Correction en chemin : ordre des saisies d'une même milliseconde (0.1.1). Garde-fou : `tests/interface-noms.test.js` |
 | 2. Contrat de module et registre | **Faite (0.3.0).** `modules.js` : registre (déclaration contrôlée du contrat, interface ajoutée par le fichier d'interface du module, besoins non satisfaits, migrations à faire). `module-isocont.js` : contrat d'Isocont (identité, accès, droits, saisies, réglages, onglets, migrations — aucune —, formation, fourniture `isocont.echeancesJLD` v1 décrite, besoins — aucun avant le module Patients). `droits.js` devient un moule (`creer`) : règles au socle, accès et rôles fournis par le module. Session, coquille (onglets, vues, journal, administration), *Rôles et accès*, export des réglages et mode formation lisent le contrat. Interface identique (comparée dans Chrome à Isocont 1.67) |
-| 3 à 7 | À faire |
+| 3. Comptes et services au socle | En cours. Journal du socle et rangement par journal (0.3.1) : `socle\`, `modules\isocont\` (jeu de formation dessous) ; réglages communs (établissement, services, rôles) au journal du socle ; intégrité, copies, réparation, quarantaine, dossier de secours et déplacement journal par journal. Reste : activation des modules par service |
+| 4 à 7 | À faire |
 
 Restent propres à Isocont dans la coquille : quelques aides d'affichage liées aux patients et aux mesures (`patient`, `lieu`, réglages d'affichage de l'accueil), à reprendre avec le module Patients (étape 5) ; textes (titre, « Informations techniques », fichier lisez-moi du jeu de formation), à généraliser avec l'écran d'accueil des modules (étape 6). À l'étape 3 : le panneau « Règles légales et sécurité » d'Isocont porte aussi le verrouillage après inactivité, réglage du socle.
 
