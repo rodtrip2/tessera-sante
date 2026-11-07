@@ -29,8 +29,8 @@ Vous voyez un module dans un service si le module y est **activé**, si vous êt
 La fiche patient est partagée par tous les modules : une correction faite ici vaut partout.
 
 - **Liste** : patients de vos services, recherche, badges (patient détenu, protection juridique…). *Fiches peut-être en double* : deux fiches qui se ressemblent sont signalées ; la fusion est réservée au cadre de santé (*Fusionner…*).
-- **+ Nouvelle fiche** (IDE, secrétaire, cadre par défaut ; l'AS consulte) : nom, prénom, nom de naissance, sexe, date de naissance, identifiant permanent du patient (IPP), service ; selon le service, médecins de 1re et 2e ligne, référents soignants, protection juridique, et en psychiatrie le mode d'hospitalisation.
-- **Fiche** : *Modifier* les champs ; **séjours** (*+ Nouveau séjour* : numéro de séjour ou IEP, entrée, sortie, unité, chambre et lit ; le séjour en cours est affiché en tête) ; **historique** de chaque champ (qui, quand, ancienne → nouvelle valeur).
+- **+ Nouvelle fiche** (IDE, secrétaire, cadre par défaut ; l'AS consulte) : nom, prénom, nom de naissance, sexe, date de naissance, identifiant permanent du patient (IPP), service ; selon le service, médecins de 1re et 2e ligne, référents soignants, protection juridique, et en psychiatrie le **mode d'hospitalisation** (avec sa date de début). Le mode fait partie de la fiche : il est lu par tous les modules.
+- **Fiche** : *Modifier* les champs ; mode d'hospitalisation actuel et *Historique et changement…* (changement daté, rétroactif possible) ; **séjours** (*+ Nouveau séjour* : numéro de séjour ou IEP, entrée, sortie, unité, chambre et lit ; le séjour en cours est affiché en tête) ; **historique** de chaque champ (qui, quand, ancienne → nouvelle valeur).
 - **Importer la liste du DPI…** : reprise de la liste des patients présents exportée du dossier patient informatisé (document 11).
 - **Exporter ses données (droit d'accès)** (cadre, administrateur) : toutes les données du patient, tous modules confondus, sans le nom des professionnels ; l'export est tracé au journal.
 
@@ -93,9 +93,9 @@ Sur l'écran de connexion, choisissez **Mode formation** au lieu de *Données r�
 
   | Rôle | Patients | Agenda | Isolement et contention |
   | --- | --- | --- | --- |
-  | IDE | Créer et corriger les fiches | Planifier ; ajuster les tâches du service ; tâches de l'équipe ; cocher tâches et check-lists ; alertes | Mesures, pauses, tiers, envois au JLD, surveillance |
-  | AS | Consulter | Tâches de l'équipe ; cocher tâches et check-lists ; alertes | Comme l'IDE, sauf les fiches patient |
-  | Secrétaire | Créer et corriger les fiches | Planifier ; tâches de l'équipe ; cocher tâches et check-lists | Envois au JLD, recours |
+  | IDE | Créer et corriger les fiches, mode d'hospitalisation | Planifier ; ajuster les tâches du service ; tâches de l'équipe ; cocher tâches et check-lists ; alertes | Mesures, pauses, tiers, envois au JLD, surveillance |
+  | AS | Consulter (le mode d'hospitalisation se saisit avec la mesure) | Tâches de l'équipe ; cocher tâches et check-lists ; alertes | Comme l'IDE, sauf les fiches patient |
+  | Secrétaire | Créer et corriger les fiches, mode d'hospitalisation | Planifier ; tâches de l'équipe ; cocher tâches et check-lists | Envois au JLD, recours |
   | Cadre de santé | Tout, dont fusion | Tout, dont régler les tâches du service et les absences de l'équipe | Tout, dont corrections, annulations, statistiques |
 
   Tout se modifie : rôles fournis, rôles créés par l'établissement (ex. « Direction des soins », « Consultation »), onglets masqués, niveau du journal. Un rôle sans aucun accès dans un module n'y entre pas et n'en reçoit pas la clé. *Affichage* (en-tête, administrateur) montre l'outil tel qu'un rôle le voit, sans rien enregistrer.

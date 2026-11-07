@@ -74,4 +74,3 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 - Agenda : identité du patient affichée par défaut pour les accompagnements et activités (proposé : initiales), catégories d'absence.
 - Devenir du dépôt `Suivi-mesures-isocont` une fois Tessera en service.
 - Points propres au module Isocont : `docs/consignes-isocont.md` § 13.
-- Mis de côté par le porteur (7 novembre 2026) : saisie du mode d'hospitalisation par un rôle créé par l'établissement qui a l'accès aux fiches sans celui des mesures (perdue en 0.6.2). En attente de réponse : valeurs du sexe sur la fiche (Féminin, Masculin, Indéterminé).
