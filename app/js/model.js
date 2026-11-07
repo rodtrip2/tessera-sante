@@ -6,9 +6,9 @@
  * sur la même donnée d'une même mesure) sont détectés et listés pour arbitrage.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./rules.js'), require('./noyau-journal.js'), require('./droits.js'));
-  else (root.SIC = root.SIC || {}).model = factory(root.SIC.rules, root.SIC.noyauJournal, root.SIC.droits);
-})(typeof self !== 'undefined' ? self : this, function (rules, N, D) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./rules.js'), require('./noyau-journal.js'), require('./droits.js'), require('./exports-rangement.js'));
+  else (root.SIC = root.SIC || {}).model = factory(root.SIC.rules, root.SIC.noyauJournal, root.SIC.droits, root.SIC.exportsRangement);
+})(typeof self !== 'undefined' ? self : this, function (rules, N, D, X) {
   'use strict';
 
   var H = rules.H, J = rules.J;
@@ -384,38 +384,9 @@
     }).sort(function (a, b) { return String(a.nom).localeCompare(String(b.nom), 'fr'); });
   }
 
-  /** Durées de conservation proposées pour les exports (jours ; 0 = aucune purge). */
-  var CONSERVATION_EXPORTS = [0, 31, 92, 183, 366, 731, 1096, 1827];
-  /** Réglages des exports, validés : { dossier, conservationJours }. */
-  function optionsExports(config) {
-    var v = (config && config.exports) || {}, j = Math.round(+v.conservationJours);
-    var reseau = String(v.cheminReseau || '').trim().replace(/[\\/]+$/, '');
-    return { dossier: dossierExports(config), conservationJours: isFinite(j) && j > 0 ? Math.min(j, 3653) : 0, cheminReseau: reseau };
-  }
-  /** Sous-dossier des exports d'un service (code nettoyé) ; « Etablissement » pour un export qui couvre plusieurs services. */
-  var DOSSIER_ETABLISSEMENT = 'Etablissement';
-  function dossierExportService(service) {
-    var c = String(service || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9_ .()-]+/g, '_').trim().slice(0, 40);
-    return c && c !== '.' && c !== '..' ? c : DOSSIER_ETABLISSEMENT;
-  }
-  /** Chemin Windows d'un dossier d'exports (ex. \\serveur\partage\SuiviIsoCont\exports\U1), ou '' si le chemin réseau n'est pas renseigné. */
-  function cheminWindowsExports(config, sousDossiers) {
-    var o = optionsExports(config);
-    if (!o.cheminReseau) return '';
-    return [o.cheminReseau].concat(o.dossier.split('/'), sousDossiers || []).join('\\');
-  }
-  /** Exports à purger : fichiers modifiés depuis plus de `conservationJours` (liste de { chemin, modifieLe… }). */
-  function exportsAPurger(fichiers, conservationJours, maintenant) {
-    if (!conservationJours) return [];
-    var limite = maintenant - conservationJours * J;
-    return (fichiers || []).filter(function (f) { return f.modifieLe < limite; });
-  }
-
-  /** Dossier des exports (chemin relatif au dossier des données), « exports » par défaut. */
-  function dossierExports(config) {
-    var d = String(((config && config.exports) || {}).dossier || '').trim();
-    return d || 'exports';
-  }
+  // ------------------------------------------------------- Rangement des exports : socle (exports-rangement.js)
+  var CONSERVATION_EXPORTS = X.CONSERVATION_EXPORTS, DOSSIER_ETABLISSEMENT = X.DOSSIER_ETABLISSEMENT, optionsExports = X.optionsExports;
+  var dossierExportService = X.dossierExportService, cheminWindowsExports = X.cheminWindowsExports, exportsAPurger = X.exportsAPurger, dossierExports = X.dossierExports;
 
   // ------------------------------------------------------- Vues calculées
   function listeMesures(st) {

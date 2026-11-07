@@ -1,5 +1,12 @@
 # Journal des modifications — Tessera Santé
 
+## 0.1.2 — 7 novembre 2026
+
+Étape 1 du plan d'architecture, deuxième découpage, sans changement de fonctionnement.
+
+- `exports-rangement.js` (socle) : dossier des exports, sous-dossier par service, chemin Windows, conservation et purge, sortis du modèle d'Isocont.
+- `session.js` devient la session du socle : droits, journal et exports viennent des fichiers du socle ; la reconstitution de l'état et les réglages par défaut passent par un seul point d'appel au module (`moduleActif()`, le modèle d'Isocont jusqu'au registre des modules de l'étape 2).
+
 ## 0.1.1 — 7 novembre 2026
 
 - **Correction : ordre des saisies enregistrées dans la même milliseconde.** À horodatage égal, les saisies étaient classées par leur identifiant, dont la fin est aléatoire : plusieurs saisies enregistrées d'un coup par un même agent (début puis fin d'une mesure, pause d'un isolement et de sa contention, transfert de plusieurs mesures) pouvaient être appliquées dans le désordre, une saisie pouvant alors être ignorée. Elles suivent désormais le chaînage (chaque saisie passe après celle qu'elle cite). Défaut hérité d'Isocont 1.67, révélé par un test qui échouait environ une fois sur dix ; nouveau test `tests/noyau-journal.test.js`.
@@ -15,4 +22,4 @@ Première version de Tessera Santé, sans changement de fonctionnement par rappo
   - `model.js` : modèle d'Isocont, avec la même interface qu'avant ; les 139 tests repris passent sans modification.
 - Numérotation propre à Tessera à partir de 0.1.0 (Isocont s'arrête à 1.67.0).
 
-Reste pour terminer l'étape 1 : découpage de `session.js` et de `ui.js`.
+

@@ -1,11 +1,21 @@
 // SPDX-License-Identifier: EUPL-1.2
 /*
- * Session — coffre de clés, comptes, journal et synchronisation.
+ * Session (socle) — coffre de clés, comptes, journal et synchronisation.
+ * Aucune règle métier : droits, journal et rangement des exports viennent du socle (droits.js,
+ * noyau-journal.js, exports-rangement.js) ; la reconstitution de l'état et les réglages par défaut
+ * viennent du module (`moduleActif()`), seul point d'appel au métier.
  */
 (function (root) {
   'use strict';
   var SIC = root.SIC = root.SIC || {};
-  var C = SIC.crypto, M = SIC.model;
+  var C = SIC.crypto;
+  // Fichiers du socle : chargés par la page, ou lus directement sous Node (tests).
+  function socle(nom, fichier) { return SIC[nom] || (typeof require === 'function' ? require(fichier) : undefined); }
+  var D = socle('droits', './droits.js'), N = socle('noyauJournal', './noyau-journal.js'), X = socle('exportsRangement', './exports-rangement.js');
+  /** Module dont la session tient le journal. Jusqu'au registre des modules (étape 2) : le modèle d'Isocont. */
+  function moduleActif() { return SIC.model; }
+  /** Réglages en vigueur, ou réglages par défaut du module avant la première lecture du journal. */
+  function config(s) { return s.etat ? s.etat.config : moduleActif().CONFIG_DEFAUT; }
 
   function id8() { return C.hex(C.aleatoire(4)); }
 
@@ -261,7 +271,7 @@
   /** Rôles de l'utilisateur : les mêmes dans les données réelles et dans le jeu de formation. */
   Session.prototype.roles = function () { var c = this.compteEffectif(); return c ? c.roles : []; };
   /** Codes des services visibles (tous pour un administrateur). */
-  Session.prototype.mesServices = function () { return this.etat ? M.servicesDe(this.compteEffectif(), this.etat.config) : []; };
+  Session.prototype.mesServices = function () { return this.etat ? D.servicesDe(this.compteEffectif(), this.etat.config) : []; };
 
   // ---------------------------------------------------------- Aperçu de l'affichage d'un rôle (administrateur)
   /**
@@ -271,8 +281,8 @@
   Session.prototype.definirApercu = function (code) {
     if (!code) { this.apercu = null; return; }
     if (!this.utilisateur || (this.utilisateur.roles || []).indexOf('ADMIN') < 0) throw new Error('Réservé à l’administrateur.');
-    var cfg = this.etat ? this.etat.config : M.CONFIG_DEFAUT;
-    var r = M.rolesConfig(cfg).filter(function (x) { return x.code === code && !x.admin; })[0];
+    var cfg = config(this);
+    var r = D.rolesConfig(cfg).filter(function (x) { return x.code === code && !x.admin; })[0];
     if (!r) throw new Error('Rôle inconnu : ' + code);
     this.apercu = { code: code, libelle: r.libelle };
   };
@@ -280,11 +290,11 @@
   Session.prototype.compteEffectif = function () {
     if (!this.utilisateur) return null;
     if (!this.apercu) return this.utilisateur;
-    var cfg = this.etat ? this.etat.config : M.CONFIG_DEFAUT;
+    var cfg = config(this);
     return Object.assign({}, this.utilisateur, { roles: [this.apercu.code], services: (cfg.services || []).map(function (s) { return s.code; }) });
   };
-  Session.prototype.accesFormation = function () { return M.accesFormation(this.utilisateur); };
-  Session.prototype.peut = function (type) { return M.peut(this.roles(), type, this.etat ? this.etat.config : M.CONFIG_DEFAUT); };
+  Session.prototype.accesFormation = function () { return D.accesFormation(this.utilisateur); };
+  Session.prototype.peut = function (type) { return D.peut(this.roles(), type, config(this)); };
 
   Session.prototype.nomAuteur = function (userId) {
     var c = this.comptes.filter(function (x) { return x.id === userId; })[0];
@@ -340,13 +350,13 @@
    * (nom du fichier) sauf `options.sansTrace` (export déjà tracé par ailleurs). Retourne le chemin relatif.
    */
   Session.prototype.exporter = async function (categorie, nom, octets, options) {
-    var d = dossierActif(this), dossier = M.dossierExports(this.etat ? this.etat.config : M.CONFIG_DEFAUT);
-    var chemin = await d.ecrireExport(dossier, [M.dossierExportService(options && options.service), categorie], nom, octets);
+    var d = dossierActif(this), dossier = X.dossierExports(config(this));
+    var chemin = await d.ecrireExport(dossier, [X.dossierExportService(options && options.service), categorie], nom, octets);
     if (!(options && options.sansTrace)) { try { await this.tracer('EXPORT', { libelle: chemin }); } catch (e) { /* sans conséquence sur l'export */ } }
     return chemin;
   };
   Session.prototype.listerExports = function () {
-    return dossierActif(this).listerExports(M.dossierExports(this.etat ? this.etat.config : M.CONFIG_DEFAUT));
+    return dossierActif(this).listerExports(X.dossierExports(config(this)));
   };
   Session.prototype.lireExport = function (chemin) { return dossierActif(this).lireExport(chemin); };
 
@@ -357,10 +367,10 @@
    * Retourne la liste des fichiers concernés.
    */
   Session.prototype.purgerExports = async function (options) {
-    var cfg = this.etat ? this.etat.config : M.CONFIG_DEFAUT, o = M.optionsExports(cfg);
+    var cfg = config(this), o = X.optionsExports(cfg);
     var maintenant = (options && options.maintenant) || Date.now();
     var jours = options && options.conservationJours !== undefined ? options.conservationJours : o.conservationJours;
-    var cibles = M.exportsAPurger(await this.listerExports(), jours, maintenant);
+    var cibles = X.exportsAPurger(await this.listerExports(), jours, maintenant);
     if ((options && options.simulation) || !cibles.length) return cibles;
     var d = dossierActif(this), faits = [];
     for (var i = 0; i < cibles.length; i++) { try { await d.supprimerExport(cibles[i].chemin); faits.push(cibles[i]); } catch (e) { /* fichier déjà supprimé ou verrouillé */ } }
@@ -396,15 +406,15 @@
   /**
    * Contrôle d'intégrité du jeu de données actif : repères des agents (nombre de saisies et dernière
    * saisie attendus), saisies chargées qui ne sont plus sur le partage, fichiers illisibles, maillons
-   * manquants du chaînage. Les anomalies dont l'administrateur a pris acte sont écartées (M.filtrerIntegrite).
+   * manquants du chaînage. Les anomalies dont l'administrateur a pris acte sont écartées (N.filtrerIntegrite).
    * Retourne { verifieLe, reperes: [], disparus: [], illisibles, fichiersIllisibles: [], manquants,
    * listeManquants: [], acquis }.
    */
   Session.prototype.verifierIntegrite = async function () {
     var s = this, d = dossierActif(this), etat = this.etat || { manquants: [], manquantsAcquis: [] };
     var res = { verifieLe: Date.now(), reperes: [], disparus: [],
-      fichiersIllisibles: this.rejetes.map(function (r) { return { nom: r.nom, chemin: r.chemin || M.cheminEvenement(r.nom), raison: r.raison || '', taille: r.taille }; }),
-      listeManquants: etat.manquants.map(function (x) { return { id: x.manque, chemin: M.cheminEvenement(x.manque + '.enc'), by: x.by, suivant: x.evt }; }),
+      fichiersIllisibles: this.rejetes.map(function (r) { return { nom: r.nom, chemin: r.chemin || N.cheminEvenement(r.nom), raison: r.raison || '', taille: r.taille }; }),
+      listeManquants: etat.manquants.map(function (x) { return { id: x.manque, chemin: N.cheminEvenement(x.manque + '.enc'), by: x.by, suivant: x.evt }; }),
       manquantsAcquis: (etat.manquantsAcquis || []).length };
     res.manquants = res.listeManquants.length;
     var ids = {};
@@ -418,7 +428,7 @@
     });
     var surPartage = await d.nomsEvenements();
     this.connus.forEach(function (nom) { if (!surPartage.has(nom)) res.disparus.push(nom); });
-    res = M.filtrerIntegrite(res, etat.integrite);
+    res = N.filtrerIntegrite(res, etat.integrite);
     this.integrite = res;
     return res;
   };
@@ -461,7 +471,7 @@
     for (var i = 0; i < this.rejetes.length; i++) {
       var r = this.rejetes[i];
       if (!voulus.has(r.nom)) continue;
-      faits.push({ nom: r.nom, vers: await d.mettreEnQuarantaine(r.chemin || M.cheminEvenement(r.nom)) });
+      faits.push({ nom: r.nom, vers: await d.mettreEnQuarantaine(r.chemin || N.cheminEvenement(r.nom)) });
     }
     var ecartes = new Set(faits.map(function (f) { return f.nom; }));
     this.rejetes = this.rejetes.filter(function (r) { return !ecartes.has(r.nom); });
@@ -539,7 +549,7 @@
   };
 
   Session.prototype.recalculer = function (info) {
-    this.etat = M.reduire(this.evts);
+    this.etat = moduleActif().reduire(this.evts);
     this.notifier(info);
   };
 
