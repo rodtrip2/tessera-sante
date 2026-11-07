@@ -16,10 +16,12 @@
 
   // Fiche commune (décision du 5 novembre 2026) : nom (nom d'usage, affiché), nom de naissance, sexe ; médecins de
   // 1re et 2e ligne et référents soignants saisis dans Tessera (distincts du médecin responsable du DPI)
-  var CHAMPS = ['ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'service', 'detenu', 'medecin1', 'medecin2', 'referents', 'decoupageNom'];
-  var COMPLETES_A_LA_FUSION = ['ipp', 'nom', 'prenom', 'naissance', 'protection', 'service', 'nomNaissance', 'sexe', 'medecin1', 'medecin2'];
+  // Psychologue référent et suivi par l'assistant(e) social(e) du service : ajoutés le 7 novembre 2026 (décision du porteur) ;
+  // `suiviAS` : { suivi: true | false, nom: '' } (nom facultatif)
+  var CHAMPS = ['ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'service', 'detenu', 'medecin1', 'medecin2', 'referents', 'psychologue', 'suiviAS', 'decoupageNom'];
+  var COMPLETES_A_LA_FUSION = ['ipp', 'nom', 'prenom', 'naissance', 'protection', 'service', 'nomNaissance', 'sexe', 'medecin1', 'medecin2', 'psychologue', 'suiviAS'];
   /** Champs dont les changements sont gardés, datés, dans l'historique de la fiche (jamais écrasés). */
-  var DATES = ['protection', 'detenu', 'service', 'medecin1', 'medecin2', 'referents'];
+  var DATES = ['protection', 'detenu', 'service', 'medecin1', 'medecin2', 'referents', 'psychologue', 'suiviAS'];
   var SEXES = { F: 'Féminin', M: 'Masculin', I: 'Indéterminé' };
   function egal(a, b) { return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b); }
 
@@ -129,12 +131,12 @@
       reduire: reduire
     },
     reglages: { defaut: {}, groupes: [], exclus: [] },
-    // Onglet « Patients » (affichage : ui-patients.js) ; masquable rôle par rôle comme ceux d'Isocont
-    vues: { onglets: [{ code: 'patients', libelle: 'Patients', masquable: true }] },
+    // Fenêtre du module Patients (décision du porteur du 7 novembre 2026) : liste réglable des patients (ui-liste-patients.js)
+    vues: { onglets: [{ code: 'fiches', libelle: 'Liste des patients' }] },
     migrations: [],
     fournitures: [
       { nom: 'patients.fiches', version: 1, acces: 'lecture', calculer: fiches,
-        champs: ['id', 'ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'detenu', 'service', 'medecin1', 'medecin2', 'referents', 'sejours', 'modes', 'fusionnes', 'historique'] }
+        champs: ['id', 'ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'detenu', 'service', 'medecin1', 'medecin2', 'referents', 'psychologue', 'suiviAS', 'sejours', 'modes', 'fusionnes', 'historique'] }
     ],
     besoins: []
   };

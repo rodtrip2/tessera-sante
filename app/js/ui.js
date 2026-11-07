@@ -592,39 +592,69 @@
   // ================================================================ Application
   var zoneContenu = null, zoneEntete = null;
 
-  /** Onglets : ceux du module (son contrat), puis le journal et l'administration du socle. */
-  function onglets() {
-    var plusieurs = App.session && App.session.modulesAccessibles().length > 1;
-    return (plusieurs ? [['accueil', 'Accueil']] : []).concat(SIC.modules.onglets(App.session ? App.session.moduleAffiche() : null).map(function (o) { return [o.code, o.libelle]; }), [['journal', 'Journal'], ['admin', 'Administration']]);
+  // ---------------------------------------------------------------- Fenêtres des modules (décision du 7 novembre 2026)
+  // Une fenêtre par module, avec ses propres onglets ; une barre en bas de l'écran pour passer de l'une à l'autre,
+  // chaque module avec son icône. Patients et Administration ont leur fenêtre ; le journal est un onglet de chacune.
+  var NS_SVG = 'http://www.w3.org/2000/svg';
+  // Icônes dessinées au trait (24 × 24), couleur du texte
+  var ICONES = {
+    patients: ['M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1', 'M16 3.5a4 4 0 0 1 0 7', 'M19 14.5a6 6 0 0 1 3 5.5v1'],
+    isocont: ['M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16', 'M2 21h20', 'M9 10h6v6H9z', 'M12 13v1'],
+    agenda: ['M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z', 'M3 10h18', 'M8 3v4', 'M16 3v4', 'M7 14h3v3H7z'],
+    admin: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'],
+    module: ['M4 4h7v7H4z', 'M13 4h7v7h-7z', 'M4 13h7v7H4z', 'M13 13h7v7h-7z']
+  };
+  function icone(id) {
+    var svg = document.createElementNS(NS_SVG, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'icone-module'); svg.setAttribute('aria-hidden', 'true');
+    (ICONES[id] || ICONES.module).forEach(function (d) { var p = document.createElementNS(NS_SVG, 'path'); p.setAttribute('d', d); svg.appendChild(p); });
+    return svg;
   }
-
-  /** Choix du module affiché : premier onglet du module, choix retenu sur le poste. */
-  function ouvrirModule(id) {
-    if (!App.session.choisirModule(id)) return;
-    try { localStorage.setItem('sic-module', id); } catch (e) { /* stockage indisponible */ }
-    var m = SIC.modules.obtenir(id), premier = m.vues.onglets[0];
-    App.onglet = premier ? premier.code : 'journal';
+  /** Fenêtres ouvertes à l'agent : Patients (clé détenue), modules accessibles, Administration (administrateur). */
+  function fenetres() {
+    var s = App.session, res = [];
+    if (!s) return res;
+    var ms = s.modulesAccessibles();
+    if (ms.length && s.detientCle && s.detientCle('patients') && SIC.modules.obtenir('patients')) res.push({ id: 'patients', libelle: 'Patients' });
+    ms.forEach(function (m) { res.push({ id: m.id, libelle: m.libelle }); });
+    if (s.roles().indexOf('ADMIN') >= 0) res.push({ id: 'admin', libelle: 'Administration' });
+    return res;
+  }
+  /** Onglets de la fenêtre affichée : ceux du module (son contrat), puis le journal commun. */
+  function onglets() {
+    if (App.fenetre === 'admin') return [['admin', 'Administration'], ['journal', 'Journal']];
+    var id = App.fenetre === 'patients' ? 'patients' : (App.session ? App.session.moduleAffiche() : null);
+    var m = id && SIC.modules.obtenir(id);
+    return (m ? m.vues.onglets : SIC.modules.onglets(null)).map(function (o) { return [o.code, o.libelle]; }).concat([['journal', 'Journal']]);
+  }
+  App.ongletsFenetres = {};
+  /** Ouvre la fenêtre d'un module : son dernier onglet affiché, sinon le premier ; choix retenu sur le poste. */
+  function ouvrirFenetre(id) {
+    var s = App.session;
+    if (App.fenetre) App.ongletsFenetres[App.fenetre] = App.onglet;
+    if (id !== 'patients' && id !== 'admin' && !s.choisirModule(id)) return;
+    App.fenetre = id;
+    try { localStorage.setItem('sic-fenetre', id); if (id !== 'patients' && id !== 'admin') localStorage.setItem('sic-module', id); } catch (e) { /* stockage indisponible */ }
+    var codes = onglets().map(function (o) { return o[0]; });
+    App.onglet = codes.indexOf(App.ongletsFenetres[id]) >= 0 ? App.ongletsFenetres[id] : codes[0];
     rendreContenu();
   }
-  /** Liste « Module » de l'en-tête (plusieurs modules accessibles). */
-  function selModule(s) {
-    var ms = s.modulesAccessibles();
-    if (ms.length < 2) return null;
-    var sel = h('select', { 'aria-label': 'Module', onchange: function () { ouvrirModule(sel.value); } },
-      ms.map(function (m) { return h('option', { value: m.id, text: m.libelle, selected: m.id === s.moduleAffiche() }); }));
-    return sel;
+  // Ancien nom (liens internes) : ouvrir le module, c'est ouvrir sa fenêtre
+  function ouvrirModule(id) { ouvrirFenetre(id); }
+  /** Barre des modules, en bas de l'écran. */
+  function barreModules() {
+    var fs = fenetres();
+    if (fs.length < 2) return null;
+    return h('nav', { class: 'barre-modules', 'aria-label': 'Modules' }, fs.map(function (f) {
+      var actif = f.id === App.fenetre;
+      return h('button', { type: 'button', class: 'bouton-module' + (actif ? ' actif' : ''), 'aria-current': actif ? 'page' : null, title: f.libelle, onclick: function () { ouvrirFenetre(f.id); } },
+        icone(f.id), h('span', { text: f.libelle }));
+    }));
   }
-  /** Accueil des modules : les modules ouverts à l'agent (rôle, clé, activation dans l'un de ses services). */
-  function vueAccueil() {
-    var s = App.session;
-    return h('div', {}, h('h1', { text: 'Accueil' }),
-      h('p', { class: 'muted', text: 'Modules ouverts à vos rôles dans vos services. L’onglet Patients et le journal sont communs à tous les modules.' }),
-      h('div', { class: 'grille-3' }, s.modulesAccessibles().map(function (m) {
-        var courant = m.id === s.moduleAffiche();
-        return h('section', { class: 'panneau' }, h('h2', { text: m.libelle }),
-          h('p', { class: 'muted', text: ({ isocont: 'Mesures d’isolement et de contention : délais et envois au juge des libertés et de la détention (JLD), registre, statistiques.', agenda: 'Organisation du service : accompagnements, activités, réunions, tâches, absences, alertes.' })[m.id] || '' }),
-          h('button', { class: 'btn' + (courant ? '' : ' primaire'), onclick: function () { ouvrirModule(m.id); } }, courant ? 'Module affiché — ouvrir' : 'Ouvrir'));
-      })));
+  /** Fenêtre affichée : bandeau de titre et onglets propres au module. */
+  function titreFenetre() {
+    var f = fenetres().filter(function (x) { return x.id === App.fenetre; })[0] || { id: App.fenetre, libelle: (SIC.modules.obtenir(App.fenetre) || {}).libelle || '' };
+    return h('div', { class: 'fenetre-titre' }, icone(f.id), h('b', { text: f.libelle }));
   }
 
   /** Liste « Affichage » de l'en-tête (administrateur) : voir l'outil comme un agent portant un autre rôle. */
@@ -632,7 +662,7 @@
     if ((s.utilisateur.roles || []).indexOf('ADMIN') < 0) return null;
     var sel = h('select', { 'aria-label': 'Affichage selon le rôle', title: 'Voir l’outil comme un agent portant ce rôle (aucune saisie n’est enregistrée pendant l’aperçu)', onchange: function () {
       try { s.definirApercu(sel.value || null); } catch (e) { alert(e.message); }
-      if (s.apercu && App.onglet === 'admin') App.onglet = 'tableau';
+      if (s.apercu && App.fenetre === 'admin') { App.fenetre = s.moduleAffiche(); App.onglet = onglets()[0][0]; }
       rendreContenu();
     } }, h('option', { value: '', text: 'Affichage : le mien' }),
       droits().rolesConfig(config()).filter(function (r) { return !r.admin; }).map(function (r) { return h('option', { value: r.code, text: 'Affichage : ' + r.libelle, selected: !!s.apercu && s.apercu.code === r.code }); }));
@@ -709,6 +739,14 @@
     else if (s.moduleChoisi && !s.modulesAccessibles().some(function (m) { return m.id === s.moduleChoisi; })) s.choisirModule(null);
     var maintenant = Date.now();
     var estAdmin = s.roles().indexOf('ADMIN') >= 0;
+    // Fenêtre affichée : retenue sur le poste ; l'administration ouverte depuis un lien ouvre sa fenêtre
+    var fs = fenetres();
+    if (App.onglet === 'admin' && estAdmin) App.fenetre = 'admin';
+    if (!App.fenetre) { try { App.fenetre = localStorage.getItem('sic-fenetre') || ''; } catch (e) { App.fenetre = ''; } }
+    if (App.fenetre === 'patients' || App.fenetre === 'admin') { if (!fs.some(function (f) { return f.id === App.fenetre; })) App.fenetre = ''; }
+    else if (App.fenetre !== s.moduleAffiche()) App.fenetre = '';
+    if (!App.fenetre) App.fenetre = s.moduleAffiche();
+    if (App.onglet === 'admin' && App.fenetre !== 'admin') App.onglet = '';
     var nivJournal = droits().niveauJournal(s.roles(), config());
     // Rôle « registre seulement » : un seul onglet, le registre tel qu'il s'affiche habituellement
     var anonyme = droits().registreSeul(s.roles(), config());
@@ -726,7 +764,7 @@
     if (!affichable(App.onglet)) App.onglet = (onglets().filter(function (o) { return affichable(o[0]); })[0] || ['aucun'])[0];
     var conflits = nivJournal === 'aucun' ? 0 : conflitsVisibles().length;
     // Pages de tableaux : toute la largeur de l'écran (les pages de réglage gardent une largeur de lecture)
-    zoneContenu.classList.toggle('large', ['tableau', 'mesures', 'patients', 'jld', 'surveillance', 'registre', 'journal', 'stats'].indexOf(App.onglet) >= 0);
+    zoneContenu.classList.toggle('large', ['tableau', 'mesures', 'patients', 'fiches', 'agenda', 'mon-agenda', 'jld', 'surveillance', 'registre', 'journal', 'stats'].indexOf(App.onglet) >= 0);
     if (!s.utilisateur.actif) return verrouiller('Votre compte a été désactivé.');
     var mesSv = services();
     if (App.service !== '*' && !mesSv.some(function (x) { return x.code === App.service; })) App.service = '*';
@@ -742,7 +780,7 @@
       mesSv.map(function (x) { return h('option', { value: x.code, text: x.libelle + (droits().serviceActif(config(), x.code) ? '' : ' — consultation seule'), selected: App.service === x.code }); }));
     if (App.service === '*') selService.value = '*';
     var age = s.derniereSynchro ? Math.round((maintenant - s.derniereSynchro) / 1000) : null;
-    zoneEntete.appendChild(h('div', { class: 'entete-haut' }, marque(etablissement() || App.dossier.nom), h('div', { class: 'espace' }), selModule(s), mesSv.length ? selService : null,
+    zoneEntete.appendChild(h('div', { class: 'entete-haut' }, marque(etablissement() || App.dossier.nom), h('div', { class: 'espace' }), mesSv.length ? selService : null,
       h('div', { class: 'statut-synchro', title: s.evts.length + ' saisies dans le journal' }, h('span', { class: 'point' }), age !== null ? 'Synchronisé' : '—'),
       h('div', { class: 'utilisateur' }, h('b', { text: s.utilisateur.nom }), s.utilisateur.roles.map(function (r) { return droits().libRole(config(), r); }).join(' · ')),
       selApercu(s),
@@ -770,22 +808,27 @@
       nav.appendChild(h('button', { 'aria-current': App.onglet === o[0] ? 'page' : null, onclick: function () { App.onglet = o[0]; rendreContenu(); } },
         lieu(o[1]), o[0] === 'journal' && conflits ? h('span', { class: 'pastille', text: conflits }) : null));
     });
-    zoneEntete.appendChild(nav);
+    var barre = barreModules();
+    document.body.classList.toggle('avec-barre-modules', !!barre);
+    if (barre) zoneEntete.appendChild(barre);
 
     zoneContenu.style.minHeight = zoneContenu.offsetHeight + 'px';   // évite que la page se replie pendant la reconstruction
     vider(zoneContenu);
-    var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: vueAdmin, accueil: vueAccueil };
+    var corps = h('div', { class: 'fenetre-corps' });
+    zoneContenu.appendChild(h('section', { class: 'fenetre', 'aria-label': 'Fenêtre du module' }, titreFenetre(), nav, corps));
+    var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: vueAdmin };
     var mAff = moduleAffiche(), vuesAff = (mAff.interface && mAff.interface.vues) || {}, vuesModule = interfaceModule().vues || {};
-    var vue = vues[App.onglet] || vuesAff[App.onglet] || vuesModule[App.onglet] || vuesAff[(mAff.vues.onglets[0] || {}).code] || vues.aucun;
-    if (mAff === moduleActif() && !s.accesModule() && ['journal', 'admin', 'accueil'].indexOf(App.onglet) < 0) {
-      zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Les données du module « ' + moduleActif().libelle + ' » ne vous sont pas remises : vous n’y avez pas de rôle, ou il n’est activé pour aucun de vos services. Demandez à l’administrateur si vous devez y avoir accès.' }));
+    var mPat = SIC.modules.obtenir('patients'), vuesPat = (mPat && mPat.interface && mPat.interface.vues) || {};
+    var vue = vues[App.onglet] || (App.fenetre === 'patients' ? vuesPat[App.onglet] : null) || vuesAff[App.onglet] || vuesModule[App.onglet] || vuesAff[(mAff.vues.onglets[0] || {}).code] || vues.aucun;
+    if (App.fenetre !== 'patients' && mAff === moduleActif() && !s.accesModule() && ['journal', 'admin'].indexOf(App.onglet) < 0) {
+      corps.appendChild(h('div', { class: 'panneau vide', text: 'Les données du module « ' + moduleActif().libelle + ' » ne vous sont pas remises : vous n’y avez pas de rôle, ou il n’est activé pour aucun de vos services. Demandez à l’administrateur si vous devez y avoir accès.' }));
       return;
     }
     var affectes = (s.compteEffectif().services || []).filter(function (c) { return tousServices().some(function (x) { return x.code === c; }); });
-    if (!mesSv.length && !estAdmin && affectes.length) { zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Le module « ' + mAff.libelle + ' » n’est activé pour aucun de vos services. Demandez à l’administrateur de vérifier son activation (Administration → Établissement et services).' })); return; }
-    if (!mesSv.length && !estAdmin) { zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Aucun service ne vous est affecté. Demandez à l’administrateur de vous en attribuer un.' })); return; }
-    try { zoneContenu.appendChild(vue(maintenant)); }
-    catch (e) { zoneContenu.appendChild(h('div', { class: 'erreur', text: 'Erreur d’affichage : ' + e.message })); console.error(e); }
+    if (!mesSv.length && !estAdmin && affectes.length) { corps.appendChild(h('div', { class: 'panneau vide', text: 'Le module « ' + mAff.libelle + ' » n’est activé pour aucun de vos services. Demandez à l’administrateur de vérifier son activation (Administration → Établissement et services).' })); return; }
+    if (!mesSv.length && !estAdmin) { corps.appendChild(h('div', { class: 'panneau vide', text: 'Aucun service ne vous est affecté. Demandez à l’administrateur de vous en attribuer un.' })); return; }
+    try { corps.appendChild(vue(maintenant)); }
+    catch (e) { corps.appendChild(h('div', { class: 'erreur', text: 'Erreur d’affichage : ' + e.message })); console.error(e); }
   }
 
   // ---------------------------------------------------------------- Journal
@@ -1172,7 +1215,7 @@
     // Panneaux du module (onglets propres et contributions aux onglets communs) : ui-isocont.js
     var pModule = interfaceModule().admin.panneaux(!!s.formation);
     // Sous-onglets d'administration des autres modules affichés (Agenda…) : un onglet par module
-    var ongletsAutres = SIC.modules.affiches().filter(function (m) { return m !== moduleActif() && m.interface && m.interface.admin && m.interface.admin.onglets; })
+    var ongletsAutres = SIC.modules.liste().filter(function (m) { return m !== moduleActif() && m.interface && m.interface.admin && m.interface.admin.onglets; })
       .reduce(function (r, m) { return r.concat(m.interface.admin.onglets(!!s.formation)); }, []);
 
     var demo = App.dossier.mode === 'demo' ? h('section', { class: 'panneau' }, h('h2', { text: 'Démonstration' }),

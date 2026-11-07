@@ -108,7 +108,7 @@ Chaque import est un lot unique, annulable depuis le journal, et ne crée pas de
 
 - [ ] Deux postes connectés en même temps : une saisie sur l'un apparaît sur l'autre en moins de 10 secondes.
 - [ ] Un compte IDE ne voit que ses services, et seulement les modules activés dans ces services et ouverts à son rôle.
-- [ ] Un rôle sans accès à un module ne voit pas ce module (liste *Module* de l'en-tête et onglet *Accueil*).
+- [ ] Un rôle sans accès à un module ne voit pas ce module (barre des modules en bas de l'écran).
 - [ ] Fiche patient : création, correction, séjour ; import d'une liste de test (patients fictifs), puis annulation du lot.
 - [ ] Isolement et contention : création d'une mesure de test, information du tiers, envoi JLD, décompte imprimé, fin de mesure ; échéances JLD vérifiées sur un cas connu (isolement débuté le 1er à 8 h 45 sans cumul antérieur : information avant le 3 à 8 h 45, saisine avant le 4, décision avant le 5).
 - [ ] Agenda : élément répété, check-list, tâche du service cochée par un IDE, absence ; l'échéance JLD de la mesure de test apparaît dans l'onglet *Alertes* pour un rôle qui a l'accès aux envois au JLD, et pas pour un rôle qui ne l'a pas.

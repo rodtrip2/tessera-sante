@@ -63,7 +63,9 @@
     // Vues : onglets du module (« Journal » et « Administration » appartiennent au socle)
     vues: {
       onglets: [
-        // (onglet « Patients » : déclaré par le module Patients, affiché en tête ; décision du porteur du 7 novembre 2026)
+        // Onglet « Patients » d'Isocont : statistiques d'isolement et de contention par patient (décision du porteur du
+        // 7 novembre 2026 : gardé tel quel dans la fenêtre d'Isocont ; la liste des patients a sa propre fenêtre)
+        { code: 'patients', libelle: 'Patients' },
         { code: 'tableau', libelle: 'Tableau de bord' }, { code: 'mesures', libelle: 'Mesures' },
         { code: 'jld', libelle: 'JLD' }, { code: 'surveillance', libelle: 'Surveillance CSI' }, { code: 'registre', libelle: 'Registre' },
         { code: 'stats', libelle: 'Statistiques' }

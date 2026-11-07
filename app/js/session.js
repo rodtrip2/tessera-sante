@@ -70,7 +70,7 @@
   var SOCLE = 'socle';
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
-  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, agenda: 1 };
+  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, agenda: 1 };
 
   function nouveauJournal(nom, dossier, cle) { return { nom: nom, dossier: dossier, cle: cle, evts: [], connus: new Set(), rejetes: [], reperesLus: {} }; }
   /** Journaux du jeu de données actif. */
@@ -1044,6 +1044,8 @@
     this.moduleChoisi = ok ? id : null;
     return ok;
   };
+  /** La session détient-elle la clé du module (fenêtre Patients : clé remise à qui a droit à un module qui en dépend) ? */
+  Session.prototype.detientCle = function (id) { return aCle(this, id); };
   Session.prototype.moduleAffiche = function () { var m = moduleAffiche(this); return m.id || 'isocont'; };
   /** État reconstitué d'un module (le module principal : `etat`). */
   Session.prototype.etatModule = function (id) { return etatDe(this, SIC.modules ? SIC.modules.obtenir(id) : null); };

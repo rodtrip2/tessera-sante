@@ -1,6 +1,6 @@
 # Guide du module Isolement et contention
 
-*Tessera Santé, module Isolement et contention (Isocont) — à lire en 10 minutes. La connexion, l'onglet Patients, le mode formation, le journal et les éléments communs de l'administration sont décrits dans le guide utilisateur (document 06). Ouvrez le module par la liste *Module* de l'en-tête ou l'onglet *Accueil*. Pour les IDE et aides-soignant(e)s, un guide pratique illustré reprend les gestes du quotidien : document 08 du kit.*
+*Tessera Santé, module Isolement et contention (Isocont) — à lire en 10 minutes. La connexion, l'onglet Patients, le mode formation, le journal et les éléments communs de l'administration sont décrits dans le guide utilisateur (document 06). Ouvrez le module par la barre des modules, en bas de l'écran ; son onglet *Patients* montre les statistiques d'isolement et de contention par patient (la liste des patients elle-même a sa fenêtre *Patients*). Pour les IDE et aides-soignant(e)s, un guide pratique illustré reprend les gestes du quotidien : document 08 du kit.*
 
 *Ce guide parle de « chambre de soins intensifs (CSI) ». Si votre établissement emploie une autre appellation (chambre d'isolement, espace d'isolement…), l'outil affiche la sienne.*
 
