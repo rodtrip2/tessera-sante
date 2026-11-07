@@ -26,7 +26,7 @@
     var c = String(service || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9_ .()-]+/g, '_').trim().slice(0, 40);
     return c && c !== '.' && c !== '..' ? c : DOSSIER_ETABLISSEMENT;
   }
-  /** Chemin Windows d'un dossier d'exports (ex. \\serveur\partage\SuiviIsoCont\exports\U1), ou '' si le chemin réseau n'est pas renseigné. */
+  /** Chemin Windows d'un dossier d'exports (ex. \\serveur\partage\TesseraSante\exports\U1), ou '' si le chemin réseau n'est pas renseigné. */
   function cheminWindowsExports(config, sousDossiers) {
     var o = optionsExports(config);
     if (!o.cheminReseau) return '';

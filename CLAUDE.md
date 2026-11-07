@@ -63,7 +63,7 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 2. Vérification dans un vrai navigateur (Playwright, mode démonstration, données fictives) des écrans modifiés.
 3. Mettre à jour la documentation concernée : `docs/architecture.md` (décisions, état du plan), `docs/fiche-technique.md` (passer un mécanisme de « à construire » à « existant »), `docs/fiche-projet.md`, guides.
 4. `CHANGELOG.md` (nouvelle entrée en tête) et numéro de version, dès que l'application existe dans ce dépôt.
-5. Régénérer les PDF des documents (`python3 scripts/docs-pdf.py`) et les empreintes SHA-256 de l'application avant publication.
+5. Régénérer les PDF des documents et du kit (`python3 scripts/docs-pdf.py`), le script robocopy intégré si `kit/outils/miroir-robocopy.ps1` a changé (`node scripts/outils-js.mjs`) et les empreintes SHA-256 de l'application (`node scripts/empreintes.mjs`) avant publication. Mettre à jour le kit (`kit/`) quand un écran ou une procédure change ; si un écran du guide pratique IDE / AS change, régénérer ses captures (`python3 scripts/captures-guide-ide-as.py`, serveur local sur le port 8765).
 6. **Commit et push sur GitHub après chaque modification** (consigne permanente du porteur). Message en français ; terminer par les lignes d'attribution demandées par l'environnement.
 7. Compte rendu au porteur en français : ce qui a changé, ce qui reste à valider de son côté.
 

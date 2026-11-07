@@ -1,5 +1,18 @@
 # Journal des modifications — Tessera Santé
 
+## 0.9.0 — 7 novembre 2026
+
+Étape 7 : **kit de déploiement**. Toutes les étapes du plan de développement sont faites.
+
+- Dossier `kit/` (Markdown modifiable, PDF dans `kit/pdf/`) :
+  - 03 guide d'installation (dossier unique pour tous les modules, activation par service, rôles et accès par module, comptes, reprise des données, recette par module) ;
+  - 04 procédures de secours (départ d'un agent et retrait d'un droit, compromission et « Tout renouveler », coffre modifié ou restauré, procédure dégradée de l'agenda) ;
+  - 05 éléments RGPD et analyse d'impact : **une fiche du registre des traitements par module** (fiche patient, isolement et contention, agenda), risques et mesures (un droit = une clé, coffre attesté) ;
+  - 06 guide utilisateur de la plateforme (connexion, écran, fiche patient, agenda, alertes, Mon agenda, journal, droits par défaut) ; 12 guide du module Isolement et contention ; 08 guide pratique IDE et AS avec captures refaites dans Tessera ;
+  - 07 reprise à partir du registre, 09 dossier de secours par robocopy, 10 travail hors réseau, 11 import de la liste des patients du DPI.
+- Chemins d'exemple, raccourci et tâches planifiées renommés « TesseraSante » (assistant robocopy, scripts du kit) ; page d'accueil du dépôt qui ouvre l'application (`index.html`).
+- `scripts/docs-pdf.py` produit aussi les PDF du kit ; `scripts/captures-guide-ide-as.py` adapté à Tessera.
+
 ## 0.8.5 — 7 novembre 2026
 
 Étape 6 (module Agenda), dernière sous-étape : **alertes et « Mon agenda »**. L'étape 6 est terminée.

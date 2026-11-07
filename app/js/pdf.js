@@ -249,7 +249,7 @@
     objets[catalogue - 1] = '<< /Type /Catalog /Pages ' + pagesId + ' 0 R >>';
     objets[pagesId - 1] = '<< /Type /Pages /Kids [' + idsPages.map(function (i) { return i + ' 0 R'; }).join(' ') + '] /Count ' + n + ' >>';
     function dateP(d) { var p = function (x) { return String(x).padStart(2, '0'); }; return 'D:' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()); }
-    var info = obj('<< /Title (' + code(this.o.titre || 'Document', false) + ') /Author (' + code(this.o.auteur || '', false) + ') /Producer (Suivi-mesures-isocont) /CreationDate (' + dateP(new Date()) + ') >>');
+    var info = obj('<< /Title (' + code(this.o.titre || 'Document', false) + ') /Author (' + code(this.o.auteur || '', false) + ') /Producer (Tessera Sante) /CreationDate (' + dateP(new Date()) + ') >>');
 
     // Assemblage : chaînes d'octets (codes 0-255) et flux binaires, avec la table des positions.
     var morceaux = [], pos = 0, positions = [];

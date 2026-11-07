@@ -1,6 +1,6 @@
 ﻿# SPDX-License-Identifier: EUPL-1.2
 #
-# Suivi-mesures-isocont : copie de l'outil (dossier « app ») sur le disque d'un poste désigné, pour l'utiliser
+# Tessera Santé : copie de l'outil (dossier « app ») sur le disque d'un poste désigné, pour l'utiliser
 # même pendant une panne du réseau, quand l'outil n'est pas servi en HTTPS (sinon, préférer la mise en cache par
 # le navigateur, Administration → Sauvegardes et exports). Mode d'emploi : kit/10-travail-hors-reseau.md.
 #
@@ -10,18 +10,18 @@
 #   2. contrôle de CHAQUE fichier par son empreinte SHA-256 (EMPREINTES-SHA256.txt publié avec l'outil) :
 #      au moindre écart, la copie est abandonnée et la version déjà présente sur le poste reste en place ;
 #   3. remplacement de la version locale (l'ancienne est gardée dans « app.ancien ») ;
-#   4. raccourci « Suivi isolement contention » sur le bureau public, avec l'icône de l'outil.
+#   4. raccourci « Tessera Santé » sur le bureau public, avec l'icône de l'outil.
 # Si la source est inaccessible (panne), rien n'est modifié : le poste garde sa dernière copie.
 # Codes de sortie : 0 = à jour ; 1 = source inaccessible (copie locale inchangée) ; 2 = contrôle refusé ou erreur.
 
 param(
   # Dossier « app » publié par le service informatique (partage ou dossier du serveur intranet)
-  [string]$Source = '\\serveur-donnees\partage\SuiviIsoCont-outil\app',
+  [string]$Source = '\\serveur-donnees\partage\TesseraSante-outil\app',
   # Dossier local du poste
-  [string]$Local = 'C:\SuiviIsoCont\app',
+  [string]$Local = 'C:\TesseraSante\app',
   # Raccourci sur le bureau public (vide = pas de raccourci)
-  [string]$Raccourci = (Join-Path $env:PUBLIC 'Desktop\Suivi isolement contention.lnk'),
-  [string]$Journal = (Join-Path $env:ProgramData 'SuiviIsoCont\copie-locale-outil.log'),
+  [string]$Raccourci = (Join-Path $env:PUBLIC 'Desktop\Tessera Santé.lnk'),
+  [string]$Journal = (Join-Path $env:ProgramData 'TesseraSante\copie-locale-outil.log'),
   [string]$Robocopy = 'robocopy.exe'
 )
 
@@ -77,7 +77,7 @@ if ($Raccourci -and $env:OS -eq 'Windows_NT') {
   if (Test-Path -LiteralPath $edge) { $lnk.TargetPath = $edge; $lnk.Arguments = '--app="file:///' + ($index -replace '\\', '/') + '"' }
   else { $lnk.TargetPath = $index }
   $lnk.IconLocation = (Join-Path $Local 'img\icone.ico') + ',0'
-  $lnk.Description = 'Suivi des mesures d''isolement et de contention (copie locale)'
+  $lnk.Description = 'Tessera Santé (copie locale)'
   $lnk.Save()
 }
 exit 0

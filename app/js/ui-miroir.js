@@ -149,7 +149,7 @@
     var champ = h('input', { type: 'text', maxlength: 40, value: nomPoste(), placeholder: 'Ex. PC-UHP-IDE-1' });
     var fait = await U.modale('Copie locale des données sur ce poste', h('div', { class: 'pile' },
       h('label', {}, 'Nom Windows de ce poste (pour la liste des postes désignés)', champ),
-      h('p', { class: 'muted', text: 'Choisissez ensuite un dossier VIDE sur le disque de ce poste (ex. C:\\SuiviIsoCont-local), accessible aux seuls agents habilités. Le disque doit être chiffré (BitLocker).' })), [
+      h('p', { class: 'muted', text: 'Choisissez ensuite un dossier VIDE sur le disque de ce poste (ex. C:\\TesseraSante-local), accessible aux seuls agents habilités. Le disque doit être chiffré (BitLocker).' })), [
       { texte: 'Annuler' },
       { texte: 'Choisir le dossier…', classe: 'primaire', action: async function () {
         var nom = champ.value.trim().slice(0, 40);
@@ -289,11 +289,11 @@
   function assistantRobocopy(type) {
     var cfg = U.config(), oe = M.optionsExports(cfg);
     var selType = h('select', {}, h('option', { value: 'serveur', text: 'Dossier de secours sur un autre serveur', selected: type !== 'local' }), h('option', { value: 'local', text: 'Copie locale d’un poste désigné (travail hors réseau)', selected: type === 'local' }));
-    var principal = h('input', { type: 'text', value: oe.cheminReseau, placeholder: '\\\\serveur\\partage\\SuiviIsoCont' });
-    var secours = h('input', { type: 'text', value: type === 'local' ? 'C:\\SuiviIsoCont-local' : '' });
+    var principal = h('input', { type: 'text', value: oe.cheminReseau, placeholder: '\\\\serveur\\partage\\TesseraSante' });
+    var secours = h('input', { type: 'text', value: type === 'local' ? 'C:\\TesseraSante-local' : '' });
     var selCompte = h('select', {}, h('option', { value: 'service', text: 'Un compte de service (la copie se fait même si personne n’est connecté)' }), h('option', { value: 'agents', text: 'Les agents connectés à la machine (aucun mot de passe à saisir)' }),
       h('option', { value: 'session', text: 'Ma session Windows seulement (sans droits d’administrateur)' }));
-    var utilisateur = h('input', { type: 'text', placeholder: 'DOMAINE\\svc-isocont' });
+    var utilisateur = h('input', { type: 'text', placeholder: 'DOMAINE\\svc-tessera' });
     try { utilisateur.value = localStorage.getItem('sic-compte-robocopy') || ''; } catch (e) { /* rien */ }
     var selIntervalle = h('select', {}, M.INTERVALLES_ROBOCOPY.map(function (m) { return h('option', { value: m, text: 'Toutes les ' + m + ' minutes', selected: m === 15 }); }));
     var lblSecours = h('label', {}, '', secours), lblUtil = h('label', {}, 'Compte de service', utilisateur);
@@ -308,7 +308,7 @@
     var dejaTouche = false;
     secours.addEventListener('input', function () { dejaTouche = true; });
     selType.addEventListener('change', function () {
-      if (!dejaTouche) secours.value = selType.value === 'local' ? 'C:\\SuiviIsoCont-local' : '';
+      if (!dejaTouche) secours.value = selType.value === 'local' ? 'C:\\TesseraSante-local' : '';
       selCompte.value = selType.value === 'local' ? 'agents' : 'service';
     });
     var optSession = selCompte.querySelector('option[value="session"]');

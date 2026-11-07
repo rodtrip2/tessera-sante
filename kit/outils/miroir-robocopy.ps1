@@ -1,6 +1,6 @@
 ﻿# SPDX-License-Identifier: EUPL-1.2
 #
-# Suivi-mesures-isocont : copie du dossier des données vers le dossier de secours, par robocopy.
+# Tessera Santé : copie du dossier des données vers le dossier de secours, par robocopy.
 # À lancer par une tâche planifiée Windows (toutes les 15 à 30 minutes), de préférence sur un serveur,
 # sous un compte de service qui a accès en lecture et écriture aux deux dossiers.
 # Mode d'emploi : kit/09-dossier-secours-robocopy.md (fiche du service informatique).
@@ -22,15 +22,15 @@
 
 param(
   # Dossier des données de l'outil (chemin UNC conseillé)
-  [string]$Principal = '\\serveur-donnees\partage\SuiviIsoCont',
+  [string]$Principal = '\\serveur-donnees\partage\TesseraSante',
   # Dossier de secours, sur un autre serveur de préférence
-  [string]$Secours = '\\serveur-secours\partage\SuiviIsoCont-secours',
+  [string]$Secours = '\\serveur-secours\partage\TesseraSante-secours',
   # Sous-dossier des exports (réglage « Dossier des exports » de l'outil, « exports » par défaut)
   [string]$Exports = 'exports',
   # Journal du script (résumé) ; le détail de robocopy va dans le même dossier, fichier « -detail »
-  [string]$Journal = (Join-Path $env:ProgramData 'SuiviIsoCont\miroir-robocopy.log'),
+  [string]$Journal = (Join-Path $env:ProgramData 'TesseraSante\miroir-robocopy.log'),
   # Nature de la copie : 'serveur' (dossier de secours du service) ou 'local' (copie locale d'un poste désigné
-  # pour le travail hors réseau, document 10 ; $Secours est alors un dossier du disque du poste, ex. C:\SuiviIsoCont-local)
+  # pour le travail hors réseau, document 10 ; $Secours est alors un dossier du disque du poste, ex. C:\TesseraSante-local)
   [ValidateSet('serveur', 'local')][string]$Type = 'serveur',
   # Commande robocopy (modifiable pour les tests)
   [string]$Robocopy = 'robocopy.exe'

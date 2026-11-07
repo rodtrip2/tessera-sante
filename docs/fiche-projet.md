@@ -124,8 +124,8 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 
 ## 9. État d'avancement
 
-- **Module Isocont** : développé sous forme d'application web, documenté (guides, fiche technique, éléments RGPD), vérifié par des tests automatiques. Il n'a jamais été utilisé avec des données réelles.
-- **Socle commun, modules Patients et Agenda** : architecture définie, à construire en reprenant le code d'Isocont.
+- **Socle commun, modules Patients, Isolement et contention et Agenda** : développés et vérifiés par des tests automatiques (version 0.9.0), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
+- **Kit de déploiement** : guide d'installation, procédures de secours, éléments RGPD (un traitement par module), guides utilisateur et guide pratique illustré, imports (dossier `kit/` du dépôt).
 
 ## 10. Démarche
 

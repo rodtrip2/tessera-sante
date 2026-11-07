@@ -6,12 +6,14 @@ Plateforme de suivi et d'organisation d'un service de soins : un socle commun (c
 | --- | --- |
 | Patients | Fiche commune qui relie les modules entre eux (la liste des patients reste disponible dans le DPI) : identité, séjour, chambre, médecins de 1re et 2e ligne, référents soignants. Import de la liste des patients exportée du DPI. |
 | Isolement et contention (Isocont) | Suivi légal des mesures (article L. 3222-5-1 du code de la santé publique) : échéances et envois au juge des libertés et de la détention, registre, rapport annuel. |
-| Agenda du service | Calendrier du service, avec les échéances JLD des mesures en cours. |
+| Agenda du service | Accompagnements, activités, réunions et sorties (répétition, check-lists), tâches du service, absences, alertes (dont les échéances JLD des mesures en cours), « Mon agenda ». |
 
 Projet en cours de présentation :
 
 - [Fiche projet](docs/fiche-projet.md) ([PDF](docs/fiche-projet.pdf)), pour la direction des soins ;
 - [Fiche technique](docs/fiche-technique.md) ([PDF](docs/fiche-technique.pdf)), pour le service informatique et le responsable de la sécurité informatique.
+
+Pour déployer : [kit de déploiement](kit/README.md) (guide d'installation, procédures de secours, éléments RGPD, guides utilisateur, imports ; PDF dans `kit/pdf/`). Démonstration (données fictives) : https://rodtrip2.github.io/tessera-sante/.
 
 Pour le développement : [architecture](docs/architecture.md) ([PDF](docs/architecture.pdf)) et consignes du projet (`CLAUDE.md`).
 
