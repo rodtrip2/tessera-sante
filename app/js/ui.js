@@ -590,7 +590,7 @@
 
   /** Onglets : ceux du module (son contrat), puis le journal et l'administration du socle. */
   function onglets() {
-    return moduleActif().vues.onglets.map(function (o) { return [o.code, o.libelle]; }).concat([['journal', 'Journal'], ['admin', 'Administration']]);
+    return SIC.modules.onglets().map(function (o) { return [o.code, o.libelle]; }).concat([['journal', 'Journal'], ['admin', 'Administration']]);
   }
 
   /** Liste « Affichage » de l'en-tête (administrateur) : voir l'outil comme un agent portant un autre rôle. */

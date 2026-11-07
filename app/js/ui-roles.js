@@ -11,7 +11,7 @@
   // Accès, rôles fournis et onglets : déclarés par le module dans son contrat (registre des modules)
   function mod() { return SIC.modules.actif(); }
   function D() { return mod().droits; }
-  function ongletsMasquables() { return mod().vues.onglets.filter(function (o) { return o.masquable; }).map(function (o) { return o.code; }); }
+  function ongletsMasquables() { return SIC.modules.onglets().filter(function (o) { return o.masquable; }).map(function (o) { return o.code; }); }
 
   function comptesAvec(code) {
     return (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && (c.roles || []).indexOf(code) >= 0; });
@@ -24,7 +24,7 @@
     return code;
   }
 
-  function libOnglet(code) { var o = mod().vues.onglets.filter(function (x) { return x.code === code; })[0]; return o ? o.libelle : code; }
+  function libOnglet(code) { var o = SIC.modules.onglets().filter(function (x) { return x.code === code; })[0]; return o ? o.libelle : code; }
   function libOnglets(l) { return l.length ? l.map(function (o) { return U.lieu(libOnglet(o)); }).join(', ') : 'aucun'; }
   function libJournal(c) { var n = D().NIVEAUX_JOURNAL.filter(function (x) { return x.code === c; })[0]; return n ? n.libelle : c; }
   function minuscule(t) { return t.charAt(0).toLowerCase() + t.slice(1); }

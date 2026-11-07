@@ -83,7 +83,7 @@
     libelle: 'Patients',
     version: '0.1.0',
     icone: 'PA',
-    reference: true,            // module de référence, sans écran propre à cette sous-étape
+    reference: true,            // module de référence : son onglet s'affiche en tête de celui du module affiché
 
     acces: [],                  // les saisies de la fiche sont permises par les accès des modules qui en dépendent
     saisies: {
@@ -92,7 +92,8 @@
       reduire: reduire
     },
     reglages: { defaut: {}, groupes: [], exclus: [] },
-    vues: { onglets: [] },
+    // Onglet « Patients » (affichage : ui-patients.js) ; masquable rôle par rôle comme ceux d'Isocont
+    vues: { onglets: [{ code: 'patients', libelle: 'Patients', masquable: true }] },
     migrations: [],
     fournitures: [
       { nom: 'patients.fiches', version: 1, acces: 'lecture', calculer: fiches,

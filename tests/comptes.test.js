@@ -45,10 +45,16 @@ test('CSV point-virgule avec guillemets, identifiant déjà pris refusé', () =>
   assert.match(r[1].erreurs.join(), /invalide/);
 });
 
-test('Rôle AS : mêmes droits que l\'IDE', () => {
-  ['PATIENT', 'MESURE_DEBUT', 'MESURE_FIN', 'TIERS', 'PROFESSIONNEL', 'JLD', 'CONFIG', 'CORRECTION'].forEach(t => {
+test('Rôle AS : mêmes droits que l\'IDE, sauf la création et la correction des fiches patient', () => {
+  ['MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'TIERS', 'PROFESSIONNEL', 'JLD', 'CONFIG', 'CORRECTION'].forEach(t => {
     assert.equal(M.peut(['AS'], t), M.peut(['IDE'], t), t);
   });
+  // Fiches patient : IDE, secrétaire et cadre par défaut (décisions du porteur des 4 et 7 novembre 2026)
+  assert.equal(M.peut(['AS'], 'PATIENT'), false);
+  for (const r of ['IDE', 'SECRETAIRE', 'CADRE']) assert.equal(M.peut([r], 'PATIENT'), true, r);
+  assert.equal(M.peut(['SECRETAIRE'], 'MODE_HOSPI'), false);
+  assert.deepEqual(M.accesDefaut('AS').includes('patients'), false);
+  assert.deepEqual(M.accesDefaut('SECRETAIRE'), ['patients', 'jld', 'recours']);
 });
 
 test('Mot de passe provisoire : format et entropie', () => {

@@ -39,7 +39,8 @@
     // Vues : onglets du module (« Journal » et « Administration » appartiennent au socle)
     vues: {
       onglets: [
-        { code: 'tableau', libelle: 'Tableau de bord' }, { code: 'mesures', libelle: 'Mesures' }, { code: 'patients', libelle: 'Patients' },
+        // (onglet « Patients » : déclaré par le module Patients, affiché en tête ; décision du porteur du 7 novembre 2026)
+        { code: 'tableau', libelle: 'Tableau de bord' }, { code: 'mesures', libelle: 'Mesures' },
         { code: 'jld', libelle: 'JLD' }, { code: 'surveillance', libelle: 'Surveillance CSI' }, { code: 'registre', libelle: 'Registre' },
         { code: 'stats', libelle: 'Statistiques' }
       ].map(function (o) { o.masquable = M.ONGLETS_MASQUABLES.indexOf(o.code) >= 0; return o; })

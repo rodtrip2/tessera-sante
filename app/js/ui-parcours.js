@@ -78,7 +78,8 @@
         verifierDate(t, liste);
         for (var i = 0; i < liste.length; i++) await U.App.session.enregistrer('TRANSFERT', { mesureId: liste[i].id, date: t, service: sv.value, lieu: l.lieu, csi: l.csi, exception: !!liste[i].exception && !l.csi }, liste[i].version);
         var p = U.st().patients[m.patientId];
-        if (p && p.service !== sv.value) await U.App.session.enregistrer('PATIENT', { patientId: m.patientId, service: sv.value });
+        // La fiche suit le patient (conséquence du transfert, permise sans le droit de corriger les fiches)
+        if (p && p.service !== sv.value) await U.App.session.enregistrer('PATIENT', { patientId: m.patientId, service: sv.value }, undefined, { sansControle: true });
         U.toast('Transfert enregistré.');
       } }]);
   }

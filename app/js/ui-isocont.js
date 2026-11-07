@@ -452,7 +452,8 @@
     blocNouveau.appendChild(aNom);
     var zoneNaissance = h('div', { class: 'grille-2' }, labelNaissance, h('div'));
 
-    function patientChoisi() { return selPatient.value === '__nouveau' ? null : patient(selPatient.value); }
+    var peutFiche = App.session.peut('PATIENT');
+    function patientChoisi() { return selPatient.value === '__nouveau' || !selPatient.value ? null : patient(selPatient.value); }
     function naissanceRequise() { var p = patientChoisi(); return !p || !p.naissance; }
 
     function remplirPatients() {
@@ -460,15 +461,17 @@
       var pts = Object.keys(st().patients).map(function (k) { return st().patients[k]; })
         .filter(function (p) { return !p.service || p.service === selSv.value; })
         .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
-      selPatient.appendChild(h('option', { value: '__nouveau', text: '+ Nouveau patient' }));
+      // Créer une fiche : droit du module Patients (IDE, secrétaire, cadre par défaut ; pas l'AS)
+      if (peutFiche) selPatient.appendChild(h('option', { value: '__nouveau', text: '+ Nouveau patient' }));
+      else if (!pts.length) selPatient.appendChild(h('option', { value: '', text: 'Aucune fiche dans ce service : à créer par un IDE, la secrétaire ou le cadre' }));
       pts.forEach(function (p) { selPatient.appendChild(h('option', { value: p.id, text: (p.nom || '') + ' ' + (p.prenom || '') + (p.ipp ? ' — IPP ' + p.ipp : '') })); });
       if (pts.length) selPatient.value = pts[0].id;
       majPatient();
     }
     function majPatient() {
       var p = patientChoisi();
-      blocNouveau.hidden = !!p;
-      zoneNaissance.hidden = !naissanceRequise();
+      blocNouveau.hidden = !!p || !peutFiche;
+      zoneNaissance.hidden = !naissanceRequise() || !peutFiche;
       labelNaissance.firstChild.textContent = p ? 'Date de naissance (absente de la fiche, obligatoire)' : 'Date de naissance (obligatoire)';
       naissance.value = '';
       if (p) { var mode = modeActuel(p); if (mode) selMode.value = mode; infoMode.textContent = mode ? 'Mode actuel : ' + mode + '. Modifiez-le si le statut a changé.' : ''; }
@@ -596,6 +599,8 @@
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         var tDebut = depuisSaisie(debut.value);
         if (tDebut > Date.now() + 10 * 60000) throw new Error('La date de début ne peut pas être dans le futur.');
+        if (!peutFiche && !patientChoisi()) throw new Error('Choisissez la fiche du patient : la création d’une fiche est faite par un IDE, la secrétaire ou le cadre (onglet Patients).');
+        if (!peutFiche && naissanceRequise()) throw new Error('La date de naissance manque sur la fiche de ce patient : demandez à un IDE, à la secrétaire ou au cadre de la compléter (onglet Patients).');
         if (naissanceRequise()) {
           if (!naissance.value) { naissance.focus(); throw new Error('Indiquez la date de naissance du patient.'); }
           if (naissance.value > M.dateLocaleISO(Date.now())) throw new Error('La date de naissance ne peut pas être dans le futur.');
