@@ -1,5 +1,18 @@
 # Journal des modifications — Tessera Santé
 
+## 0.11.0 — 8 novembre 2026
+
+Décisions du porteur du 8 novembre 2026 (agenda et fiche patient).
+
+- **Répétitions généralisées** : tous les N jours ; jours cochés chaque semaine ou toutes les N semaines (« le mercredi, tous les 15 jours ») ; même date tous les N mois ; **un jour repéré par son rang** (1er à 5e, dernier, avant-dernier) dans **le mois, le trimestre, le semestre ou l'année** — jour de la semaine, week-end, jour ouvré ou jour (« 1er dimanche du trimestre », « dernier vendredi du mois », « dernier jour ouvré du mois ») —, éventuellement une période sur N. La répétition choisie s'affiche en toutes lettres. Répétitions de la 0.10.0 relues à l'identique.
+- **Nouveaux événements** : **Examen** (type d'examen, lieu, VSL à prévoir, patient accompagné) et **Audience JLD** (services de psychiatrie : patients convoqués, un ou plusieurs VSL à réserver, soignants à prévoir).
+- **Éléments ajoutables à tout événement** : *+ Patients*, *+ Transport* (VSL, taxi, ambulance, véhicule du service, autre ; nombre, précision), *+ Accompagnateur* (désigné ou à trouver), *+ Permission à faire valider*, *+ Validation* (médicale ou autre, délai choisi). Réservation des transports (saisie `TRANSPORT`) et validations (saisie `VALIDATION` : validée ou refusée, signataire) **date par date** ; rappels dans l'agenda (« Réserver : … », « Faire valider … »), le résumé et l'onglet *Alertes* (validations à obtenir, transports à réserver, accompagnateurs à trouver). La permission de sortie devient une validation de type « permission ».
+- **Inscrire ou désinscrire un collègue** comme accompagnateur (nouvel accès, IDE, AS, secrétaire et cadre par défaut) : le collègue **en est informé dans sa session** — bandeau dans l'Agenda et *Mon agenda*, pastille sur la barre des modules — jusqu'à « Vu » (gardé pour son compte).
+- Nouvel accès **« Enregistrer les validations »** (IDE, secrétaire, cadre par défaut) ; l'accès « Planifier » comprend la réservation des transports.
+- **Fiche patient** : **agenda du patient** (éléments des 60 prochains jours) et **+ Événement pour ce patient** (patient et service préremplis).
+- Jeu de démonstration : examen avec VSL à réserver, audience JLD avec deux VSL réservés et l'agent de la démonstration inscrit par un tiers (information reçue), sortie avec validation médicale, permissions demandées et validée, réunion de pôle le 1er jeudi du trimestre, audit le 1er lundi du trimestre.
+- Nouveaux tests (répétitions généralisées, transports, validations, inscription d'un collègue et information reçue ; 220 au vert) ; écrans vérifiés dans Chrome ; architecture, fiche projet et guide utilisateur à jour.
+
 ## 0.10.0 — 8 novembre 2026
 
 Retours du porteur après ses premiers essais (7 novembre 2026).

@@ -590,3 +590,13 @@ table.liste-patients .btn.tri { color: inherit; text-decoration: none; font-weig
 .reglages-liste { flex-wrap: wrap; gap: 8px 14px; }
 .filtres-patients { margin: 0 0 10px; }
 .filtres-patients summary { cursor: pointer; font-weight: 600; }
+
+/* ---------- Agenda 0.11.0 : informations reçues, sections ajoutables, transports */
+.bouton-module .pastille { position: absolute; top: 2px; right: 14px; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: .7rem; font-weight: 700; line-height: 18px; }
+.ag-avis { border-left: 4px solid var(--accent); background: var(--accent-soft); }
+.ag-avis h2 { font-size: 1rem; margin: 0; }
+.ag-section { border-top: 1px solid var(--line); padding-top: 8px; }
+.ag-ajouter { padding: 6px 8px; background: var(--surface-2); border-radius: var(--radius); align-items: center; }
+.ag-validation { border-left: 3px solid var(--warn); padding-left: 8px; }
+.ag-puce.ag-transport { --c: var(--done); }
+.ag-puce.ag-transport.retard { --c: var(--bad); font-weight: 600; }

@@ -15,23 +15,37 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre) {
   'use strict';
 
-  var TYPES = ['RDV', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
+  var TYPES = ['RDV', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
   // Types d'éléments (décisions du porteur du 7 novembre 2026 : entretien médical ou infirmier, individuel ou avec la
   // famille ; permission de sortie demandée puis validée, distincte de la sortie du patient)
-  var NATURES = { accompagnement: 'Accompagnement', entretien: 'Entretien', activite: 'Activité thérapeutique', reunion: 'Réunion',
-    permission: 'Permission de sortie', sortie: 'Sortie du patient', autre: 'Autre événement' };
+  // Audience JLD (services de psychiatrie) et Examen : décisions du porteur du 8 novembre 2026
+  var NATURES = { accompagnement: 'Accompagnement', entretien: 'Entretien', examen: 'Examen', activite: 'Activité thérapeutique', reunion: 'Réunion',
+    audience: 'Audience JLD', permission: 'Permission de sortie', sortie: 'Sortie du patient', autre: 'Autre événement' };
+  // Éléments ajoutables à tout événement (décision du 8 novembre 2026) : patients, transports, accompagnateurs, permission
+  // à faire valider, validation médicale ou autre
+  var TRANSPORTS = { vsl: 'VSL', taxi: 'Taxi', ambulance: 'Ambulance', vehicule: 'Véhicule du service', autre: 'Autre transport' };
+  var TYPES_VALIDATION = { permission: 'Permission de sortie', medicale: 'Validation médicale', autre: 'Autre validation' };
+  var EXAMENS = ['Prise de sang', 'Radiographie', 'Scanner', 'IRM', 'Échographie', 'Électrocardiogramme (ECG)', 'Électroencéphalogramme (EEG)', 'Consultation spécialisée', 'Soins dentaires', 'Autre examen'];
   var ENTRETIENS = { medical: 'médical', infirmier: 'infirmier' };
   var AVEC = { individuel: 'individuel', famille: 'avec la famille' };
   var STATUTS_PERMISSION = { demande: 'Permission de sortie (demande)', validee: 'Permission validée' };
   // Couleurs proposées par type (réglables par l'établissement, Administration → Agenda)
-  var COULEURS_DEFAUT = { accompagnement: '#2c5c9b', entretien: '#0f7c8c', activite: '#2e7d4f', reunion: '#6b3fa0', permission: '#9a6a00',
+  var COULEURS_DEFAUT = { accompagnement: '#2c5c9b', entretien: '#0f7c8c', examen: '#b0457a', activite: '#2e7d4f', reunion: '#6b3fa0', audience: '#3d4f5c', permission: '#9a6a00',
     sortie: '#b3261e', autre: '#545c57', tache: '#6b5a3a', alerte: '#b3261e' };
   // Délai de validation médicale d'une permission, en heures avant son début, selon le mode d'hospitalisation (décision du
   // porteur : 48 h pour les SDRE, jusqu'au dernier moment pour les soins libres ; autres modes proposés, réglables)
   var DELAIS_PERMISSION_DEFAUT = { SDRE: 48, SDT: 24, SDTU: 24, SPI: 24, SL: 0, 'SL mineur': 0 };
-  var REGULARITES = { aucune: 'Une seule fois', jour: 'Chaque jour', semaine: 'Chaque semaine (jours cochés)', mois: 'Chaque mois (même date)',
-    rangMois: 'Chaque mois, un jour de la semaine (ex. 1er mardi)', weekendMois: 'Chaque mois, un week-end (ex. dernier week-end)' };
-  var RANGS = { 1: '1er', 2: '2e', 3: '3e', 4: '4e', '-1': 'dernier' };
+  // Répétitions (décisions du porteur du 7 et du 8 novembre 2026) : tous les N jours ; chaque semaine ou toutes les N
+  // semaines, jours cochés (ex. le mercredi tous les 15 jours) ; chaque mois ou tous les N mois à la même date ; un jour
+  // repéré par son rang dans le mois, le trimestre, le semestre ou l'année (ex. 1er dimanche du trimestre, dernier
+  // vendredi du mois, dernier week-end du mois, 1er jour ouvré du mois, dernier jour de l'année)
+  var REGULARITES = { aucune: 'Une seule fois', jour: 'Tous les jours (ou tous les N jours)', semaine: 'Chaque semaine (jours cochés, ou toutes les N semaines)',
+    mois: 'Chaque mois à la même date (ou tous les N mois)', rangPeriode: 'Un jour repéré dans le mois, le trimestre, le semestre ou l’année' };
+  var RANGS = { 1: '1er', 2: '2e', 3: '3e', 4: '4e', 5: '5e', '-1': 'dernier', '-2': 'avant-dernier' };
+  var PERIODES = { mois: 'mois', trimestre: 'trimestre', semestre: 'semestre', annee: 'année' };
+  var MOIS_PERIODE = { mois: 1, trimestre: 3, semestre: 6, annee: 12 };
+  // Jour repéré : jour de la semaine (0 dimanche … 6 samedi), week-end (samedi et dimanche), jour ouvré (lundi à vendredi), jour
+  var GENRES_JOUR = { weekend: 'week-end', ouvre: 'jour ouvré', jour: 'jour' };
   // Modèle de check-list fourni (décision du porteur du 7 novembre 2026 : exemple de la sortie d'un patient), modifiable
   // Chaque point porte son délai d'alerte en jours avant l'événement (0 : le jour même ; null : sans alerte), exemple du porteur
   var CHECKLISTS_DEFAUT = [{ code: 'sortie', libelle: 'Sortie du patient', items: [
@@ -90,40 +104,72 @@
   function depuisISO(j) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(j || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : null; }
   function plusJours(t, n) { var d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); }   // heures d'été comprises
   /**
-   * Répétition validée : { type, jours: [0..6] (semaine), intervalle (semaine : toutes les 1 à 4 semaines), rang (1 à 4,
-   * -1 = dernier) et jour (0..6) pour « rangMois », rang pour « weekendMois », jusquAu: 'AAAA-MM-JJ' | '' }.
-   * Champs ajoutés le 7 novembre 2026 ; une répétition enregistrée avant reste identique.
+   * Répétition validée : { type, intervalle (jour : 1 à 60 ; semaine : 1 à 8 ; mois : 1 à 12 ; rangPeriode : 1 à 12 périodes),
+   * jours: [0..6] (semaine), rang (1 à 5, -1 dernier, -2 avant-dernier), jour (0..6 | 'weekend' | 'ouvre' | 'jour') et
+   * periode (mois | trimestre | semestre | annee) pour « rangPeriode », jusquAu: 'AAAA-MM-JJ' | '' }.
+   * Les répétitions « rangMois » et « weekendMois » de la version 0.10.0 sont lues comme « rangPeriode » sur le mois.
    */
   function regularite(v) {
-    var r = v || {}, type = REGULARITES[r.type] ? r.type : 'aucune';
+    var r = Object.assign({}, v || {});
+    if (r.type === 'rangMois') { r.type = 'rangPeriode'; r.periode = 'mois'; }
+    if (r.type === 'weekendMois') { r.type = 'rangPeriode'; r.periode = 'mois'; r.jour = 'weekend'; }
+    var type = REGULARITES[r.type] ? r.type : 'aucune';
     var jours = Array.isArray(r.jours) ? r.jours.map(Number).filter(function (j) { return j >= 0 && j <= 6; }) : [];
     var res = { type: type, jours: jours, jusquAu: depuisISO(r.jusquAu) ? r.jusquAu : '' };
-    if (type === 'semaine' && +r.intervalle > 1) res.intervalle = Math.min(4, Math.round(+r.intervalle));
-    if (type === 'rangMois' || type === 'weekendMois') res.rang = RANGS[String(r.rang)] ? +r.rang : 1;
-    if (type === 'rangMois') res.jour = +r.jour >= 0 && +r.jour <= 6 ? Math.round(+r.jour) : 1;
+    var max = { jour: 60, semaine: 8, mois: 12, rangPeriode: 12 }[type];
+    if (max && +r.intervalle > 1) res.intervalle = Math.min(max, Math.round(+r.intervalle));
+    if (type === 'rangPeriode') {
+      res.rang = RANGS[String(r.rang)] ? +r.rang : 1;
+      res.jour = GENRES_JOUR[r.jour] ? r.jour : (+r.jour >= 0 && +r.jour <= 6 && r.jour !== '' && r.jour !== null && r.jour !== undefined ? Math.round(+r.jour) : 1);
+      res.periode = PERIODES[r.periode] ? r.periode : 'mois';
+    }
     return res;
   }
-  function joursDuMois(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); }
-  /** Le jour `d` est-il le `rang`-ième (1 à 4, -1 dernier) de son jour de la semaine dans le mois ? */
-  function aLeRang(d, rang) { return rang === -1 ? d.getDate() + 7 > joursDuMois(d) : Math.ceil(d.getDate() / 7) === rang; }
   function lundiDe(t) { var d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.getTime(); }
+  /** Numéro de la période (mois, trimestre…) qui contient la date, et ses bornes [debut, fin[ (ms, minuit local). */
+  function periodeDe(d, periode) {
+    var n = MOIS_PERIODE[periode], m0 = Math.floor(d.getMonth() / n) * n;
+    return { index: d.getFullYear() * (12 / n) + m0 / n, debut: new Date(d.getFullYear(), m0, 1).getTime(), fin: new Date(d.getFullYear(), m0 + n, 1).getTime() };
+  }
+  /** Le jour convient-il au genre repéré (jour de la semaine, samedi d'un week-end, jour ouvré, tout jour) ? */
+  function convient(d, jour) {
+    if (jour === 'jour') return true;
+    if (jour === 'ouvre') return d.getDay() >= 1 && d.getDay() <= 5;
+    if (jour === 'weekend') return d.getDay() === 6;   // un week-end est repéré par son samedi
+    return d.getDay() === jour;
+  }
+  /** Rang du jour dans sa période parmi les jours qui conviennent (`rang` > 0 depuis le début, < 0 depuis la fin). */
+  function aLeRangDans(t, r) {
+    var d = new Date(t);
+    if (!convient(d, r.jour)) return false;
+    var p = periodeDe(d, r.periode), k = 0;
+    if (r.rang > 0) { for (var x = p.debut; x <= t; x = plusJours(x, 1)) if (convient(new Date(x), r.jour)) k++; return k === r.rang; }
+    for (var y = t; y < p.fin; y = plusJours(y, 1)) if (convient(new Date(y), r.jour)) k++;
+    return k === -r.rang;
+  }
   /**
    * Dates (AAAA-MM-JJ) des occurrences d'une répétition à partir du jour `premier` (ms), dans [debut, fin[ (ms).
-   * Semaine sans jour choisi : le jour de la première occurrence. Mois : même quantième (mois trop courts sautés).
+   * Semaine sans jour coché : le jour de la première occurrence. Mois : même quantième (mois trop courts sautés).
+   * Intervalle compté depuis la première occurrence (jour, semaine, mois ou période qui la contient).
    */
   function datesOccurrences(premier, reg, debut, fin) {
     var r = regularite(reg), res = [], j0 = depuisISO(jourISO(premier)), limite = r.jusquAu ? plusJours(depuisISO(r.jusquAu), 1) : Infinity;
     if (r.type === 'aucune') return j0 < fin && plusJours(j0, 1) > debut ? [jourISO(j0)] : [];
-    var depart = Math.max(j0, depuisISO(jourISO(debut))), jours = r.jours.length ? r.jours : [new Date(j0).getDay()];
-    for (var t = depart, n = 0; t < fin && t < limite && n < 400; t = plusJours(t, 1), n++) {
+    var d0 = new Date(j0), depart = Math.max(j0, depuisISO(jourISO(debut))), jours = r.jours.length ? r.jours : [d0.getDay()], pas = r.intervalle || 1;
+    function retenu(t) {
       var d = new Date(t);
-      var semaineOk = !r.intervalle || Math.round((lundiDe(t) - lundiDe(j0)) / (7 * 864e5)) % r.intervalle === 0;
-      var veille = new Date(plusJours(t, -1));
-      if (r.type === 'jour' || (r.type === 'semaine' && semaineOk && jours.indexOf(d.getDay()) >= 0) || (r.type === 'mois' && d.getDate() === new Date(j0).getDate())
-        || (r.type === 'rangMois' && d.getDay() === r.jour && aLeRang(d, r.rang))
-        // Week-end : le samedi du rang demandé et le dimanche qui le suit (même s'il tombe le mois suivant)
-        || (r.type === 'weekendMois' && ((d.getDay() === 6 && aLeRang(d, r.rang)) || (d.getDay() === 0 && aLeRang(veille, r.rang) && veille.getTime() >= j0)))) res.push(jourISO(t));
+      switch (r.type) {
+        case 'jour': return Math.round((t - j0) / 864e5) % pas === 0;
+        case 'semaine': return jours.indexOf(d.getDay()) >= 0 && Math.round((lundiDe(t) - lundiDe(j0)) / (7 * 864e5)) % pas === 0;
+        case 'mois': return d.getDate() === d0.getDate() && ((d.getFullYear() - d0.getFullYear()) * 12 + d.getMonth() - d0.getMonth()) % pas === 0;
+        case 'rangPeriode':
+          var ok = function (x) { return aLeRangDans(x, r) && (periodeDe(new Date(x), r.periode).index - periodeDe(d0, r.periode).index) % pas === 0; };
+          if (r.jour === 'weekend' && d.getDay() === 0) { var sam = plusJours(t, -1); return sam >= j0 && ok(sam); }   // dimanche qui suit le samedi retenu
+          return ok(t);
+      }
+      return false;
     }
+    for (var t = depart, n = 0; t < fin && t < limite && n < 800; t = plusJours(t, 1), n++) if (retenu(t)) res.push(jourISO(t));
     return res;
   }
   /** Occurrences d'un élément qui chevauchent [debut, fin[ : { occurrence, debut, fin } (même heure, même durée). */
@@ -138,19 +184,25 @@
   }
 
   var NOMS_JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-  /** Répétition en clair : « chaque mardi et vendredi », « le 1er mardi du mois », « le dernier week-end du mois »… */
+  function liste(js) { return js.length > 1 ? js.slice(0, -1).join(', ') + ' et ' + js[js.length - 1] : js[0]; }
+  /**
+   * Répétition en clair : « chaque mardi et vendredi », « le mercredi, tous les 15 jours », « le 1er dimanche du
+   * trimestre », « le dernier week-end du mois », « tous les 3 jours »…
+   */
   function libelleRepetition(v) {
-    var r = regularite(v), t;
+    var r = regularite(v), t, n = r.intervalle || 1;
     if (r.type === 'aucune') return 'une seule fois';
-    if (r.type === 'jour') t = 'chaque jour';
+    if (r.type === 'jour') t = n > 1 ? 'tous les ' + n + ' jours' : 'chaque jour';
     else if (r.type === 'semaine') {
       var js = [1, 2, 3, 4, 5, 6, 0].filter(function (j) { return r.jours.indexOf(j) >= 0; }).map(function (j) { return NOMS_JOURS[j]; });
-      t = (r.intervalle ? 'toutes les ' + r.intervalle + ' semaines' : 'chaque semaine') + (js.length ? ', le ' + (js.length > 1 ? js.slice(0, -1).join(', ') + ' et ' + js[js.length - 1] : js[0]) : '');
-      if (!r.intervalle && js.length) t = 'chaque ' + (js.length > 1 ? js.slice(0, -1).join(', ') + ' et ' + js[js.length - 1] : js[0]);
+      if (n === 1) t = js.length ? 'chaque ' + liste(js) : 'chaque semaine';
+      else t = (js.length ? 'le ' + liste(js) + ', ' : '') + (n === 2 ? 'tous les 15 jours' : 'toutes les ' + n + ' semaines');
     }
-    else if (r.type === 'mois') t = 'chaque mois (même date)';
-    else if (r.type === 'rangMois') t = 'le ' + RANGS[String(r.rang)] + ' ' + NOMS_JOURS[r.jour] + ' du mois';
-    else t = 'le ' + RANGS[String(r.rang)] + ' week-end du mois';
+    else if (r.type === 'mois') t = n > 1 ? 'tous les ' + n + ' mois, même date' : 'chaque mois, même date';
+    else {
+      var quoi = typeof r.jour === 'number' ? NOMS_JOURS[r.jour] : GENRES_JOUR[r.jour];
+      t = 'le ' + RANGS[String(r.rang)] + ' ' + quoi + ' ' + (r.periode === 'annee' ? 'de l’année' : 'du ' + PERIODES[r.periode]) + (n > 1 ? ', un ' + PERIODES[r.periode] + ' sur ' + n : '');
+    }
     return t + (r.jusquAu ? ' jusqu’au ' + r.jusquAu.split('-').reverse().join('/') : '');
   }
 
@@ -181,21 +233,84 @@
     return def && def.contrainte ? 24 : 0;
   }
   /**
-   * Permissions à faire valider dans les services : demandes (non validées) dont le début est dans les 15 jours (ou
-   * passé de moins de 24 h). Échéance de validation : début moins le délai le plus long des modes des patients concernés.
-   * `niveau` : 'attente' (échéance à plus de 24 h), 'proche' (moins de 24 h), 'retard' (échéance passée).
+   * Validations d'un élément : celles ajoutées (`validations`), ou, pour une permission de sortie enregistrée sans elles,
+   * la validation de la permission. [{ id, type: permission | medicale | autre, libelle, delai (heures, hors permission) }].
    */
-  function permissionsAValider(st, fiches, config, services, maintenant) {
+  function validationsDe(r) {
+    if (Array.isArray(r.validations)) return r.validations.filter(function (v) { return v && v.id && TYPES_VALIDATION[v.type]; });
+    return r.nature === 'permission' ? [{ id: 'permission', type: 'permission', libelle: '' }] : [];
+  }
+  /**
+   * État des validations d'une occurrence : échéance (début moins le délai : selon le mode d'hospitalisation des patients
+   * pour une permission, délai choisi sinon, 24 h par défaut), validée ou refusée (qui, signataire), niveau d'alerte.
+   */
+  function etatValidations(r, occurrence, debut, fiches, config, maintenant) {
+    return validationsDe(r).map(function (v) {
+      var delai, modes = [];
+      if (v.type === 'permission') {
+        delai = 0;
+        (r.patients || []).forEach(function (pid) { var m = modeAu((fiches || {})[pid], debut); if (m) modes.push(m); delai = Math.max(delai, delaiPermission(config, m)); });
+      } else delai = v.delai === undefined || v.delai === null || v.delai === '' ? 24 : Math.max(0, Math.min(336, Math.round(+v.delai) || 0));
+      var f = (r.validees || {})[occurrence + '|' + v.id];
+      if (!f && v.id === 'permission' && !Array.isArray(r.validations) && r.statut === 'validee') f = { statut: 'validee', nom: (r.validation && r.validation.par) || '', le: r.validation && r.validation.le };   // 0.10.0
+      var ech = debut - delai * 36e5;
+      return { id: v.id, type: v.type, libelle: v.libelle || TYPES_VALIDATION[v.type], delai: delai, modes: modes, echeance: ech, fait: f || null,
+        niveau: f ? f.statut : (maintenant === undefined ? 'attente' : (maintenant > ech ? 'retard' : (ech - maintenant < 864e5 ? 'proche' : 'attente'))) };
+    });
+  }
+  /** Statut d'une permission de sortie pour une occurrence : 'validee', 'refusee' ou 'demande'. */
+  function statutPermission(r, occurrence) {
+    var vs = etatValidations(r, occurrence, 0, {}, {}).filter(function (v) { return v.type === 'permission'; });
+    if (!vs.length) return r.statut === 'validee' ? 'validee' : 'demande';
+    if (vs.some(function (v) { return v.fait && v.fait.statut === 'refusee'; })) return 'refusee';
+    return vs.every(function (v) { return v.fait && v.fait.statut === 'validee'; }) ? 'validee' : 'demande';
+  }
+  /**
+   * Validations à obtenir dans les services : occurrences qui commencent dans les 15 jours (ou depuis moins de 24 h), non
+   * validées ni refusées. [{ rdv, occurrence, debut, validation, echeance, niveau, modes, delai }], par échéance.
+   */
+  function aFaireValider(st, fiches, config, services, maintenant) {
     var res = [];
     elements(st, fiches, services, maintenant - 864e5, plusJours(maintenant, 15)).forEach(function (x) {
-      if (x.externe || x.rdv.nature !== 'permission' || x.rdv.statut === 'validee') return;
-      var delai = 0, modes = [];
-      (x.rdv.patients || []).forEach(function (pid) { var m = modeAu(fiches[pid], x.debut); if (m) modes.push(m); delai = Math.max(delai, delaiPermission(config, m)); });
-      var ech = x.debut - delai * 36e5;
-      res.push({ rdv: x.rdv, occurrence: x.occurrence, debut: x.debut, modes: modes, delai: delai, echeance: ech,
-        niveau: maintenant > ech ? 'retard' : (ech - maintenant < 864e5 ? 'proche' : 'attente') });
+      if (x.externe) return;
+      etatValidations(x.rdv, x.occurrence, x.debut, fiches, config, maintenant).forEach(function (v) {
+        if (v.fait) return;
+        res.push({ rdv: x.rdv, occurrence: x.occurrence, debut: x.debut, validation: v, echeance: v.echeance, niveau: v.niveau, modes: v.modes, delai: v.delai });
+      });
     });
     return res.sort(function (a, b) { return a.echeance - b.echeance; });
+  }
+  /** Permissions de sortie à faire valider (validations de type « permission »). */
+  function permissionsAValider(st, fiches, config, services, maintenant) {
+    return aFaireValider(st, fiches, config, services, maintenant).filter(function (x) { return x.validation.type === 'permission'; });
+  }
+  /** Transports d'une occurrence : [{ id, type, nombre, precision, reserve: { par, le } | null }]. */
+  function etatTransports(r, occurrence) {
+    return (Array.isArray(r.transports) ? r.transports : []).filter(function (t) { return t && t.id; }).map(function (t) {
+      return { id: t.id, type: TRANSPORTS[t.type] ? t.type : 'autre', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: t.precision || '', reserve: (r.reservations || {})[occurrence + '|' + t.id] || null };
+    });
+  }
+  /** Transports à réserver pour les occurrences des `jours` prochains jours (15 par défaut) ; « proche » à moins de 24 h. */
+  function transportsAReserver(st, fiches, services, maintenant, jours) {
+    var res = [];
+    elements(st, fiches, services, maintenant - 36e5, plusJours(maintenant, jours || 15)).forEach(function (x) {
+      if (x.externe) return;
+      etatTransports(x.rdv, x.occurrence).forEach(function (t) { if (!t.reserve) res.push({ rdv: x.rdv, occurrence: x.occurrence, debut: x.debut, transport: t, niveau: x.debut - maintenant < 864e5 ? 'proche' : 'attente' }); });
+    });
+    return res.sort(function (a, b) { return a.debut - b.debut; });
+  }
+  /** Occurrences des `jours` prochains jours (7 par défaut) où il manque des accompagnateurs. */
+  function accompagnateursManquants(st, fiches, services, maintenant, jours) {
+    return elements(st, fiches, services, maintenant, plusJours(maintenant, jours || 7)).filter(function (x) { return !x.externe && x.accompagnateurs.manque > 0; });
+  }
+  /**
+   * Informations reçues par un agent (inscrit ou désinscrit comme accompagnateur par un collègue) qu'il n'a pas encore
+   * marquées vues (`vues` : identifiants), pour des occurrences d'aujourd'hui ou à venir.
+   */
+  function avisPour(st, agent, vues, maintenant) {
+    var auj = jourISO(maintenant || Date.now()), v = vues || [];
+    return (st.avis || []).filter(function (a) { return a.agent === agent && v.indexOf(a.id) < 0 && String(a.occurrence) >= auj && st.rdv[a.rdv] && !st.rdv[a.rdv].supprime; })
+      .sort(function (a, b) { return String(a.occurrence).localeCompare(String(b.occurrence)); });
   }
 
   function delaiValide(v) { return v === null || v === undefined || v === '' ? null : Math.max(0, Math.min(30, Math.round(+v) || 0)); }
@@ -354,7 +469,9 @@
   // Accès cochables dans « Rôles et accès » (rangés dans config.roles[CODE].accesModules.agenda)
   var ACCES = [
     { code: 'agenda.consulter', libelle: 'Consulter l’agenda du service', types: [] },
-    { code: 'agenda.planifier', libelle: 'Planifier : accompagnements, activités, réunions, sorties, événements', types: ['RDV'] },
+    { code: 'agenda.planifier', libelle: 'Planifier : accompagnements, entretiens, examens, activités, réunions, audiences, permissions, sorties ; réserver les transports', types: ['RDV', 'TRANSPORT'] },
+    { code: 'agenda.valider', libelle: 'Enregistrer les validations : permission signée, validation médicale ou autre', types: ['VALIDATION'] },
+    { code: 'agenda.inscrire', libelle: 'Inscrire ou désinscrire un collègue comme accompagnateur (chacun s’inscrit lui-même sans cet accès)', types: ['INSCRIPTION'] },
     { code: 'agenda.reglerTaches', libelle: 'Régler les tâches du service (ponctuelles et récurrentes ; seuls ces rôles les suppriment)', types: ['TACHE'] },
     { code: 'agenda.ajusterTaches', libelle: 'Ajuster les tâches du service (affecter un agent, et ce que permet le réglage)', types: ['TACHE_AJUSTEMENT'] },
     { code: 'agenda.tachesEquipe', libelle: 'Créer, modifier et supprimer les tâches de l’équipe (ponctuelles ; récurrentes si le réglage le permet)', types: ['TACHE_EQUIPE'] },
@@ -365,9 +482,9 @@
   // Accès par défaut des rôles fournis (proposition, réglable par l'établissement)
   var DROITS = {
     // Régler les tâches du service : cadre seulement par défaut (proposition, réglable dans « Rôles et accès »)
-    IDE: ['RDV', 'TACHE_AJUSTEMENT', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK', 'ALERTE', 'ALERTE_VUE'],
-    AS: ['TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK', 'ALERTE', 'ALERTE_VUE'],
-    SECRETAIRE: ['RDV', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK'],
+    IDE: ['RDV', 'TRANSPORT', 'VALIDATION', 'INSCRIPTION', 'TACHE_AJUSTEMENT', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK', 'ALERTE', 'ALERTE_VUE'],
+    AS: ['INSCRIPTION', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK', 'ALERTE', 'ALERTE_VUE'],
+    SECRETAIRE: ['RDV', 'TRANSPORT', 'VALIDATION', 'INSCRIPTION', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK'],
     CADRE: TYPES.slice()
   };
 
@@ -386,7 +503,7 @@
         if (!d.id) break;
         var r = st.rdv[d.id] || { id: d.id, cree: e.at, par: e.by, evts: [] };
         ['nature', 'titre', 'debut', 'fin', 'lieu', 'service', 'patients', 'professionnels', 'motif', 'supprime', 'regularite', 'exceptions', 'checklist',
-          'entretien', 'accompagnateurs', 'statut', 'validation'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
+          'entretien', 'accompagnateurs', 'statut', 'validation', 'examen', 'transports', 'validations'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
         r.evts.push(e.id);
         st.rdv[d.id] = r;
         break;
@@ -403,8 +520,26 @@
         if (!ri || !d.agent || !d.occurrence) break;
         ri.inscriptions = ri.inscriptions || {};
         var liste = (ri.inscriptions[d.occurrence] || []).filter(function (x) { return x.agent !== d.agent; });
-        if (!d.retrait) liste.push({ agent: d.agent, nom: d.nom || '', le: e.at, evt: e.id });
+        if (!d.retrait) liste.push({ agent: d.agent, nom: d.nom || '', le: e.at, evt: e.id, par: e.by });
         ri.inscriptions[d.occurrence] = liste;
+        // Inscription ou désinscription par un collègue : l'agent en est informé dans sa session (décision du 8 novembre 2026)
+        if (e.by && e.by !== d.agent) st.avis.push({ id: e.id, agent: d.agent, par: e.by, le: e.at, rdv: d.rdv, occurrence: d.occurrence, retrait: !!d.retrait });
+        break;
+      case 'VALIDATION':
+        // Validation d'une occurrence (permission signée, validation médicale ou autre) ; `statut` 'attente' la retire
+        var rv = st.rdv[d.rdv];
+        if (!rv || !d.validation || !d.occurrence) break;
+        rv.validees = rv.validees || {};
+        if (d.statut === 'attente') delete rv.validees[d.occurrence + '|' + d.validation];
+        else rv.validees[d.occurrence + '|' + d.validation] = { statut: d.statut === 'refusee' ? 'refusee' : 'validee', nom: d.nom || '', par: e.by, le: e.at, evt: e.id };
+        break;
+      case 'TRANSPORT':
+        // Transport d'une occurrence réservé (ou remis « à réserver »)
+        var rt = st.rdv[d.rdv];
+        if (!rt || !d.transport || !d.occurrence) break;
+        rt.reservations = rt.reservations || {};
+        if (d.statut === 'reserve') rt.reservations[d.occurrence + '|' + d.transport] = { precision: d.precision || '', par: e.by, le: e.at, evt: e.id };
+        else delete rt.reservations[d.occurrence + '|' + d.transport];
         break;
       case 'CHECK':
         // Point de check-list coché (ou décoché) pour une occurrence de l'élément
@@ -459,14 +594,14 @@
     }
   }
   function reduire(evts) {
-    return N.reduire(evts, { etat: function () { return { rdv: {}, taches: {}, absences: {}, alertes: {} }; }, appliquer: appliquer });
+    return N.reduire(evts, { etat: function () { return { rdv: {}, taches: {}, absences: {}, alertes: {}, avis: [] }; }, appliquer: appliquer });
   }
 
   /** Services sur lesquels agit une saisie de l'Agenda (activation du module par service). */
   function cibles(st, e) {
     var d = e.data || {}, x = null;
     if (e.type === 'TACHE_FAITE') x = st && st.taches && st.taches[d.tache];
-    else if (e.type === 'CHECK' || e.type === 'COMMENTAIRE' || e.type === 'INSCRIPTION') x = d.service ? null : st && st.rdv && st.rdv[d.rdv];
+    else if (['CHECK', 'COMMENTAIRE', 'INSCRIPTION', 'VALIDATION', 'TRANSPORT'].indexOf(e.type) >= 0) x = d.service ? null : st && st.rdv && st.rdv[d.rdv];
     else if (e.type === 'TACHE_AJUSTEMENT') x = st && st.taches && st.taches[d.tache];
     else if (e.type === 'ALERTE_VUE') x = st && st.alertes && st.alertes[d.alerte];
     var sv = d.service || (x && x.service);
@@ -526,8 +661,10 @@
   registre.declarer(contrat);
   return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
-    REGULARITES: REGULARITES, RANGS: RANGS, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
-    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
+    REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
+    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
+    TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
+    aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
     alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
     etatChecklist: etatChecklist, checklists: checklists, alertesChecklists: alertesChecklists, optionsTaches: optionsTaches, AJUSTABLES: AJUSTABLES, affectation: affectation, controler: controler, tachePour: tachePour, tachesDues: tachesDues, absences: absences, prevusAbsents: prevusAbsents, jourISO: jourISO, depuisISO: depuisISO };
 });

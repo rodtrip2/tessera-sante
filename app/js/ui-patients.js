@@ -325,7 +325,8 @@
       h('div', { class: 'pile' }, h('b', { text: 'Référents soignants' }), zoneRef),
       h('div', { class: 'grille-3' }, h('label', {}, 'Psychologue référent', psychologue), h('label', {}, 'Suivi par l’assistant(e) social(e) du service', selAS), h('label', {}, 'Assistant(e) social(e)', nomAS)), datalistAgents,
       h('small', { class: 'muted', text: 'Médecins et référents sont propres à Tessera (distincts du médecin responsable du dossier patient informatisé). Chaque changement est gardé avec sa date. Une mesure garde le nom affiché au moment de sa création dans le journal ; les écrans utilisent la fiche à jour.' }),
-      sejours), [
+      sejours,
+      !nouveau && U.agenda && U.agenda.sectionPatient ? U.agenda.sectionPatient(f, fermerPuis) : null), [
       { texte: peut ? 'Annuler' : 'Fermer' },
       peut ? { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         if (!nom.value.trim()) throw new Error('Le nom est obligatoire.');
