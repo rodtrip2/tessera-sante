@@ -4,9 +4,31 @@
 
 | Évolution | Origine | Niveau |
 | --- | --- | --- |
+| Données propres à un service dans la fiche patient | Tessera Santé, 7 novembre 2026 | Demande du porteur, à étudier |
 | Documents et outils de bureautique | Tessera Santé, 6 novembre 2026 | Idée à retravailler |
 | Connexion avec la session Windows | Suivi-mesures-isocont, 2 novembre 2026 | Étude technique faite, à adapter au socle |
 | Stockage sur un partage autre que SMB | Suivi-mesures-isocont, 2 novembre 2026 | Demande, à étudier |
+
+## Données propres à un service dans la fiche patient (demande du porteur, 7 novembre 2026)
+
+*Demande, à étudier.*
+
+**Besoin.** Permettre à l'administrateur d'**ajouter des cellules de données** à la fiche patient, propres à un service, sans développement. Exemples du porteur :
+
+| Donnée | Type de valeur |
+| --- | --- |
+| Sorties libres | Oui ou non |
+| Éducateur référent | Un professionnel (compte du service ou nom libre) |
+| Repas favori | Texte libre |
+
+**Piste proposée.** Un **affichage en tableau** dans *Administration → Patients* : une ligne par donnée, des colonnes pour son nom, le **type de valeur attendu** (oui ou non, texte court, liste de choix, date, nombre, professionnel), les services concernés, les rôles qui la saisissent et ceux qui la voient. Chaque donnée devient une colonne possible de la liste des patients et un filtre.
+
+**Points d'attention**
+
+- Rester dans la règle « **aucune donnée clinique** » : un libellé libre peut l'enfreindre (ex. « traitement »). Proposé : rappel à la création, liste de libellés à éviter, et données visibles au journal pour contrôle.
+- Saisies datées comme les autres champs de la fiche (historique jamais écrasé), comprises dans l'export du droit d'accès et dans la durée de conservation.
+- Une donnée retirée par l'administrateur est masquée, jamais effacée du journal.
+- Fiche du registre des traitements à compléter pour chaque donnée ajoutée (avis du délégué à la protection des données selon la nature).
 
 ## Documents et outils de bureautique (étudiés le 6 novembre 2026)
 

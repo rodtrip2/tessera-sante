@@ -101,10 +101,13 @@
        * (étapes 5 et 6) ; l'écran d'accueil des modules viendra avec eux.
        */
       actif: function () { return liste.filter(function (m) { return !m.reference; })[0] || null; },
-      /** Onglets de la barre : ceux des modules de référence en tête (Patients), puis ceux du module affiché. */
+      /**
+       * Onglets de la fenêtre d'un module (décision du porteur du 7 novembre 2026 : une fenêtre par module, avec ses
+       * propres onglets) ; sans identifiant, ceux du module principal.
+       */
       onglets: function (idModule) {
         var a = (idModule && reg.obtenir(idModule)) || reg.actif();
-        return liste.filter(function (m) { return m.reference; }).concat(a ? [a] : []).reduce(function (r, m) { return r.concat(m.vues.onglets); }, []);
+        return a ? a.vues.onglets.slice() : [];
       },
       /** Modules affichés (hors modules de référence). */
       affiches: function () { return liste.filter(function (m) { return !m.reference; }); },

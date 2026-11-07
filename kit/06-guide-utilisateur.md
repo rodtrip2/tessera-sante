@@ -16,10 +16,9 @@ Tessera ne remplace pas le dossier patient informatisé (DPI) : le dossier clini
 
 ## 2. L'écran
 
-- **En-tête** : liste *Module* (si plusieurs modules vous sont ouverts), liste des services (seulement ceux qui vous sont affectés), votre nom et vos rôles, *Mot de passe*, *Exports*, *☾ Sombre* / *☀ Clair* (affichage mémorisé pour votre compte), *À propos*, *Verrouiller*.
-- **Onglet Accueil** : les modules ouverts à vos rôles dans vos services ; un clic ouvre le module.
-- **Onglet Patients** : commun à tous les modules (section 3).
-- **Onglets du module affiché** : par exemple *Agenda*, *Alertes*, *Mon agenda*, *Tâches du service* pour l'Agenda ; *Tableau de bord*, *Mesures*, *JLD*… pour l'isolement et la contention.
+- **En-tête** : liste des services (seulement ceux qui vous sont affectés), votre nom et vos rôles, *Mot de passe*, *Exports*, *☾ Sombre* / *☀ Clair* (affichage mémorisé pour votre compte), *À propos*, *Verrouiller*.
+- **Barre des modules**, en bas de l'écran (comme la barre des tâches de Windows) : un bouton par module ouvert à vos rôles, avec son icône — *Patients*, *Isolement et contention*, *Agenda du service*, *Administration* (administrateur). Un clic ouvre la fenêtre du module ; l'onglet que vous y aviez laissé est retrouvé.
+- **Fenêtre du module** : son nom et son icône, puis **ses propres onglets** — par exemple *Liste des patients* pour Patients ; *Agenda*, *Alertes*, *Mon agenda*, *Tâches récurrentes* pour l'Agenda ; *Patients* (statistiques par patient), *Tableau de bord*, *Mesures*, *JLD*… pour l'isolement et la contention. Le *Journal* est le dernier onglet de chaque fenêtre.
 - **Onglet Journal** : les saisies que votre rôle vous permet de voir (section 6).
 
 Vous voyez un module dans un service si le module y est **activé**, si vous êtes **affecté** au service et si votre **rôle** y donne accès. S'il vous manque un module ou un service, demandez à l'administrateur.
@@ -28,8 +27,15 @@ Vous voyez un module dans un service si le module y est **activé**, si vous êt
 
 La fiche patient est partagée par tous les modules : une correction faite ici vaut partout.
 
-- **Liste** : patients de vos services, recherche, badges (patient détenu, protection juridique…). *Fiches peut-être en double* : deux fiches qui se ressemblent sont signalées ; la fusion est réservée au cadre de santé (*Fusionner…*).
-- **+ Nouvelle fiche** (IDE, secrétaire, cadre par défaut ; l'AS consulte) : nom, prénom, nom de naissance, sexe, date de naissance, identifiant permanent du patient (IPP), service ; selon le service, médecins de 1re et 2e ligne, référents soignants, protection juridique, et en psychiatrie le **mode d'hospitalisation** (avec sa date de début). Le mode fait partie de la fiche : il est lu par tous les modules.
+- **Liste des patients** (fenêtre *Patients*), réglable par chacun :
+  - *Patients* : hospitalisés, hospitalisés et sorties récentes (7 derniers jours par défaut), ou tous ;
+  - *Présentation* : en liste, ou **par chambre** ;
+  - *Tri* (ou clic sur l'en-tête d'une colonne), *recherche* (nom, IPP, chambre), *Filtres* (mode d'hospitalisation, médecin, référent) ;
+  - *Couleur selon le mode* : couleur de la ligne ou du texte selon le mode d'hospitalisation (couleurs réglées par l'établissement) ;
+  - *Colonnes…* : colonnes affichées et leur ordre (IPP, âge, unité, chambre et lit, entrée, sortie, mode, médecins, référents, psychologue, suivi social, protection… et, si vous avez accès à l'isolement et la contention, mesures en cours, cumuls sur 15 jours et vigilance) ;
+  - *Affichage* : affichages proposés par l'établissement pour votre service et votre métier (par exemple « Par chambre », « Isolement et contention ») et **vos affichages** (*Enregistrer cet affichage…*, gardés pour votre compte sur tous les postes).
+- **Statistiques d'isolement et de contention par patient** et *Fiches peut-être en double* : onglet *Patients* de la fenêtre *Isolement et contention* (inchangé) ; la fusion est réservée au cadre de santé (*Fusionner…*).
+- **+ Nouvelle fiche** (IDE, secrétaire, cadre par défaut ; l'AS consulte) : nom, prénom, nom de naissance, sexe, date de naissance, identifiant permanent du patient (IPP), service ; selon le service, médecins de 1re et 2e ligne, référents soignants, **psychologue référent**, **suivi par l'assistant(e) social(e) du service** (oui ou non, nom facultatif), protection juridique, et en psychiatrie le **mode d'hospitalisation** (avec sa date de début). Le mode fait partie de la fiche : il est lu par tous les modules.
 - **Fiche** : *Modifier* les champs ; mode d'hospitalisation actuel et *Historique et changement…* (changement daté, rétroactif possible) ; **séjours** (*+ Nouveau séjour* : numéro de séjour ou IEP, entrée, sortie, unité, chambre et lit ; le séjour en cours est affiché en tête) ; **historique** de chaque champ (qui, quand, ancienne → nouvelle valeur).
 - **Importer la liste du DPI…** : reprise de la liste des patients présents exportée du dossier patient informatisé (document 11).
 - **Exporter ses données (droit d'accès)** (cadre, administrateur) : toutes les données du patient, tous modules confondus, sans le nom des professionnels ; l'export est tracé au journal.
@@ -38,24 +44,29 @@ La fiche patient est partagée par tous les modules : une correction faite ici v
 
 ### Consulter
 
-- Onglet *Agenda* : vue **Jour** ou **Semaine**, flèches ◀ ▶ et *Aujourd'hui*, filtre par type (accompagnement, activité thérapeutique, réunion, sortie ou permission, autre événement).
-- Chaque jour montre les **absences** des professionnels, les **tâches** dues et les **éléments** (plage horaire, patients désignés selon le réglage — initiales par défaut —, professionnels prévus, check-list, répétition).
+- Onglet *Agenda* : vue **Semaine** ou **Jour**, flèches ◀ ▶ et *Aujourd'hui*, filtre par type (accompagnement, entretien, activité thérapeutique, réunion, permission de sortie, sortie du patient, autre événement, tâches).
+- **Semaine** : en haut de chaque jour, une ligne **« Sans heure »** (alertes, échéances JLD, permissions à faire valider, tâches sans heure, absences, éléments sur plusieurs jours comme une permission de week-end) ; dessous, une **grille horaire** où chaque élément est placé à son heure, ceux qui se chevauchent côte à côte ; une ligne rouge marque l'heure actuelle. Un clic sur le nom d'un jour ouvre la journée.
+- **Jour** : une **colonne par type** (accompagnements, entretiens, activités, réunions, sorties et permissions, tâches), chacune avec sa ligne « sans heure » ; absents et alertes du jour en tête.
+- Chaque élément a la **couleur de son type** (légende sous la grille ; couleurs réglables par l'établissement) et montre la plage horaire, les patients désignés selon le réglage — initiales par défaut —, les professionnels prévus, les accompagnateurs, la check-list, la répétition (↻). Survolez un élément pour le lire en entier.
 - Un élément marqué du nom d'un **autre service** concerne un patient hospitalisé chez vous (par exemple un accompagnement par l'équipe d'une autre unité) : il se consulte ici et se modifie dans l'agenda de son service. Vous pouvez toujours y **ajouter un commentaire**.
 - En tête, un **résumé** signale les alertes de l'équipe, les échéances du juge des libertés et de la détention (JLD) sous 72 h et les points de check-list en retard : *Voir les alertes*.
 
 ### Planifier (accès « Planifier » : IDE, secrétaire, cadre par défaut)
 
-*+ Nouveau* : type, intitulé, date, heures de début et de fin, lieu, service, patients du service (recherche), professionnels prévus (comptes du service, ou nom libre pour un intervenant extérieur). Un professionnel prévu qui a saisi une absence ce jour-là est signalé sur l'élément.
+*+ Nouveau* : choisissez ce que vous ajoutez — un événement (accompagnement, entretien, activité, réunion, permission de sortie, sortie du patient, autre) ou une **tâche** (tâche de l'équipe ; tâche du service pour les rôles qui règlent les tâches). Pour un événement : intitulé, date, heures de début et de fin, lieu, service, patients du service (recherche), professionnels prévus (comptes du service, ou nom libre pour un intervenant extérieur). Un professionnel prévu qui a saisi une absence ce jour-là est signalé sur l'élément.
 
-- **Répétition** : chaque jour, chaque semaine (jours choisis) ou chaque mois, jusqu'à une date ou sans fin. Une modification s'applique à toutes les dates. *Retirer cette date* supprime une seule date ; *Retirer cette date et les suivantes* arrête la répétition à partir de la date ouverte.
+- **Entretien** : médical ou infirmier, individuel ou avec la famille ; un ou plusieurs professionnels prévus. L'intitulé est facultatif.
+- **Accompagnateurs nécessaires** : indiquez combien d'accompagnateurs il faut, sans les nommer. Les agents **s'inscrivent** eux-mêmes (bouton *S'inscrire* sur l'élément, date par date) et peuvent *Me désinscrire* ; l'élément affiche « Accompagnateurs 1/2 » (en orange tant qu'il en manque). Les professionnels prévus comptent.
+- **Permission de sortie** : notez la **demande** du patient (statut « Permission de sortie (demande) »). Une alerte « Faire valider la permission » s'affiche dans l'agenda et dans l'onglet *Alertes* jusqu'à la validation médicale, attendue avant le début selon le mode d'hospitalisation (par défaut 48 h avant pour un patient en SDRE, 24 h pour SDT, SDTU et SPI, jusqu'au dernier moment en soins libres ; réglable) ; elle passe en rouge une fois l'échéance dépassée. Une fois la permission signée, ouvrez-la, choisissez « Permission validée » et le médecin signataire.
+- **Répétition** : chaque jour ; chaque semaine, jours cochés (ex. mardi et vendredi), éventuellement toutes les 2, 3 ou 4 semaines ; chaque mois à la même date ; chaque mois un jour de la semaine (ex. **le 1er mardi**, le dernier vendredi) ; chaque mois un week-end (ex. **le dernier week-end** : samedi et dimanche). Jusqu'à une date ou sans fin. Une modification s'applique à toutes les dates. *Retirer cette date* supprime une seule date ; *Retirer cette date et les suivantes* arrête la répétition à partir de la date ouverte.
 - **Check-list** (ex. sortie d'un patient) : *Ajouter un modèle…* reprend une liste réglée par l'établissement ; on peut ajouter des points libres. Chaque point a un **délai** (le jour même, la veille, 2 jours avant…) : non coché à temps, il passe « en retard » (rouge). Les points se cochent après l'enregistrement, date par date (qui et quand sont gardés).
 
 ### Tâches
 
-- Les tâches dues apparaissent chaque jour dans l'agenda : cochez-les quand elles sont faites (nom et heure gardés). Une tâche affectée à un agent porte son nom (« → nom »).
-- Onglet *Tâches du service* :
+- Les tâches s'ajoutent **dans l'agenda** (*+ Nouveau*). Elles apparaissent chaque jour dû : à leur heure dans la grille, ou dans la ligne « sans heure ». Cochez-les quand elles sont faites (nom et heure gardés) ; un clic sur leur nom les modifie si votre rôle le permet. Une tâche affectée à un agent porte son nom (« → nom »).
+- Onglet *Tâches récurrentes* (rôles qui règlent ou ajustent les tâches) : la liste des tâches du service et des tâches récurrentes :
   - **tâche du service** (créée par le cadre ou un rôle qui règle les tâches) : vous la cochez ; avec l'accès « Ajuster les tâches du service » (IDE par défaut), vous pouvez **affecter un agent** pour une date ou certains jours de la répétition (bouton *Affecter* dans l'agenda, ou *Ajuster*), et selon le réglage changer l'heure ou la précision. Vous ne pouvez pas la supprimer ;
-  - **tâche de l'équipe** (*+ Tâche de l'équipe*) : toute l'équipe peut la modifier ou la supprimer ; ponctuelle seulement, sauf si l'établissement permet les tâches récurrentes.
+  - **tâche de l'équipe** (*+ Nouveau → Tâche de l'équipe* dans l'agenda) : toute l'équipe peut la modifier ou la supprimer ; ponctuelle seulement, sauf si l'établissement permet les tâches récurrentes.
 
 ### Absences
 
@@ -67,11 +78,12 @@ Onglet *Alertes* :
 
 - **Alertes de l'équipe** (*+ Nouvelle alerte*) : type (liste du service : à voir par le médecin, par le psychologue… ou « Autre » avec un intitulé), patient du service facultatif, « à faire avant le » (date, heure), pour toute l'équipe, un rôle ou une personne, précision sans donnée clinique. L'alerte reste affichée jusqu'à **Vu** (qui, quand) ; *Remettre à voir* si besoin. Elle passe en rouge une fois la date dépassée.
 - **Échéances JLD** (si votre rôle a l'accès aux envois au JLD) : prochaine démarche de chaque mesure d'isolement ou de contention en cours, dépassée ou dans les 72 heures, calculée par le module Isolement et contention. L'envoi se trace dans ce module (onglet *JLD*).
+- **Permissions de sortie à faire valider** : échéance de la validation médicale selon le mode d'hospitalisation ; un clic ouvre la permission.
 - **Points de check-list en retard** et **réunions des 7 prochains jours** : un clic ouvre l'élément.
 
 ### Mon agenda
 
-Votre semaine, tous vos services réunis : éléments où vous êtes prévu(e), tâches qui vous sont affectées ou qui reviennent à votre rôle, vos absences, et les alertes qui vous sont adressées. Cette vue reste dans Tessera : rien n'est copié dans un autre agenda.
+Votre semaine, tous vos services réunis : éléments où vous êtes prévu(e) ou inscrit(e) comme accompagnateur, tâches qui vous sont affectées ou qui reviennent à votre rôle, vos absences, et les alertes qui vous sont adressées. Cette vue reste dans Tessera : rien n'est copié dans un autre agenda.
 
 ## 5. Isolement et contention
 

@@ -16,7 +16,7 @@ Ouvrez le lien de l'outil, saisissez votre identifiant et votre mot de passe, la
 
 ## 2. Le tableau de bord
 
-Si vous avez accès à plusieurs modules (Agenda, Isolement et contention…), choisissez **Isolement et contention** dans la liste *Module* en haut de l'écran, ou depuis l'onglet *Accueil*. L'onglet *Patients* est commun à tous les modules.
+Si vous avez accès à plusieurs modules (Agenda, Isolement et contention…), cliquez sur **Isolement et contention** dans la barre des modules, en bas de l'écran : chaque module s'ouvre dans sa fenêtre, avec ses propres onglets. La liste des patients a sa propre fenêtre (*Patients*) ; l'onglet *Patients* du module Isolement et contention montre les cumuls et statistiques par patient.
 
 Le tableau de bord est la première page du module. Il résume ce qui demande votre attention : mesures en cours, **échéances JLD** proches ou dépassées, **tiers à renseigner**, **postes de surveillance incomplets**, points de vigilance (cumuls élevés, patient en soins libres…). Les boutons *Saisir* et *Compléter* mènent directement à la bonne fenêtre.
 

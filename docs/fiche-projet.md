@@ -50,9 +50,10 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 | IPP (identifiant permanent du patient), nom, prénom, noms de naissance et d'usage, date de naissance, sexe | Liste des patients exportée du DPI, ou saisie |
 | Séjour : entrée, sortie, unité ; chambre | Liste exportée du DPI, ou saisie |
 | Médecin de 1re ligne, médecin de 2e ligne | Saisie dans Tessera |
-| Référents soignants (un ou plusieurs) | Saisie dans Tessera, parmi les agents du service |
+| Référents soignants (un ou plusieurs) ; psychologue référent ; suivi par l'assistant(e) social(e) du service | Saisie dans Tessera, parmi les agents du service ou nom libre |
 | Protection juridique, patient détenu, mode d'hospitalisation et son historique | Saisie dans Tessera |
 
+- **Liste des patients réglable** : patients hospitalisés, avec les sorties récentes ou tous ; affichage par chambre ; tri, recherche, filtres ; colonnes choisies ; couleur de la ligne ou du texte selon le mode d'hospitalisation. Chaque agent garde ses propres affichages ; l'établissement règle des affichages par défaut par service et par métier (par exemple celui du suivi de l'isolement et de la contention).
 - **Import de la liste des patients du DPI** : un agent exporte la liste en CSV depuis le DPI et l'importe dans Tessera. Les colonnes sont attribuées au moment de l'import, car l'export diffère d'un DPI à l'autre ; ce choix est mémorisé pour les imports suivants. Une colonne qui regroupe plusieurs informations (par exemple nom, prénom et nom de naissance) est découpée selon une règle réglable ; les lignes ambiguës sont signalées pour correction. Une information que l'export ne fournit pas se saisit dans Tessera. Un aperçu montre les patients nouveaux, les changements, les doublons possibles et les patients absents de la liste (la sortie est proposée, jamais appliquée d'office).
 - **Médecins et référents saisis dans Tessera** : le médecin référent inscrit au DPI n'est pas toujours celui qui suit le patient au moment présent. Ils pourront être importés plus tard si le DPI les porte.
 - **Historique** : un changement de médecin, de référent ou de mode d'hospitalisation est daté ; rien n'est écrasé.
@@ -77,9 +78,11 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 
 ## 5. Module Agenda du service
 
-- **Agenda du service** (jour, semaine) : accompagnements de patients avec les professionnels prévus et une plage horaire, activités thérapeutiques et liste des patients prévus, réunions, sorties ; répétition (chaque jour, certains jours, chaque mois) ; un élément d'un autre service qui concerne un patient hospitalisé dans le service s'y affiche aussi.
+- **Agenda du service** : vue de la semaine en grille horaire (avec, au-dessus, ce qui n'a pas d'heure : alertes, tâches, absences) et vue du jour par type d'élément ; couleur par type, réglable. Accompagnements de patients avec les professionnels prévus et une plage horaire, **entretiens médicaux ou infirmiers** (individuels ou avec la famille), activités thérapeutiques et liste des patients prévus, réunions, sorties ; répétition (chaque jour, certains jours de la semaine, le 1er mardi du mois, le dernier week-end du mois…) ; un élément d'un autre service qui concerne un patient hospitalisé dans le service s'y affiche aussi.
+- **Accompagnateurs** : le nombre nécessaire est indiqué sans nommer personne ; les agents s'inscrivent ou se désinscrivent.
+- **Permissions de sortie** : la demande du patient se note dans l'agenda ; une alerte rappelle la validation médicale, plus ou moins tôt selon le mode d'hospitalisation (48 heures avant pour une admission sur décision du représentant de l'État, jusqu'au dernier moment en soins libres) ; la permission passe en « validée » une fois signée.
 - **Check-lists** (ex. sortie d'un patient) : chaque point a son délai (infirmier libéral prévenu 2 jours avant, transport commandé la veille, ordonnance le jour même…) et apparaît « en retard » s'il n'est pas fait à temps.
-- **Tâches** ponctuelles ou récurrentes, cochées « faites » par les agents : celles du service, réglées par le cadre, peuvent être affectées à un agent mais ne sont supprimées que par lui ; celles de l'équipe sont gérées par toute l'équipe.
+- **Tâches** ponctuelles ou récurrentes, ajoutées directement dans l'agenda et cochées « faites » par les agents : celles du service, réglées par le cadre, peuvent être affectées à un agent mais ne sont supprimées que par lui ; celles de l'équipe sont gérées par toute l'équipe.
 - **Absences** des professionnels (motif facultatif), signalées sur les éléments où ils étaient prévus.
 - **Alertes** : alertes saisies par l'équipe (patient à voir par le médecin…, types réglables par service) affichées jusqu'à « vu », prochaines **échéances JLD** calculées par le module Isocont (pour qui y a accès), points de check-list en retard, réunions à venir.
 - **« Mon agenda »** : la semaine de chaque professionnel sur tous ses services (où il est prévu, ses tâches, ses absences, les alertes qui le visent), dans Tessera seulement.
@@ -124,7 +127,7 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 
 ## 9. État d'avancement
 
-- **Socle commun, modules Patients, Isolement et contention et Agenda** : développés et vérifiés par des tests automatiques (version 0.9.0), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
+- **Socle commun, modules Patients, Isolement et contention et Agenda** : développés et vérifiés par des tests automatiques (version 0.10.0), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
 - **Kit de déploiement** : guide d'installation, procédures de secours, éléments RGPD (un traitement par module), guides utilisateur et guide pratique illustré, imports (dossier `kit/` du dépôt).
 
 ## 10. Démarche

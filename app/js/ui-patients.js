@@ -257,6 +257,13 @@
     var listeMed = 'medecins-' + Date.now();
     var datalist = h('datalist', { id: listeMed }, (U.config().psychiatres || []).map(function (n) { return h('option', { value: n }); }));
     var medecin1 = champ(f.medecin1, { list: listeMed }), medecin2 = champ(f.medecin2, { list: listeMed });
+    // Psychologue référent et suivi par l'assistant(e) social(e) du service (décision du porteur du 7 novembre 2026)
+    var listeAgents = 'ag-' + C.hex(C.aleatoire(3));
+    var datalistAgents = h('datalist', { id: listeAgents }, (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours'; }).map(function (c) { return h('option', { value: c.nom }); }));
+    var psychologue = champ(f.psychologue, { list: listeAgents, placeholder: 'Nom du psychologue' });
+    var as0 = f.suiviAS || {};
+    var selAS = h('select', dis, [['', 'Non renseigné'], ['oui', 'Oui'], ['non', 'Non']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: (as0.suivi === true ? 'oui' : as0.suivi === false ? 'non' : '') === x[0] }); }));
+    var nomAS = champ(as0.nom, { list: listeAgents, placeholder: 'Nom (facultatif)' });
     var lib1 = h('span'), lib2 = h('span'), zoneDetenu = h('label', { class: 'case' }, detenu, h('span', { text: 'Patient détenu' }));
     // Mode d'hospitalisation : partie de la fiche (décision du porteur du 7 novembre 2026), lu par les autres modules ;
     // historique daté, changement par la fenêtre « Mode » ; services de psychiatrie seulement
@@ -316,6 +323,7 @@
       zoneDetenu, zoneMode,
       h('div', { class: 'grille-2' }, h('label', {}, lib1, medecin1), h('label', {}, lib2, medecin2)), datalist,
       h('div', { class: 'pile' }, h('b', { text: 'Référents soignants' }), zoneRef),
+      h('div', { class: 'grille-3' }, h('label', {}, 'Psychologue référent', psychologue), h('label', {}, 'Suivi par l’assistant(e) social(e) du service', selAS), h('label', {}, 'Assistant(e) social(e)', nomAS)), datalistAgents,
       h('small', { class: 'muted', text: 'Médecins et référents sont propres à Tessera (distincts du médecin responsable du dossier patient informatisé). Chaque changement est gardé avec sa date. Une mesure garde le nom affiché au moment de sa création dans le journal ; les écrans utilisent la fiche à jour.' }),
       sejours), [
       { texte: peut ? 'Annuler' : 'Fermer' },
@@ -334,6 +342,9 @@
         });
         if (!!f.detenu !== detenu.checked && !zoneDetenu.hidden) { d.detenu = detenu.checked; ch++; }
         if (JSON.stringify(f.referents || []) !== JSON.stringify(referents)) { d.referents = referents; ch++; }
+        if ((f.psychologue || '') !== psychologue.value.trim()) { d.psychologue = psychologue.value.trim(); ch++; }
+        var as1 = selAS.value ? { suivi: selAS.value === 'oui', nom: selAS.value === 'oui' ? nomAS.value.trim() : '' } : null;
+        if (JSON.stringify(f.suiviAS || null) !== JSON.stringify(as1)) { d.suiviAS = as1; ch++; }
         var avecMode = nouveau && !zoneMode.hidden && selMode.value;
         if (avecMode && U.depuisSaisie(modeDepuis.value) > Date.now() + 10 * 60000) throw new Error('La date du mode d’hospitalisation ne peut pas être dans le futur.');
         if (!ch) return true;
@@ -399,4 +410,6 @@
         U.toast("Mode d'hospitalisation enregistré.");
       } }]);
   }
+  // Fiche, mode d'hospitalisation et mesures, ouverts aussi depuis la fenêtre du module Patients (ui-liste-patients.js)
+  U.fichePatient = { modale: modaleFiche, mode: modaleMode, mesures: modaleMesures, psychiatrie: psy };
 })();

@@ -40,6 +40,8 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 - **Import de la liste des patients du DPI** : colonnes attribuées à l'import, colonne découpable, champ non fourni → saisi dans Tessera, modèle d'import mémorisé ; export de Sillage décrit dans `docs/architecture.md` § 8.
 - **Mise en production à partir de zéro donnée**, puis reprise de l'historique par les imports d'Isocont (registre du service, classeur V1.3 comme cas particulier), qui peuplent Patients et Isocont.
 - Les options nouvelles sont **désactivées par défaut** quand elles changent un comportement existant, sauf demande contraire du porteur.
+- **Jeu de démonstration** (consigne permanente du porteur, 7 novembre 2026) : tout nouveau module ou toute nouvelle fonction est accompagné de **données fictives de démonstration** (`app/js/demo.js`) qui montrent ses différents cas de figure (ex. agenda : répétitions, accompagnateurs à inscrire, permission demandée puis validée, entretiens, tâches, absences, alertes ; patients : séjours, chambres, sorties récentes).
+- **Interface en fenêtres** (décision du 7 novembre 2026) : une fenêtre par module, avec ses propres onglets et son icône, et une barre des modules en bas de l'écran ; Patients et Administration ont leur fenêtre ; un nouveau module déclare ses onglets dans son contrat et son icône dans `ui.js` (`ICONES`).
 
 ## 4. Interface et rédaction
 
@@ -71,6 +73,6 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 
 - Accord de la direction des soins (fiche projet), avis du service informatique, du responsable de la sécurité informatique et du délégué à la protection des données (fiche technique), y compris pour l'usage de GitHub Pages pendant le pilote.
 - Ajout de l'IPP à l'export de Sillage.
-- Agenda : identité du patient affichée par défaut pour les accompagnements et activités (proposé : initiales), catégories d'absence.
+- Agenda : identité du patient affichée par défaut pour les accompagnements et activités (proposé : initiales), catégories d'absence ; délais de validation des permissions pour SDT, SDTU et SPI (proposé : 24 h).
 - Devenir du dépôt `Suivi-mesures-isocont` une fois Tessera en service.
 - Points propres au module Isocont : `docs/consignes-isocont.md` § 13.

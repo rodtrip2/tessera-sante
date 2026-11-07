@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -67,6 +67,29 @@
       ajouter(t(-24 * 280 + i), 'PATIENT', { patientId: p[0], ipp: p[1], nom: p[2] + ' (fictif)', prenom: p[3], naissance: SIC.model.dateLocaleISO(dn.getTime()), protection: i === 3 ? 'Curatelle' : '', service: p[5] });
       ajouter(t(-24 * 280 + i), 'MODE_HOSPI', { patientId: p[0], mode: p[4], date: t(-24 * 400) });
     });
+
+    // Fiche commune enrichie (0.10.0) : séjours avec chambre et lit, psychologue référent, suivi par l'assistant(e) social(e),
+    // référents ; deux patients sortis (récemment, et il y a trois semaines) pour la liste des patients
+    var jISO = function (h) { return SIC.model.dateLocaleISO(t(h)); };
+    var complements = {
+      P01: { chambre: '12', lit: 'P', entree: -24 * 40, psychologue: 'Mme Psy (fictif)', suiviAS: { suivi: true, nom: 'M. Social (fictif)' }, referents: [{ id: null, nom: 'Agent A (fictif)' }], medecin1: 'Dr Arnaud (fictif)' },
+      P02: { chambre: '14', lit: '', entree: -24 * 35, psychologue: 'Mme Psy (fictif)', referents: [{ id: null, nom: 'Agent C (fictif)' }], medecin1: 'Dr Benoît (fictif)' },
+      P03: { chambre: '8', lit: 'F', entree: -24 * 60, suiviAS: { suivi: false, nom: '' }, medecin1: 'Dr Chen (fictif)' },
+      P04: { chambre: 'A3', lit: '', entree: -24 * 20, psychologue: 'M. Psy (fictif)', suiviAS: { suivi: true, nom: '' }, medecin1: 'Dr Diallo (fictif)' },
+      P05: { chambre: '10', lit: 'P', entree: -24 * 8, referents: [{ id: null, nom: 'Agent E (fictif)' }], medecin1: 'Dr Chen (fictif)' },
+      P06: { chambre: 'A5', lit: '', entree: -24 * 12, medecin1: 'Dr Diallo (fictif)' }
+    };
+    patients.forEach(function (p) {
+      var c = complements[p[0]];
+      ajouter(t(-24 * 279), 'PATIENT', { patientId: p[0], medecin1: c.medecin1, referents: c.referents || [], psychologue: c.psychologue || '', suiviAS: c.suiviAS || null });
+      ajouter(t(c.entree), 'SEJOUR', { patientId: p[0], sejourId: 'S' + p[0], iep: '7' + p[1], entree: jISO(c.entree), service: p[5], chambre: c.chambre, lit: c.lit });
+    });
+    [['P07', '900107', 'GOLF', 'Ilan', 'SL', U1, 52, -24 * 15, -24 * 3, '6'], ['P08', '900108', 'HOTEL', 'Maé', 'SDT', U1, 29, -24 * 50, -24 * 21, '3']].forEach(function (p) {
+      ajouter(t(p[7]), 'PATIENT', { patientId: p[0], ipp: p[1], nom: p[2] + ' (fictif)', prenom: p[3], naissance: SIC.model.dateLocaleISO(now - p[6] * 365.25 * J - 40 * J), service: p[5], medecin1: 'Dr Arnaud (fictif)' });
+      ajouter(t(p[7]), 'MODE_HOSPI', { patientId: p[0], mode: p[4], date: t(p[7]) });
+      ajouter(t(p[8]), 'SEJOUR', { patientId: p[0], sejourId: 'S' + p[0], iep: '7' + p[1], entree: jISO(p[7]), sortie: jISO(p[8]), service: p[5], chambre: p[9] });
+    });
+    // Rappel : P01 soins sans consentement (SDT), P03 soins libres, P04 SDRE (Unité 2)
 
     var nMes = 0;
     function mesure(patientId, service, type, debutH, finH, lieu, psy, opts) {
@@ -128,6 +151,51 @@
         }
       });
     }
+
+    // ------------------------------------------------------------ Agenda (0.10.0) : un exemple de chaque cas de figure
+    var minuitAuj = new Date(now); minuitAuj.setHours(0, 0, 0, 0);
+    var jour = function (n, heure, minute) { var d = new Date(minuitAuj.getTime()); d.setDate(d.getDate() + n); d.setHours(heure || 0, minute || 0, 0, 0); return d.getTime(); };
+    var lundi = (function () { var d = new Date(minuitAuj.getTime()); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d; })();
+    var lundiDe = function (n, heure, minute) { var d = new Date(lundi.getTime()); d.setDate(d.getDate() + n); d.setHours(heure || 0, minute || 0, 0, 0); return d.getTime(); };
+    var avant = t(-24 * 3), nR = 0;
+    function rdv(d) { d.id = 'RD' + String(++nR).padStart(3, '0'); ajouter(avant, 'RDV', d); return d.id; }
+    var profA = { id: null, nom: 'Agent A (fictif)' }, profC = { id: null, nom: 'Agent C (fictif)' };
+    // Réunions répétées : chaque jour ouvré, chaque lundi, le 1er mardi du mois
+    rdv({ nature: 'reunion', titre: 'Transmissions', debut: lundiDe(-14, 9), fin: lundiDe(-14, 9, 30), lieu: 'Salle de soins', service: U1, regularite: { type: 'semaine', jours: [1, 2, 3, 4, 5] } });
+    rdv({ nature: 'reunion', titre: 'Synthèse clinique', debut: lundiDe(-14, 14), fin: lundiDe(-14, 15), lieu: 'Salle de réunion', service: U1, regularite: { type: 'semaine', jours: [1] } });
+    rdv({ nature: 'reunion', titre: 'Réunion institutionnelle', debut: lundiDe(-35, 14), fin: lundiDe(-35, 15, 30), lieu: 'Salle de réunion', service: U1, regularite: { type: 'rangMois', rang: 1, jour: 2 } });
+    // Accompagnement avec un accompagnateur à trouver (bouton « S'inscrire »)
+    rdv({ nature: 'accompagnement', titre: 'Consultation extérieure', debut: jour(1, 10), fin: jour(1, 12), lieu: 'Hôpital général (fictif)', service: U1, patients: ['P03'], accompagnateurs: 1 });
+    // Activité répétée mardi et vendredi, deux accompagnateurs, un agent déjà inscrit cette semaine
+    var piscine = rdv({ nature: 'activite', titre: 'Piscine', debut: lundiDe(-6, 14), fin: lundiDe(-6, 16), lieu: 'Piscine municipale (fictive)', service: U1, patients: ['P01', 'P05'], accompagnateurs: 2, regularite: { type: 'semaine', jours: [2, 5] } });
+    ajouter(avant, 'INSCRIPTION', { rdv: piscine, occurrence: SIC.model.dateLocaleISO(lundiDe(1, 12)), agent: 'demo-b', nom: 'Agent B (fictif)', service: U1 });
+    rdv({ nature: 'activite', titre: 'Atelier terre', debut: lundiDe(2, 10, 30), fin: lundiDe(2, 11, 30), lieu: 'Salle d’activités', service: U1, patients: ['P01', 'P02', 'P05'], professionnels: [profC], regularite: { type: 'semaine', jours: [3], intervalle: 2 } });
+    // Entretiens : médical avec la famille (deux professionnels), infirmier individuel
+    rdv({ nature: 'entretien', entretien: { type: 'medical', avec: 'famille' }, titre: '', debut: jour(1, 11), fin: jour(1, 12), lieu: 'Bureau médical', service: U1, patients: ['P01'], professionnels: [{ id: null, nom: 'Dr Arnaud (fictif)' }, profA] });
+    rdv({ nature: 'entretien', entretien: { type: 'infirmier', avec: 'individuel' }, titre: '', debut: jour(0, 15), fin: jour(0, 15, 45), lieu: 'Bureau infirmier', service: U1, patients: ['P05'], professionnels: [profC] });
+    // Permissions : demande d'un patient en SDRE (validation 48 h avant), demande en SDT, permission de week-end validée
+    rdv({ nature: 'permission', statut: 'demande', titre: '', debut: jour(2, 14), fin: jour(2, 18), service: U2, patients: ['P04'] });
+    rdv({ nature: 'permission', statut: 'demande', titre: 'Permission en famille', debut: jour(4, 10), fin: jour(4, 17), service: U1, patients: ['P01'] });
+    var samedi = (6 - new Date(now).getDay() + 7) % 7 || 7;
+    rdv({ nature: 'permission', statut: 'validee', validation: { par: 'Dr Diallo (fictif)', le: new Date(t(-24)).toISOString() }, titre: 'Permission de week-end', debut: jour(samedi, 10), fin: jour(samedi + 1, 18), service: U2, patients: ['P06'] });
+    // Sortie du patient avec sa check-list (un point déjà fait)
+    var sortie = rdv({ nature: 'sortie', titre: 'Sortie', debut: jour(3, 11), fin: jour(3, 11, 30), service: U1, patients: ['P03'],
+      checklist: SIC.agenda && SIC.agenda.CHECKLISTS_DEFAUT ? SIC.agenda.CHECKLISTS_DEFAUT[0].items.map(function (it, i) { return { id: 'c' + i, libelle: it.libelle, delai: it.delai }; }) : [] });
+    ajouter(avant, 'CHECK', { rdv: sortie, item: 'c0', occurrence: SIC.model.dateLocaleISO(jour(3)), fait: true, service: U1 });
+    // Tâches du service (récurrentes) et de l'équipe (ponctuelle)
+    var nT = 0;
+    function tache(type, d) { d.id = 'TA' + String(++nT).padStart(3, '0'); d.pour = d.pour || { roles: [], agents: [] }; ajouter(avant, type, d); }
+    tache('TACHE', { titre: 'Vérification du réfrigérateur à pharmacie', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-14)), heure: '08:00', regularite: { type: 'jour' } });
+    tache('TACHE', { titre: 'Commande de pharmacie', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-14)), heure: '', regularite: { type: 'semaine', jours: [1] }, consigne: 'Avant midi' });
+    tache('TACHE', { titre: 'Piluliers de la semaine', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-14)), heure: '16:00', regularite: { type: 'semaine', jours: [2, 5] }, pour: { roles: ['IDE'], agents: [] } });
+    tache('TACHE', { titre: 'Contrôle du chariot d’urgence', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-35)), heure: '10:00', regularite: { type: 'rangMois', rang: -1, jour: 5 } });
+    tache('TACHE', { titre: 'Inventaire du linge', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-35)), heure: '', regularite: { type: 'weekendMois', rang: -1 } });
+    tache('TACHE_EQUIPE', { titre: 'Ranger la réserve', service: U1, debut: SIC.model.dateLocaleISO(now), heure: '', regularite: { type: 'aucune' } });
+    // Absence, alertes (dont une en retard)
+    ajouter(avant, 'ABSENCE', { id: 'AB001', agent: 'demo-d', nom: 'Agent D (fictif)', debut: jour(1), fin: jour(3), categorie: 'conge', service: U1 });
+    ajouter(avant, 'ALERTE', { id: 'AL001', type: 'medecin', libelle: '', patientId: 'P02', service: U1, avant: SIC.model.dateLocaleISO(jour(1)), heure: '12:00', pour: null, precision: '' });
+    ajouter(avant, 'ALERTE', { id: 'AL002', type: 'transmission', libelle: '', patientId: 'P01', service: U1, avant: SIC.model.dateLocaleISO(jour(-1)), heure: '', pour: null, precision: 'Famille à rappeler (fictif)' });
+    ajouter(avant, 'ALERTE', { id: 'AL003', type: 'rdv', libelle: '', patientId: 'P04', service: U2, avant: '', heure: '', pour: null, precision: '' });
 
     file.sort(function (a, b) { return a.at - b.at || a.n - b.n; });
     return file.map(function (x, i) { return { at: new Date(Math.min(x.at, now) + i).toISOString(), by: 'demo', type: x.type, data: x.data }; });
