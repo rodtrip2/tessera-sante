@@ -267,6 +267,60 @@
     return subtle.importKey('raw', octets, { name: 'AES-GCM' }, !!exportable, ['encrypt', 'decrypt']);
   }
 
+  // ------------------------------------------------ Attestation du coffre (0.5.0)
+  var ECDSA = { name: 'ECDSA', namedCurve: 'P-256' }, SIGN = { name: 'ECDSA', hash: 'SHA-256' };
+  async function sha256(octets) { return new Uint8Array(await subtle.digest('SHA-256', octets)); }
+  function concat() { var n = 0, i; for (i = 0; i < arguments.length; i++) n += arguments[i].length; var o = new Uint8Array(n), k = 0; for (i = 0; i < arguments.length; i++) { o.set(arguments[i], k); k += arguments[i].length; } return o; }
+  /** Paire de signature ECDSA P-256 de l'attestation : { publique (texte), prive8 (PKCS #8, à effacer) }. */
+  async function nouvellePaireSignature() {
+    var p = await subtle.generateKey(ECDSA, true, ['sign', 'verify']);
+    return { publique: b64(new Uint8Array(await subtle.exportKey('raw', p.publicKey))), prive8: new Uint8Array(await subtle.exportKey('pkcs8', p.privateKey)) };
+  }
+  async function signer(prive8, texte) {
+    var k = await subtle.importKey('pkcs8', prive8, ECDSA, false, ['sign']);
+    return b64(new Uint8Array(await subtle.sign(SIGN, k, enc.encode(texte))));
+  }
+  async function verifierSignature(publique, texte, signature) {
+    try { var k = await subtle.importKey('raw', deb64(publique), ECDSA, false, ['verify']); return await subtle.verify(SIGN, k, deb64(signature), enc.encode(texte)); }
+    catch (e) { return false; }
+  }
+  /** 32 octets dérivés d'un secret (HKDF-SHA-256), pour un usage nommé par `info`. */
+  async function deriverOctets(secret, info) {
+    var base = await subtle.importKey('raw', secret, 'HKDF', false, ['deriveBits']);
+    return new Uint8Array(await subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: enc.encode('Tessera attestation'), info: enc.encode(info) }, base, 256));
+  }
+  async function hmac(cle8, texte) {
+    var k = await subtle.importKey('raw', cle8, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    return hex(new Uint8Array(await subtle.sign('HMAC', k, enc.encode(texte))));
+  }
+  /** Secret ECDH (32 octets) entre une partie privée (PKCS #8) et une partie publique (texte). */
+  async function secretPartage(prive8, publique) {
+    var k = await subtle.importKey('pkcs8', prive8, ECDH, false, ['deriveBits']);
+    return new Uint8Array(await subtle.deriveBits({ name: 'ECDH', public: await importerPublique(publique) }, k, 256));
+  }
+  /** Partie publique (texte, format brut) d'une partie privée P-256 : 'ECDSA' ou 'ECDH'. */
+  async function publiqueDePrivee(prive8, algo) {
+    var k = await subtle.importKey('pkcs8', prive8, algo === 'ECDSA' ? ECDSA : ECDH, true, algo === 'ECDSA' ? ['sign'] : ['deriveBits']);
+    var j = await subtle.exportKey('jwk', k), x = deb64(j.x.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - j.x.length % 4) % 4)), y = deb64(j.y.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - j.y.length % 4) % 4));
+    return b64(concat(new Uint8Array([4]), x, y));
+  }
+  /** Ancre : empreinte de la clé publique d'attestation, gardée dans chaque emballage (protégée par le mot de passe). */
+  async function ancreDe(publique) { return hex(await sha256(deb64(publique))); }
+  var MAGIC_ANCRE = enc.encode('ANC1');
+  /** Partie privée et ancre réunies avant emballage ; `ancre` absente : partie privée seule (format 0.4). */
+  function paquet(prive8, ancre) {
+    if (!ancre) return prive8;
+    var a = new Uint8Array(ancre.match(/../g).map(function (x) { return parseInt(x, 16); }));
+    return concat(MAGIC_ANCRE, a, prive8);
+  }
+  function ouvrirPaquet(octets) {
+    var marque = octets.length > 36 && MAGIC_ANCRE.every(function (x, i) { return octets[i] === x; });
+    if (!marque) return { prive8: octets, ancre: null };
+    var r = { prive8: octets.slice(36), ancre: hex(octets.subarray(4, 36)) };
+    octets.fill(0);
+    return r;
+  }
+
   async function empreinte(texte) {
     return hex(new Uint8Array(await subtle.digest('SHA-256', enc.encode(texte))));
   }
@@ -282,6 +336,8 @@
     chiffrerOctets: chiffrerOctets, dechiffrerOctets: dechiffrerOctets, generationFichier: generationFichier,
     nouvellePaire: nouvellePaire, exporterPublique: exporterPublique, importerPublique: importerPublique,
     exporterPrivee: exporterPrivee, importerPrivee: importerPrivee, envelopper: envelopper, ouvrirEnveloppe: ouvrirEnveloppe,
-    nouvelleMaitresse: nouvelleMaitresse, octetsGeneration: octetsGeneration, importerCleOctets: importerCleOctets
+    nouvelleMaitresse: nouvelleMaitresse, octetsGeneration: octetsGeneration, importerCleOctets: importerCleOctets,
+    sha256: sha256, concat: concat, nouvellePaireSignature: nouvellePaireSignature, signer: signer, verifierSignature: verifierSignature,
+    deriverOctets: deriverOctets, hmac: hmac, secretPartage: secretPartage, ancreDe: ancreDe, publiqueDePrivee: publiqueDePrivee, paquet: paquet, ouvrirPaquet: ouvrirPaquet
   };
 });

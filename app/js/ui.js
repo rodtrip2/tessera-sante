@@ -713,6 +713,10 @@
       h('span', { text: 'Aperçu de l’affichage du rôle « ' + s.apercu.libelle + ' », sur tous les services : aucune saisie n’est enregistrée. Choisissez un service dans la liste pour voir ce qu’un agent de ce service voit.' }),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { s.definirApercu(null); rendreContenu(); } }, 'Revenir à mon affichage')));
     var bl = SIC.ui.miroir.bandeauLocal(); if (bl) zoneEntete.appendChild(bl);
+    var ea = s.etatAttestation && s.etatAttestation();
+    if (ea && ea.attestateur && !s.formation && ea.anomalies.some(function (x) { return x.bloquante; })) zoneEntete.appendChild(h('div', { class: 'bandeau-secours', role: 'alert' },
+      h('span', { text: 'Coffre modifié hors de l’outil ou restauré : aucune remise de clé avant réparation. ' }),
+      h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'comptes'; rendreContenu(); } }, 'Voir')));
     var nav = h('nav', { class: 'onglets', 'aria-label': 'Sections' });
     onglets().forEach(function (o) {
       if (!affichable(o[0])) return;
@@ -906,6 +910,7 @@
           } catch (err) { alert(err.message); }
         } }, 'Revenir à la clé unique…')));
     }
+    var pAttestation = panneauAttestation(s);
     // -- Trousseaux incomplets (coffre version 2) : clés à réémettre
     var incomplets = s.trousseauxIncomplets ? s.trousseauxIncomplets() : [];
     var pIncomplets = incomplets.length || s.erreurDroits ? h('section', { class: 'panneau' }, h('h2', { text: 'Clés à réémettre' }),
@@ -1122,7 +1127,7 @@
           ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos]]]));
     }
     return sousOngletsAdmin([].concat(
-      [['comptes', 'Comptes et sécurité', [pTrousseau, pIncomplets, comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
+      [['comptes', 'Comptes et sécurité', [pAttestation, pTrousseau, pIncomplets, comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
         ['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)]],
       pModule.onglets,
       [['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
@@ -1144,6 +1149,100 @@
   }
 
   /** Fenêtre de migration vers le trousseau : mot de passe de l'administrateur, code de secours actuel (facultatif). */
+  // ------------------------------------------------------------ Attestation du coffre (0.5.0)
+  /** Libellé lisible d'une date ISO. */
+  function dateIso(x) { return x ? date(Date.parse(x)) : '—'; }
+  /**
+   * Panneau « Intégrité du coffre » (administrateur, trousseau) : état attesté, anomalies et réparations
+   * (renouveler les clés, nouvelle clé personnelle d'un compte, nouveau code de secours, dernière version attestée),
+   * et « Tout renouveler » en cas de compromission.
+   */
+  function panneauAttestation(s) {
+    var e = s.etatAttestation && s.etatAttestation();
+    if (!e || !e.attestateur || s.formation) return null;
+    var an = e.anomalies.filter(function (x) { return x.bloquante; }), avis = e.anomalies.filter(function (x) { return !x.bloquante; });
+    var codes = an.map(function (x) { return x.code; });
+    function action(texte, classe, fn) {
+      return h('button', { class: 'btn ' + (classe || ''), onclick: async function (ev) {
+        var b = ev.currentTarget; b.disabled = true;
+        try { await fn(); } catch (err) { alert(err.message); } finally { b.disabled = false; }
+      } }, texte);
+    }
+    var actions = h('div', { class: 'actions gauche' });
+    var seulement = function (liste) { return codes.length && codes.every(function (c) { return liste.indexOf(c) >= 0; }); };
+    if (seulement(['restaure', 'ancienne'])) actions.appendChild(action('Renouveler les clés', 'primaire', async function () {
+      if (!confirm('Renouveler toutes les clés ?\n\nNouvelles clés maîtresses et nouvelle génération de chaque clé, remises selon les comptes tels qu’ils figurent dans ce coffre : vérifiez d’abord les comptes (un compte retiré depuis la version restaurée doit être désactivé ensuite). Les mots de passe ne changent pas ; la copie sous scellé sera à refaire.')) return;
+      await s.renouvelerCles(); toast('Clés renouvelées.'); rendreContenu();
+    }));
+    var ag = an.filter(function (x) { return x.code === 'agents'; })[0];
+    if (ag && seulement(['agents', 'secours'])) (ag.comptes || []).forEach(function (id) {
+      var c = s.comptes.filter(function (x) { return x.id === id; })[0];
+      if (!c || !c.actif) return;
+      actions.appendChild(action('Nouvelle clé personnelle : ' + c.nom, '', async function () {
+        if (!confirm('Créer une nouvelle clé personnelle pour ' + c.nom + ' ?\n\nUn mot de passe provisoire lui est attribué (fiche de remise) ; ses clés de sécurité sont retirées.')) return;
+        var mdp = C.nouveauMotDePasseProvisoire();
+        await s.reinitialiserMotDePasse(id, mdp, { reparation: true, aleatoire: true });
+        if (SIC.ui.actions.fichesRemise) SIC.ui.actions.fichesRemise([{ nom: c.nom, login: c.login, motDePasse: mdp, roles: c.roles, services: c.services || [], finValidite: c.finValidite || '' }], 'Nouvelle clé personnelle');
+        rendreContenu();
+      }));
+    });
+    if (codes.indexOf('secours') >= 0 && seulement(['agents', 'secours'])) actions.appendChild(action('Nouveau code de secours', '', async function () {
+      if (!confirm('Créer un nouveau code de secours ? L’ancien n’ouvrira plus rien.')) return;
+      var code = await s.nouveauCodeSecours();
+      modale('Nouveau code de secours', h('div', { class: 'pile' }, h('p', { text: 'Notez ce code et conservez-le sous scellé ; refaites la copie du coffre sous scellé.' }), h('div', { class: 'code-secours', text: code })), [{ texte: 'J’ai noté le code', classe: 'primaire' }]);
+    }));
+    if (codes.length) actions.appendChild(action('Remettre la dernière version attestée…', codes.some(function (c) { return ['restaure', 'ancienne', 'agents', 'secours'].indexOf(c) < 0; }) ? 'primaire' : '', async function () {
+      if (!confirm('Remettre en place la dernière version du coffre dont l’attestation est intacte ?\n\nLes comptes, rôles et mots de passe reviennent à cette version : ce qui a été fait depuis (comptes créés, rôles changés, mots de passe) sera à refaire. Votre propre mot de passe est conservé. Toutes les clés sont ensuite renouvelées.')) return;
+      var le = await s.remettreDerniereAttestee();
+      toast('Version attestée du ' + dateIso(le) + ' remise en place, clés renouvelées.'); rendreContenu();
+    }));
+    var etat = e.etat;
+    var compromission = h('details', { class: 'restauration' }, h('summary', { text: 'En cas de compromission : tout renouveler…' }),
+      h('div', { class: 'pile' },
+        h('p', { text: 'Si un mot de passe d’administrateur, le code de secours, une clé de sécurité ou une copie du coffre a pu tomber entre de mauvaises mains : nouvelles clés maîtresses et nouvelles générations, nouvelles clés d’attestation, nouveau code de secours, nouvelle clé personnelle pour chaque compte actif.' }),
+        h('ul', {},
+          h('li', { text: 'Vous gardez votre mot de passe ; les autres comptes reçoivent un mot de passe provisoire (fiches de remise à imprimer).' }),
+          h('li', { text: 'Clés de sécurité à réenregistrer ; copie du coffre sous scellé à refaire ; les postes ouverts se verrouillent.' }),
+          h('li', { text: 'Les saisies existantes restent lisibles par les agents qui y ont droit.' })),
+        h('div', { class: 'actions gauche' }, h('button', { class: 'btn danger', onclick: function () { modaleCompromission(); } }, 'Tout renouveler…'))));
+    return h('section', { class: 'panneau' }, h('h2', { text: 'Intégrité du coffre' }),
+      an.length ? h('div', { class: 'alerte', role: 'alert' },
+        h('b', { text: 'Coffre modifié hors de l’outil ou restauré : aucune remise de clé ni modification des comptes avant réparation.' }),
+        h('ul', {}, an.map(function (x) { return h('li', { text: x.texte }); }))) : null,
+      avis.map(function (x) { return h('p', { class: 'muted', text: x.texte }); }),
+      !an.length && etat ? h('p', { class: 'muted', text: 'Coffre attesté : état n° ' + etat.n + ', signé le ' + dateIso(etat.le) + (etat.par ? ' par ' + s.nomAuteur(etat.par) : '') + '. Chaque agent vérifie la signature à l’ouverture de sa session ; avant toute remise de clé, l’administrateur vérifie aussi les comptes et les clés personnelles.' }) : null,
+      actions.childNodes.length ? actions : null,
+      h('div', { class: 'actions gauche' }, action('Vérifier maintenant', '', async function () { await s.controlerAttestation(); toast('Vérification faite.'); rendreContenu(); })),
+      compromission);
+  }
+
+  function modaleCompromission() {
+    var s = App.session, secours = s.utilisateur.id === 'secours';
+    var mdp = h('input', { type: 'password', autocomplete: 'current-password' }), ok = h('input', { type: 'checkbox' });
+    modale('Tout renouveler (compromission)', h('div', { class: 'pile' },
+      h('div', { class: 'alerte', text: 'Opération lourde : tous les agents devront se reconnecter avec un mot de passe provisoire, et le code de secours change.' }),
+      secours ? h('p', { text: 'Session ouverte par le code de secours : tous les comptes reçoivent un mot de passe provisoire ; vous serez déconnecté et vous reconnecterez avec le nouveau code.' }) : h('label', {}, 'Votre mot de passe', mdp),
+      h('label', { class: 'case' }, ok, h('span', { text: 'Je pourrai remettre les fiches et noter le nouveau code de secours tout de suite.' }))),
+      [{ texte: 'Annuler' }, { texte: 'Tout renouveler', classe: 'danger', action: async function () {
+        if (!ok.checked) throw new Error('Cochez la case pour confirmer.');
+        var r = await s.renouvelerTout(mdp.value);
+        setTimeout(function () {
+          modale('Nouveau code de secours', h('div', { class: 'pile' },
+            h('p', { text: 'Tout est renouvelé. Notez ce nouveau code de secours et conservez-le sous scellé : l’ancien n’ouvre plus rien.' }),
+            h('div', { class: 'code-secours', text: r.codeSecours }),
+            h('p', { class: 'muted', text: 'Refaites ensuite la copie du coffre sous scellé (Sauvegardes et exports) et réenregistrez les clés de sécurité.' })),
+            [{ texte: 'J’ai noté le code', classe: 'primaire', action: function () {
+              setTimeout(function () {
+                if (r.provisoires.length && SIC.ui.actions.fichesRemise) SIC.ui.actions.fichesRemise(r.provisoires, 'Renouvellement complet des clés');
+                if (secours) verrouiller('Tout est renouvelé : reconnectez-vous avec le nouveau code de secours.');
+              }, 0);
+              return true;
+            } }]);
+          if (!secours) rendreContenu();
+        }, 0);
+      } }], { focus: secours ? null : mdp });
+  }
+
   function modaleMigrationTrousseau() {
     var mdp = h('input', { type: 'password', autocomplete: 'current-password' });
     var code = h('input', { type: 'text', autocomplete: 'off', placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX' });

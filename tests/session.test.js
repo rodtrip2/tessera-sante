@@ -234,6 +234,12 @@ test('Coffre : historique des versions, refus d’un coffre incomplet, restaurat
   await d.restaurerCoffre((await d.versionsCoffre())[0].coffre);
   const s = await connecter(racine, 'admin', 'mot de passe solide');
   assert.equal(s.utilisateur.login, 'admin');
+  // Coffre restauré : aucune modification avant le renouvellement des clés (décision du porteur, 0.5.0)
+  assert.deepEqual(s.etatAttestation().anomalies.map((x) => x.code), ['restaure']);
+  await assert.rejects(s.copieSousScelle(), /renouveler les clés/);
+  await assert.rejects(connecter(racine, 'ide', 'autre mot de passe'), /renouveler les clés/);
+  await s.renouvelerCles();
+  assert.deepEqual(s.etatAttestation().anomalies, []);
   // Copie sous scellé : sans mots de passe, ouvre avec le code de secours
   const scelle = await s.copieSousScelle();
   assert.ok(!scelle.emballages.some((e) => e.methode === 'mdp'));

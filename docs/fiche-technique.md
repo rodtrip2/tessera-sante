@@ -170,7 +170,9 @@ Les modules qui concernent des patients (Isocont, Agenda) **dépendent** du modu
 | Mode formation | Jeu de données fictives par module, avec sa propre clé, enveloppée par la clé du module | existant (Isocont) |
 | En mémoire | Clés non exportées vers le stockage du navigateur ; clés AES importées non exportables ; partie privée de l'agent gardée en mémoire pendant la session (réemballage) ; tout est effacé au verrouillage, à la fermeture de l'onglet et après inactivité (10 minutes par défaut) | existant |
 | Écriture du coffre | Contrôle de révision (une modification concurrente est refusée), relecture après écriture, historique des 30 dernières versions | existant |
-| Intégrité du coffre | Attestation par l'administrateur des parties publiques, des générations et des droits des comptes, vérifiée avant toute remise de clé (protège contre un agent qui garderait un accès en écriture au partage) | à construire, décision du porteur attendue |
+| Intégrité du coffre (attestation) | État du coffre signé (ECDSA P-256, SHA-256) par l'administrateur à chaque modification : parties publiques des agents, générations et empreintes SHA-256 de chaque clé, code d'authentification (HMAC-SHA-256) des droits des comptes, compteur. Clé de signature chiffrée par une clé tirée de la clé maîtresse de plateforme ; son empreinte (« ancre ») est gardée dans chaque emballage, protégé par le mot de passe, la clé de sécurité ou le code de secours. Chaque agent vérifie signature et ancre à l'ouverture de sa session et n'accepte que les générations attestées ; l'administrateur vérifie aussi comptes et clés personnelles avant toute remise de clé. Une clé personnelle créée par l'agent porte une preuve de continuité (HMAC tiré d'un échange ECDH avec une clé « témoin ») | existant |
+| Version antérieure du coffre | Compteur signé ; plus haut compteur retenu par chaque poste et lu dans l'historique du coffre : une version antérieure remise en place est signalée et bloque les saisies jusqu'à la réparation | existant |
+| Restauration et compromission | Après toute restauration du coffre : renouvellement de toutes les clés (nouvelles clés maîtresses, génération au-dessus de toute génération déjà employée) avant toute saisie. « Tout renouveler » en cas de compromission : clés, clés d'attestation, code de secours, nouvelle clé personnelle et mot de passe provisoire pour chaque compte | existant |
 
 Les mots de passe ne figurent jamais dans le journal. Désactiver un compte supprime ses enveloppes : son mot de passe ne déverrouille plus rien.
 
@@ -246,6 +248,7 @@ Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre
 | Agent lisant un autre service du même module | Filtré par l'interface seulement (choix assumé, voir § 3) ; consultations non tracées, saisies nominatives et chaînées |
 | Agent autorisé outrepassant son rôle dans un module | Rôles appliqués par l'interface ; **sans serveur, ce contrôle n'est pas inviolable** pour un utilisateur techniquement compétent disposant d'un compte valide, mais toute saisie est nominative et visible au journal |
 | Agent retiré ayant gardé une ancienne clé en mémoire | Nouvelle génération de clé : il ne lit pas les saisies postérieures au retrait |
+| Agent gardant un accès en écriture au partage et la clé de plateforme, qui modifie le coffre (partie publique substituée, rôles ajoutés, fausse génération, version antérieure recopiée) | **Attestation du coffre** : signature vérifiée par chaque agent, comptes et clés personnelles vérifiés par l'administrateur avant toute remise de clé ; anomalie signalée, réparation guidée (dernière version attestée, renouvellement des clés). Il peut encore rendre le coffre inutilisable (suppression, altération) : les sauvegardes et l'historique du coffre y répondent |
 | Altération d'un fichier | Rejetée (chiffrement authentifié) et signalée |
 | Code de l'application modifié | Hébergement intranet maîtrisé, empreintes SHA-256, `connect-src 'none'` empêchant l'exfiltration par le réseau |
 | Fichier d'export du DPI laissé sur un poste | Hors application : règle d'organisation (dossier restreint, suppression après import) |
@@ -257,6 +260,7 @@ Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre
 - Sauvegarder le dossier entier comme tout partage de fichiers ; les sauvegardes sont chiffrées de fait.
 - Restaurer = remettre les fichiers en place. Les fichiers de saisie sont indépendants : une restauration partielle ne corrompt pas le reste.
 - `coffre.json` est indispensable : sans lui, aucune donnée d'aucun module n'est lisible. Il doit figurer dans chaque sauvegarde.
+- Après une restauration du coffre (historique, copie sous scellé, copie complète), l'administrateur renouvelle toutes les clés avant que les agents puissent saisir : une version ancienne du coffre peut contenir des clés remises à des agents retirés depuis.
 - Tester une restauration lors de la recette, puis une fois par an.
 
 ## 11. Mise à jour et vérification
@@ -284,6 +288,8 @@ Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre
 - Pas de notification hors de l'application (courriel, SMS) : les alertes s'affichent à l'ouverture.
 - Firefox et Safari ne permettent pas d'ouvrir un dossier réseau.
 - Pas de connexion avec la session Windows à ce stade (étudiée pour plus tard).
+- Les saisies d'un journal sont écrites avec la clé de ce journal : tout détenteur de la clé de plateforme pourrait forger une saisie du journal du socle (réglage commun) ; le coffre et la remise des clés en sont protégés par l'attestation, pas l'affichage qui découle de ces réglages. Les enveloppes, en clair dans le coffre, laissent voir quels comptes détiennent les clés maîtresses (administrateurs).
+- Détection d'une version antérieure du coffre : par les postes qui ont vu une version plus récente et par l'historique du coffre ; si l'historique a aussi été supprimé, un poste neuf ne peut pas la détecter.
 
 ## 14. Recette technique — liste de contrôle
 

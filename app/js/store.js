@@ -282,7 +282,9 @@
       var dir = await this.sousDossier(c.journal.concat(c.parties.slice(0, 3)), true);
       await this.ecrireFichier(dir, c.parties[3], C.deb64(f.contenu));
     }
-    await this.ecrireFichier(this.handle, 'coffre.json', new TextEncoder().encode(JSON.stringify(copie.coffre, null, 1)));
+    // Coffre restauré : l'administrateur renouvellera les clés avant toute saisie (trousseau, 0.5.0)
+    var coffre = copie.coffre.version === 2 ? Object.assign({}, copie.coffre, { restaureLe: new Date().toISOString() }) : copie.coffre;
+    await this.ecrireFichier(this.handle, 'coffre.json', new TextEncoder().encode(JSON.stringify(coffre, null, 1)));
     return copie.fichiers.length;
   };
 
