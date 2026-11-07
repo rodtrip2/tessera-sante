@@ -46,6 +46,8 @@
       cfg('services', [{ code: 'U1', libelle: 'Unité 1 (fictive)' }, { code: 'U2', libelle: 'Unité 2 (fictive)' }]);
       cfg('etablissement', 'Établissement fictif de démonstration');
       cfg('lieuxCSI', { U1: ['CSI 1', 'CSI 2'], U2: ['CSI A'] });
+      // Agenda : audiences JLD et activités thérapeutiques en transparence tant qu'aucun patient n'y est prévu
+      cfg('agenda', { attenteSansPatient: ['audience', 'activite'] });
       // Démonstration : information du cadre ou de l'administrateur de garde pour un patient en soins libres (Unité 1)
       cfg('alertes', SIC.model.CONFIG_DEFAUT.alertes.map(function (r) {
         return r.declencheur === 'soins-libres' ? Object.assign({}, r, { active: true, services: ['U1'], depuis: now }) : Object.assign({}, r, { depuis: r.active ? now : 0 });
@@ -171,6 +173,8 @@
     var piscine = rdv({ nature: 'activite', titre: 'Piscine', debut: lundiDe(-6, 14), fin: lundiDe(-6, 16), lieu: 'Piscine municipale (fictive)', service: U1, patients: ['P01', 'P05'], accompagnateurs: 2, regularite: { type: 'semaine', jours: [2, 5] } });
     ajouter(avant, 'INSCRIPTION', { rdv: piscine, occurrence: SIC.model.dateLocaleISO(lundiDe(1, 12)), agent: 'demo-b', nom: 'Agent B (fictif)', service: U1 });
     rdv({ nature: 'activite', titre: 'Atelier terre', debut: lundiDe(2, 10, 30), fin: lundiDe(2, 11, 30), lieu: 'Salle d’activités', service: U1, patients: ['P01', 'P02', 'P05'], professionnels: [profC], regularite: { type: 'semaine', jours: [3], intervalle: 2 } });
+    // Activité sans patient inscrit pour l'instant (transparente, réglage de démonstration)
+    rdv({ nature: 'activite', titre: 'Atelier cuisine', debut: jour(2, 15), fin: jour(2, 17), lieu: 'Cuisine thérapeutique', service: U1, patients: [], accompagnateurs: 1 });
     // Entretiens : médical avec la famille (deux professionnels), infirmier individuel
     rdv({ nature: 'entretien', entretien: { type: 'medical', avec: 'famille' }, titre: '', debut: jour(1, 11), fin: jour(1, 12), lieu: 'Bureau médical', service: U1, patients: ['P01'], professionnels: [{ id: null, nom: 'Dr Arnaud (fictif)' }, profA] });
     rdv({ nature: 'entretien', entretien: { type: 'infirmier', avec: 'individuel' }, titre: '', debut: jour(0, 15), fin: jour(0, 15, 45), lieu: 'Bureau infirmier', service: U1, patients: ['P05'], professionnels: [profC] });

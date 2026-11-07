@@ -1,5 +1,14 @@
 # Journal des modifications — Tessera Santé
 
+## 0.11.2 — 8 novembre 2026
+
+Décisions du porteur du 8 novembre 2026.
+
+- « Cette date seulement » confirmé comme choix par défaut à l'ouverture d'une date d'un élément répété.
+- **Transparence sans patient prévu, activable par type d'élément** (*Administration → Agenda*, « Éléments sans patient prévu » ; audience JLD par défaut) : affichage en transparence, sans rappel de transport ni d'accompagnateur, tant qu'aucun patient n'est prévu. Réglage `agenda.attenteSansPatient`.
+- Démonstration : réglage étendu aux activités thérapeutiques, atelier cuisine sans patient inscrit.
+- Nouveau test (222 au vert) ; architecture et guide utilisateur à jour.
+
 ## 0.11.1 — 8 novembre 2026
 
 Décisions du porteur du 8 novembre 2026 sur les événements répétés.

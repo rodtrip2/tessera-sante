@@ -166,3 +166,12 @@ test('Réglages propres à une date (0.11.1) : patients, VSL et accompagnateurs 
   assert.deepEqual(A.elements(st2, fiches, ['U1'], j('2026-11-09'), j('2026-11-16'))[0].rdv.patients, []);
   assert.equal(A.elements(st2, fiches, ['U1'], j('2026-11-23'), j('2026-11-30')).length, 1);
 });
+
+test('Transparence sans patient prévu (0.11.2) : audience par défaut, activable par type', () => {
+  const act = { nature: 'activite', patients: [] }, aud = { nature: 'audience', patients: [] };
+  assert.ok(A.enAttente(aud, {}) && !A.enAttente(act, {}));
+  const config = { agenda: { attenteSansPatient: ['activite', 'inconnu'] } };
+  assert.deepEqual(A.typesEnAttente(config), ['activite']);
+  assert.ok(A.enAttente(act, config) && !A.enAttente(aud, config));
+  assert.ok(!A.enAttente({ nature: 'activite', patients: ['P1'] }, config));
+});
