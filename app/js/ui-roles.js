@@ -11,6 +11,13 @@
   // Accès, rôles fournis et onglets : déclarés par le module dans son contrat (registre des modules)
   function mod() { return SIC.modules.actif(); }
   function D() { return mod().droits; }
+  /** Autres modules affichés (Agenda…) : leurs accès sont rangés dans `accesModules[module]` (étape 6). */
+  function autresModules() { return SIC.modules.affiches().filter(function (m) { return m !== mod() && m.droits && m.acces && m.acces.length; }); }
+  function accesModules(code, cfg) {
+    var res = {};
+    autresModules().forEach(function (m) { var r = m.droits.rolesConfig(cfg).filter(function (x) { return x.code === code; })[0]; res[m.id] = r ? r.acces.slice() : []; });
+    return res;
+  }
   function ongletsMasquables() { return SIC.modules.onglets().filter(function (o) { return o.masquable; }).map(function (o) { return o.code; }); }
 
   function comptesAvec(code) {
@@ -36,7 +43,7 @@
     var cfg = U.config();
     // Copie de travail des rôles réglables (l'administrateur est fixe)
     var liste = D().rolesConfig(cfg).filter(function (r) { return !r.admin; }).map(function (r) {
-      return { code: r.code, libelle: r.libelle, acces: r.acces.slice(), services: r.services, journal: r.journal, registreSeul: !!r.registreSeul, ongletsMasques: r.ongletsMasques.slice(), fourni: r.fourni };
+      return { code: r.code, libelle: r.libelle, acces: r.acces.slice(), modules: accesModules(r.code, cfg), services: r.services, journal: r.journal, registreSeul: !!r.registreSeul, ongletsMasques: r.ongletsMasques.slice(), fourni: r.fourni };
     });
     var avant = JSON.parse(JSON.stringify(liste));
     var zone = h('div', { class: 'pile' }), zoneErr = h('div');
@@ -61,7 +68,16 @@
         D().NIVEAUX_JOURNAL.map(function (x) { return h('option', { value: x.code, text: x.libelle, selected: r.journal === x.code }); }));
       majNote();
       // Rôle « registre seulement » (rôles créés) : remplace les accès et le journal
-      var grilleAcces = h('div', { class: 'grille-acces' }, cases), blocJournal = h('label', {}, 'Journal des saisies', selJournal);
+      var grilleAcces = h('div', { class: 'pile' }, autresModules().length ? h('b', { text: mod().libelle }) : null, h('div', { class: 'grille-acces' }, cases),
+        autresModules().map(function (m) {
+          r.modules = r.modules || {}; r.modules[m.id] = r.modules[m.id] || [];
+          return h('div', { class: 'pile' }, h('b', { text: m.libelle }), h('div', { class: 'grille-acces' }, m.acces.map(function (a) {
+            var cb = h('input', { type: 'checkbox', checked: r.modules[m.id].indexOf(a.code) >= 0, onchange: function () {
+              r.modules[m.id] = m.acces.map(function (x) { return x.code; }).filter(function (c) { return c === a.code ? cb.checked : r.modules[m.id].indexOf(c) >= 0; });
+            } });
+            return h('label', { class: 'case' }, cb, h('span', { text: a.libelle }));
+          })), h('small', { class: 'muted', text: 'Sans aucun accès coché, le rôle n’ouvre pas ce module (ni sa clé, ni son onglet).' }));
+        })), blocJournal = h('label', {}, 'Journal des saisies', selJournal);
       // Onglets masquables (Surveillance CSI, Registre, Statistiques) : cochés = affichés
       var blocOnglets = h('div', { class: 'pile' }, h('span', { text: 'Onglets affichés' }), h('div', { class: 'actions gauche' }, ongletsMasquables().map(function (o) {
         var cb = h('input', { type: 'checkbox', checked: r.ongletsMasques.indexOf(o) < 0, onchange: function () {
@@ -83,7 +99,7 @@
         blocOnglets, blocJournal, noteJournal,
         h('div', { class: 'actions gauche' },
           r.fourni ? h('button', { class: 'btn petit', type: 'button', onclick: function () {
-            r.acces = D().accesDefaut(r.code); r.ongletsMasques = []; r.services = true; r.libelle = D().ROLES[r.code]; r.journal = D().rolesConfig({}).filter(function (x) { return x.code === r.code; })[0].journal; dessiner();
+            r.acces = D().accesDefaut(r.code); autresModules().forEach(function (m) { r.modules[m.id] = m.droits.accesDefaut(r.code); }); r.ongletsMasques = []; r.services = true; r.libelle = D().ROLES[r.code]; r.journal = D().rolesConfig({}).filter(function (x) { return x.code === r.code; })[0].journal; dessiner();
           } }, 'Rétablir les droits par défaut') : null,
           !r.fourni ? h('button', { class: 'btn petit danger', type: 'button', disabled: n > 0, title: n ? 'Retirez d’abord ce rôle des ' + n + ' compte(s) qui le portent.' : '', onclick: function () {
             liste.splice(liste.indexOf(r), 1); dessiner();
@@ -107,7 +123,7 @@
         var libelle = nomNouveau.value.trim();
         if (!libelle) return U.erreurDans(zoneErr, new Error('Indiquez le libellé du nouveau rôle.'));
         var src = liste.filter(function (x) { return x.code === modele.value; })[0];
-        liste.push({ code: nouveauCode(libelle, liste.map(function (x) { return x.code; }).concat(['ADMIN'])), libelle: libelle, acces: src ? src.acces.slice() : [], services: src ? src.services : true, journal: src ? src.journal : 'services', ongletsMasques: src ? src.ongletsMasques.slice() : [], registreSeul: modele.value === '__anonyme' || !!(src && src.registreSeul), fourni: false });
+        liste.push({ code: nouveauCode(libelle, liste.map(function (x) { return x.code; }).concat(['ADMIN'])), libelle: libelle, acces: src ? src.acces.slice() : [], modules: src ? JSON.parse(JSON.stringify(src.modules || {})) : {}, services: src ? src.services : true, journal: src ? src.journal : 'services', ongletsMasques: src ? src.ongletsMasques.slice() : [], registreSeul: modele.value === '__anonyme' || !!(src && src.registreSeul), fourni: false });
         nomNouveau.value = ''; dessiner();
       } }, '+ Ajouter'));
 
@@ -124,6 +140,7 @@
           if (!r.registreSeul && r.ongletsMasques.length === ongletsMasquables().length && r.journal === 'aucun') throw new Error('Le rôle « ' + l + ' » n’affiche aucun onglet : laissez au moins un onglet ou le journal.');
           vus[l.toLowerCase()] = 1;
           valeur[r.code] = { libelle: l, acces: r.registreSeul ? [] : r.acces.slice(), services: !!r.services, journal: r.journal };
+          if (!r.registreSeul && autresModules().length) valeur[r.code].accesModules = JSON.parse(JSON.stringify(r.modules || {}));
           if (!r.registreSeul && r.ongletsMasques.length) valeur[r.code].ongletsMasques = r.ongletsMasques.slice();
           if (r.registreSeul) valeur[r.code].registreSeul = true;
         });
@@ -140,6 +157,10 @@
           if (a.services !== r.services) ch.push(r.services ? 'limité aux services affectés' : 'accès à tous les services');
           if (a.journal !== r.journal && !r.registreSeul) ch.push('journal : ' + minuscule(libJournal(r.journal)));
           if (!r.registreSeul && a.ongletsMasques.join() !== r.ongletsMasques.join()) ch.push('onglets masqués : ' + libOnglets(r.ongletsMasques));
+          autresModules().forEach(function (m) {
+            var av = (a.modules || {})[m.id] || [], ap = (r.modules || {})[m.id] || [];
+            if (av.slice().sort().join() !== ap.slice().sort().join()) ch.push(m.libelle + ' : ' + (ap.length ? m.acces.filter(function (x) { return ap.indexOf(x.code) >= 0; }).map(function (x) { return minuscule(x.libelle); }).join(', ') : 'aucun accès (module fermé à ce rôle)'));
+          });
           if (!!a.registreSeul !== !!r.registreSeul) ch.push(r.registreSeul ? 'accès limité au registre' : 'accès complet rétabli selon les cases cochées');
           if (ch.length) lignes.push('« ' + a.libelle + ' » (' + n + ' compte(s)) : ' + ch.join(' ; ') + '.');
         });

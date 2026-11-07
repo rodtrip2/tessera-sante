@@ -1,5 +1,15 @@
 # Journal des modifications — Tessera Santé
 
+## 0.8.0 — 7 novembre 2026
+
+Étape 6 (module Agenda), première sous-étape : **plusieurs modules affichés** et **module Agenda déclaré**. Besoins de l'Agenda et décisions du porteur consignés dans `docs/architecture.md` § 7 bis.
+
+- Onglet *Accueil* et liste *Module* dans l'en-tête dès que deux modules sont ouverts à l'agent ; le module choisi est retenu sur le poste. Les onglets *Patients*, *Journal* et *Administration* restent communs.
+- Module *Agenda du service* : journal (`modules\agenda\`) et clé propres, activation par service, accès dans *Rôles et accès* (consulter ; planifier ; cocher les tâches faites ; alertes « à voir par le médecin » ; absences de l'équipe). Chacun peut saisir ses propres absences. Accès par défaut proposés : IDE (planifier, tâches, alertes), AS (tâches, alertes), secrétaire (planifier, tâches), cadre (tout). Un rôle créé par l'établissement n'entre dans l'Agenda que si un accès lui est coché ; sinon il n'en reçoit pas la clé.
+- Droits d'une saisie décidés par le module qui la déclare ; services visibles selon le module affiché ; libellés du journal propres à l'Agenda.
+- Onglet *Agenda* : éléments à venir (les écrans de planification arrivent aux sous-étapes suivantes).
+- Nouveau test `tests/agenda.test.js` (200 au vert) ; accueil, changement de module, journal et *Rôles et accès* vérifiés dans Chrome.
+
 ## 0.7.0 — 7 novembre 2026
 
 Étape 5 (module Patients) terminée : **reprise de l'historique sur les deux modules**.

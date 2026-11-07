@@ -102,8 +102,8 @@
        */
       actif: function () { return liste.filter(function (m) { return !m.reference; })[0] || null; },
       /** Onglets de la barre : ceux des modules de référence en tête (Patients), puis ceux du module affiché. */
-      onglets: function () {
-        var a = reg.actif();
+      onglets: function (idModule) {
+        var a = (idModule && reg.obtenir(idModule)) || reg.actif();
         return liste.filter(function (m) { return m.reference; }).concat(a ? [a] : []).reduce(function (r, m) { return r.concat(m.vues.onglets); }, []);
       },
       /** Modules affichés (hors modules de référence). */

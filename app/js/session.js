@@ -23,6 +23,17 @@
     return { saisies: { reduire: SIC.model.reduire }, reglages: { defaut: SIC.model.CONFIG_DEFAUT }, droits: SIC.model.droits };
   }
   function D() { return moduleActif().droits; }
+  /** Module qui décide des droits d'une saisie : celui qui déclare le type (hors modules de référence), sinon le module principal. */
+  function moduleDe(type) {
+    var m = SIC.modules && SIC.modules.moduleDuType ? SIC.modules.moduleDuType(type) : null;
+    return m && !m.reference && m.droits ? m : moduleActif();
+  }
+  /** Module affiché par l'interface (choisi par l'agent, étape 6) ; à défaut le module principal. */
+  function moduleAffiche(s) {
+    var m = s.moduleChoisi && SIC.modules && SIC.modules.obtenir(s.moduleChoisi);
+    return m && !m.reference && m.droits ? m : moduleActif();
+  }
+  function etatDe(s, m) { return !m || m === moduleActif() ? s.etat : (s.etats && s.etats[m.id]) || null; }
   /** Réglages en vigueur, ou réglages par défaut du module avant la première lecture du journal. */
   function config(s) { return s.etat ? s.etat.config : moduleActif().reglages.defaut; }
 
@@ -113,9 +124,11 @@
    * est désactivé (données conservées, consultation seule). Les saisies du socle ne sont pas concernées.
    */
   function controlerActivation(s, type, data) {
-    var m = moduleActif(), cfg = config(s);
-    if (!s.etat || !m.saisies.cibles || journalPour(s, journaux(s), type, data).nom === SOCLE) return;
-    var inactifs = m.saisies.cibles(s.etat, { type: type, data: data || {} }).filter(function (c) { return !m.droits.serviceActif(cfg, c); });
+    var m = moduleDe(type), cfg = config(s);
+    var jv = null;
+    try { jv = journalPour(s, journaux(s), type, data); } catch (e) { jv = null; }   // clé absente : le motif d'activation prime
+    if (!s.etat || !m.saisies.cibles || (jv && jv.nom === SOCLE)) return;
+    var inactifs = m.saisies.cibles(etatDe(s, m) || {}, { type: type, data: data || {} }).filter(function (c) { return !m.droits.serviceActif(cfg, c); });
     if (inactifs.length) {
       var lib = inactifs.map(function (c) { var x = (cfg.services || []).filter(function (v) { return v.code === c; })[0]; return x ? x.libelle : c; }).join(', ');
       throw new Error('Le module « ' + (m.libelle || m.id) + ' » est désactivé pour ' + (inactifs.length > 1 ? 'les services ' : 'le service ') + lib + ' : consultation seule, aucune saisie possible.');
@@ -315,6 +328,7 @@
       return function (compte) {
         var roles = compte.roles || [];
         if (!roles.some(function (r) { return codes.indexOf(r) >= 0; })) return false;
+        if (d.membre && !d.membre(roles, cfg)) return false;   // module où un rôle n'entre que par ses accès (Agenda)
         if (!d.activation || !d.activation(cfg) || d.consulteInactifs(roles)) return true;
         var svs = d.voitTousServices(roles, cfg) ? (cfg.services || []).map(function (x) { return x.code; }) : (compte.services || []);
         return svs.some(function (c) { return d.serviceActif(cfg, c); });
@@ -536,7 +550,7 @@
   Session.prototype.verrouiller = function () {
     // Trousseau effacé de la mémoire (octets des clés et partie privée remis à zéro)
     T.effacer(this.trousseau); if (this.privee8) this.privee8.fill(0);
-    this.trousseau = null; this.privee8 = null; this.cleV1 = null;
+    this.trousseau = null; this.privee8 = null; this.cleV1 = null; this.moduleChoisi = undefined;
     A.effacerCles(this.attest); this.attest = null; this.ancre = null; this.controle = null;
     this.cle = null; this.utilisateur = null; this.comptes = [];
     this.donnees = null; this.cleDonnees = null; this.formation = false; oublierJournaux(this); this.preferences = null;
@@ -1001,7 +1015,31 @@
   /** Rôles de l'utilisateur : les mêmes dans les données réelles et dans le jeu de formation. */
   Session.prototype.roles = function () { var c = this.compteEffectif(); return c ? c.roles : []; };
   /** Codes des services visibles (tous pour un administrateur). */
-  Session.prototype.mesServices = function () { return this.etat ? D().servicesDe(this.compteEffectif(), this.etat.config) : []; };
+  Session.prototype.mesServices = function () { return this.etat ? moduleAffiche(this).droits.servicesDe(this.compteEffectif(), this.etat.config) : []; };
+
+  // ---------------------------------------------------------- Modules affichés (étape 6)
+  /**
+   * Modules que l'agent peut ouvrir : il y a un rôle (accès du module), en détient la clé, et le module est activé
+   * pour l'un de ses services (l'encadrement et l'administrateur consultent aussi les services désactivés).
+   */
+  Session.prototype.modulesAccessibles = function () {
+    var s = this, cfg = config(this), c = this.compteEffectif();
+    if (!c || !SIC.modules || !SIC.modules.affiches) return [moduleActif()];
+    return SIC.modules.affiches().filter(function (m) {
+      if (!m.droits || !aCle(s, m.id)) return false;
+      if (m.droits.membre && !m.droits.membre(c.roles, cfg)) return false;
+      return m === moduleActif() || m.droits.servicesDe(c, cfg).length > 0 || (c.roles || []).indexOf('ADMIN') >= 0;
+    });
+  };
+  /** Choix du module affiché (identifiant), gardé pour la session ; un module inaccessible est refusé. */
+  Session.prototype.choisirModule = function (id) {
+    var ok = this.modulesAccessibles().some(function (m) { return m.id === id; });
+    this.moduleChoisi = ok ? id : null;
+    return ok;
+  };
+  Session.prototype.moduleAffiche = function () { var m = moduleAffiche(this); return m.id || 'isocont'; };
+  /** État reconstitué d'un module (le module principal : `etat`). */
+  Session.prototype.etatModule = function (id) { return etatDe(this, SIC.modules ? SIC.modules.obtenir(id) : null); };
 
   // ---------------------------------------------------------- Aperçu de l'affichage d'un rôle (administrateur)
   /**
@@ -1024,7 +1062,12 @@
     return Object.assign({}, this.utilisateur, { roles: [this.apercu.code], services: (cfg.services || []).map(function (s) { return s.code; }) });
   };
   Session.prototype.accesFormation = function () { return Droits.accesFormation(this.utilisateur); };
-  Session.prototype.peut = function (type) { return D().peut(this.roles(), type, config(this)); };
+  Session.prototype.peut = function (type) { return moduleDe(type).droits.peut(this.roles(), type, config(this)); };
+  /** Saisie permise à un agent pour lui-même (ses propres absences dans l'Agenda), même sans l'accès correspondant. */
+  function permisPourSoi(s, type, data) {
+    var m = moduleDe(type);
+    return !!(m.saisies && m.saisies.permisPourSoi && m.saisies.permisPourSoi(type, data, s.utilisateur));
+  }
 
   Session.prototype.nomAuteur = function (userId) {
     var c = this.comptes.filter(function (x) { return x.id === userId; })[0];
@@ -1045,7 +1088,7 @@
     }
     // Aperçu d'un rôle : rien n'est enregistré (seules les traces techniques des opérations réellement faites passent)
     if (this.apercu && type !== 'COMPTE') throw new Error('Aperçu de l’affichage du rôle « ' + this.apercu.libelle + ' » : aucune saisie n’est enregistrée. Revenez à votre affichage (liste « Affichage » en haut de l’écran) pour saisir.');
-    if (!(options && options.sansControle) && !this.peut(type)) throw new Error("Votre rôle ne permet pas cette action.");
+    if (!(options && options.sansControle) && !this.peut(type) && !permisPourSoi(this, type, data)) throw new Error("Votre rôle ne permet pas cette action.");
     if (!(options && options.sansControle)) controlerActivation(this, type, data);
     var at = (options && options.at) || new Date().toISOString();
     var by = (options && options.by) || this.utilisateur.id;
@@ -1348,6 +1391,13 @@
 
   Session.prototype.recalculer = function (info) {
     this.etat = moduleActif().saisies.reduire(this.evts);
+    // Autres modules affichés dont la session détient la clé : leur propre état (étape 6)
+    var s = this, etats = {};
+    etats[idModule()] = this.etat;
+    if (SIC.modules && SIC.modules.affiches) SIC.modules.affiches().forEach(function (m) {
+      if (m !== moduleActif() && aCle(s, m.id)) etats[m.id] = m.saisies.reduire(s.evts);
+    });
+    this.etats = etats;
     this.notifier(info);
   };
 
