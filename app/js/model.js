@@ -72,7 +72,9 @@
     ongletsMasquables: ONGLETS_MASQUABLES,
     typesEnPlus: { CADRE: ['EDITION_CADA', 'EXPORT_PATIENT'] },   // registre communiqué et droit d'accès : cadre par défaut
     rolesJournalComplet: ['CADRE'],                               // journal complet par défaut (choix du porteur)
-    ongletRegistreSeul: 'registre'
+    ongletRegistreSeul: 'registre',
+    module: 'isocont',
+    rolesEncadrement: ['CADRE']                                   // consultation des services où le module est désactivé
   });
   var accesFormation = D.accesFormation, accesDefaut = D.accesDefaut, rolesConfig = D.rolesConfig, libRole = D.libRole, peut = D.peut;
   var voitTousServices = D.voitTousServices, exigeService = D.exigeService, servicesDe = D.servicesDe;
@@ -107,6 +109,28 @@
     if (d.cible && (profondeur || 0) < 5) {
       var c = st.parId[d.cible];
       if (c) servicesSaisie(st, c, (profondeur || 0) + 1).forEach(function (x) { res[x] = 1; });
+    }
+    return Object.keys(res);
+  }
+
+  /**
+   * Services sur lesquels une saisie agit (activation du module par service) : service indiqué dans la saisie, service
+   * qui suit la mesure concernée, service de la fiche pour une saisie de fiche patient ; pour une annulation, ceux de la
+   * saisie annulée. Plus étroit que `servicesSaisie` (visibilité du journal), qui compte aussi les autres mesures du patient.
+   */
+  function servicesCibles(st, e, profondeur) {
+    var d = (e && e.data) || {}, res = {};
+    if (TYPES_JOURNAL_ADMIN[e.type]) return [];
+    if (d.service) res[d.service] = 1;
+    if (d.mesureId && st.mesures[d.mesureId] && st.mesures[d.mesureId].service) res[st.mesures[d.mesureId].service] = 1;
+    if ((e.type === 'PATIENT' || e.type === 'MODE_HOSPI') && d.patientId) {
+      var p = st.patients[ciblePatient(st, d.patientId)];
+      if (p && p.service && !d.service) res[p.service] = 1;
+    }
+    if (d.proposition && st.propositions[d.proposition]) { var mp = st.mesures[st.propositions[d.proposition].mesureId]; if (mp && mp.service) res[mp.service] = 1; }
+    if (d.cible && (profondeur || 0) < 5) {
+      var c = st.parId[d.cible];
+      if (c) servicesCibles(st, c, (profondeur || 0) + 1).forEach(function (x) { res[x] = 1; });
     }
     return Object.keys(res);
   }
@@ -197,7 +221,8 @@
     // Page GitHub : vérifier que la version utilisée est la dernière publiée (désactivable)
     verificationVersion: true,
     // Exports (PDF, CSV) enregistrés automatiquement dans ce sous-dossier du dossier des données
-    exports: { dossier: 'exports', conservationJours: 0, cheminReseau: '' },   // 0 = aucune purge ; cheminReseau : chemin Windows du dossier des données
+    exports: { dossier: 'exports', conservationJours: 0, cheminReseau: '' },
+    modulesServices: {},   // activation des modules par service (journal du socle) : { isocont: { tous: false, services: [...] } } ; vide = tous les services   // 0 = aucune purge ; cheminReseau : chemin Windows du dossier des données
     // Surveillance en CSI : nombre minimal de professionnels attendus par poste
     surveillance: { minParPoste: 2 },
     // Rôles de l'établissement (libellé, accès, services) ; vide = rôles fournis avec leurs droits par défaut
@@ -1988,7 +2013,7 @@
   // ou dans REGLAGES_EXCLUS (test unitaire).
   var FORMAT_REGLAGES = 'suivi-isocont-reglages';
   var GROUPES_REGLAGES = [
-    { code: 'etablissement', libelle: 'Établissement, services et lieux d’isolement', cles: ['etablissement', 'services', 'lieuxCSI', 'lieuIsolement'] },
+    { code: 'etablissement', libelle: 'Établissement, services et lieux d’isolement', cles: ['etablissement', 'services', 'modulesServices', 'lieuxCSI', 'lieuIsolement'] },
     { code: 'psychiatres', libelle: 'Liste des psychiatres (noms)', cles: ['psychiatres'] },
     { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
     { code: 'affichage', libelle: 'Points de vigilance et écran de connexion (contact, consigne, logo)', cles: ['vigilance', 'affichage'] },
@@ -2130,7 +2155,7 @@
   return {
     droits: D, champ: champ, ROLES: ROLES, DROITS: DROITS, ACCES: ACCES, ROLES_FOURNIS: ROLES_FOURNIS, rolesConfig: rolesConfig, libRole: libRole, accesDefaut: accesDefaut, voitTousServices: voitTousServices, exigeService: exigeService, ROLES_DE_SERVICE: ROLES_DE_SERVICE, accesFormation: accesFormation, CONFIG_DEFAUT: CONFIG_DEFAUT, LIB_CATEGORIES: LIB_CATEGORIES,
     peut: peut, servicesDe: servicesDe, periodesDe: periodesDe, estContrainte: estContrainte,
-    reduire: reduire, optionsSurveillance: optionsSurveillance, agentsSurveillance: agentsSurveillance, dossierExports: dossierExports, optionsExports: optionsExports, exportsAPurger: exportsAPurger, dossierExportService: dossierExportService, cheminWindowsExports: cheminWindowsExports, DOSSIER_ETABLISSEMENT: DOSSIER_ETABLISSEMENT, CONSERVATION_EXPORTS: CONSERVATION_EXPORTS, annulabilite: annulabilite, profilAnnuelPatient: profilAnnuelPatient, libLieu: libLieu, txtLieu: txtLieu, lieuDetaille: lieuDetaille, listesConfig: listesConfig, libRaccourci: libRaccourci, optionsVigilance: optionsVigilance, optionsAffichage: optionsAffichage, comparerVersions: comparerVersions, commandesRobocopy: commandesRobocopy, cheminWindows: cheminWindows, INTERVALLES_ROBOCOPY: INTERVALLES_ROBOCOPY, registreSeul: registreSeul, ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, NIVEAUX_JOURNAL: NIVEAUX_JOURNAL, niveauJournal: niveauJournal, servicesSaisie: servicesSaisie, journalVisible: journalVisible, GROUPES_REGLAGES: GROUPES_REGLAGES, REGLAGES_EXCLUS: REGLAGES_EXCLUS, exporterReglages: exporterReglages, analyserReglages: analyserReglages, reglagesAImporter: reglagesAImporter, LIEUX_ISOLEMENT: LIEUX_ISOLEMENT, cheminEvenement: cheminEvenement, filtrerIntegrite: filtrerIntegrite, trierEvenements: trierEvenements, deplier: deplier,
+    reduire: reduire, optionsSurveillance: optionsSurveillance, agentsSurveillance: agentsSurveillance, dossierExports: dossierExports, optionsExports: optionsExports, exportsAPurger: exportsAPurger, dossierExportService: dossierExportService, cheminWindowsExports: cheminWindowsExports, DOSSIER_ETABLISSEMENT: DOSSIER_ETABLISSEMENT, CONSERVATION_EXPORTS: CONSERVATION_EXPORTS, annulabilite: annulabilite, profilAnnuelPatient: profilAnnuelPatient, libLieu: libLieu, txtLieu: txtLieu, lieuDetaille: lieuDetaille, listesConfig: listesConfig, libRaccourci: libRaccourci, optionsVigilance: optionsVigilance, optionsAffichage: optionsAffichage, comparerVersions: comparerVersions, commandesRobocopy: commandesRobocopy, cheminWindows: cheminWindows, INTERVALLES_ROBOCOPY: INTERVALLES_ROBOCOPY, registreSeul: registreSeul, ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, NIVEAUX_JOURNAL: NIVEAUX_JOURNAL, niveauJournal: niveauJournal, servicesSaisie: servicesSaisie, servicesCibles: servicesCibles, journalVisible: journalVisible, GROUPES_REGLAGES: GROUPES_REGLAGES, REGLAGES_EXCLUS: REGLAGES_EXCLUS, exporterReglages: exporterReglages, analyserReglages: analyserReglages, reglagesAImporter: reglagesAImporter, LIEUX_ISOLEMENT: LIEUX_ISOLEMENT, cheminEvenement: cheminEvenement, filtrerIntegrite: filtrerIntegrite, trierEvenements: trierEvenements, deplier: deplier,
     listeMesures: listeMesures, suiviJLD: suiviJLD, dureeHeures: dureeHeures,
     tiersCycle: tiersCycle, modeA: modeA, modeRetenu: modeRetenu, estMineur: estMineur, cumulsPatient: cumulsPatient,
     postesSurveillance: postesSurveillance, bornesPeriode: bornesPeriode, dateLocaleISO: dateLocaleISO,

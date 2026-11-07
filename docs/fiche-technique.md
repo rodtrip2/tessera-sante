@@ -109,6 +109,8 @@ L'usage de GitHub Pages avec des données réelles, même si seul le code y est 
 
 Un agent voit un module dans un service si **trois conditions** sont réunies : le module est **activé pour ce service** (réglage de l'administrateur, tracé au journal du socle), l'agent est **affecté à ce service**, et il a **un rôle dans ce module**. Le modèle de données prévoit dès le départ un rôle différent selon le service ; l'écran correspondant viendra si le besoin se présente.
 
+*Existant (version 0.4.0)* : activation réglée par l'administrateur (*Administration → Établissement et services → Modules activés par service*) et tracée au journal du socle ; sans réglage, le module est activé pour tous les services. Un module désactivé pour un service y garde ses données ; aucune saisie n'y est plus possible et seuls le cadre de santé et l'administrateur les consultent.
+
 L'agent reçoit la clé d'un module dès qu'un de ses services l'active. **À l'intérieur d'un module, le cloisonnement entre services est fait par l'interface**, pas par le chiffrement : ce choix permet de transférer simplement un patient d'un service à l'autre. Un agent techniquement compétent pourrait donc lire les données d'un autre service **du même module** ; il ne peut pas lire un module dont il n'a pas la clé.
 
 ### Dépendance au module Patients

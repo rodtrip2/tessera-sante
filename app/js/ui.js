@@ -692,7 +692,7 @@
     document.body.classList.toggle('en-formation', !!s.formation);
     var selService = h('select', { 'aria-label': 'Service', onchange: function () { App.service = selService.value; try { localStorage.setItem('sic-service', App.service); } catch (e) { /* */ } rendreContenu(); } },
       mesSv.length > 1 ? h('option', { value: '*', text: estAdmin ? 'Tous les services' : 'Tous mes services' }) : null,
-      mesSv.map(function (x) { return h('option', { value: x.code, text: x.libelle, selected: App.service === x.code }); }));
+      mesSv.map(function (x) { return h('option', { value: x.code, text: x.libelle + (droits().serviceActif(config(), x.code) ? '' : ' — consultation seule'), selected: App.service === x.code }); }));
     if (App.service === '*') selService.value = '*';
     var age = s.derniereSynchro ? Math.round((maintenant - s.derniereSynchro) / 1000) : null;
     zoneEntete.appendChild(h('div', { class: 'entete-haut' }, marque(etablissement() || App.dossier.nom), h('div', { class: 'espace' }), mesSv.length ? selService : null,
@@ -726,6 +726,8 @@
     var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: vueAdmin };
     var vuesModule = interfaceModule().vues || {};
     var vue = vues[App.onglet] || vuesModule[App.onglet] || vuesModule[moduleActif().vues.onglets[0].code];
+    var affectes = (s.compteEffectif().services || []).filter(function (c) { return tousServices().some(function (x) { return x.code === c; }); });
+    if (!mesSv.length && !estAdmin && affectes.length) { zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Le module « ' + moduleActif().libelle + ' » n’est activé pour aucun de vos services. Demandez à l’administrateur de vérifier son activation (Administration → Établissement et services).' })); return; }
     if (!mesSv.length && !estAdmin) { zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Aucun service ne vous est affecté. Demandez à l’administrateur de vous en attribuer un.' })); return; }
     try { zoneContenu.appendChild(vue(maintenant)); }
     catch (e) { zoneContenu.appendChild(h('div', { class: 'erreur', text: 'Erreur d’affichage : ' + e.message })); console.error(e); }
@@ -954,6 +956,35 @@
         await enregistrerConfig([['etablissement', etab.value.trim()], ['services', svs], ['lieuxCSI', lieux], ['psychiatres', lignesDe(tPsy)]]);
       }));
 
+    // -- Activation des modules par service (socle, architecture § 5)
+    var casesModules = [];
+    var tableModules = h('table', {},
+      h('thead', {}, h('tr', {}, [h('th', { text: 'Service' })].concat(SIC.modules.liste().map(function (m) { return h('th', { text: m.libelle }); })))),
+      h('tbody', {}, tousServices().map(function (sv) {
+        return h('tr', {}, [h('td', { text: sv.libelle + ' (' + sv.code + ')' })].concat(SIC.modules.liste().map(function (m) {
+          var cb = h('input', { type: 'checkbox', checked: m.droits.serviceActif(cfg, sv.code), 'aria-label': m.libelle + ' — ' + sv.libelle });
+          casesModules.push({ module: m, service: sv, cb: cb });
+          return h('td', {}, h('label', { class: 'case' }, cb, h('span', { text: 'activé' })));
+        })));
+      })));
+    var encadrement = SIC.modules.liste().map(function (m) { return (m.droits.ROLES_ENCADREMENT || []).map(function (r) { return droits().libRole(cfg, r).toLowerCase(); }); })[0] || [];
+    var pModulesServices = h('section', { class: 'panneau' }, h('h2', { text: 'Modules activés par service' }),
+      h('p', { class: 'muted', text: 'Un agent voit un module dans un service si le module y est activé, s’il est affecté au service et s’il a un rôle dans le module. Sans réglage, chaque module est activé pour tous les services, y compris ceux créés ensuite ; dès qu’un module est désactivé pour un service, un service créé ensuite doit être activé ici.' }),
+      h('p', { class: 'muted', text: 'Désactiver un module pour un service : ses données sont conservées, aucune saisie n’est plus possible dans ce service, et seuls ' + (encadrement.length ? encadrement.join(', ') + ' et l’administrateur' : 'l’administrateur') + ' les consultent.' }),
+      tousServices().length ? h('div', { class: 'table-wrap' }, tableModules) : h('p', { class: 'muted', text: 'Créez d’abord les services ci-dessus.' }),
+      boutonEnregistrer(async function () {
+        var valeur = JSON.parse(JSON.stringify(cfg.modulesServices || {})), desactives = [];
+        SIC.modules.liste().forEach(function (m) {
+          var lignes = casesModules.filter(function (c) { return c.module === m; });
+          var actifs = lignes.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.service.code; });
+          lignes.forEach(function (c) { if (!c.cb.checked && m.droits.serviceActif(cfg, c.service.code)) desactives.push(m.libelle + ' — ' + c.service.libelle); });
+          if (actifs.length === lignes.length) delete valeur[m.id];       // tous les services : réglage d'origine
+          else valeur[m.id] = { tous: false, services: actifs };
+        });
+        if (desactives.length && !confirm('Désactiver :\n' + desactives.join('\n') + '\n\nLes données sont conservées, mais plus aucune saisie ne sera possible dans ces services ; seuls ' + (encadrement.length ? encadrement.join(', ') + ' et l’administrateur' : 'l’administrateur') + ' les consulteront. Continuer ?')) return;
+        await enregistrerConfig([['modulesServices', valeur]]);
+      }));
+
     // -- Dossier des exports
     var tExports = h('input', { type: 'text', maxlength: 120, value: X.dossierExports(cfg), placeholder: 'exports' });
     var oExp = X.optionsExports(cfg);
@@ -1025,14 +1056,14 @@
       var note = h('section', { class: 'panneau' }, h('h2', { text: 'Administration en mode formation' }),
         h('p', { text: 'Le paramétrage ci-dessous ne concerne que le jeu de formation. Les comptes, les clés de sécurité et l’import se gèrent depuis les données réelles.' }));
       return sousOngletsAdmin([].concat(
-        [['services', 'Établissement et services', [note, pServices].concat(pModule.services)]],
+        [['services', 'Établissement et services', [note, pServices, pModulesServices].concat(pModule.services)]],
         pModule.onglets.map(function (o) { return [o[0], o[1], [note].concat(o[2])]; }),
         [['sauvegardes', 'Sauvegardes et exports', [note, pExports].concat(pModule.sauvegardes)],
           ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos]]]));
     }
     return sousOngletsAdmin([].concat(
       [['comptes', 'Comptes et sécurité', [comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()]],
-        ['services', 'Établissement et services', [pServices].concat(pModule.services)]],
+        ['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)]],
       pModule.onglets,
       [['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
         ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos, SIC.ui.version.panneau(), demo]]]));
