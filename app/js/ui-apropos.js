@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   var SIC = self.SIC, U = SIC.ui, h = U.h;
-  var DEPOT = 'https://github.com/rodtrip2/Suivi-mesures-isocont';
+  var DEPOT = 'https://github.com/rodtrip2/tessera-sante';
   var EUPL_FR = 'https://interoperable-europe.ec.europa.eu/collection/eupl/eupl-text-eupl-12';
 
   function lien(url, texte, classe) {
@@ -21,8 +21,9 @@
     } }, 'Copier la version et le navigateur');
 
     return [
-      h('section', { class: 'panneau' }, h('h2', { text: 'Suivi des mesures d’isolement et de contention' }),
-        h('p', { text: 'Version ' + SIC.VERSION + '. Outil de suivi des durées, des communications au juge des libertés et de la détention, du registre et des statistiques des mesures d’isolement et de contention (article L. 3222-5-1 du code de la santé publique).' }),
+      h('section', { class: 'panneau' }, h('h2', { text: 'Tessera Santé' }),
+        h('p', { text: 'Version ' + SIC.VERSION + '. Plateforme d’organisation d’un service de soins, faite d’un socle commun (comptes, droits, chiffrement, journal, sauvegardes) et de modules activés par service : Patients (fiche commune), Isolement et contention (durées, communications au juge des libertés et de la détention, registre et statistiques, article L. 3222-5-1 du code de la santé publique), Agenda du service.' }),
+        h('p', { class: 'muted', text: 'Le module Isolement et contention reprend l’application Suivi des mesures d’isolement et de contention (version 1.67), dont il garde les règles.' }),
         h('p', { class: 'muted', text: 'L’outil ne constitue pas un dispositif médical et ne remplace ni le dossier patient informatisé, ni la prescription médicale, ni le jugement des professionnels.' })),
 
       h('section', { class: 'panneau' }, h('h2', { text: 'Licence' }),
@@ -40,7 +41,7 @@
           h('li', {}, h('b', { text: 'Composants tiers : ' }), 'aucun. L’application est écrite en HTML, CSS et JavaScript, sans bibliothèque externe ni service en ligne.'))),
 
       h('section', { class: 'panneau' }, h('h2', { text: 'Code source, signalements et suggestions' }),
-        h('p', {}, 'Le code source, la documentation et le kit de déploiement sont publics : ', lien(DEPOT, 'github.com/rodtrip2/Suivi-mesures-isocont'), '.'),
+        h('p', {}, 'Le code source, la documentation et le kit de déploiement sont publics : ', lien(DEPOT, 'github.com/rodtrip2/tessera-sante'), '.'),
         h('div', { class: 'alerte' }, h('b', { text: 'Aucune donnée réelle dans un signalement. ' }),
           'Les signalements sont publics : n’y mettez jamais de nom, d’IPP, de date de naissance, de capture d’écran de données réelles ni de nom d’agent. Reproduisez le problème en mode démonstration ou formation, avec des données fictives.'),
         h('div', { class: 'actions gauche' },

@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Suivi des mesures d’isolement et de contention",
-  "short_name": "Isolement-contention",
-  "description": "Suivi des durées, des communications au juge, du registre et des statistiques des mesures d’isolement et de contention.",
+  "name": "Tessera Santé",
+  "short_name": "Tessera Santé",
+  "description": "Plateforme d’organisation d’un service de soins : fiches patient, isolement et contention, agenda du service.",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",

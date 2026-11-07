@@ -1,5 +1,14 @@
 # Journal des modifications — Tessera Santé
 
+## 0.8.2 — 7 novembre 2026
+
+Décisions du porteur du 7 novembre 2026 sur l'Agenda et le nom de l'application.
+
+- **Tessera Santé** : nouveau nom affiché dans l'en-tête, l'onglet du navigateur, l'application installée (icône « TS ») et *À propos* (présentation de la plateforme et de ses modules ; liens vers le dépôt `rodtrip2/tessera-sante` et ses formulaires de signalement, ajoutés au dépôt).
+- Élément d'un autre service concernant un patient du service : lecture seule par défaut, **modification permise par un réglage** (*Administration → Agenda*) ; le service du patient peut **toujours ajouter un commentaire** (tout agent de l'Agenda, information d'organisation sans donnée clinique ; retrait par annulation depuis le journal).
+- **Types d'alertes par service** : la liste de l'établissement s'applique à tous les services, sauf à ceux qui ont leur propre liste.
+- Nouveau test (commentaire sans accès particulier, listes par service ; 202 au vert) ; commentaire, réglages et nouveau nom vérifiés dans Chrome.
+
 ## 0.8.1 — 7 novembre 2026
 
 Étape 6 (module Agenda), deuxième sous-étape : **agenda du service**. Besoins complétés par le porteur le 7 novembre 2026 (types d'alertes paramétrables, patient suivi par un autre service).

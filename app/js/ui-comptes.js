@@ -84,7 +84,7 @@
     var adresse = location.protocol === 'file:' ? 'Application ouverte depuis le partage réseau' : location.origin + location.pathname;
     return h('div', { class: 'fiches-remise' }, liste.map(function (c) {
       return h('section', { class: 'fiche-remise' },
-        h('div', { class: 'doc-etab', text: U.etablissement() || 'Suivi des mesures d’isolement et de contention' }),
+        h('div', { class: 'doc-etab', text: U.etablissement() || 'Tessera Santé' }),
         h('h2', { text: 'Votre accès — ' + c.nom }),
         h('table', {}, h('tbody', {},
           h('tr', {}, h('th', { text: 'Adresse' }), h('td', { text: adresse })),

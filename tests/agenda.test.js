@@ -156,5 +156,20 @@ test('Agenda du service : éléments de la période, patient d’un autre servic
   assert.equal(A.identite(fiches.P1, 'aucune'), 'patient');
   assert.equal(A.optionsAgenda({}).identite, 'initiales');
   assert.equal(A.optionsAgenda({}).typesAlertes[0].libelle, 'À voir par le médecin');
-  assert.deepEqual(A.optionsAgenda({ agenda: { identite: 'xx', typesAlertes: [{ code: 'a', libelle: ' Bilan social ' }, { code: 'b', libelle: '' }] } }), { identite: 'initiales', typesAlertes: [{ code: 'a', libelle: 'Bilan social' }] });
+  const o = A.optionsAgenda({ agenda: { identite: 'xx', typesAlertes: [{ code: 'a', libelle: ' Bilan social ' }, { code: 'b', libelle: '' }], typesAlertesServices: { U2: [{ code: 'c', libelle: 'Préparer la sortie' }] } } }, 'U1');
+  assert.equal(o.identite, 'initiales');
+  assert.deepEqual(o.typesAlertes, [{ code: 'a', libelle: 'Bilan social' }]);       // liste de l'établissement
+  assert.equal(o.modifAutresServices, false);                                         // lecture seule par défaut
+  assert.deepEqual(A.optionsAgenda({ agenda: { typesAlertesServices: { U2: [{ code: 'c', libelle: 'Préparer la sortie' }] } } }, 'U2').typesAlertes, [{ code: 'c', libelle: 'Préparer la sortie' }]);   // liste propre au service
+});
+
+test('Commentaire sur un élément d’un autre service : permis sans accès particulier, gardé avec l’élément', async () => {
+  const { racine, admin } = await equipe();
+  await admin.enregistrer('RDV', Object.assign(rdv('RB', 'U2'), { nature: 'activite', patients: [] }));
+  const as = await co(racine, 'as.a', 'mot de passe as a');                          // l'AS ne planifie pas
+  await assert.rejects(as.enregistrer('RDV', { id: 'RB', titre: 'modifié', service: 'U2' }), /rôle/);
+  await as.enregistrer('COMMENTAIRE', { id: 'K1', rdv: 'RB', texte: 'Patient prévenu de l’horaire (fictif)', service: 'U1' });
+  const c = as.etatModule('agenda').rdv.RB.commentaires;
+  assert.equal(c.length, 1);
+  assert.equal(c[0].service, 'U1');
 });
