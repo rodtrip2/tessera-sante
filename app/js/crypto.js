@@ -43,7 +43,11 @@
    * Chiffre des octets. Sans `generation` : en-tête « SIC1 » (format d'origine). Avec `generation` (entier ≥ 1) :
    * en-tête « SIC2 » portant ce numéro, lié au contenu par les données authentifiées (un numéro altéré est refusé).
    */
+  /** Jeu de clés (trousseau.js) : { courante, cle(g) } ; écrit avec la génération courante (null : format d'origine). */
+  function estJeu(c) { return !!c && typeof c === 'object' && typeof c.cle === 'function'; }
+
   async function chiffrerOctets(cle, octets, aad, generation) {
+    if (estJeu(cle)) { generation = cle.courante; cle = await cle.cle(cle.courante || 1); if (!cle) throw new Error('Clé de la génération courante absente du trousseau.'); }
     var iv = aleatoire(12), v2 = generation !== undefined && generation !== null;
     if (v2 && !(Number.isInteger(generation) && generation >= 1 && generation < 4294967296)) throw new Error('Numéro de génération invalide.');
     var ad = enc.encode((aad || '') + (v2 ? '|g' + generation : ''));
@@ -71,7 +75,7 @@
   async function dechiffrerOctets(cle, donnees, aad) {
     var u = new Uint8Array(donnees), g = generationFichier(u), v2 = u[3] === MAGIC2[3];
     var tete = v2 ? 8 : 4;
-    var k = typeof cle === 'function' ? await cle(g) : cle;
+    var k = estJeu(cle) ? await cle.cle(g) : typeof cle === 'function' ? await cle(g) : cle;
     if (!k) throw new Error('Clé de la génération ' + g + ' absente du trousseau.');
     var ad = enc.encode((aad || '') + (v2 ? '|g' + g : ''));
     return new Uint8Array(await subtle.decrypt({ name: 'AES-GCM', iv: u.slice(tete, tete + 12), additionalData: ad }, k, u.slice(tete + 12)));

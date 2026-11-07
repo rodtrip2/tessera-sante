@@ -12,6 +12,7 @@
   // Fichiers du socle : chargés par la page, ou lus directement sous Node (tests).
   function socle(nom, fichier) { return SIC[nom] || (typeof require === 'function' ? require(fichier) : undefined); }
   var Droits = socle('droits', './droits.js'), N = socle('noyauJournal', './noyau-journal.js'), X = socle('exportsRangement', './exports-rangement.js');
+  var T = socle('trousseau', './trousseau.js');
   /**
    * Module dont la session tient le journal : celui du registre des modules (contrat, modules.js). Sans registre
    * (tests qui ne chargent que le modèle), le modèle d'Isocont est lu comme un contrat.
@@ -65,7 +66,7 @@
   function journaux(s) {
     if (!s.journauxActifs) {
       s.journauxActifs = s.formation ? [nouveauJournal('formation', s.donnees, s.cleDonnees)]
-        : [nouveauJournal(SOCLE, null, s.cle), nouveauJournal(moduleActif().id || 'isocont', null, s.cle)];
+        : [nouveauJournal(SOCLE, null, s.cle), nouveauJournal(idModule(), null, jeuModule(s))];
     }
     return s.journauxActifs;
   }
@@ -99,6 +100,23 @@
       throw new Error('Le module « ' + (m.libelle || m.id) + ' » est désactivé pour ' + (inactifs.length > 1 ? 'les services ' : 'le service ') + lib + ' : consultation seule, aucune saisie possible.');
     }
   }
+  // ---------------------------------------------------------- Trousseau (étape 4)
+  function v2(s) { return !!(s.coffre && s.coffre.version === 2); }
+  function idModule() { return moduleActif().id || 'isocont'; }
+  function modulesDeclares() { return SIC.modules ? SIC.modules.liste().map(function (m) { return m.id; }) : [idModule()]; }
+  /** Trousseau ouvert : `cle` = jeu de la plateforme (comptes, journal du socle, préférences, traces). */
+  function installerTrousseau(s, trousseau, privee8, cleV1) {
+    s.trousseau = trousseau; s.privee8 = privee8 || null; s.cleV1 = cleV1 || null;
+    s.cle = trousseau[T.PLATEFORME];
+  }
+  /** Coffre version 1 : la clé de données unique tient lieu de toutes les clés de droit (comportement d'origine). */
+  function trousseauV1(s, cle) { var j = T.jeuV1(cle), t = {}; t[T.PLATEFORME] = j; t[idModule()] = j; installerTrousseau(s, t, null, cle); }
+  function jeuModule(s) { return s.trousseau && (s.trousseau[idModule()] || s.trousseau[T.PLATEFORME]); }
+  async function ouvrirAvecPrivee(s, pour, privee8) {
+    installerTrousseau(s, await T.ouvrir(s.coffre, pour, await C.importerPrivee(privee8)), privee8);
+  }
+  function nouvelId() { return 'k' + id8(); }
+
   function oublierJournaux(s) {
     s.journauxActifs = null; s.evts = []; s.rejetes = []; s.etat = null; s.integrite = null;
   }
@@ -117,19 +135,19 @@
     return C.b64(await C.chiffrerJSON(cle, { comptes: comptes }, 'comptes'));
   }
 
-  /** Initialise un dossier vide : clé de données, compte administrateur, code de secours. */
+  /**
+   * Initialise un dossier vide, directement en coffre version 2 (trousseau) : clés de droit, clé de secours
+   * (code de secours), clé personnelle du compte administrateur.
+   */
   Session.prototype.initialiser = async function (admin) {
     if (await this.dossier.lireCoffre()) throw new Error('Ce dossier contient déjà des données.');
-    this.cle = await C.nouvelleCleDonnees();
     var compte = { id: 'u' + id8(), login: admin.login.trim().toLowerCase(), nom: admin.nom.trim(), roles: ['CADRE', 'ADMIN'], actif: true };
     var code = C.nouveauCodeSecours();
-    var embMdp = await C.emballerMotDePasse(this.cle, admin.motDePasse);
-    embMdp.id = 'k' + id8(); embMdp.userId = compte.id; embMdp.login = compte.login;
-    var embSec = await C.emballerCodeSecours(this.cle, code);
-    embSec.id = 'k' + id8(); embSec.userId = null;
+    var r = await T.creerCoffre({ compte: compte, motDePasse: admin.motDePasse, codeSecours: code, modules: modulesDeclares(), id: nouvelId });
+    installerTrousseau(this, r.trousseau, r.privee8);
     this.comptes = [compte];
-    var coffre = { format: 'SIC-coffre', version: 1, creeLe: new Date().toISOString(), emballages: [embMdp, embSec], comptes: await chiffrerComptes(this.cle, this.comptes) };
-    this.coffre = await this.dossier.ecrireCoffre(coffre, undefined);
+    r.coffre.comptes = await chiffrerComptes(this.cle, this.comptes);
+    this.coffre = await this.dossier.ecrireCoffre(r.coffre, undefined);
     this.utilisateur = compte;
     await this.synchroniser();
     return code;
@@ -144,12 +162,14 @@
     login = login.trim().toLowerCase();
     var embs = this.coffre.emballages.filter(function (e) { return e.methode === 'mdp' && e.login === login; });
     if (!embs.length) throw new Error('Identifiant ou mot de passe incorrect.');
-    for (var i = 0; i < embs.length; i++) {
-      try { this.cle = await C.deballerMotDePasse(embs[i], motDePasse); break; } catch (e) { this.cle = null; }
+    var secret = null, trouve = null;
+    for (var i = 0; i < embs.length && !secret; i++) {
+      try { secret = await C.deballerMotDePasse(embs[i], motDePasse, v2(this)); trouve = embs[i]; } catch (e) { secret = null; }
     }
-    if (!this.cle) throw new Error('Identifiant ou mot de passe incorrect.');
+    if (!secret) throw new Error('Identifiant ou mot de passe incorrect.');
+    if (v2(this)) await ouvrirAvecPrivee(this, trouve.userId, secret); else trousseauV1(this, secret);
     await lireComptes(this);
-    var u = this.comptes.filter(function (c) { return c.id === embs[0].userId; })[0];
+    var u = this.comptes.filter(function (c) { return c.id === trouve.userId; })[0];
     if (!u || !u.actif) { this.verrouiller(); throw new Error('Ce compte est désactivé.'); }
     var val = SIC.comptes.validite(u, Date.now());
     if (val.expire) { this.verrouiller(); throw new Error('Ce compte temporaire a expiré (dernier jour d’accès : ' + u.finValidite.split('-').reverse().join('/') + '). Demandez sa prolongation à l’administrateur.'); }
@@ -159,8 +179,8 @@
 
   Session.prototype.connexionCleSecurite = async function () {
     var embs = this.coffre.emballages.filter(function (e) { return e.methode === 'cle'; });
-    var r = await C.deballerCleSecurite(embs);
-    this.cle = r.cle;
+    var r = await C.deballerCleSecurite(embs, v2(this));
+    if (v2(this)) await ouvrirAvecPrivee(this, r.emballage.userId || T.SECOURS, r.cle); else trousseauV1(this, r.cle);
     await lireComptes(this);
     var u = this.comptes.filter(function (c) { return c.id === r.emballage.userId; })[0];
     this.utilisateur = u && u.actif ? u : { id: 'secours', login: 'secours', nom: 'Déblocage par clé de sécurité', roles: ['ADMIN'], actif: true };
@@ -170,7 +190,9 @@
   Session.prototype.connexionCodeSecours = async function (code) {
     var emb = this.coffre.emballages.filter(function (e) { return e.methode === 'secours'; })[0];
     if (!emb) throw new Error('Aucun code de secours enregistré.');
-    try { this.cle = await C.deballerCodeSecours(emb, code); } catch (e) { throw new Error('Code de secours incorrect.'); }
+    var secret;
+    try { secret = await C.deballerCodeSecours(emb, code, v2(this)); } catch (e) { throw new Error('Code de secours incorrect.'); }
+    if (v2(this)) await ouvrirAvecPrivee(this, T.SECOURS, secret); else trousseauV1(this, secret);
     await lireComptes(this);
     this.utilisateur = { id: 'secours', login: 'secours', nom: 'Déblocage par code de secours', roles: ['ADMIN'], actif: true };
     await this.synchroniser();
@@ -188,21 +210,26 @@
       if (login) {
         login = login.trim().toLowerCase();
         var embs = s.coffre.emballages.filter(function (e) { return e.methode === 'mdp' && e.login === login; });
-        for (var i = 0; i < embs.length && !s.cle; i++) { try { s.cle = await C.deballerMotDePasse(embs[i], secret); } catch (e) { s.cle = null; } }
-        if (!s.cle) throw new Error('Identifiant ou mot de passe incorrect.');
+        var ouvert = null, trouve = null;
+        for (var i = 0; i < embs.length && !ouvert; i++) { try { ouvert = await C.deballerMotDePasse(embs[i], secret, v2(s)); trouve = embs[i]; } catch (e) { ouvert = null; } }
+        if (!ouvert) throw new Error('Identifiant ou mot de passe incorrect.');
+        if (v2(s)) await ouvrirAvecPrivee(s, trouve.userId, ouvert); else trousseauV1(s, ouvert);
         await lireComptes(s);
-        var u = s.comptes.filter(function (c) { return c.id === embs[0].userId; })[0];
+        var u = s.comptes.filter(function (c) { return c.id === trouve.userId; })[0];
         if (!u || !u.actif || (u.roles || []).indexOf('ADMIN') < 0) throw new Error('Ce compte n’est pas un compte administrateur actif.');
         return u.nom;
       }
       var emb = s.coffre.emballages.filter(function (e) { return e.methode === 'secours'; })[0];
       if (!emb) throw new Error('Aucun code de secours enregistré.');
-      try { await C.deballerCodeSecours(emb, secret); } catch (e) { throw new Error('Code de secours incorrect.'); }
+      try { await C.deballerCodeSecours(emb, secret, v2(s)); } catch (e) { throw new Error('Code de secours incorrect.'); }
       return 'code de secours';
     } finally { s.verrouiller(); }
   };
 
   Session.prototype.verrouiller = function () {
+    // Trousseau effacé de la mémoire (octets des clés et partie privée remis à zéro)
+    T.effacer(this.trousseau); if (this.privee8) this.privee8.fill(0);
+    this.trousseau = null; this.privee8 = null; this.cleV1 = null;
     this.cle = null; this.utilisateur = null; this.comptes = [];
     this.donnees = null; this.cleDonnees = null; this.formation = false; oublierJournaux(this); this.preferences = null;
     this.apercu = null;
@@ -245,19 +272,27 @@
       if (!c.nom || !c.nom.trim()) throw new Error('Nom manquant pour « ' + c.login + ' ».');
     });
     // Emballages préparés avant d'ouvrir le coffre : la fenêtre d'écriture reste courte.
+    // Version 2 : une clé personnelle par compte, partie privée emballée par le mot de passe provisoire, enveloppes
+    // des clés de droit selon ses droits. Version 1 : emballage de la clé de données (format d'origine).
     var prepares = [];
     for (var i = 0; i < liste.length; i++) {
-      var c = liste[i], id = 'u' + id8();
-      var emb = await C.emballerMotDePasse(s.cle, c.motDePasse, c.aleatoire ? C.ITERATIONS_PROVISOIRE : undefined);
-      emb.id = 'k' + id8(); emb.userId = id; emb.login = c.login;
-      prepares.push({ compte: { id: id, login: c.login, nom: c.nom.trim(), roles: c.roles, services: c.services || [], actif: true, mdpProvisoire: true, formation: c.formation !== false, finValidite: c.finValidite || '' }, emb: emb });
+      var c = liste[i], id = 'u' + id8(), it = c.aleatoire ? C.ITERATIONS_PROVISOIRE : undefined;
+      var compte = { id: id, login: c.login, nom: c.nom.trim(), roles: c.roles, services: c.services || [], actif: true, mdpProvisoire: true, formation: c.formation !== false, finValidite: c.finValidite || '' };
+      var agent = null, emb;
+      if (v2(s)) { agent = await T.nouvelAgent(s.trousseau, s.coffre, compte, c.motDePasse, it); agent.privee8.fill(0); emb = agent.emballage; }
+      else emb = await C.emballerMotDePasse(s.cleV1, c.motDePasse, it);
+      emb.id = nouvelId(); emb.userId = id; emb.login = c.login;
+      prepares.push({ compte: compte, emb: emb, agent: agent });
       if (progres) progres(i + 1, liste.length);
     }
     await this.modifierCoffre(async function (coffre, comptes) {
       prepares.forEach(function (p) {
         if (comptes.some(function (x) { return x.login === p.compte.login; })) throw new Error('L’identifiant « ' + p.compte.login + ' » existe déjà.');
       });
-      prepares.forEach(function (p) { comptes.push(p.compte); coffre.emballages.push(p.emb); });
+      prepares.forEach(function (p) {
+        comptes.push(p.compte); coffre.emballages.push(p.emb);
+        if (p.agent) { coffre.agents[p.compte.id] = { publique: p.agent.publique }; coffre.enveloppes = coffre.enveloppes.concat(p.agent.enveloppes); }
+      });
     });
     if (prepares.length === 1) await this.tracer('CREATION', { login: prepares[0].compte.login, roles: prepares[0].compte.roles, services: prepares[0].compte.services, finValidite: prepares[0].compte.finValidite || undefined });
     else await this.tracer('CREATION_LOT', { comptes: prepares.map(function (p) { return { login: p.compte.login, roles: p.compte.roles, services: p.compte.services }; }) });
@@ -265,13 +300,17 @@
 
   /** Modifie un compte. `formation` (facultatif) : accès au mode formation. */
   Session.prototype.modifierRoles = async function (userId, roles, actif, services, formation, finValidite) {
+    var s = this;
     await this.modifierCoffre(async function (coffre, comptes) {
       var c = comptes.filter(function (x) { return x.id === userId; })[0];
       if (!c) throw new Error('Compte introuvable.');
       c.roles = roles; c.actif = actif; c.services = services || [];
       if (typeof formation === 'boolean') c.formation = formation;
       if (typeof finValidite === 'string') c.finValidite = finValidite;
-      if (!actif) coffre.emballages = coffre.emballages.filter(function (e) { return e.userId !== userId; });
+      if (!actif) {
+        coffre.emballages = coffre.emballages.filter(function (e) { return e.userId !== userId; });
+        if (coffre.version === 2) coffre.enveloppes = coffre.enveloppes.filter(function (e) { return e.pour !== userId; });
+      } else if (coffre.version === 2 && coffre.agents[userId]) await T.renouvelerEnveloppes(s.trousseau, coffre, c);   // droits selon les rôles
     });
     var c2 = this.comptes.filter(function (x) { return x.id === userId; })[0];
     await this.tracer('ROLES', { login: c2 ? c2.login : userId, roles: roles, actif: actif, services: services || [], formation: c2 ? c2.formation !== false : undefined, finValidite: c2 && c2.finValidite ? c2.finValidite : undefined });
@@ -284,13 +323,23 @@
    * lui-même, il devient définitif.
    */
   Session.prototype.reinitialiserMotDePasse = async function (userId, motDePasse, options) {
-    var s = this, provisoire = userId !== this.utilisateur.id;
-    var emb = await C.emballerMotDePasse(s.cle, motDePasse, options && options.aleatoire ? C.ITERATIONS_PROVISOIRE : undefined);
+    var s = this, provisoire = userId !== this.utilisateur.id, it = options && options.aleatoire ? C.ITERATIONS_PROVISOIRE : undefined;
+    // Par l'agent lui-même : sa partie privée réemballée. Par l'administrateur (version 2) : il ne connaît pas la partie
+    // privée de l'agent, il lui crée une nouvelle clé personnelle et lui remet de nouvelles enveloppes.
+    var emb = v2(this) ? (provisoire ? null : await C.emballerMotDePasse(s.privee8, motDePasse, it)) : await C.emballerMotDePasse(s.cleV1, motDePasse, it);
     await this.modifierCoffre(async function (coffre, comptes) {
       var c = comptes.filter(function (x) { return x.id === userId; })[0];
       if (!c) throw new Error('Compte introuvable.');
       coffre.emballages = coffre.emballages.filter(function (e) { return !(e.methode === 'mdp' && e.userId === userId); });
-      emb.id = 'k' + id8(); emb.userId = userId; emb.login = c.login;
+      if (!emb) {
+        var a = await T.nouvelAgent(s.trousseau, coffre, c, motDePasse, it);
+        a.privee8.fill(0);
+        emb = a.emballage;
+        coffre.agents[userId] = { publique: a.publique };
+        coffre.emballages = coffre.emballages.filter(function (e) { return e.userId !== userId; });   // clés de sécurité de l'ancienne paire
+        coffre.enveloppes = coffre.enveloppes.filter(function (e) { return e.pour !== userId; }).concat(a.enveloppes);
+      }
+      emb.id = nouvelId(); emb.userId = userId; emb.login = c.login;
       coffre.emballages.push(emb);
       c.mdpProvisoire = provisoire;
     });
@@ -304,7 +353,9 @@
 
   Session.prototype.ajouterCleSecurite = async function (libelle) {
     var s = this;
-    var emb = await C.emballerCleSecurite(this.cle, this.utilisateur.login, libelle);
+    var secret = v2(this) ? this.privee8 : this.cleV1;   // partie privée de l'agent (ou de la clé de secours en déblocage)
+    if (!secret) throw new Error('Session sans clé personnelle ouverte : reconnectez-vous.');
+    var emb = await C.emballerCleSecurite(secret, this.utilisateur.login, libelle);
     emb.id = 'k' + id8(); emb.userId = this.utilisateur.id === 'secours' ? null : this.utilisateur.id;
     await this.modifierCoffre(async function (coffre) { coffre.emballages.push(emb); });
     await this.tracer('CLE_AJOUT', { libelle: emb.libelle, rpId: emb.rpId });
@@ -320,11 +371,16 @@
 
   Session.prototype.nouveauCodeSecours = async function () {
     var s = this, code = C.nouveauCodeSecours();
-    var emb = await C.emballerCodeSecours(this.cle, code);
-    emb.id = 'k' + id8(); emb.userId = null;
-    await this.modifierCoffre(async function (coffre) {
-      coffre.emballages = coffre.emballages.filter(function (e) { return e.methode !== 'secours'; }).concat([emb]);
-    });
+    if (v2(this)) {
+      // Nouvelle clé de secours : clés maîtresses réenveloppées ; l'ancien code et une YubiKey de secours n'ouvrent plus rien
+      await this.modifierCoffre(async function (coffre) { await T.nouveauSecours(s.trousseau, coffre, code, nouvelId()); });
+    } else {
+      var emb = await C.emballerCodeSecours(this.cleV1, code);
+      emb.id = nouvelId(); emb.userId = null;
+      await this.modifierCoffre(async function (coffre) {
+        coffre.emballages = coffre.emballages.filter(function (e) { return e.methode !== 'secours'; }).concat([emb]);
+      });
+    }
     await this.tracer('CODE_SECOURS', {});
     return code;
   };
@@ -519,10 +575,12 @@
   Session.prototype.reparerDepuisCopie = async function (copie) {
     if (this.formation) throw new Error('Réparation possible seulement sur les données réelles (quittez le mode formation).');
     if (!this.peut('INTEGRITE')) throw new Error('Réservé à l’administrateur.');
-    var cle = this.cle, illisibles = new Set(this.rejetes.map(function (r) { return r.nom; }));
+    var jeux = [this.cle, jeuModule(this)], illisibles = new Set(this.rejetes.map(function (r) { return r.nom; }));
     var rapport = await this.dossier.reparerDepuisCopie(copie, illisibles, async function (nom, octets) {
-      var e = await C.dechiffrerJSON(cle, octets, 'evt:' + nom);
-      return !!e && e.id + '.enc' === nom;
+      for (var i = 0; i < jeux.length; i++) {   // saisie du socle ou du module : vérifiée avec la clé actuelle
+        try { var e = await C.dechiffrerJSON(jeux[i], octets, 'evt:' + nom); if (e && e.id + '.enc' === nom) return true; } catch (err) { /* autre clé */ }
+      }
+      return false;
     });
     var charges = {};
     this.evts.forEach(function (e) { charges[e.id + '.enc'] = true; });
@@ -743,7 +801,7 @@
     var at = new Date().toISOString();
     var lot = { v: 1, id: SIC.horodatageCompact(at) + '_' + this.utilisateur.id + '_' + id8(), at: at, by: this.utilisateur.id, type: 'LOT', data: { evenements: saisies, libelle: libelle || 'Jeu de formation' }, prec: null };
     await df.ecrireEvenement(cle, lot);
-    var protege = C.b64(await C.chiffrerJSON(this.cle, { k: await C.exporterCle(cle) }, 'formation'));
+    var protege = C.b64(await C.chiffrerJSON(jeuModule(this), { k: await C.exporterCle(cle) }, 'formation'));   // sous la clé du module
     await this.modifierCoffre(async function (coffre) {
       coffre.formation = { cle: protege, creeLe: at, par: s.utilisateur.nom };
     });
@@ -762,7 +820,7 @@
       await this.creerFormation(generer(this.etat.config), 'Jeu de formation (données fictives)');
     }
     var jeu = this.jeuFormation();
-    var o = await C.dechiffrerJSON(this.cle, C.deb64(jeu.cle), 'formation');
+    var o = await C.dechiffrerJSON(jeuModule(this), C.deb64(jeu.cle), 'formation');
     this.cleDonnees = await C.importerCle(o.k);
     this.donnees = new SIC.Dossier(await this.dossier.sousDossier(cheminFormation(), false), 'formation');
     this.formation = true;
