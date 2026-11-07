@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.4.1 — 7 novembre 2026
+
+Étape 4 du plan d'architecture (trousseau), première sous-étape : **briques de chiffrement**, sans effet à l'écran.
+
+- Décisions du porteur sur le trousseau reportées dans `docs/architecture.md` § 4 (clés maîtresses et clé de secours, nouvelle génération automatique, aucun rechiffrement à la migration, YubiKey de secours conservée, nouvelle paire créée par l'agent).
+- `crypto.js` : clés personnelles (paires ECDH P-256, partie privée rouverte non exportable), enveloppes d'une clé pour la partie publique d'un agent (ECDH éphémère, HKDF-SHA-256, AES-GCM, liées à leur contexte), générations tirées d'une clé maîtresse, en-tête de fichier « SIC2 » portant le numéro de génération (fichiers actuels lus comme génération 1). Les emballages par mot de passe, code de secours et clé de sécurité peuvent emballer la partie privée d'une clé personnelle.
+- Nouveau test `tests/trousseau-crypto.test.js` ; briques vérifiées aussi dans Chrome.
+
 ## 0.4.0 — 7 novembre 2026
 
 **Étape 3 du plan d'architecture terminée** : comptes et services au socle, activation des modules par service.

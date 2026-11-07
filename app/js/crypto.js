@@ -16,6 +16,9 @@
   var subtle = globalThis.crypto.subtle;
   var enc = new TextEncoder(), dec = new TextDecoder();
   var MAGIC = enc.encode('SIC1');
+  // En-tête version 2 (étape 4) : « SIC2 » + numéro de génération de la clé (4 octets, gros-boutiste).
+  // Un fichier « SIC1 » est lu comme génération 1 : aucun fichier existant n'est rechiffré.
+  var MAGIC2 = enc.encode('SIC2');
   var ITERATIONS_MDP = 600000;     // recommandation OWASP pour PBKDF2-SHA256
   var ITERATIONS_SECOURS = 100000; // code de secours : 100 bits d'aléa, moins d'itérations suffisent
 
@@ -36,25 +39,49 @@
     return subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
   }
 
-  async function chiffrerOctets(cle, octets, aad) {
-    var iv = aleatoire(12);
-    var ct = new Uint8Array(await subtle.encrypt({ name: 'AES-GCM', iv: iv, additionalData: enc.encode(aad || '') }, cle, octets));
-    var out = new Uint8Array(4 + 12 + ct.length);
-    out.set(MAGIC, 0); out.set(iv, 4); out.set(ct, 16);
+  /**
+   * Chiffre des octets. Sans `generation` : en-tête « SIC1 » (format d'origine). Avec `generation` (entier ≥ 1) :
+   * en-tête « SIC2 » portant ce numéro, lié au contenu par les données authentifiées (un numéro altéré est refusé).
+   */
+  async function chiffrerOctets(cle, octets, aad, generation) {
+    var iv = aleatoire(12), v2 = generation !== undefined && generation !== null;
+    if (v2 && !(Number.isInteger(generation) && generation >= 1 && generation < 4294967296)) throw new Error('Numéro de génération invalide.');
+    var ad = enc.encode((aad || '') + (v2 ? '|g' + generation : ''));
+    var ct = new Uint8Array(await subtle.encrypt({ name: 'AES-GCM', iv: iv, additionalData: ad }, cle, octets));
+    var tete = v2 ? 8 : 4, out = new Uint8Array(tete + 12 + ct.length);
+    if (v2) { out.set(MAGIC2, 0); new DataView(out.buffer).setUint32(4, generation, false); } else out.set(MAGIC, 0);
+    out.set(iv, tete); out.set(ct, tete + 12);
     return out;
   }
 
+  /** Génération de la clé qui a chiffré un fichier : 1 pour l'en-tête d'origine, le numéro porté pour « SIC2 ». */
+  function generationFichier(donnees) {
+    var u = new Uint8Array(donnees), i;
+    for (i = 0; i < 4 && u[i] === MAGIC[i]; i++);
+    if (i === 4) return 1;
+    for (i = 0; i < 4 && u[i] === MAGIC2[i]; i++);
+    if (i === 4 && u.length >= 8) return new DataView(u.buffer, u.byteOffset, u.byteLength).getUint32(4, false);
+    throw new Error('Fichier non reconnu');
+  }
+
+  /**
+   * Déchiffre des octets (les deux en-têtes). `cle` : une clé AES-GCM, ou une fonction qui rend la clé d'une
+   * génération (trousseau) ; elle peut renvoyer une promesse.
+   */
   async function dechiffrerOctets(cle, donnees, aad) {
-    var u = new Uint8Array(donnees);
-    for (var i = 0; i < 4; i++) if (u[i] !== MAGIC[i]) throw new Error('Fichier non reconnu');
-    return new Uint8Array(await subtle.decrypt({ name: 'AES-GCM', iv: u.slice(4, 16), additionalData: enc.encode(aad || '') }, cle, u.slice(16)));
+    var u = new Uint8Array(donnees), g = generationFichier(u), v2 = u[3] === MAGIC2[3];
+    var tete = v2 ? 8 : 4;
+    var k = typeof cle === 'function' ? await cle(g) : cle;
+    if (!k) throw new Error('Clé de la génération ' + g + ' absente du trousseau.');
+    var ad = enc.encode((aad || '') + (v2 ? '|g' + g : ''));
+    return new Uint8Array(await subtle.decrypt({ name: 'AES-GCM', iv: u.slice(tete, tete + 12), additionalData: ad }, k, u.slice(tete + 12)));
   }
 
   /** Clé brute en base 64 (pour la ranger chiffrée dans le coffre) et inverse. */
   async function exporterCle(cle) { return b64(new Uint8Array(await subtle.exportKey('raw', cle))); }
   async function importerCle(texte) { return subtle.importKey('raw', deb64(texte), { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']); }
 
-  async function chiffrerJSON(cle, objet, aad) { return chiffrerOctets(cle, enc.encode(JSON.stringify(objet)), aad); }
+  async function chiffrerJSON(cle, objet, aad, generation) { return chiffrerOctets(cle, enc.encode(JSON.stringify(objet)), aad, generation); }
   async function dechiffrerJSON(cle, donnees, aad) { return JSON.parse(dec.decode(await dechiffrerOctets(cle, donnees, aad))); }
 
   // ----------------------------------------------------------- Emballage
@@ -70,14 +97,16 @@
       { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
   }
 
+  /** Emballe une clé AES-GCM, ou des octets bruts (ex. la partie privée d'une clé personnelle, étape 4). */
   async function emballer(cleDonnees, cleEmballage) {
-    var brut = new Uint8Array(await subtle.exportKey('raw', cleDonnees));
+    var brut = cleDonnees instanceof Uint8Array ? cleDonnees : new Uint8Array(await subtle.exportKey('raw', cleDonnees));
     return b64(await chiffrerOctets(cleEmballage, brut, 'emballage'));
   }
 
-  async function deballer(emballee, cleEmballage) {
-    var brut = await dechiffrerOctets(cleEmballage, deb64(emballee), 'emballage');
-    return subtle.importKey('raw', brut, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+  /** Inverse d'`emballer` : clé AES-GCM, ou octets bruts si `brut`. */
+  async function deballer(emballee, cleEmballage, brut) {
+    var octets = await dechiffrerOctets(cleEmballage, deb64(emballee), 'emballage');
+    return brut ? octets : subtle.importKey('raw', octets, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
   }
 
   /** Emballage par mot de passe → objet stockable dans le coffre. */
@@ -88,9 +117,9 @@
     return { methode: 'mdp', sel: b64(sel), iterations: it, cle: await emballer(cleDonnees, k) };
   }
 
-  async function deballerMotDePasse(emb, motDePasse) {
+  async function deballerMotDePasse(emb, motDePasse, brut) {
     var k = await cleDepuisSecret(enc.encode(motDePasse.normalize('NFC')), deb64(emb.sel), emb.iterations);
-    return deballer(emb.cle, k);
+    return deballer(emb.cle, k, brut);
   }
 
   // Code de secours : 20 caractères (alphabet sans ambiguïté), 100 bits d'aléa.
@@ -115,9 +144,9 @@
     return { methode: 'secours', sel: b64(sel), iterations: ITERATIONS_SECOURS, cle: await emballer(cleDonnees, k) };
   }
 
-  async function deballerCodeSecours(emb, code) {
+  async function deballerCodeSecours(emb, code, brut) {
     var k = await cleDepuisSecret(enc.encode(normaliserCode(code)), deb64(emb.sel), emb.iterations);
-    return deballer(emb.cle, k);
+    return deballer(emb.cle, k, brut);
   }
 
   // ------------------------------------------------ Clé de sécurité (PRF)
@@ -164,7 +193,7 @@
   }
 
   /** Déverrouille avec l'une des clés de sécurité enregistrées (liste d'emballages 'cle'). */
-  async function deballerCleSecurite(emballages) {
+  async function deballerCleSecurite(emballages, brut) {
     if (!webauthnDisponible()) throw new Error('Les clés de sécurité nécessitent une page servie en HTTPS.');
     var utilisables = emballages.filter(function (e) { return e.rpId === location.hostname; });
     if (!utilisables.length) throw new Error("Aucune clé de sécurité n'est enregistrée pour cette adresse (" + location.hostname + ').');
@@ -175,8 +204,60 @@
     var emb = utilisables.filter(function (e) { return e.idCredential === idB64; })[0];
     if (!emb) throw new Error('Clé non reconnue.');
     var k = await cleDepuisPRF(res.secret, deb64(emb.sel));
-    return { cle: await deballer(emb.cle, k), emballage: emb };
+    return { cle: await deballer(emb.cle, k, brut), emballage: emb };
   }
+
+  // ------------------------------------------------ Trousseau (étape 4 du plan d'architecture)
+  // Briques standard de Web Crypto uniquement : ECDH P-256, HKDF-SHA-256, AES-GCM 256.
+  var ECDH = { name: 'ECDH', namedCurve: 'P-256' };
+
+  /** Clé personnelle d'un agent (ou clé de secours) : paire ECDH P-256. */
+  async function nouvellePaire() { return subtle.generateKey(ECDH, true, ['deriveBits']); }
+  async function exporterPublique(cle) { return b64(new Uint8Array(await subtle.exportKey('raw', cle))); }
+  async function importerPublique(texte) { return subtle.importKey('raw', deb64(texte), ECDH, true, []); }
+  /** Partie privée en octets (PKCS #8), pour l'emballer par un moyen de connexion ; à effacer après usage. */
+  async function exporterPrivee(cle) { return new Uint8Array(await subtle.exportKey('pkcs8', cle)); }
+  /** Partie privée importée non exportable : une fois ouverte, elle ne peut plus être recopiée depuis le navigateur. */
+  async function importerPrivee(octets) { return subtle.importKey('pkcs8', octets, ECDH, false, ['deriveBits']); }
+
+  async function cleHKDF(secret, sel, info) {
+    var base = await subtle.importKey('raw', secret, 'HKDF', false, ['deriveKey']);
+    return subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: sel, info: enc.encode(info) }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+
+  /**
+   * Enveloppe : chiffre des octets (une clé de droit) pour le détenteur d'une partie publique, sans connaître son
+   * secret. Échange ECDH avec une paire éphémère, HKDF-SHA-256, AES-GCM. `contexte` (ex. « isocont:3:u1a2b ») est
+   * lié à l'enveloppe : une enveloppe déplacée vers un autre contexte est refusée.
+   */
+  async function envelopper(octets, publique, contexte) {
+    var eph = await nouvellePaire();
+    var partage = new Uint8Array(await subtle.deriveBits({ name: 'ECDH', public: publique }, eph.privateKey, 256));
+    var sel = aleatoire(16);
+    var k = await cleHKDF(partage, sel, 'Tessera enveloppe ' + contexte);
+    partage.fill(0);
+    return { eph: await exporterPublique(eph.publicKey), sel: b64(sel), ct: b64(await chiffrerOctets(k, octets, 'enveloppe:' + contexte)) };
+  }
+  async function ouvrirEnveloppe(env, privee, contexte) {
+    var partage = new Uint8Array(await subtle.deriveBits({ name: 'ECDH', public: await importerPublique(env.eph) }, privee, 256));
+    var k = await cleHKDF(partage, deb64(env.sel), 'Tessera enveloppe ' + contexte);
+    partage.fill(0);
+    return dechiffrerOctets(k, deb64(env.ct), 'enveloppe:' + contexte);
+  }
+
+  /** Clé maîtresse d'une clé de droit (256 bits) : détenue par l'administrateur et la clé de secours seulement. */
+  function nouvelleMaitresse() { return aleatoire(32); }
+  /**
+   * Octets de la génération `n` d'une clé de droit (`nom` : « plateforme », « isocont »…), tirés de sa clé maîtresse
+   * (HKDF-SHA-256) : toutes les générations, passées et futures, s'en déduisent ; aucune ne permet de remonter aux autres.
+   */
+  async function octetsGeneration(maitresse, nom, n) {
+    if (!(Number.isInteger(n) && n >= 1)) throw new Error('Numéro de génération invalide.');
+    var base = await subtle.importKey('raw', maitresse, 'HKDF', false, ['deriveBits']);
+    return new Uint8Array(await subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: enc.encode('Tessera generation'), info: enc.encode(nom + ':' + n) }, base, 256));
+  }
+  /** Clé AES-GCM depuis ses octets ; non exportable sauf demande (l'administrateur doit pouvoir la remettre). */
+  async function importerCleOctets(octets, exportable) { return subtle.importKey('raw', octets, { name: 'AES-GCM' }, !!exportable, ['encrypt', 'decrypt']); }
 
   async function empreinte(texte) {
     return hex(new Uint8Array(await subtle.digest('SHA-256', enc.encode(texte))));
@@ -189,6 +270,10 @@
     emballerMotDePasse: emballerMotDePasse, deballerMotDePasse: deballerMotDePasse,
     nouveauCodeSecours: nouveauCodeSecours, nouveauMotDePasseProvisoire: nouveauMotDePasseProvisoire, ITERATIONS_PROVISOIRE: ITERATIONS_SECOURS, emballerCodeSecours: emballerCodeSecours, deballerCodeSecours: deballerCodeSecours,
     webauthnDisponible: webauthnDisponible, emballerCleSecurite: emballerCleSecurite, deballerCleSecurite: deballerCleSecurite,
-    empreinte: empreinte, ITERATIONS_MDP: ITERATIONS_MDP
+    empreinte: empreinte, ITERATIONS_MDP: ITERATIONS_MDP,
+    chiffrerOctets: chiffrerOctets, dechiffrerOctets: dechiffrerOctets, generationFichier: generationFichier,
+    nouvellePaire: nouvellePaire, exporterPublique: exporterPublique, importerPublique: importerPublique,
+    exporterPrivee: exporterPrivee, importerPrivee: importerPrivee, envelopper: envelopper, ouvrirEnveloppe: ouvrirEnveloppe,
+    nouvelleMaitresse: nouvelleMaitresse, octetsGeneration: octetsGeneration, importerCleOctets: importerCleOctets
   };
 });
