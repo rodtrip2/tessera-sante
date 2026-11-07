@@ -11,13 +11,13 @@
 | Élément | Choix technique | État |
 | --- | --- | --- |
 | Type d'application | Page web statique (HTML, CSS, JavaScript), sans serveur applicatif, sans base de données, sans étape de construction | existant |
-| Organisation | Un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** : Patients, Isolement et contention (Isocont), Agenda du service | existant : socle commun et contrat de module (registre des modules), module Isocont, module Patients (journal et clé propres, fiche commune et séjours) ; à construire : import de la liste des patients, Agenda |
+| Organisation | Un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** : Patients, Isolement et contention (Isocont), Agenda du service | existant : socle commun et contrat de module (registre des modules), module Isocont, module Patients (journal et clé propres, fiche commune et séjours, import de la liste des patients) ; à construire : Agenda |
 | Dépendances | Aucune bibliothèque externe ; uniquement les API standard du navigateur | existant |
 | Stockage | Dossier d'un partage réseau (SMB) accédé par l'API *File System Access* du navigateur ; un sous-dossier et un journal par module | existant : un journal du socle et un journal par module |
 | Chiffrement | AES-GCM 256 bits côté poste (Web Crypto API), chiffrement en enveloppe ; **une clé par module**, remise seulement aux agents qui y ont droit | existant (depuis la version 0.4.4) |
 | Authentification | Comptes nominatifs, **connexion unique** pour tous les modules ; mot de passe (PBKDF2-SHA-256, 600 000 itérations), clé de sécurité FIDO2 (WebAuthn, extension PRF) ou code de secours ; mot de passe provisoire à changer à la première connexion | existant |
 | Flux réseau | **Aucun flux sortant** : politique de sécurité du contenu `connect-src 'none'` ; seul le chargement des fichiers de l'application depuis l'hébergement choisi | existant |
-| Échanges avec le DPI | Aucun flux : import manuel d'un fichier CSV exporté du DPI (liste des patients), lu dans le navigateur | à construire |
+| Échanges avec le DPI | Aucun flux : import manuel d'un fichier CSV exporté du DPI (liste des patients), lu dans le navigateur | existant (version 0.6.4) |
 | Navigateurs | Microsoft Edge ou Google Chrome récents (Chromium). Firefox et Safari : mode démonstration uniquement | existant |
 | Postes | Windows 10/11 (ou tout système avec Edge/Chrome) ; aucun logiciel à installer | existant |
 | Volumétrie | Environ 1 à 2 Ko par saisie ; ordre de grandeur : quelques dizaines de Mo par an et par unité | existant |
@@ -188,7 +188,7 @@ Les mots de passe ne figurent jamais dans le journal. Désactiver un compte supp
 - **Travail hors réseau** (postes désignés) : outil mis en cache (`sw.js`, empreintes SHA-256 contrôlées) et copie locale des données chiffrées ; disque chiffré (BitLocker) et liste nominative des postes exigés.
 - **Anomalie** : liste des fichiers à restaurer à l'identique ; réparation depuis une copie complète (seuls les fichiers absents ou illisibles) ; quarantaine des fichiers illisibles, jamais de suppression.
 
-## 8. Imports *(à construire, à partir des imports existants d'Isocont)*
+## 8. Imports *(liste des patients : existant depuis la version 0.6.4 ; historique des mesures : imports existants d'Isocont, à adapter)*
 
 Tous les fichiers importés sont **lus dans le navigateur** ; ils ne sont ni copiés sur le partage, ni envoyés ailleurs.
 
@@ -203,7 +203,7 @@ Tous les fichiers importés sont **lus dans le navigateur** ; ils ne sont ni cop
 - **mot-clé** introduisant le nom de naissance : « née », « né », « NN », « nom de naissance » (réglables) ;
 - **convention d'écriture** : nom en majuscules, prénom en minuscules (« DUPONT Marie-Claire ») ; les noms composés en majuscules (« LE GALL », « DE LA FONTAINE ») restent ensemble.
 
-La règle est enregistrée avec le modèle d'import. Les lignes que la règle ne permet pas de découper sans doute (aucun nom en majuscules, mot-clé absent, plusieurs lectures possibles) sont **signalées dans l'aperçu** et corrigées à la main avant l'enregistrement. La fiche est toujours retrouvée par l'IPP : une erreur de découpage ne crée pas de doublon, et une correction manuelle n'est pas écrasée par l'import suivant (l'écart est signalé).
+*Existant (0.6.4)* : la règle « NOM PRENOM Né(e) NOMNAISSANCE » décrite ci-dessous (exemple de Sillage), colonnes séparées (nom, prénom, nom de naissance) et colonne « chambre et lit » découpée ; *à construire* si un autre DPI le demande : séparateurs et mots-clés réglables. La règle est enregistrée avec le modèle d'import. Les lignes que la règle ne permet pas de découper sans doute (aucun nom en majuscules, mot-clé absent, plusieurs lectures possibles) sont **signalées dans l'aperçu** et corrigées à la main avant l'enregistrement. La fiche est retrouvée par l'IPP, à défaut par le numéro de séjour, puis par les doublons possibles (nom, prénom, nom de naissance, date de naissance, sexe) rattachés seulement après confirmation ; un découpage validé est gardé pour la fiche, et une correction manuelle n'est pas écrasée par l'import suivant (l'écart est signalé).
 
 **Exemple : liste des patients présents exportée de Sillage** (fichier de démonstration aux données fictives fourni par le porteur le 7 novembre 2026). Fichier CSV séparé par des points-virgules, encodé en Windows-1252 (lu comme les autres imports : UTF-8 d'abord, puis Windows-1252), lignes vides en fin de fichier ignorées. Correspondance proposée par défaut :
 

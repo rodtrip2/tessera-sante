@@ -145,5 +145,31 @@
     return res;
   }
 
-  return { lire: lire, lireZip: lireZip, serieVersDate: serieVersDate, valeurDate: valeurDate, enObjets: enObjets };
+  /** Lecture d'un CSV (séparateur « ; », « , » ou tabulation, guillemets, BOM) en tableau de lignes. */
+  function lireCSV(texte) {
+    texte = String(texte || '').replace(/^﻿/, '');
+    var premiere = texte.split(/\r?\n/)[0] || '';
+    var sep = [';', '\t', ','].map(function (s) { return [s, premiere.split(s).length]; }).sort(function (a, b) { return b[1] - a[1]; })[0][0];
+    var lignes = [], ligne = [], champ = '', guillemets = false;
+    for (var i = 0; i < texte.length; i++) {
+      var c = texte[i];
+      if (guillemets) {
+        if (c === '"' && texte[i + 1] === '"') { champ += '"'; i++; }
+        else if (c === '"') guillemets = false;
+        else champ += c;
+      } else if (c === '"') guillemets = true;
+      else if (c === sep) { ligne.push(champ); champ = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && texte[i + 1] === '\n') i++;
+        ligne.push(champ); champ = '';
+        if (ligne.some(function (x) { return x.trim() !== ''; })) lignes.push(ligne);
+        ligne = [];
+      } else champ += c;
+    }
+    ligne.push(champ);
+    if (ligne.some(function (x) { return x.trim() !== ''; })) lignes.push(ligne);
+    return lignes;
+  }
+
+  return { lire: lire, lireZip: lireZip, serieVersDate: serieVersDate, valeurDate: valeurDate, enObjets: enObjets, lireCSV: lireCSV };
 });

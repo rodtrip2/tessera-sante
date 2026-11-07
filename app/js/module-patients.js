@@ -16,7 +16,7 @@
 
   // Fiche commune (décision du 5 novembre 2026) : nom (nom d'usage, affiché), nom de naissance, sexe ; médecins de
   // 1re et 2e ligne et référents soignants saisis dans Tessera (distincts du médecin responsable du DPI)
-  var CHAMPS = ['ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'service', 'detenu', 'medecin1', 'medecin2', 'referents'];
+  var CHAMPS = ['ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'service', 'detenu', 'medecin1', 'medecin2', 'referents', 'decoupageNom'];
   var COMPLETES_A_LA_FUSION = ['ipp', 'nom', 'prenom', 'naissance', 'protection', 'service', 'nomNaissance', 'sexe', 'medecin1', 'medecin2'];
   /** Champs dont les changements sont gardés, datés, dans l'historique de la fiche (jamais écrasés). */
   var DATES = ['protection', 'detenu', 'service', 'medecin1', 'medecin2', 'referents'];
@@ -40,6 +40,9 @@
             h.push({ le: e.at, valeur: d[k], evt: e.id });
           }
           p[k] = d[k];
+          // Source de chaque champ : import de la liste du DPI ou saisie dans Tessera (une saisie n'est pas écrasée
+          // par un import ultérieur)
+          (p.sources = p.sources || {})[k] = d.origine === 'import-dpi' ? 'import' : 'saisie';
         });
         st.fiches[id] = p;
         break;

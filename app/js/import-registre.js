@@ -46,31 +46,8 @@
     { cle: 'professionnels', libelle: 'Professionnels chargés de la surveillance', aide: 'séparés par « ; », fonction entre parenthèses', syn: ['professionnels', 'soignants', 'surveillance', 'professionnels charges de la surveillance', 'professionnels de sante'] }
   ];
 
-  /** Lecture d'un CSV (séparateur « ; », « , » ou tabulation, guillemets, BOM) en tableau de lignes. */
-  function lireCSV(texte) {
-    texte = String(texte || '').replace(/^﻿/, '');
-    var premiere = texte.split(/\r?\n/)[0] || '';
-    var sep = [';', '\t', ','].map(function (s) { return [s, premiere.split(s).length]; }).sort(function (a, b) { return b[1] - a[1]; })[0][0];
-    var lignes = [], ligne = [], champ = '', guillemets = false;
-    for (var i = 0; i < texte.length; i++) {
-      var c = texte[i];
-      if (guillemets) {
-        if (c === '"' && texte[i + 1] === '"') { champ += '"'; i++; }
-        else if (c === '"') guillemets = false;
-        else champ += c;
-      } else if (c === '"') guillemets = true;
-      else if (c === sep) { ligne.push(champ); champ = ''; }
-      else if (c === '\n' || c === '\r') {
-        if (c === '\r' && texte[i + 1] === '\n') i++;
-        ligne.push(champ); champ = '';
-        if (ligne.some(function (x) { return x.trim() !== ''; })) lignes.push(ligne);
-        ligne = [];
-      } else champ += c;
-    }
-    ligne.push(champ);
-    if (ligne.some(function (x) { return x.trim() !== ''; })) lignes.push(ligne);
-    return lignes;
-  }
+  /** Lecture d'un CSV : lecteur commun (xlsx.js), aussi employé par l'import de la liste des patients. */
+  function lireCSV(texte) { return X.lireCSV(texte); }
 
   /** Repère la ligne d'en-tête (la première qui contient au moins deux champs connus) et propose les correspondances. */
   function deviner(lignes) {
