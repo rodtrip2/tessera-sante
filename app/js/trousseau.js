@@ -312,6 +312,18 @@
     return res;
   }
 
+  /**
+   * Clé d'un module déclaré après la création du coffre (module Patients, étape 5) : nouvelle clé maîtresse, génération 1.
+   * Réservé à qui détient les clés maîtresses ; la remise suit (appliquerDroits).
+   */
+  function ajouterCle(trousseau, coffre, nom) {
+    if (coffre.cles[nom]) return false;
+    if (!trousseau[PLATEFORME] || !trousseau[PLATEFORME].maitresse) throw new Error('Seul un administrateur peut créer la clé d’un module.');
+    coffre.cles[nom] = { courante: 1 };
+    trousseau[nom] = nouveauJeu(nom, 1, {}, C.nouvelleMaitresse());
+    return true;
+  }
+
   /** Nouvelle clé de secours (nouveau code) : réservée à qui détient les clés maîtresses. Retourne l'emballage. */
   async function nouveauSecours(trousseau, coffre, code, id, ancre) {
     var noms = Object.keys(coffre.cles);
@@ -372,6 +384,6 @@
   return {
     PLATEFORME: PLATEFORME, migrerCoffre: migrerCoffre, enveloppesSecours: enveloppesSecours, SECOURS: SECOURS, jeuV1: jeuV1, nouveauJeu: nouveauJeu, droitsDe: droitsDe, enveloppesPour: enveloppesPour,
     ouvrir: ouvrir, manquantes: manquantes, effacer: effacer, creerCoffre: creerCoffre, nouvelAgent: nouvelAgent,
-    appliquerDroits: appliquerDroits, incomplets: incomplets, perdue: perdue, copier: copier, contexte: contexte, nouveauSecours: nouveauSecours, baseDe: baseDe
+    appliquerDroits: appliquerDroits, incomplets: incomplets, perdue: perdue, ajouterCle: ajouterCle, copier: copier, contexte: contexte, nouveauSecours: nouveauSecours, baseDe: baseDe
   };
 });

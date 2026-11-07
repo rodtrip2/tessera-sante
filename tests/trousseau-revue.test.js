@@ -140,7 +140,7 @@ test('I3 — Compte temporaire expiré : traité comme désactivé, nouvelle gé
   assert.ok(admin.coffre.enveloppes.some((e) => e.pour === idI && e.cle === 'isocont'));
   await admin.modifierCoffre(async (cf, comptes) => { comptes.find((c) => c.id === idI).finValidite = '2026-01-01'; });
   const r = await admin.appliquerDroits();
-  assert.deepEqual(r.generations.sort(), ['isocont', 'plateforme']);
+  assert.deepEqual(r.generations.sort(), ['isocont', 'patients', 'plateforme']);
   assert.ok(!admin.coffre.enveloppes.some((e) => e.pour === idI));
   assert.deepEqual(admin.trousseauxIncomplets(), []);
 });

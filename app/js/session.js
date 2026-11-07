@@ -63,13 +63,26 @@
 
   function nouveauJournal(nom, dossier, cle) { return { nom: nom, dossier: dossier, cle: cle, evts: [], connus: new Set(), rejetes: [], reperesLus: {} }; }
   /** Journaux du jeu de données actif. */
+  /**
+   * Journaux du jeu de données actif : le socle, puis chaque module dont la session détient la clé, fournisseurs
+   * d'abord (Patients avant Isocont, étape 5). Le module affiché reconstitue son état à partir de tous.
+   */
   function journaux(s) {
     if (!s.journauxActifs) {
       s.journauxActifs = s.formation ? [nouveauJournal('formation', s.donnees, s.cleDonnees)]
-        : [nouveauJournal(SOCLE, null, s.cle)].concat(accesModule(s) ? [nouveauJournal(idModule(), null, jeuModule(s))] : []);
+        : [nouveauJournal(SOCLE, null, s.cle)].concat(modulesOrdre().filter(function (m) { return aCle(s, m.id); }).map(function (m) { return nouveauJournal(m.id, null, s.trousseau[m.id]); }));
     }
     return s.journauxActifs;
   }
+  function modulesOrdre() { return SIC.modules && SIC.modules.ordre ? SIC.modules.ordre() : [{ id: idModule() }]; }
+  /** La session détient-elle la clé d'un module (coffre version 1 : la clé unique vaut pour tous) ? */
+  function aCle(s, nom) {
+    var j = s.trousseau && s.trousseau[nom];
+    if (!j) return false;
+    if (!v2(s) || j.v1) return true;
+    return !!j.maitresse || Object.keys(j.octets).length > 0;
+  }
+  function signatureCles(s) { return modulesOrdre().map(function (m) { return aCle(s, m.id) ? m.id : ''; }).join('|'); }
   /** Dossier d'un journal (créé à la première saisie) ; null s'il n'existe pas encore et `creer` est faux. */
   async function dossierJournal(s, j, creer) {
     if (!j.dossier) j.dossier = await s.dossier.journal(j.nom, creer);
@@ -77,16 +90,23 @@
   }
   /** Préfixe des chemins d'un journal depuis le dossier des données (affiché au service informatique). */
   function prefixeJournal(s, nom) { return s.formation ? '' : SIC.Dossier.cheminJournal(nom).join('/') + '/'; }
-  /** Journal qui reçoit une saisie : celui de la saisie visée pour une annulation, le socle pour ses saisies, sinon le module. */
-  function journalPour(js, type, data) {
+  /**
+   * Journal qui reçoit une saisie : celui de la saisie visée pour une annulation, le socle pour ses saisies, sinon le
+   * module qui déclare le type de saisie (fiche patient → module Patients), à défaut le module affiché.
+   */
+  function journalPour(s, js, type, data) {
     if (js.length === 1 && js[0].nom !== SOCLE) return js[0];   // jeu de formation : un seul journal
     if (type === 'ANNULATION' && data && data.cible) {
       var vise = js.filter(function (j) { return j.evts.some(function (e) { return e.id === data.cible; }); })[0];
       if (vise) return vise;
     }
     if (TYPES_SOCLE[type] || (type === 'CONFIG' && data && REGLAGES_SOCLE[data.cle])) return js[0];
-    if (!js[1]) throw new Error('Vous n’avez pas la clé du module « ' + (moduleActif().libelle || idModule()) + ' » : saisie impossible.');
-    return js[1];
+    var m = SIC.modules && SIC.modules.moduleDuType ? SIC.modules.moduleDuType(type) : null;
+    // Clé du module pas encore créée (coffre d'avant ce module, en attente de l'administrateur) : module affiché, comme avant
+    if (m && v2(s) && s.coffre && !s.coffre.cles[m.id]) m = null;
+    var nom = m ? m.id : idModule(), j = js.filter(function (x) { return x.nom === nom; })[0];
+    if (!j) throw new Error('Vous n’avez pas la clé du module « ' + ((m || moduleActif()).libelle || nom) + ' » : saisie impossible.');
+    return j;
   }
   /**
    * Activation du module par service (architecture § 5) : aucune saisie du module ne peut toucher un service où il
@@ -94,7 +114,7 @@
    */
   function controlerActivation(s, type, data) {
     var m = moduleActif(), cfg = config(s);
-    if (!s.etat || !m.saisies.cibles || journalPour(journaux(s), type, data).nom === SOCLE) return;
+    if (!s.etat || !m.saisies.cibles || journalPour(s, journaux(s), type, data).nom === SOCLE) return;
     var inactifs = m.saisies.cibles(s.etat, { type: type, data: data || {} }).filter(function (c) { return !m.droits.serviceActif(cfg, c); });
     if (inactifs.length) {
       var lib = inactifs.map(function (c) { var x = (cfg.services || []).filter(function (v) { return v.code === c; })[0]; return x ? x.libelle : c; }).join(', ');
@@ -111,7 +131,7 @@
     s.cle = trousseau[T.PLATEFORME];
   }
   /** Coffre version 1 : la clé de données unique tient lieu de toutes les clés de droit (comportement d'origine). */
-  function trousseauV1(s, cle) { var j = T.jeuV1(cle), t = {}; t[T.PLATEFORME] = j; t[idModule()] = j; installerTrousseau(s, t, null, cle); }
+  function trousseauV1(s, cle) { var j = T.jeuV1(cle), t = {}; t[T.PLATEFORME] = j; t[idModule()] = j; modulesDeclares().forEach(function (n) { t[n] = j; }); installerTrousseau(s, t, null, cle); }
   function jeuModule(s) { return s.trousseau && (s.trousseau[idModule()] || s.trousseau[T.PLATEFORME]); }
   /**
    * Ouvre le trousseau avec le contenu d'un emballage (partie privée et ancre, 0.5.0) : attestation du coffre vérifiée
@@ -243,6 +263,23 @@
     if (s.controle.etat || s.attest) retenirN(s, s.coffre, (A.etatDe(s.coffre) || {}).n || 0);
     if (!s.ancre && secret && s.coffre.attestation && !bloquantes(s.controle).length) await ancrerEmballage(s, emb, secret);
   }
+  /**
+   * Après la première lecture des journaux (réglages connus) : l'administrateur crée la clé d'un module déclaré après
+   * la création du coffre (module Patients, étape 5) et la remet selon les droits.
+   */
+  async function apresSynchro(s) {
+    if (!v2(s) || s.formation || !attestateur(s) || bloquantes(s.controle).length) return;
+    var manquantes = modulesDeclares().filter(function (n) { return !s.coffre.cles[n]; });
+    if (!manquantes.length) return;
+    await s.modifierCoffre(async function (cf, comptes) {
+      var t = travail(s);
+      manquantes.forEach(function (n) { T.ajouterCle(t, cf, n); });
+      await T.appliquerDroits(t, cf, comptesPourCles(comptes), aDroitPour(s));
+    });
+    oublierJournaux(s);
+    await s.synchroniser();
+    await s.tracer('CLE_MODULE', { cles: manquantes, libelle: 'clé créée pour ' + manquantes.map(function (n) { var m = SIC.modules && SIC.modules.obtenir(n); return m ? m.libelle : n; }).join(', ') });
+  }
   function nouvelId() { return 'k' + id8(); }
   /** Première génération produite par la clé maîtresse en vigueur, pour chaque clé de droit (copie sous scellé). */
   function basesDe(coffre) {
@@ -272,16 +309,26 @@
    * (l'encadrement et les rôles « tous services » suivent l'activation du module ; l'administrateur a toujours la clé).
    */
   function aDroitPour(s) {
-    var m = moduleActif(), d = m.droits, cfg = config(s);
-    var codes = d.rolesConfig(cfg).map(function (r) { return r.code; });
+    var cfg = config(s);
+    function regle(m) {
+      var d = m.droits, codes = d.rolesConfig(cfg).map(function (r) { return r.code; });
+      return function (compte) {
+        var roles = compte.roles || [];
+        if (!roles.some(function (r) { return codes.indexOf(r) >= 0; })) return false;
+        if (!d.activation || !d.activation(cfg) || d.consulteInactifs(roles)) return true;
+        var svs = d.voitTousServices(roles, cfg) ? (cfg.services || []).map(function (x) { return x.code; }) : (compte.services || []);
+        return svs.some(function (c) { return d.serviceActif(cfg, c); });
+      };
+    }
+    var regles = {};
+    (SIC.modules ? SIC.modules.liste() : [Object.assign({ id: 'isocont' }, moduleActif())]).forEach(function (m) { if (!m.reference && m.droits) regles[m.id || 'isocont'] = regle(m); });
     return function (nom, compte) {
-      if (nom !== (m.id || 'isocont')) return true;
-      var roles = compte.roles || [];
-      if (roles.indexOf('ADMIN') >= 0) return true;
-      if (!roles.some(function (r) { return codes.indexOf(r) >= 0; })) return false;
-      if (!d.activation || !d.activation(cfg) || d.consulteInactifs(roles)) return true;
-      var svs = d.voitTousServices(roles, cfg) ? (cfg.services || []).map(function (x) { return x.code; }) : (compte.services || []);
-      return svs.some(function (c) { return d.serviceActif(cfg, c); });
+      if (nom === T.PLATEFORME || (compte.roles || []).indexOf('ADMIN') >= 0) return true;
+      if (regles[nom]) return regles[nom](compte);
+      // Module de référence (Patients) : sa clé suit les droits aux modules qui en dépendent
+      var m = SIC.modules && SIC.modules.obtenir(nom);
+      if (m && m.reference) return SIC.modules.dependants(nom).some(function (x) { return regles[x.id] && regles[x.id](compte); });
+      return true;
     };
   }
   /** Comptes vus par la remise des clés : un compte temporaire expiré est traité comme désactivé (retrait de droit). */
@@ -345,10 +392,10 @@
         if (o) { t[n].octets[g] = o.slice(); t[n].courante = g; }
       }
     }
-    var avaitModule = accesModule(s);
+    var avaient = signatureCles(s);
     installerJeux(s, t);
     await ouvrirAttestation(s, coffre);
-    if (avaitModule !== accesModule(s)) oublierJournaux(s);
+    if (avaient !== signatureCles(s)) oublierJournaux(s);   // clé d'un module reçue ou retirée : journaux relus
     return true;
   }
 
@@ -428,6 +475,7 @@
     this.utilisateur = u;
     await apresOuverture(this, trouve, motDePasse);
     await this.synchroniser();
+    await apresSynchro(this);
   };
 
   Session.prototype.connexionCleSecurite = async function () {
@@ -441,6 +489,7 @@
     this.utilisateur = u && u.actif ? u : { id: 'secours', login: 'secours', nom: 'Déblocage par clé de sécurité', roles: ['ADMIN'], actif: true };
     await apresOuverture(this, null, null);
     await this.synchroniser();
+    await apresSynchro(this);
   };
 
   Session.prototype.connexionCodeSecours = async function (code) {
@@ -453,6 +502,7 @@
     this.utilisateur = { id: 'secours', login: 'secours', nom: 'Déblocage par code de secours', roles: ['ADMIN'], actif: true };
     await apresOuverture(this, emb, code);
     await this.synchroniser();
+    await apresSynchro(this);
   };
 
   /**
@@ -999,7 +1049,7 @@
     if (!(options && options.sansControle)) controlerActivation(this, type, data);
     var at = (options && options.at) || new Date().toISOString();
     var by = (options && options.by) || this.utilisateur.id;
-    var j = journalPour(journaux(this), type, data), d = await dossierJournal(this, j, true);
+    var j = journalPour(this, journaux(this), type, data), d = await dossierJournal(this, j, true);
     var mesUns = j.evts.filter(function (e) { return e.by === by; });   // chaînage et repère : propres à chaque journal
     var evt = {
       v: 1,
@@ -1141,7 +1191,7 @@
   Session.prototype.reparerDepuisCopie = async function (copie) {
     if (this.formation) throw new Error('Réparation possible seulement sur les données réelles (quittez le mode formation).');
     if (!this.peut('INTEGRITE')) throw new Error('Réservé à l’administrateur.');
-    var jeux = [this.cle, jeuModule(this)], illisibles = new Set(this.rejetes.map(function (r) { return r.nom; }));
+    var jeux = journaux(this).map(function (j) { return j.cle; }), illisibles = new Set(this.rejetes.map(function (r) { return r.nom; }));
     var rapport = await this.dossier.reparerDepuisCopie(copie, illisibles, async function (nom, octets) {
       for (var i = 0; i < jeux.length; i++) {   // saisie du socle ou du module : vérifiée avec la clé actuelle
         try { var e = await C.dechiffrerJSON(jeux[i], octets, 'evt:' + nom); if (e && e.id + '.enc' === nom) return true; } catch (err) { /* autre clé */ }

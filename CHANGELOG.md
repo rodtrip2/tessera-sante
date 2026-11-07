@@ -1,5 +1,17 @@
 # Journal des modifications — Tessera Santé
 
+## 0.6.0 — 7 novembre 2026
+
+Étape 5 (module Patients), première sous-étape : **journal et clé propres au module Patients**. Aucun changement à l'écran pour les agents.
+
+- Nouveau module de référence *Patients* (`module-patients.js`) : les saisies de la fiche patient (création et correction, mode d'hospitalisation, fusion de fiches) sont écrites dans son propre journal (`modules\patients\`), chiffrées par sa propre clé. Isocont les lit à la volée et calcule registre, cumuls et échéances comme avant.
+- La clé de Patients est remise à qui a droit à Isocont (et à l'administrateur) ; retrait du droit à Isocont : nouvelle génération de la clé de Patients aussi. Un compte sans droit à Isocont ne lit plus les fiches.
+- Dossier créé avant cette version : la clé de Patients est créée à la connexion de l'administrateur ; en attendant, les fiches s'écrivent dans le journal d'Isocont, comme avant, et restent lues ensuite.
+- Registre des modules : ordre de chargement (Patients avant Isocont), module de chaque type de saisie, modules dépendants, dépendance circulaire refusée.
+- *Modules activés par service* : les modules de référence n'y figurent pas (ils suivent les modules qui en dépendent).
+- Restent dans le journal d'Isocont jusqu'à la sous-étape suivante : les imports et le jeu de démonstration (enregistrés en un lot).
+- Nouveau test `tests/patients-journal.test.js` (187 au vert) ; vérification dans Chrome.
+
 ## 0.5.0 — 7 novembre 2026
 
 Étape 4 (trousseau) terminée : **attestation du coffre**, renouvellement des clés après une restauration, option « compromission ». Décisions du porteur du 7 novembre 2026 : un agent qui garde un accès en écriture au partage fait partie de la menace couverte ; renouvellement obligatoire après une restauration ; bouton pour tout renouveler.
