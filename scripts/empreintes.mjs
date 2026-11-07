@@ -21,5 +21,5 @@ const lignes = lister(app).filter((p) => p !== sortie).map((p) => {
   const h = createHash('sha256').update(readFileSync(p)).digest('hex').toUpperCase();
   return h + '  app/' + relative(app, p).split(sep).join('/');
 });
-writeFileSync(sortie, '# Suivi-mesures-isocont ' + version + ' — empreintes SHA-256 (format Get-FileHash, majuscules)\n' + lignes.join('\n') + '\n');
+writeFileSync(sortie, '# Tessera Santé ' + version + ' — empreintes SHA-256 (format Get-FileHash, majuscules)\n' + lignes.join('\n') + '\n');
 console.log(lignes.length + ' fichiers → ' + relative(racine, sortie));

@@ -6,123 +6,20 @@
  * sur la même donnée d'une même mesure) sont détectés et listés pour arbitrage.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./rules.js'));
-  else (root.SIC = root.SIC || {}).model = factory(root.SIC.rules);
-})(typeof self !== 'undefined' ? self : this, function (rules) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./rules.js'), require('./noyau-journal.js'), require('./droits.js'));
+  else (root.SIC = root.SIC || {}).model = factory(root.SIC.rules, root.SIC.noyauJournal, root.SIC.droits);
+})(typeof self !== 'undefined' ? self : this, function (rules, N, D) {
   'use strict';
 
   var H = rules.H, J = rules.J;
 
-  // ---------------------------------------------------------------- Rôles
-  var ROLES = {
-    IDE: 'IDE',
-    AS: 'Aide-soignant(e)',
-    SECRETAIRE: 'Secrétaire',
-    CADRE: 'Cadre de santé',
-    ADMIN: 'Administrateur'
-  };
+  // ---------------------------------------------------------------- Rôles, accès, services : socle (droits.js)
+  var ROLES = D.ROLES, DROITS = D.DROITS, ACCES = D.ACCES, ROLES_FOURNIS = D.ROLES_FOURNIS, ROLES_DE_SERVICE = D.ROLES_DE_SERVICE;
+  var accesFormation = D.accesFormation, accesDefaut = D.accesDefaut, rolesConfig = D.rolesConfig, libRole = D.libRole, peut = D.peut;
+  var voitTousServices = D.voitTousServices, exigeService = D.exigeService, servicesDe = D.servicesDe;
+  var NIVEAUX_JOURNAL = D.NIVEAUX_JOURNAL, niveauJournal = D.niveauJournal, ONGLETS_MASQUABLES = D.ONGLETS_MASQUABLES;
+  var ongletVisible = D.ongletVisible, registreSeul = D.registreSeul;
 
-  /** Accès au mode formation : accordé à tous les comptes, sauf désactivation par l'administrateur. */
-  function accesFormation(compte) { return !!compte && compte.id !== 'secours' && compte.formation !== false; }
-
-  // Rôles qui exigent au moins un service affecté.
-  var ROLES_DE_SERVICE = ['IDE', 'AS', 'SECRETAIRE', 'CADRE'];
-
-  // Types d'événements autorisés par rôle. L'IDE dispose en permanence des
-  // actions JLD (usage prévu le week-end et en l'absence de la secrétaire).
-  var DROITS = {
-    IDE: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],
-    AS: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],   // mêmes droits que l'IDE
-    SECRETAIRE: ['JLD', 'RECOURS'],
-    CADRE: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'ENTRETIEN', 'CORRECTION', 'REFUS_PROPOSITION', 'ANNULATION', 'STATS', 'FUSION'],
-    ADMIN: ['CONFIG', 'ANNULATION', 'COMPTE', 'LOT', 'INTEGRITE']
-  };
-
-  // ------------------------------------------------ Rôles configurables
-  /**
-   * Accès regroupés, cochés pour chaque rôle (Administration → Comptes et sécurité → Rôles et accès).
-   * Chaque accès ouvre un ou plusieurs types de saisie (ou d'action) contrôlés par `peut`.
-   * Le rôle Administrateur est fixe : droits d'administration, non modifiable (choix du porteur).
-   */
-  var ACCES = [
-    { code: 'patients', libelle: 'Fiches patient et mode d’hospitalisation', types: ['PATIENT', 'MODE_HOSPI'] },
-    { code: 'mesures', libelle: 'Début et fin des mesures, changement de lieu', types: ['MESURE_DEBUT', 'MESURE_FIN'] },
-    { code: 'pauses', libelle: 'Pauses (levées temporaires) et reprises', types: ['PAUSE', 'REPRISE'] },
-    { code: 'tiers', libelle: 'Information du tiers', types: ['TIERS'] },
-    { code: 'jld', libelle: 'Envois au JLD et décisions reçues', types: ['JLD'] },
-    { code: 'recours', libelle: 'Recours et appels', types: ['RECOURS'] },
-    { code: 'surveillance', libelle: 'Surveillance : professionnels par poste', types: ['PROFESSIONNEL'] },
-    { code: 'alertes', libelle: 'Tracer l’information demandée par une alerte', types: ['INFORMATION'] },
-    { code: 'parcours', libelle: 'Transferts, soins somatiques ou urgences', types: ['TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR'] },
-    { code: 'entretien', libelle: 'Entretien après la mesure', types: ['ENTRETIEN'] },
-    { code: 'proposition', libelle: 'Proposer une correction (validée ensuite par un cadre)', types: ['PROPOSITION'] },
-    { code: 'correction', libelle: 'Corriger une saisie, valider ou refuser les corrections proposées', types: ['CORRECTION', 'REFUS_PROPOSITION'] },
-    { code: 'annulation', libelle: 'Annuler une saisie (mesures et patients)', types: ['ANNULATION'] },
-    { code: 'fusion', libelle: 'Fusionner deux fiches patient', types: ['FUSION'] },
-    { code: 'stats', libelle: 'Statistiques : saisir les effectifs', types: ['STATS'] },
-    { code: 'communication', libelle: 'Registre pour communication (CADA) et export des données d’un patient', types: ['EDITION_CADA', 'EXPORT_PATIENT'] }
-  ];
-  var TYPES_ADMIN = ['CONFIG', 'ANNULATION', 'COMPTE', 'LOT', 'INTEGRITE', 'EDITION_CADA', 'EXPORT_PATIENT'];
-
-  /** Accès par défaut d'un rôle fourni, déduits de ses droits historiques. */
-  function accesDefaut(code) {
-    var droits = (DROITS[code] || []).slice();
-    if (code === 'CADRE') droits.push('EDITION_CADA', 'EXPORT_PATIENT');
-    return ACCES.filter(function (a) { return a.types.every(function (t) { return droits.indexOf(t) >= 0; }); }).map(function (a) { return a.code; });
-  }
-  var ROLES_FOURNIS = ['IDE', 'AS', 'SECRETAIRE', 'CADRE'];
-
-  /**
-   * Rôles de l'établissement, validés : [{ code, libelle, acces: [], types: [], services, fourni, admin }].
-   * `config.roles` = { CODE: { libelle, acces, services, supprime } } ; sans réglage, les rôles fournis.
-   * `services` : vrai si le rôle voit seulement les services affectés au compte (faux : tous les services).
-   */
-  function rolesConfig(config) {
-    var reg = (config && config.roles) || {}, res = [];
-    var codes = ROLES_FOURNIS.concat(Object.keys(reg).filter(function (k) { return ROLES_FOURNIS.indexOf(k) < 0 && k !== 'ADMIN'; }).sort());
-    codes.forEach(function (code) {
-      var r = reg[code] || {}, fourni = ROLES_FOURNIS.indexOf(code) >= 0;
-      if (!fourni && !reg[code]) return;
-      if (r.supprime) return;
-      var acces = Array.isArray(r.acces) ? r.acces.filter(function (a) { return ACCES.some(function (x) { return x.code === a; }); }) : (fourni ? accesDefaut(code) : []);
-      var types = [];
-      ACCES.forEach(function (a) { if (acces.indexOf(a.code) >= 0) a.types.forEach(function (t) { if (types.indexOf(t) < 0) types.push(t); }); });
-      var svc = r.services === undefined ? true : !!r.services;
-      // Registre seulement (demande du porteur) : aucune saisie, aucun journal, un seul onglet, le registre tel quel.
-      // `registreAnonyme` : nom du réglage en 1.65.0, repris tel quel.
-      var anonyme = !fourni && (r.registreSeul === true || r.registreAnonyme === true);
-      if (anonyme) { acces = []; types = []; }
-      var masques = anonyme ? [] : (Array.isArray(r.ongletsMasques) ? ONGLETS_MASQUABLES.filter(function (o) { return r.ongletsMasques.indexOf(o) >= 0; }) : []);
-      res.push({ code: code, libelle: String(r.libelle || (fourni ? ROLES[code] : code)).trim() || code, acces: acces, types: types,
-        services: svc, journal: anonyme ? 'aucun' : journalDefaut(code, svc, r.journal), registreSeul: anonyme, ongletsMasques: masques, fourni: fourni, admin: false });
-    });
-    res.push({ code: 'ADMIN', libelle: ROLES.ADMIN, acces: [], types: TYPES_ADMIN.slice(), services: false, journal: 'complet', fourni: true, admin: true });
-    return res;
-  }
-
-  // ------------------------------------------------ Visibilité du journal (demande du porteur)
-  // Niveau par rôle (`config.roles[CODE].journal`) ; un compte qui cumule des rôles a le niveau le plus large.
-  // Par défaut (choix du porteur) : cadre de santé et rôles « tous services » complet, autres rôles limités à leurs services.
-  var NIVEAUX_JOURNAL = [
-    { code: 'complet', libelle: 'Journal complet (tous les services, comptes, paramétrage, exports)' },
-    { code: 'services', libelle: 'Saisies de ses services (et ses propres saisies)' },
-    { code: 'siennes', libelle: 'Ses propres saisies seulement' },
-    { code: 'aucun', libelle: 'Pas d’accès au journal (onglet masqué)' }
-  ];
-  function journalDefaut(code, services, valeur) {
-    if (NIVEAUX_JOURNAL.some(function (n) { return n.code === valeur; })) return valeur;
-    if (code === 'CADRE' || !services) return 'complet';
-    return 'services';
-  }
-  /** Niveau de visibilité du journal pour un ensemble de rôles : le plus large l'emporte. */
-  function niveauJournal(roles, config) {
-    var rc = rolesConfig(config), rang = { complet: 0, services: 1, siennes: 2, aucun: 3 }, meilleur = 'aucun';
-    (roles || []).forEach(function (code) {
-      var r = rc.filter(function (x) { return x.code === code; })[0];
-      if (r && rang[r.journal] < rang[meilleur]) meilleur = r.journal;
-    });
-    return meilleur;
-  }
   // Saisies propres à l'administration (comptes, paramétrage, imports, intégrité) : journal complet seulement.
   var TYPES_JOURNAL_ADMIN = { CONFIG: 1, COMPTE: 1, LOT: 1, INTEGRITE: 1 };
 
@@ -156,83 +53,9 @@
     return Object.keys(res);
   }
 
-  /**
-   * Saisies du journal visibles par un compte : `complet` tout ; `services` ses propres saisies et les saisies de
-   * soin portant sur ses services ; `siennes` ses propres saisies ; `aucun` rien.
-   */
+  /** Saisies du journal visibles par un compte (règle du socle, services d'une saisie selon Isocont). */
   function journalVisible(st, compte, config) {
-    var niveau = niveauJournal(compte && compte.roles, config);
-    if (niveau === 'complet') return st.journal;
-    if (niveau === 'aucun' || !compte) return [];
-    var mien = function (e) { return e.by === compte.id; };
-    if (niveau === 'siennes') return st.journal.filter(mien);
-    var mesSv = servicesDe(compte, config);
-    return st.journal.filter(function (e) {
-      if (mien(e)) return true;
-      return servicesSaisie(st, e).some(function (x) { return mesSv.indexOf(x) >= 0; });
-    });
-  }
-
-  // Onglets que l'établissement peut masquer rôle par rôle (demande du porteur).
-  // (Journal : réglage « Journal des saisies » du rôle ; Administration : administrateur seulement.)
-  var ONGLETS_MASQUABLES = ['tableau', 'mesures', 'patients', 'jld', 'surveillance', 'registre', 'stats'];
-  /**
-   * Vrai si l'onglet est affiché pour ces rôles : il l'est dès qu'un des rôles l'affiche (le plus large l'emporte) ;
-   * toujours pour l'administrateur ; un rôle « registre seulement » n'affiche que le registre.
-   */
-  function ongletVisible(roles, config, onglet) {
-    if (ONGLETS_MASQUABLES.indexOf(onglet) < 0) return true;
-    var rc = rolesConfig(config);
-    return (roles || []).some(function (c) {
-      var r = rc.filter(function (x) { return x.code === c; })[0];
-      if (!r) return false;
-      if (r.admin) return true;
-      if (r.registreSeul) return onglet === 'registre';
-      return r.ongletsMasques.indexOf(onglet) < 0;
-    });
-  }
-
-  /**
-   * Vrai si le compte n'a accès qu'au registre : tous ses rôles connus sont des rôles « registre seulement ».
-   * Un rôle plus large cumulé l'emporte (comme pour les autres accès).
-   */
-  function registreSeul(roles, config) {
-    var rc = rolesConfig(config), connus = (roles || []).map(function (c) { return rc.filter(function (x) { return x.code === c; })[0]; }).filter(Boolean);
-    return connus.length > 0 && connus.every(function (r) { return r.registreSeul; });
-  }
-
-  /** Libellé d'un rôle (rôle supprimé ou inconnu : son code). */
-  function libRole(config, code) {
-    var r = rolesConfig(config).filter(function (x) { return x.code === code; })[0];
-    return r ? r.libelle : (ROLES[code] || code);
-  }
-
-  function peut(roles, typeEvenement, config) {
-    var rc = rolesConfig(config);
-    return (roles || []).some(function (code) {
-      var r = rc.filter(function (x) { return x.code === code; })[0];
-      return !!r && r.types.indexOf(typeEvenement) >= 0;
-    });
-  }
-
-  /** Vrai si l'un des rôles voit tous les services (administrateur, ou rôle réglé ainsi). */
-  function voitTousServices(roles, config) {
-    var rc = rolesConfig(config);
-    return (roles || []).some(function (code) { var r = rc.filter(function (x) { return x.code === code; })[0]; return !!r && !r.services; });
-  }
-
-  /** Vrai si les rôles exigent au moins un service affecté au compte. */
-  function exigeService(roles, config) {
-    return !voitTousServices(roles, config) && (roles || []).some(function (code) { return rolesConfig(config).some(function (x) { return x.code === code; }); });
-  }
-
-  /** Services visibles par un compte : tous pour un administrateur, sinon ceux qui lui sont affectés. */
-  function servicesDe(compte, config) {
-    var tous = (config.services || []).map(function (s) { return s.code; });
-    if (!compte) return [];
-    if (voitTousServices(compte.roles, config)) return tous;
-    var affectes = compte.services || [];
-    return tous.filter(function (c) { return affectes.indexOf(c) >= 0; });
+    return D.journalVisible(st.journal, compte, config, function (e) { return servicesSaisie(st, e); });
   }
 
   // --------------------------------------------------------- Configuration
@@ -335,7 +158,6 @@
     ]
   };
 
-  function cloner(o) { return JSON.parse(JSON.stringify(o)); }
 
   function periodesDe(config, service) {
     var ps = config.periodesService || {};
@@ -347,25 +169,9 @@
     return def ? !!def.contrainte : true;
   }
 
-  // ------------------------------------------------------------- Réduction
-  function trierEvenements(evts) {
-    return evts.slice().sort(function (a, b) {
-      return a.at < b.at ? -1 : a.at > b.at ? 1 : (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-    });
-  }
-
-  /** Un lot (import, données de démonstration) est un fichier unique contenant plusieurs saisies. */
-  function deplier(evts) {
-    var res = [];
-    evts.forEach(function (e) {
-      if (e.type !== 'LOT') { res.push(e); return; }
-      res.push(e);
-      (e.data.evenements || []).forEach(function (s, i) {
-        res.push({ id: e.id + '.' + String(i).padStart(5, '0'), at: s.at || e.at, by: s.by || e.by, type: s.type, data: s.data, lot: e.id });
-      });
-    });
-    return res;
-  }
+  // ------------------------------------------------------------- Réduction (socle : noyau-journal.js)
+  var cloner = N.cloner, trierEvenements = N.trierEvenements, deplier = N.deplier, cheminEvenement = N.cheminEvenement;
+  var filtrerIntegrite = N.filtrerIntegrite, annulabilite = N.annulabilite;
 
   /** Champ logique modifié par un événement sur une mesure (pour la détection de conflits). */
   function champ(e) {
@@ -381,97 +187,15 @@
   /**
    * Reconstitue l'état. `evts` : liste d'événements déchiffrés.
    * Retourne { config, patients, mesures, professionnels, saisiesStats, conflits, annules, journal, parId }.
+   * Tri, annulations, chaînage et intégrité : noyau du journal ; application des saisies : ci-dessous.
    */
   function reduire(evts) {
-    var st = {
-      config: cloner(CONFIG_DEFAUT), fusions: {}, propositions: {},
-      patients: {}, mesures: {}, professionnels: [], saisiesStats: {},
-      conflits: [], annules: {}, journal: [], parId: {}, manquants: [],
-      // Anomalies d'intégrité dont l'administrateur a pris acte (saisies INTEGRITE) : elles ne déclenchent plus d'alerte.
-      integrite: { reperes: {}, manquants: {}, fichiers: {}, historique: [] }, manquantsAcquis: []
-    };
-    var tries = trierEvenements(deplier(evts));
-
-    // 1) Annulations d'abord (elles neutralisent leur cible, quelle que soit leur date). Une annulation peut
-    //    elle-même être annulée (« Rétablir ») : seule une annulation qui n'est pas neutralisée produit son effet.
-    var contre = {};
-    tries.forEach(function (e) {
-      st.parId[e.id] = e;
-      if (e.type === 'ANNULATION' && e.data && e.data.cible) (contre[e.data.cible] = contre[e.data.cible] || []).push(e);
+    return N.reduire(evts, {
+      etat: function () {
+        return { config: cloner(CONFIG_DEFAUT), fusions: {}, propositions: {}, patients: {}, mesures: {}, professionnels: [], saisiesStats: {} };
+      },
+      appliquer: appliquer
     });
-    var memo = {};
-    function effective(a, n) {
-      if (memo[a.id] !== undefined) return memo[a.id];
-      if (n > 50) return true;
-      var r = !(contre[a.id] || []).some(function (x) { return effective(x, n + 1); });
-      memo[a.id] = r;
-      return r;
-    }
-    tries.forEach(function (e) {
-      if (e.type === 'ANNULATION' && e.data && e.data.cible && effective(e, 0)) st.annules[e.data.cible] = e;
-    });
-
-    // Chaînage : chaque saisie cite la précédente du même agent ; un maillon absent signale un fichier supprimé.
-    tries.forEach(function (e) {
-      if (!e.lot && e.prec && !st.parId[e.prec]) st.manquants.push({ evt: e.id, manque: e.prec, by: e.by });
-    });
-
-        // 2) Application dans l'ordre chronologique de saisie.
-    tries.forEach(function (e) {
-      if (!e.lot) st.journal.push(e);
-      if (e.type === 'ANNULATION' || e.type === 'LOT' || st.annules[e.id] || (e.lot && st.annules[e.lot])) return;
-      appliquer(st, e);
-    });
-    var acq = st.integrite.manquants;
-    st.manquantsAcquis = st.manquants.filter(function (x) { return acq[x.manque]; });
-    st.manquants = st.manquants.filter(function (x) { return !acq[x.manque]; });
-    return st;
-  }
-
-  /** Chemin d'un fichier de saisie d'après son nom (le mois vient de l'horodatage en tête de l'identifiant). */
-  function cheminEvenement(nom) {
-    var m = /^(\d{4})(\d{2})\d{2}T/.exec(nom || '');
-    return m ? 'evenements/' + m[1] + '/' + m[2] + '/' + nom : nom;
-  }
-
-  /**
-   * Retire du résultat du contrôle d'intégrité les anomalies dont l'administrateur a pris acte (`st.integrite`).
-   * Une anomalie nouvelle (écart plus grand, autre fichier) reste signalée. `res.acquis` = anomalies écartées.
-   */
-  function filtrerIntegrite(res, ig) {
-    ig = ig || { reperes: {}, manquants: {}, fichiers: {} };
-    var out = Object.assign({}, res), acquis = 0;
-    function idDe(nom) { return String(nom).replace(/\.enc$/, ''); }
-    out.reperes = (res.reperes || []).filter(function (r) {
-      var a = ig.reperes[r.agent], ok;
-      if (r.illisible) ok = !!(a && a.illisible);
-      else ok = !!a && (r.attendu - r.present) <= (a.ecart || 0) && (!r.dernierManquant || a.dernier === r.dernier);
-      if (ok) acquis++;
-      return !ok;
-    });
-    out.disparus = (res.disparus || []).filter(function (nom) { var ok = !!(ig.manquants[idDe(nom)] || ig.fichiers[nom]); if (ok) acquis++; return !ok; });
-    out.fichiersIllisibles = (res.fichiersIllisibles || []).filter(function (f) { var ok = !!ig.fichiers[f.nom]; if (ok) acquis++; return !ok; });
-    out.illisibles = out.fichiersIllisibles.length;
-    out.acquis = acquis + (res.manquantsAcquis || 0);
-    return out;
-  }
-
-  /**
-   * Annulation depuis le journal : ce qu'il est possible d'annuler (ou de rétablir) et avec quel droit.
-   * Retourne null si la saisie ne s'annule pas (trace de compte, saisie déjà annulée), sinon
-   * { action: 'annuler' | 'retablir', droit: 'ANNULATION' | 'CONFIG', cible }.
-   * Paramétrage, imports (lots) et décisions d'intégrité : administrateur (droit CONFIG) ; autres saisies : droit ANNULATION.
-   */
-  var TYPES_ANNUL_ADMIN = { CONFIG: 1, LOT: 1, INTEGRITE: 1 };
-  function annulabilite(st, e) {
-    if (!e || e.type === 'COMPTE' || e.lot) return null;
-    if (e.type === 'ANNULATION') {
-      var cible = st.parId[e.data && e.data.cible];
-      if (!cible || st.annules[e.id] || st.annules[cible.id] !== e) return null;
-      return { action: 'retablir', droit: TYPES_ANNUL_ADMIN[cible.type] ? 'CONFIG' : 'ANNULATION', cible: cible };
-    }
-    if (st.annules[e.id]) return null;
-    return { action: 'annuler', droit: TYPES_ANNUL_ADMIN[e.type] ? 'CONFIG' : 'ANNULATION', cible: e };
   }
 
   /** Fiche qui porte aujourd'hui un patient (après fusions éventuelles). */
@@ -502,16 +226,7 @@
         break;
 
       case 'INTEGRITE':
-        // Prise d'acte d'anomalies d'intégrité irrécupérables (administrateur, motif obligatoire).
-        var ig = st.integrite;
-        (d.reperes || []).forEach(function (r) {
-          if (!r || !r.agent) return;
-          var prec = ig.reperes[r.agent] || { ecart: 0 };
-          ig.reperes[r.agent] = { ecart: Math.max(prec.ecart || 0, +r.ecart || 0), dernier: r.dernier || prec.dernier || '', illisible: !!r.illisible || !!prec.illisible };
-        });
-        (d.manquants || []).forEach(function (id) { ig.manquants[id] = e.id; });
-        (d.fichiers || []).forEach(function (nom) { ig.fichiers[nom] = e.id; });
-        ig.historique.push({ evt: e.id, at: e.at, by: e.by, motif: d.motif || '', reperes: (d.reperes || []).length, manquants: (d.manquants || []).length, fichiers: (d.fichiers || []).length });
+        N.appliquerIntegrite(st, e);
         break;
 
       case 'PATIENT':
@@ -557,17 +272,7 @@
   }
 
   /** Vrai si `e` entre en conflit avec une saisie que son auteur n'avait pas vue : elle n'est alors pas appliquée. */
-  function detecterConflit(st, m, e) {
-    var c = champ(e);
-    if (!c) return false;
-    var precedent = m.champs[c];
-    if (precedent && typeof e.base === 'number' && e.base < precedent.version && precedent.by !== e.by) {
-      st.conflits.push({ mesureId: m.id, champ: c, retenu: precedent.id, concurrent: e.id });
-      return true;
-    }
-    m.champs[c] = { id: e.id, by: e.by, version: m.version + 1 };
-    return false;
-  }
+  function detecterConflit(st, m, e) { return N.detecterConflit(st, m, champ(e), e, 'mesureId'); }
 
   function appliquerSurMesure(st, m, e) {
     var d = e.data;

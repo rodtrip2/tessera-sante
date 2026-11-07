@@ -235,6 +235,14 @@ Sept étapes, chacune publiable seule avec tous les tests au vert.
 6. **Module Agenda.** Frontière, activation par service, premier échange (échéances JLD en lecture à la volée), écran d'accueil des modules.
 7. **Kit de déploiement.** Fiche technique, éléments RGPD (un traitement par module), guides d'installation et d'utilisation.
 
+**État du plan** (au 7 novembre 2026) :
+
+| Étape | État |
+| --- | --- |
+| Reprise du code d'Isocont 1.67 | Faite : historique d'Isocont relié à celui de Tessera (commit de fusion), 139 tests repris au vert |
+| 1. Découper | En cours. `model.js` découpé (version 0.1.0) : `noyau-journal.js` (tri, lots, annulations et rétablissements, chaînage, conflits, intégrité) et `droits.js` (rôles, accès, services, visibilité du journal et des onglets) ; `model.js` garde la même interface et ne contient plus que le modèle d'Isocont. Restent `session.js` et `ui.js` |
+| 2 à 7 | À faire |
+
 Points de vigilance : `ui.js` est le découpage le plus long, à faire par blocs d'écran ; la mise en place du trousseau (étape 4) doit être testée sur une copie complète avant tout dossier réel.
 
 ## 12. Décisions du porteur
@@ -259,5 +267,6 @@ Points de vigilance : `ui.js` est le découpage le plus long, à faire par blocs
 | Reprise de l'historique | Départ à zéro, imports du registre et du classeur peuplant Patients et Isocont | 5 nov. 2026 |
 | Hébergement du pilote | GitHub Pages, double authentification | 5 nov. 2026 |
 | Export de Sillage | Colonnes et règles du § 8 | 7 nov. 2026 |
+| Lien avec le dépôt d'Isocont | Code repris de la version 1.67 avec son historique (commit de fusion) ; numérotation propre à Tessera à partir de 0.1.0 | 7 nov. 2026 |
 
 **Questions restantes** : ajout de l'IPP à l'export de Sillage (à demander à l'administrateur du DPI) ; contenu de l'Agenda au-delà des échéances JLD (à définir avec les équipes) ; devenir du dépôt `Suivi-mesures-isocont` une fois Tessera en service.
