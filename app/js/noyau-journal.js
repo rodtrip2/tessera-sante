@@ -114,13 +114,16 @@
     return st;
   }
 
+  /** Clé d'un repère d'agent : propre à chaque journal (« socle/u1 », « isocont/u1 ») ; l'agent seul si un seul journal. */
+  function cleRepere(r) { return (r.journal ? r.journal + '/' : '') + r.agent; }
+
   /** Prise d'acte d'anomalies d'intégrité irrécupérables (saisie INTEGRITE : administrateur, motif obligatoire). */
   function appliquerIntegrite(st, e) {
     var d = e.data || {}, ig = st.integrite;
     (d.reperes || []).forEach(function (r) {
       if (!r || !r.agent) return;
-      var prec = ig.reperes[r.agent] || { ecart: 0 };
-      ig.reperes[r.agent] = { ecart: Math.max(prec.ecart || 0, +r.ecart || 0), dernier: r.dernier || prec.dernier || '', illisible: !!r.illisible || !!prec.illisible };
+      var k = cleRepere(r), prec = ig.reperes[k] || { ecart: 0 };
+      ig.reperes[k] = { ecart: Math.max(prec.ecart || 0, +r.ecart || 0), dernier: r.dernier || prec.dernier || '', illisible: !!r.illisible || !!prec.illisible };
     });
     (d.manquants || []).forEach(function (id) { ig.manquants[id] = e.id; });
     (d.fichiers || []).forEach(function (nom) { ig.fichiers[nom] = e.id; });
@@ -161,7 +164,7 @@
     var out = Object.assign({}, res), acquis = 0;
     function idDe(nom) { return String(nom).replace(/\.enc$/, ''); }
     out.reperes = (res.reperes || []).filter(function (r) {
-      var a = ig.reperes[r.agent], ok;
+      var a = ig.reperes[cleRepere(r)], ok;
       if (r.illisible) ok = !!(a && a.illisible);
       else ok = !!a && (r.attendu - r.present) <= (a.ecart || 0) && (!r.dernierManquant || a.dernier === r.dernier);
       if (ok) acquis++;

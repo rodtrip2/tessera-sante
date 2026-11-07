@@ -1,5 +1,16 @@
 # Journal des modifications — Tessera Santé
 
+## 0.3.1 — 7 novembre 2026
+
+Étape 3 du plan d'architecture, première partie : **journal du socle et rangement par journal**, sans changement de fonctionnement à l'écran.
+
+- **Rangement** : `socle\` (journal du socle) et `modules\isocont\` (journal d'Isocont, jeu de formation dans `modules\isocont\formation\`), chacun avec ses saisies, ses repères d'intégrité, ses instantanés et sa quarantaine. Plus rien n'est écrit à la racine en dehors du coffre, des préférences et des exports.
+- **Aiguillage des saisies** : traces des comptes et des clés, prises d'acte d'intégrité et réglages communs (établissement, services, rôles) au journal du socle ; annulation dans le journal de la saisie visée ; tout le reste au journal du module. L'état d'Isocont se reconstitue à partir des deux journaux.
+- **Intégrité journal par journal** : chaînage et repères propres à chaque journal ; une prise d'acte ne couvre que le journal concerné ; chemins complets affichés pour le service informatique.
+- **Copies, réparation, quarantaine, dossier de secours, déplacement** : adaptés au rangement par journal. Une copie de sauvegarde d'Isocont (`evenements\` à la racine) se restaure dans `modules\isocont\`.
+- Nouveau test `tests/journaux.test.js` ; tests de session adaptés au nouveau rangement (chemins seulement).
+- Vérification dans Chrome, comparée à Isocont 1.67 : écrans, saisies, journal, administration et rôles identiques ; rangement et intégrité contrôlés dans le stockage de démonstration.
+
 ## 0.3.0 — 7 novembre 2026
 
 **Étape 2 du plan d'architecture : contrat de module et registre des modules**, sans changement de fonctionnement.

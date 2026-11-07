@@ -102,7 +102,10 @@
   Dossier.prototype.anomalie = async function () {
     try { await this.handle.getFileHandle('FORMATION-LISEZMOI.txt'); return 'formation'; } catch (e) { /* absent */ }
     if (this.coffreIllisible) return 'coffre-illisible';
-    try { await this.handle.getDirectoryHandle('evenements'); return 'sans-coffre'; } catch (e) { return null; }
+    for (var i = 0; i < DOSSIERS_JOURNAUX.length; i++) {
+      try { await this.handle.getDirectoryHandle(DOSSIERS_JOURNAUX[i]); return 'sans-coffre'; } catch (e) { /* absent */ }
+    }
+    return null;
   };
 
   Dossier.oublier = async function () { await memoriser('mode', null); await memoriser('dossier', null); };
@@ -111,6 +114,32 @@
     var h = this.handle;
     for (var i = 0; i < chemin.length; i++) h = await h.getDirectoryHandle(chemin[i], { create: !!creer });
     return h;
+  };
+
+  // ------------------------------------------------------------ Journaux (étape 3 du plan d'architecture)
+  // Chaque journal est un sous-dossier complet (saisies, repères, instantanés, quarantaine) : socle\ pour le socle,
+  // modules\<module>\ pour chaque module. « evenements » à la racine : rangement d'Isocont, repris dans modules\isocont.
+  var DOSSIERS_JOURNAUX = ['socle', 'modules', 'evenements'];
+  /** Chemin d'un journal depuis la racine des données : ['socle'] ou ['modules', id]. */
+  function cheminJournal(nom) { return nom === 'socle' ? ['socle'] : ['modules', nom]; }
+  Dossier.cheminJournal = cheminJournal;
+  /** Journal `nom` de ce dossier, comme un dossier à part entière ; null s'il n'existe pas encore (`creer` faux). */
+  Dossier.prototype.journal = async function (nom, creer) {
+    var h;
+    try { h = await this.sousDossier(cheminJournal(nom), creer); } catch (e) { if (creer) throw e; return null; }
+    var d = new Dossier(h, this.mode === 'reseau' ? 'reseau' : this.mode);
+    d.nom = this.nom; d.journalNom = nom; d.prefixe = cheminJournal(nom).join('/') + '/';
+    return d;
+  };
+  /** Journaux présents dans ce dossier : [{ nom, prefixe: 'socle/' | 'modules/<id>/' }]. */
+  Dossier.prototype.journauxPresents = async function () {
+    var res = [];
+    try { await this.handle.getDirectoryHandle('socle'); res.push({ nom: 'socle', prefixe: ['socle'] }); } catch (e) { /* absent */ }
+    try {
+      var m = await this.handle.getDirectoryHandle('modules');
+      for await (var x of m.values()) if (x.kind === 'directory') res.push({ nom: x.name, prefixe: ['modules', x.name] });
+    } catch (e) { /* absent */ }
+    return res;
   };
 
   Dossier.prototype.lireFichier = async function (dirHandle, nom) {
@@ -228,14 +257,17 @@
   }
 
   /**
-   * Copie de sauvegarde complète : coffre et fichiers de saisie (toujours chiffrés, copiés tels quels).
-   * Les instantanés (reconstruits automatiquement) et le jeu de formation (fictif) n'y figurent pas.
+   * Copie de sauvegarde complète : coffre et fichiers de saisie de chaque journal (socle, modules), toujours chiffrés,
+   * copiés tels quels. Les instantanés (reconstruits automatiquement) et le jeu de formation (fictif) n'y figurent pas.
    */
   Dossier.prototype.copieComplete = async function () {
     var coffre = await this.lireCoffre();
     if (!coffre) throw new Error('Coffre absent ou illisible : copie impossible.');
-    var liste = [];
-    try { await fichiers(await this.sousDossier(['evenements'], false), 'evenements/', liste); } catch (e) { /* aucun */ }
+    var liste = [], journaux = await this.journauxPresents();
+    for (var j = 0; j < journaux.length; j++) {
+      var pref = journaux[j].prefixe.concat(['evenements']);
+      try { await fichiers(await this.sousDossier(pref, false), pref.join('/') + '/', liste); } catch (e) { /* aucun */ }
+    }
     return { format: 'SIC-sauvegarde', version: 1, creeLe: new Date().toISOString(), coffre: coffre,
       fichiers: liste.map(function (f) { return { chemin: f.chemin, contenu: C.b64(f.octets) }; }) };
   };
@@ -245,18 +277,28 @@
     if (!copie || copie.format !== 'SIC-sauvegarde' || !coffreValide(copie.coffre) || !Array.isArray(copie.fichiers)) throw new Error('Ce fichier n’est pas une copie de sauvegarde de l’outil.');
     for await (var k of this.handle.keys()) { if (k) throw new Error('Le dossier n’est pas vide : choisissez un dossier vide pour restaurer la copie.'); }
     for (var i = 0; i < copie.fichiers.length; i++) {
-      var f = copie.fichiers[i], parties = f.chemin.split('/');
-      if (parties[0] !== 'evenements' || parties.some(function (p) { return !p || p === '..'; })) continue;
-      var dir = await this.sousDossier(parties.slice(0, -1), true);
-      await this.ecrireFichier(dir, parties[parties.length - 1], C.deb64(f.contenu));
+      var f = copie.fichiers[i], c = cheminSur(f.chemin);
+      if (!c) continue;
+      var dir = await this.sousDossier(c.journal.concat(c.parties.slice(0, 3)), true);
+      await this.ecrireFichier(dir, c.parties[3], C.deb64(f.contenu));
     }
     await this.ecrireFichier(this.handle, 'coffre.json', new TextEncoder().encode(JSON.stringify(copie.coffre, null, 1)));
     return copie.fichiers.length;
   };
 
-  function cheminSur(chemin) {
-    var parties = String(chemin || '').split('/');
-    return parties.length === 4 && parties[0] === 'evenements' && /^\d{4}$/.test(parties[1]) && /^\d{2}$/.test(parties[2]) && /\.enc$/.test(parties[3]) && !parties.some(function (p) { return !p || p === '..' || p === '.'; }) ? parties : null;
+  /**
+   * Chemin sûr d'un fichier de saisie : [journal]/evenements/AAAA/MM/nom.enc, où journal est « socle »,
+   * « modules/<id> », ou absent (chemin relatif au dossier d'un journal ; dans une copie de sauvegarde : ancien
+   * rangement d'Isocont, repris dans modules/isocont). Retourne { journal: [...], parties: [evenements, AAAA, MM, nom] } ou null.
+   */
+  function cheminSur(chemin, relatif) {
+    var p = String(chemin || '').split('/');
+    if (p.some(function (x) { return !x || x === '..' || x === '.'; })) return null;
+    var journal = p[0] === 'socle' ? p.slice(0, 1) : p[0] === 'modules' && /^[a-z][a-z0-9-]{1,30}$/.test(p[1] || '') ? p.slice(0, 2) : [];
+    var parties = p.slice(journal.length);
+    if (!(parties.length === 4 && parties[0] === 'evenements' && /^\d{4}$/.test(parties[1]) && /^\d{2}$/.test(parties[2]) && /\.enc$/.test(parties[3]))) return null;
+    if (!journal.length && !relatif) journal = ['modules', 'isocont'];
+    return { journal: journal, parties: parties };
   }
 
   /**
@@ -264,17 +306,18 @@
    * en service). Rien n'est supprimé : le service informatique peut l'examiner ou le restaurer.
    */
   Dossier.prototype.mettreEnQuarantaine = async function (chemin) {
-    var parties = cheminSur(chemin);
-    if (!parties) throw new Error('Chemin de fichier inattendu : ' + chemin);
-    var source = await this.sousDossier(parties.slice(0, 3), false), nom = parties[3];
+    var c = cheminSur(chemin, true);
+    if (!c) throw new Error('Chemin de fichier inattendu : ' + chemin);
+    var parties = c.parties, j = c.journal;   // quarantaine du journal concerné
+    var source = await this.sousDossier(j.concat(parties.slice(0, 3)), false), nom = parties[3];
     var octets = await this.lireFichier(source, nom);
     if (!octets) throw new Error('Fichier introuvable : ' + chemin);
-    var dest = await this.sousDossier(['quarantaine', parties[1], parties[2]], true);
+    var dest = await this.sousDossier(j.concat(['quarantaine', parties[1], parties[2]]), true);
     await this.ecrireFichier(dest, nom, octets);
     var relu = await this.lireFichier(dest, nom);
     if (!relu || relu.length !== octets.length) throw new Error('La copie en quarantaine n’a pas pu être vérifiée : le fichier est laissé en place.');
     await source.removeEntry(nom);
-    return 'quarantaine/' + parties[1] + '/' + parties[2] + '/' + nom;
+    return j.concat(['quarantaine', parties[1], parties[2], nom]).join('/');
   };
 
   /**
@@ -286,20 +329,25 @@
    */
   Dossier.prototype.reparerDepuisCopie = async function (copie, illisibles, verifier) {
     if (!copie || copie.format !== 'SIC-sauvegarde' || !Array.isArray(copie.fichiers)) throw new Error('Ce fichier n’est pas une copie de sauvegarde de l’outil.');
-    var presents = await this.nomsEvenements(), res = { remis: [], invalides: [], dejaPresents: 0 };
+    var res = { remis: [], invalides: [], dejaPresents: 0 }, presents = new Set();
+    var journaux = await this.journauxPresents();
+    for (var k = 0; k < journaux.length; k++) {
+      var dj = await this.journal(journaux[k].nom, false);
+      if (dj) (await dj.nomsEvenements()).forEach(function (n) { presents.add(n); });
+    }
     illisibles = illisibles || new Set();
     for (var i = 0; i < copie.fichiers.length; i++) {
-      var f = copie.fichiers[i], parties = cheminSur(f.chemin);
-      if (!parties) continue;
-      var nom = parties[3];
+      var f = copie.fichiers[i], c = cheminSur(f.chemin);
+      if (!c) continue;
+      var parties = c.parties, nom = parties[3], chemin = c.journal.concat(parties).join('/');
       if (presents.has(nom) && !illisibles.has(nom)) { res.dejaPresents++; continue; }
       var octets;
       try { octets = C.deb64(f.contenu); if (!(await verifier(nom, octets))) throw new Error('contenu inattendu'); }
       catch (e) { res.invalides.push(f.chemin); continue; }
-      if (presents.has(nom)) { try { await this.mettreEnQuarantaine(f.chemin); } catch (e) { res.invalides.push(f.chemin); continue; } }
-      var dir = await this.sousDossier(parties.slice(0, 3), true);
+      if (presents.has(nom)) { try { await this.mettreEnQuarantaine(chemin); } catch (e) { res.invalides.push(f.chemin); continue; } }
+      var dir = await this.sousDossier(c.journal.concat(parties.slice(0, 3)), true);
       await this.ecrireFichier(dir, nom, octets);
-      res.remis.push(f.chemin);
+      res.remis.push(chemin);
     }
     return res;
   };
@@ -341,7 +389,7 @@
     if (!parties.length || parties.some(function (x) { return x === '.' || x === '..' || !/^[\p{L}\p{N}_ .()'-]{1,60}$/u.test(x); })) return null;
     return parties;
   }
-  var RESERVES = ['evenements', 'instantanes', 'coffre-historique', 'reperes', 'quarantaine', 'preferences', 'formation'];
+  var RESERVES = ['evenements', 'instantanes', 'coffre-historique', 'reperes', 'quarantaine', 'preferences', 'formation', 'socle', 'modules'];
 
   /**
    * Enregistre un fichier exporté (PDF, CSV…) dans le dossier des exports, sous-dossier `categorie`.
@@ -536,7 +584,12 @@
   // Demande du porteur : un second dossier, sur un autre serveur, tenu à jour par les postes qui y sont reliés ;
   // déplacement des données vers un nouveau dossier. Les saisies (fichiers jamais modifiés) sont réunies dans les
   // deux sens ; le coffre retenu est celui de plus haute révision ; les autres fichiers, le plus récent.
-  var EXCLUS_MIROIR = ['instantanes', 'formation', 'exports'];
+  var INSTANTANES = ['instantanes', 'socle/instantanes', 'modules/*/instantanes'];
+  var EXCLUS_MIROIR = INSTANTANES.concat(['formation', 'modules/*/formation', 'exports']);
+  function exclu(chemin, exclus) {
+    var p = chemin.split('/');
+    return exclus.some(function (e) { var q = e.split('/'); return q.length === p.length && q.every(function (x, i) { return x === '*' || x === p[i]; }); });
+  }
   var FICHIERS_RACINE = ['coffre.json'];
 
   /** Inventaire d'un dossier : { chemin: { fichier (handle), parent (handle dossier), nom } }. */
@@ -545,7 +598,7 @@
     async function parcourir(dir, prefixe, niveau) {
       for await (var x of dir.values()) {
         if (x.kind === 'directory') {
-          if (niveau === 0 && exclus.indexOf(x.name) >= 0) continue;
+          if (exclu(prefixe + x.name, exclus)) continue;
           await parcourir(x, prefixe + x.name + '/', niveau + 1);
         } else if (niveau > 0 || !fichiersRacine || fichiersRacine.indexOf(x.name) >= 0) {
           res[prefixe + x.name] = { fichier: x, parent: dir, nom: x.name };
@@ -600,7 +653,7 @@
       if (c === 'coffre.json') continue;
       if (x && !y) { res.octets += await copier(x, autre.handle, c); res.versAutre++; continue; }
       if (y && !x) { res.octets += await copier(y, this.handle, c); res.depuisAutre++; continue; }
-      if (c.indexOf('evenements/') === 0) continue;                 // saisies : jamais modifiées
+      if (/(^|\/)evenements\//.test(c)) continue;                  // saisies : jamais modifiées
       var fx = await x.fichier.getFile(), fy = await y.fichier.getFile();
       if (fx.size === fy.size && memesOctets(new Uint8Array(await fx.arrayBuffer()), new Uint8Array(await fy.arrayBuffer()))) continue;
       if (fx.lastModified >= fy.lastModified) { res.octets += await copier(x, autre.handle, c); res.versAutre++; }
@@ -640,7 +693,7 @@
     options = options || {};
     for await (var k of cible.handle.keys()) { if (k) throw new Error('Le nouveau dossier n’est pas vide : choisissez un dossier vide.'); }
     if (await this.lireDeplacement()) throw new Error('Ce dossier a déjà été déplacé.');
-    var src = await inventaire(this.handle, ['instantanes'], null), chemins = Object.keys(src).filter(function (c) { return c !== 'miroir-etat.json'; });
+    var src = await inventaire(this.handle, INSTANTANES, null), chemins = Object.keys(src).filter(function (c) { return c !== 'miroir-etat.json'; });
     var n = 0;
     for (var i = 0; i < chemins.length; i++) {
       var c = chemins[i], octets = new Uint8Array(await (await src[c].fichier.getFile()).arrayBuffer());

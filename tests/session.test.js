@@ -33,6 +33,9 @@ require('../app/js/session.js');
 const { Dossier, Session } = globalThis.SIC;
 const C = globalThis.SIC.crypto;
 
+// Rangement par journal (étape 3) : saisies du module Isocont dans modules/isocont, du socle dans socle
+function journalIsocont(racine) { return racine.e.get('modules').e.get('isocont'); }
+
 async function nouveauDossier() {
   const racine = new Repertoire('SuiviIsoCont');
   const admin = new Session(new Dossier(racine, 'reseau'));
@@ -100,7 +103,7 @@ test('Instantanés des mois clos et rejet d\'un fichier altéré', async () => {
   const s2 = await connecter(racine, 'admin', 'mot de passe solide');
   assert.equal(s2.etat.professionnels.length, 5);
   const mois = ancien.toISOString().slice(0, 7);
-  const inst = await racine.getDirectoryHandle('instantanes');
+  const inst = await journalIsocont(racine).getDirectoryHandle('instantanes');
   assert.ok(inst.e.has(mois + '.enc'));
   // Une nouvelle session lit l'instantané ; un fichier d'origine altéré n'est plus lu individuellement
   const s3 = await connecter(racine, 'admin', 'mot de passe solide');
@@ -108,7 +111,7 @@ test('Instantanés des mois clos et rejet d\'un fichier altéré', async () => {
   // Altération d'un fichier du mois courant : rejeté
   await admin.enregistrer('PROFESSIONNEL', { service: 'U1', date: '2026-10-01', periode: 'M', nom: 'Agent X' });
   const courant = new Date().toISOString().slice(0, 7).split('-');
-  const rep = await (await (await racine.getDirectoryHandle('evenements')).getDirectoryHandle(courant[0])).getDirectoryHandle(courant[1]);
+  const rep = await (await (await journalIsocont(racine).getDirectoryHandle('evenements')).getDirectoryHandle(courant[0])).getDirectoryHandle(courant[1]);
   const f = [...rep.e.values()].pop(); f.data[40] ^= 1;
   const s4 = await connecter(racine, 'admin', 'mot de passe solide');
   assert.equal(s4.rejetes.length, 1);
@@ -208,7 +211,7 @@ test('Mode formation : accès par compte, choix à la connexion, jeu fictif sép
   await assert.rejects(retire.ouvrirFormation(generer), /désactivé/);
 
   // Le sous-dossier de formation n'est jamais pris pour un dossier principal
-  const sous = new Dossier(await racine.getDirectoryHandle('formation'), 'reseau');
+  const sous = new Dossier(await journalIsocont(racine).getDirectoryHandle('formation'), 'reseau');
   assert.equal(await sous.lireCoffre(), null);
   assert.equal(await sous.anomalie(), 'formation');
   assert.equal(await new Dossier(racine, 'reseau').anomalie(), 'sans-coffre');
@@ -265,7 +268,7 @@ test('Intégrité : disparition des dernières saisies d’un agent et des fichi
   assert.deepEqual([r.reperes.length, r.disparus.length], [0, 0]);
   // Suppression de la dernière saisie : le chaînage ne la voit pas, le repère si
   const mois = e2.at.slice(0, 7).split('-');
-  const dir = racine.e.get('evenements').e.get(mois[0]).e.get(mois[1]);
+  const dir = journalIsocont(racine).e.get('evenements').e.get(mois[0]).e.get(mois[1]);
   dir.e.delete(e2.id + '.enc');
   r = await admin.verifierIntegrite();
   assert.deepEqual(r.disparus, [e2.id + '.enc']);                       // poste ouvert : fichier disparu
@@ -278,7 +281,7 @@ test('Intégrité : disparition des dernières saisies d’un agent et des fichi
 
 function dossierMois(racine, evt) {
   const m = evt.at.slice(0, 7).split('-');
-  return racine.e.get('evenements').e.get(m[0]).e.get(m[1]);
+  return journalIsocont(racine).e.get('evenements').e.get(m[0]).e.get(m[1]);
 }
 
 test('Intégrité : réparation depuis une copie (absents et illisibles seulement), quarantaine, refus d’un fichier étranger', async () => {
@@ -295,7 +298,7 @@ test('Intégrité : réparation depuis une copie (absents et illisibles seulemen
   let r = await s.verifierIntegrite();
   assert.ok(s.anomaliesIntegrite());
   assert.deepEqual(r.fichiersIllisibles.map((f) => f.nom), [e2.id + '.enc']);
-  assert.match(r.fichiersIllisibles[0].chemin, /^evenements\/\d{4}\/\d{2}\/.+\.enc$/);
+  assert.match(r.fichiersIllisibles[0].chemin, /^modules\/isocont\/evenements\/\d{4}\/\d{2}\/.+\.enc$/);
   assert.deepEqual(r.listeManquants.map((x) => x.id), [e2.id]);
   assert.equal(SIC.model.cheminEvenement(e1.id + '.enc'), 'evenements/' + e1.at.slice(0, 4) + '/' + e1.at.slice(5, 7) + '/' + e1.id + '.enc');
   // Un fichier de la copie qui ne s'ouvre pas avec la clé actuelle est refusé
@@ -309,7 +312,7 @@ test('Intégrité : réparation depuis une copie (absents et illisibles seulemen
   const rap = await s.reparerDepuisCopie(copie);
   assert.deepEqual(rap.remis.map((c) => c.split('/').pop()), [e1.id + '.enc']);   // seul e1 manquait encore
   assert.equal(dossierMois(racine, e3).e.get(e3.id + '.enc').data, presentAvant);   // fichier présent jamais réécrit
-  assert.ok(racine.e.get('quarantaine'));
+  assert.ok(journalIsocont(racine).e.get('quarantaine'));
   assert.equal(s.rejetes.length, 0);
   assert.ok([e1, e2, e3].every((e) => s.evts.some((x) => x.id === e.id)) && s.etat.mesures.M1.fin);
   assert.equal(s.anomaliesIntegrite(), false);
@@ -353,7 +356,7 @@ test('Intégrité : prise d’acte par l’administrateur (motif obligatoire), n
   assert.equal(v.rejetes.length, 0);
   assert.ok(!dossierMois(racine, c).e.has(c.id + '.enc'));
   const m = c.at.slice(0, 7).split('-');
-  assert.ok(racine.e.get('quarantaine').e.get(m[0]).e.get(m[1]).e.has(c.id + '.enc'));
+  assert.ok(journalIsocont(racine).e.get('quarantaine').e.get(m[0]).e.get(m[1]).e.has(c.id + '.enc'));
   assert.ok(v.evts.some((e) => e.type === 'COMPTE' && e.data.action === 'QUARANTAINE'));
   // L'annulation de la prise d'acte rouvre l'alerte
   const acte = v.evts.find((e) => e.type === 'INTEGRITE');
@@ -437,7 +440,7 @@ test('Dossier de secours : copie, travail sur le secours, reprise des saisies au
   const r1 = await admin.synchroniserMiroir(secours);
   assert.ok(r1.versAutre >= 2);
   assert.equal(r1.coffre, 'vers');
-  assert.ok(compterFichiers(secoursRep, '', []).some((c) => c.startsWith('evenements/')));
+  assert.ok(compterFichiers(secoursRep, '', []).some((c) => c.startsWith('modules/isocont/evenements/')));
   assert.equal((await secours.lireEtatMiroir()).role, 'secours');
   assert.equal(await admin.controlerMiroir(secours), 'meme');
   // Le dossier principal est indisponible : on travaille sur le secours
@@ -519,7 +522,7 @@ test('Lecture d’une saisie en échec passager : relue à la synchronisation su
   const { racine, admin } = await nouveauDossier();
   await admin.enregistrer('PATIENT', { patientId: 'P1', nom: 'P1 (fictif)' });
   // Un autre poste se connecte pendant que le fichier est momentanément illisible (réseau, synchronisation…)
-  const mois = racine.e.get('evenements');
+  const mois = journalIsocont(racine).e.get('evenements');
   const fichiers = [];
   (function parcourir(rep) { for (const v of rep.e.values()) { if (v.kind === 'directory') parcourir(v); else fichiers.push(v); } })(mois);
   const cible = fichiers.find((f) => /\.enc$/.test(f.name) && f.data.length > 0);
