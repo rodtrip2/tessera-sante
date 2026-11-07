@@ -63,7 +63,7 @@
     var selFormat = h('select', { 'aria-label': 'Format des durées', onchange: function () { format = selFormat.value; try { localStorage.setItem('sic-format-duree-patients', format); } catch (e) { /* */ } U.rendreContenu(); } },
       FORMATS.map(function (f) { return h('option', { value: f[0], text: f[1], selected: f[0] === format }); }));
     return h('div', {},
-      h('div', { class: 'barre' }, h('h1', { text: 'Patients' }), peutModifier ? h('button', { class: 'btn primaire', onclick: function () { modaleFiche(null); } }, '+ Nouvelle fiche') : null, h('div', { class: 'espace' }), h('label', { class: 'en-ligne nowrap' }, 'Statistiques de l’année', champAn), h('label', { class: 'en-ligne nowrap' }, 'Durées en', selFormat), champ),
+      h('div', { class: 'barre' }, h('h1', { text: 'Patients' }), peutModifier ? h('button', { class: 'btn primaire', onclick: function () { modaleFiche(null); } }, '+ Nouvelle fiche') : null, peutModifier && U.importPatients ? h('button', { class: 'btn', onclick: function () { U.importPatients.ouvrir(); } }, 'Importer la liste du DPI…') : null, h('div', { class: 'espace' }), h('label', { class: 'en-ligne nowrap' }, 'Statistiques de l’année', champAn), h('label', { class: 'en-ligne nowrap' }, 'Durées en', selFormat), champ),
       (function () {
         var paires = U.cas.pairesProches(patientsVisibles());
         if (!paires.length) return null;

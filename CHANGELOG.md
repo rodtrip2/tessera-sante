@@ -1,5 +1,17 @@
 # Journal des modifications — Tessera Santé
 
+## 0.6.4 — 7 novembre 2026
+
+Étape 5 (module Patients), quatrième sous-étape : **import de la liste des patients exportée du DPI**.
+
+- Onglet *Patients → Importer la liste du DPI…* (accès « Fiches patient ») : fichier CSV ou Excel lu sur le poste, jamais copié sur le partage.
+- Colonnes proposées d'après leur titre et modifiables ; « Non fourni par l'export : à renseigner dans Tessera » pour un champ sans colonne (jamais modifié par l'import). Colonnes découpées : « Nom prénom » (règles validées pour l'export de Sillage : nom de naissance après « Né » / « Née », nom d'usage, prénom) et « Loc. » (chambre et lit). Le médecin responsable et les commentaires ne sont jamais proposés.
+- Unités de l'export rattachées aux services (ou écartées), valeurs du sexe à faire correspondre.
+- Aperçu : nouveaux patients, fiches et séjours mis à jour, valeurs corrigées dans Tessera gardées (écart signalé), doublons possibles à confirmer (réadmission sans IPP), découpages du nom à vérifier et corriger, lignes en erreur, patients absents de la liste (sortie proposée, jamais appliquée d'office).
+- Fiche retrouvée par l'IPP, puis par le numéro de séjour ; un second import identique n'enregistre rien.
+- Enregistrement en un lot annulable (journal du module Patients) ; modèle d'import mémorisé (établissement ou service ; noms de colonnes et correspondances, aucune donnée de patient), dans l'export des réglages.
+- Nouveaux tests (`tests/import-patients.test.js` ; 196 au vert) ; import d'un fichier fictif en Windows-1252 vérifié dans Chrome.
+
 ## 0.6.3 — 7 novembre 2026
 
 Étape 5 (module Patients), troisième sous-étape terminée : **fiche commune complète et séjours**.

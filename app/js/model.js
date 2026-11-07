@@ -223,6 +223,7 @@
     verificationVersion: true,
     // Exports (PDF, CSV) enregistrés automatiquement dans ce sous-dossier du dossier des données
     exports: { dossier: 'exports', conservationJours: 0, cheminReseau: '' },
+    importPatients: {},    // module Patients : modèles d'import de la liste du DPI { modeles: { '*': modèle, U1: modèle } } (noms de colonnes et correspondances, aucune donnée de patient)
     fichePatient: {},      // module Patients, par service : { services: { U1: { psychiatrie, medecin1, medecin2 } } } ; vide = psychiatrie, libellés par défaut
     modulesServices: {},   // activation des modules par service (journal du socle) : { isocont: { tous: false, services: [...] } } ; vide = tous les services   // 0 = aucune purge ; cheminReseau : chemin Windows du dossier des données
     // Surveillance en CSI : nombre minimal de professionnels attendus par poste
@@ -2006,6 +2007,7 @@
   var FORMAT_REGLAGES = 'suivi-isocont-reglages';
   var GROUPES_REGLAGES = [
     { code: 'etablissement', libelle: 'Établissement, services et lieux d’isolement', cles: ['etablissement', 'services', 'modulesServices', 'fichePatient', 'lieuxCSI', 'lieuIsolement'] },
+    { code: 'patients', libelle: 'Module Patients : modèles d’import de la liste du DPI', cles: ['importPatients'] },
     { code: 'psychiatres', libelle: 'Liste des psychiatres (noms)', cles: ['psychiatres'] },
     { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
     { code: 'affichage', libelle: 'Points de vigilance et écran de connexion (contact, consigne, logo)', cles: ['vigilance', 'affichage'] },
