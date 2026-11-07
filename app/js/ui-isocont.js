@@ -23,7 +23,7 @@
   var LIB_TIERS = { INFORME: 'Tiers informé', TENTATIVE: 'Tentative sans succès', PAS_DE_TIERS: 'Pas de tiers identifié', REFUS_PATIENT: 'Refus du patient', AUTRE: 'Non informé — autre motif' };
   var LIB_NATURE = { INFO: 'Information du JLD', SAISINE: 'Saisine du JLD', DECISION: 'Décision reçue du JLD' };
   var LIB_EVT = {
-    CONFIG: 'Paramétrage', PATIENT: 'Patient', MODE_HOSPI: "Mode d'hospitalisation", MESURE_DEBUT: 'Début de mesure',
+    CONFIG: 'Paramétrage', PATIENT: 'Patient', SEJOUR: 'Séjour du patient', MODE_HOSPI: "Mode d'hospitalisation", MESURE_DEBUT: 'Début de mesure',
     MESURE_FIN: 'Fin de mesure', PAUSE: 'Pause de mesure', REPRISE: 'Reprise de mesure', TIERS: 'Information du tiers', INFORMATION: 'Information (alerte de l’établissement)', FUSION: 'Fusion de fiches patient', PROPOSITION: 'Correction proposée', REFUS_PROPOSITION: 'Correction proposée refusée', TRANSFERT: 'Transfert entre services', SOMATIQUE: 'Soins somatiques ou urgences', SOMATIQUE_RETOUR: 'Retour dans le service', RECOURS: 'Recours ou appel (JLD)', ENTRETIEN: 'Entretien après la mesure', INTEGRITE: 'Intégrité des données', JLD: 'JLD', PROFESSIONNEL: 'Professionnel en CSI',
     CORRECTION: 'Correction', ANNULATION: 'Annulation', COMPTE: 'Comptes et clés', LOT: 'Lot de saisies', STATS: 'Statistiques'
   };
@@ -1183,7 +1183,7 @@
   // ================================================================ Journal : libellés lisibles
   var LIB_ONGLET_MASQUABLE = { tableau: 'Tableau de bord', mesures: 'Mesures', patients: 'Patients', jld: 'JLD', surveillance: 'Surveillance CSI', registre: 'Registre', stats: 'Statistiques' };
   var LIB_CONFIG = {
-    etablissement: 'Nom de l’établissement', services: 'Services', modulesServices: 'Modules activés par service', exports: 'Dossier des exports', surveillance: 'Surveillance : professionnels attendus par poste', roles: 'Rôles et accès', organisationJLD: 'Organisation des envois au JLD', verificationVersion: 'Vérification de la version (page GitHub)', listes: 'Listes de saisie (fonctions, motifs, raccourcis)', miroir: 'Dossier de secours', verrouDossier: 'Choix du dossier bloqué sur les postes', vigilance: 'Seuils des points de vigilance', affichage: 'Affichage (mesures terminées, connexion, logo)', lieuIsolement: 'Appellation des lieux dédiés à l’isolement', lieuxCSI: 'Chambres de soins intensifs', psychiatres: 'Liste des psychiatres',
+    etablissement: 'Nom de l’établissement', services: 'Services', modulesServices: 'Modules activés par service', fichePatient: 'Fiche patient par service (psychiatrie, libellés des médecins)', exports: 'Dossier des exports', surveillance: 'Surveillance : professionnels attendus par poste', roles: 'Rôles et accès', organisationJLD: 'Organisation des envois au JLD', verificationVersion: 'Vérification de la version (page GitHub)', listes: 'Listes de saisie (fonctions, motifs, raccourcis)', miroir: 'Dossier de secours', verrouDossier: 'Choix du dossier bloqué sur les postes', vigilance: 'Seuils des points de vigilance', affichage: 'Affichage (mesures terminées, connexion, logo)', lieuIsolement: 'Appellation des lieux dédiés à l’isolement', lieuxCSI: 'Chambres de soins intensifs', psychiatres: 'Liste des psychiatres',
     periodes: 'Postes de surveillance par défaut', periodesService: 'Postes de surveillance propres aux services', modesHospitalisation: 'Modes d’hospitalisation',
     parametres: 'Règles légales (seuils et cycles JLD)', delaiModeHospiHeures: 'Délai de bascule du mode d’hospitalisation (registre)',
     compteursRegistre: 'Numérotation du registre antérieur', decompte: 'Masques du décompte JLD', imagesDecompte: 'Papier à en-tête du décompte',
@@ -1252,6 +1252,7 @@
         var m = SIC.modules.obtenir(id), lib = m ? m.libelle : id, x = v[id] || {};
         return lib + ' : ' + (x.tous === false ? ((x.services || []).length ? (x.services || []).map(libService).join(', ') : 'aucun service') : 'tous les services');
       }).join(' ; ') || 'tous les modules dans tous les services';
+      case 'fichePatient': return Object.keys((v && v.services) || {}).map(function (c) { var o = SIC.patients.optionsFiche({ fichePatient: v }, c); return libService(c) + ' : ' + (o.psychiatrie ? 'psychiatrie' : 'autre discipline') + ' (' + o.medecin1 + ', ' + o.medecin2 + ')'; }).join(' ; ') || 'tous les services en psychiatrie, libellés par défaut';
       case 'lieuxCSI': return Object.keys(v || {}).map(function (k) { return k + ' : ' + (v[k] || []).join(', '); }).join(' ; ');
       case 'pauses': return resumePauses(v);
       case 'casParticuliers': return SIC.ui.cas.resumeConfig(v);
@@ -1337,7 +1338,12 @@
         return lieu('Surveillance en CSI — ') + libService(d.service) + ', ' + (d.date ? d.date.split('-').reverse().join('/') : '') + ', ' + (per ? per.libelle.toLowerCase() : d.periode) + ' : ' + d.nom + (d.fonction ? ' (' + d.fonction + ')' : '') + (d.lieux && d.lieux.length ? ' — lieux : ' + d.lieux.join(', ') : '');
       case 'PATIENT':
         var fiches = index().patients[d.patientId] || [], premiere = !fiches.length || fiches[0].id === e.id;
-        return 'Fiche patient ' + (premiere ? 'créée' : 'modifiée') + ' : ' + [((d.nom || '') + ' ' + (d.prenom || '')).trim(), d.ipp ? 'IPP ' + d.ipp : '', d.naissance ? 'né(e) le ' + d.naissance.split('-').reverse().join('/') : '', d.protection ? 'protection : ' + d.protection.toLowerCase() : '', d.service ? 'service : ' + libService(d.service) : '', d.detenu === true ? 'patient détenu' : d.detenu === false ? 'n’est plus détenu' : ''].filter(Boolean).join(', ') + (premiere ? '' : ' (' + nomPatient(d.patientId).trim() + ')');
+        return 'Fiche patient ' + (premiere ? 'créée' : 'modifiée') + ' : ' + [((d.nom || '') + ' ' + (d.prenom || '')).trim(), d.ipp ? 'IPP ' + d.ipp : '', d.naissance ? 'né(e) le ' + d.naissance.split('-').reverse().join('/') : '', d.protection ? 'protection : ' + d.protection.toLowerCase() : '', d.service ? 'service : ' + libService(d.service) : '', d.detenu === true ? 'patient détenu' : d.detenu === false ? 'n’est plus détenu' : '',
+          d.nomNaissance ? 'né(e) ' + d.nomNaissance : '', d.sexe ? 'sexe : ' + ((SIC.patients && SIC.patients.SEXES[d.sexe]) || d.sexe).toLowerCase() : '',
+          d.medecin1 !== undefined ? 'médecin de 1re ligne : ' + (d.medecin1 || 'aucun') : '', d.medecin2 !== undefined ? 'médecin de 2e ligne : ' + (d.medecin2 || 'aucun') : '',
+          d.referents !== undefined ? 'référents : ' + ((d.referents || []).map(function (r) { return r.nom; }).join(', ') || 'aucun') : ''].filter(Boolean).join(', ') + (premiere ? '' : ' (' + nomPatient(d.patientId).trim() + ')');
+      case 'SEJOUR':
+        return 'Séjour de ' + nomPatient(d.patientId).trim() + ' : ' + [d.iep ? 'n° ' + d.iep : '', d.entree ? 'entrée le ' + d.entree.split('-').reverse().join('/') : '', d.sortie ? 'sortie le ' + d.sortie.split('-').reverse().join('/') : '', d.service ? 'unité : ' + libService(d.service) : '', d.chambre ? 'chambre ' + d.chambre + (d.lit ? ', lit ' + d.lit : '') : ''].filter(Boolean).join(', ');
       case 'MODE_HOSPI':
         var def = (config().modesHospitalisation || []).filter(function (x) { return x.code === d.mode; })[0];
         return nomPatient(d.patientId).trim() + ' — mode d’hospitalisation : ' + d.mode + (def ? ' (' + def.libelle.toLowerCase() + ')' : '') + ' à partir du ' + date(d.date);

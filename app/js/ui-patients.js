@@ -2,7 +2,7 @@
 /* Onglet Patients : fiche, cumuls glissants, mode d'hospitalisation et son historique. */
 (function () {
   'use strict';
-  var SIC = self.SIC, U = SIC.ui, M = SIC.model, h = U.h;
+  var SIC = self.SIC, U = SIC.ui, M = SIC.model, C = SIC.crypto, h = U.h;
   var recherche = '';
   var annee = new Date().getFullYear();
   var MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
@@ -63,7 +63,7 @@
     var selFormat = h('select', { 'aria-label': 'Format des durées', onchange: function () { format = selFormat.value; try { localStorage.setItem('sic-format-duree-patients', format); } catch (e) { /* */ } U.rendreContenu(); } },
       FORMATS.map(function (f) { return h('option', { value: f[0], text: f[1], selected: f[0] === format }); }));
     return h('div', {},
-      h('div', { class: 'barre' }, h('h1', { text: 'Patients' }), h('div', { class: 'espace' }), h('label', { class: 'en-ligne nowrap' }, 'Statistiques de l’année', champAn), h('label', { class: 'en-ligne nowrap' }, 'Durées en', selFormat), champ),
+      h('div', { class: 'barre' }, h('h1', { text: 'Patients' }), peutModifier ? h('button', { class: 'btn primaire', onclick: function () { modaleFiche(null); } }, '+ Nouvelle fiche') : null, h('div', { class: 'espace' }), h('label', { class: 'en-ligne nowrap' }, 'Statistiques de l’année', champAn), h('label', { class: 'en-ligne nowrap' }, 'Durées en', selFormat), champ),
       (function () {
         var paires = U.cas.pairesProches(patientsVisibles());
         if (!paires.length) return null;
@@ -84,7 +84,7 @@
           var p = x.p, mode = U.modeActuel(p), depuis = p.modes.length ? p.modes[p.modes.length - 1].date : null;
           return h('tr', { class: x.enCours ? 'en-cours' : '' },
             h('td', { class: 'patient' }, h('b', { text: (p.nom || '?') + ' ' + (p.prenom || '') }), h('br'),
-              h('small', { text: 'IPP ' + (p.ipp || '—') + (p.naissance ? ' · né(e) le ' + p.naissance.split('-').reverse().join('/') : '') + (p.protection ? ' · ' + p.protection : '') }), p.detenu ? h('div', {}, h('span', { class: 'badge', text: 'détenu' })) : null),
+              h('small', { text: 'IPP ' + (p.ipp || '—') + (p.naissance ? ' · né(e) le ' + p.naissance.split('-').reverse().join('/') : '') + (p.protection ? ' · ' + p.protection : '') + libSejour(p) }), p.detenu && psy(p.service) ? h('div', {}, h('span', { class: 'badge', text: 'détenu' })) : null),
             h('td', { text: U.libService(p.service) }),
             h('td', {}, mode ? h('span', { class: 'badge ' + (M.estContrainte(U.config(), mode) ? '' : 'warn'), text: mode }) : '—', depuis ? h('div', {}, h('small', { title: 'depuis le ' + U.date(depuis), text: 'depuis le ' + U.date(depuis).slice(0, 10) })) : null),
             h('td', { text: fd(x.c.iso48) + ' / ' + fd(x.c.iso15) }),
@@ -97,8 +97,8 @@
             stats.sequences ? (function () { var s = stats.parPatient[p.id]; return s && s.sequences ? h('td', { class: 'col-annuelle' }, h('b', { text: String(s.sequences) }), h('br'), h('small', { text: fd(s.heuresSequences) })) : h('td', { class: 'col-annuelle muted', text: '0' }); })() : null,
             h('td', { class: 'actions-ligne' },
               x.total ? h('button', { class: 'btn petit', onclick: function () { modaleMesures(p); } }, 'Mesures') : null, ' ',
-              peutModifier ? h('button', { class: 'btn petit', onclick: function () { modaleMode(p); } }, 'Mode') : null, ' ',
-              peutModifier ? h('button', { class: 'btn petit', onclick: function () { modaleFiche(p); } }, 'Fiche') : null, ' ',
+              U.App.session.peut('MODE_HOSPI') && psy(p.service) ? h('button', { class: 'btn petit', onclick: function () { modaleMode(p); } }, 'Mode') : null, ' ',
+              h('button', { class: 'btn petit', title: peutModifier ? 'Voir et corriger la fiche, ses séjours' : 'Voir la fiche (lecture seule)', onclick: function () { modaleFiche(p); } }, 'Fiche'), ' ',
               U.App.session.peut('FUSION') ? h('button', { class: 'btn petit', title: 'Fusionner avec une autre fiche du même patient', onclick: function () { U.cas.modaleFusion(p); } }, 'Fusionner') : null));
         })))) : h('div', { class: 'panneau vide', text: 'Aucun patient.' }),
       h('p', { class: 'muted' }, h('small', { text: U.lieu('Colonnes de l’année : entrées du registre (une contention en CSI et l’isolement qui l’accompagne forment une seule entrée en catégorie C), comptées l’année de leur début, avec leur durée cumulée ; la dernière colonne compte les mesures comme le juge, l’isolement et la contention séparément. Colonnes paramétrables par l’administrateur.') })),
@@ -229,30 +229,131 @@
       U.App.session.peut('EXPORT_PATIENT') || U.App.session.peut('CONFIG') ? { texte: 'Exporter ses données (droit d’accès)', action: function () { U.qualite.exporterPatient(p); return false; } } : null].filter(Boolean), { large: true });
   }
 
+  // ------------------------------------------------------------ Fiche commune (module Patients)
+  var P = SIC.patients;
+  function psy(service) { return P.optionsFiche(U.config(), service).psychiatrie; }
+  function jj(d) { return d ? d.split('-').reverse().join('/') : ''; }
+  function libSejour(p) {
+    var sj = P.sejourEnCours(p);
+    if (!sj) return '';
+    return ' · entré(e) le ' + jj(sj.entree) + (sj.chambre ? ', chambre ' + sj.chambre + (sj.lit ? ' lit ' + sj.lit : '') : '');
+  }
+
+  /**
+   * Fiche patient (création si `p` est nul) : identité, protection, détenu (service de psychiatrie), médecins de 1re et
+   * 2e ligne, référents soignants, séjours. Lecture seule sans l'accès « Fiches patient ».
+   */
   function modaleFiche(p) {
-    var ipp = h('input', { type: 'text', value: p.ipp || '' });
-    var nom = h('input', { type: 'text', value: p.nom || '' }), prenom = h('input', { type: 'text', value: p.prenom || '' });
-    var naissance = h('input', { type: 'date', value: p.naissance || '' });
-    var protection = h('input', { type: 'text', value: p.protection || '', placeholder: 'ex. Curatelle renforcée' });
-    var detenu = h('input', { type: 'checkbox', checked: !!p.detenu });
-    var sv = h('select', {}, U.services().map(function (x) { return h('option', { value: x.code, text: x.libelle, selected: x.code === p.service }); }));
-    U.modale('Fiche patient', h('div', { class: 'pile' },
+    var peut = U.App.session.peut('PATIENT'), nouveau = !p, f = p || { modes: [], referents: [], sejours: [] };
+    var dis = peut ? {} : { disabled: true };
+    function champ(v, attrs) { return h('input', Object.assign({ type: 'text', value: v || '' }, attrs || {}, dis)); }
+    var ipp = champ(f.ipp), nom = champ(f.nom), prenom = champ(f.prenom), nomNaissance = champ(f.nomNaissance);
+    var naissance = h('input', Object.assign({ type: 'date', value: f.naissance || '' }, dis));
+    var sexe = h('select', dis, [['', '—']].concat(Object.keys(P.SEXES).map(function (k) { return [k, P.SEXES[k]]; })).map(function (x) { return h('option', { value: x[0], text: x[1], selected: (f.sexe || '') === x[0] }); }));
+    var protection = champ(f.protection, { placeholder: 'ex. Curatelle renforcée' });
+    var detenu = h('input', Object.assign({ type: 'checkbox', checked: !!f.detenu }, dis));
+    var services = U.services();
+    var sv = h('select', dis, services.map(function (x) { return h('option', { value: x.code, text: x.libelle, selected: x.code === (f.service || U.App.service) }); }));
+    var listeMed = 'medecins-' + Date.now();
+    var datalist = h('datalist', { id: listeMed }, (U.config().psychiatres || []).map(function (n) { return h('option', { value: n }); }));
+    var medecin1 = champ(f.medecin1, { list: listeMed }), medecin2 = champ(f.medecin2, { list: listeMed });
+    var lib1 = h('span'), lib2 = h('span'), zoneDetenu = h('label', { class: 'case' }, detenu, h('span', { text: 'Patient détenu' }));
+    // Référents soignants : comptes du service (rôles de la liste de surveillance), ou nom libre
+    var referents = (f.referents || []).map(function (r) { return { id: r.id || null, nom: r.nom }; });
+    var zoneRef = h('div', { class: 'pile' });
+    function dessinerRef() {
+      U.vider(zoneRef);
+      var agents = M.agentsSurveillance(U.App.session.comptes, U.config(), sv.value, new Date().toISOString().slice(0, 10));
+      var cases = agents.map(function (a) {
+        var c = h('input', Object.assign({ type: 'checkbox', checked: referents.some(function (r) { return r.id === a.id; }), onchange: function () {
+          referents = c.checked ? referents.concat([{ id: a.id, nom: a.nom }]) : referents.filter(function (r) { return r.id !== a.id; });
+        } }, dis));
+        return h('label', { class: 'case' }, c, h('span', { text: a.nom }));
+      });
+      var libres = referents.filter(function (r) { return !r.id; });
+      zoneRef.appendChild(cases.length ? h('div', { class: 'grille-2' }, cases) : h('small', { class: 'muted', text: 'Aucun compte soignant affecté à ce service.' }));
+      libres.forEach(function (r) {
+        zoneRef.appendChild(h('div', { class: 'barre' }, h('span', { text: r.nom + ' (nom libre)' }), peut ? h('button', { class: 'btn petit', type: 'button', onclick: function () { referents = referents.filter(function (x) { return x !== r; }); dessinerRef(); } }, 'Retirer') : null));
+      });
+      if (peut) {
+        var libre = h('input', { type: 'text', placeholder: 'Autre référent (nom libre)' });
+        zoneRef.appendChild(h('div', { class: 'barre' }, libre, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (libre.value.trim()) { referents.push({ id: null, nom: libre.value.trim() }); dessinerRef(); } } }, 'Ajouter')));
+      }
+    }
+    function majService() {
+      var o = P.optionsFiche(U.config(), sv.value);
+      lib1.textContent = o.medecin1; lib2.textContent = o.medecin2;
+      zoneDetenu.hidden = !o.psychiatrie;
+      dessinerRef();
+    }
+    sv.addEventListener('change', majService);
+    majService();
+    var sejours = nouveau ? null : h('div', { class: 'pile' }, h('h3', { text: 'Séjours' }),
+      (f.sejours || []).length ? h('div', { class: 'table-wrap' }, h('table', {},
+        h('thead', {}, h('tr', {}, ['N° de séjour', 'Entrée', 'Sortie', 'Unité', 'Chambre', 'Lit', ''].map(function (t) { return h('th', { text: t }); }))),
+        h('tbody', {}, f.sejours.slice().reverse().map(function (x) {
+          return h('tr', { class: x.sortie ? '' : 'en-cours' }, h('td', { text: x.iep || '—' }), h('td', { text: jj(x.entree) }), h('td', { text: x.sortie ? jj(x.sortie) : 'en cours' }),
+            h('td', { text: x.service ? U.libService(x.service) : '—' }), h('td', { text: x.chambre || '—' }), h('td', { text: x.lit || '—' }),
+            h('td', { class: 'actions-ligne' }, peut ? h('button', { class: 'btn petit', type: 'button', onclick: function () { fermerPuis(function () { modaleSejour(f, x); }); } }, 'Modifier') : null));
+        })))) : h('p', { class: 'muted', text: 'Aucun séjour enregistré.' }),
+      peut ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { fermerPuis(function () { modaleSejour(f, null); }); } }, '+ Nouveau séjour')) : null);
+    U.modale(nouveau ? 'Nouvelle fiche patient' : 'Fiche patient', h('div', { class: 'pile' },
+      peut ? null : h('p', { class: 'muted', text: 'Lecture seule : la création et la correction des fiches sont réservées aux rôles qui en ont l’accès (IDE, secrétaire et cadre par défaut).' }),
       h('div', { class: 'grille-2' }, h('label', {}, 'IPP', ipp), h('label', {}, 'Service', sv)),
-      h('div', { class: 'grille-2' }, h('label', {}, 'Nom', nom), h('label', {}, 'Prénom', prenom)),
+      h('div', { class: 'grille-2' }, h('label', {}, 'Nom (nom d’usage)', nom), h('label', {}, 'Prénom', prenom)),
+      h('div', { class: 'grille-2' }, h('label', {}, 'Nom de naissance', nomNaissance), h('label', {}, 'Sexe', sexe)),
       h('div', { class: 'grille-2' }, h('label', {}, 'Date de naissance', naissance), h('label', {}, 'Mesure de protection juridique', protection)),
-      h('label', { class: 'case' }, detenu, h('span', { text: 'Patient détenu' })),
-      h('small', { class: 'muted', text: 'Une mesure garde le nom affiché au moment de sa création dans le journal ; les écrans utilisent la fiche à jour.' })), [
-      { texte: 'Annuler' },
-      { texte: 'Enregistrer', classe: 'primaire', action: async function () {
+      zoneDetenu,
+      h('div', { class: 'grille-2' }, h('label', {}, lib1, medecin1), h('label', {}, lib2, medecin2)), datalist,
+      h('div', { class: 'pile' }, h('b', { text: 'Référents soignants' }), zoneRef),
+      h('small', { class: 'muted', text: 'Médecins et référents sont propres à Tessera (distincts du médecin responsable du dossier patient informatisé). Chaque changement est gardé avec sa date. Une mesure garde le nom affiché au moment de sa création dans le journal ; les écrans utilisent la fiche à jour.' }),
+      sejours), [
+      { texte: peut ? 'Annuler' : 'Fermer' },
+      peut ? { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         if (!nom.value.trim()) throw new Error('Le nom est obligatoire.');
-        var d = { patientId: p.id }, ch = 0;
-        [['ipp', ipp.value.trim()], ['nom', nom.value.trim().toUpperCase()], ['prenom', prenom.value.trim()], ['naissance', naissance.value], ['protection', protection.value.trim()], ['service', sv.value]].forEach(function (x) {
-          if ((p[x[0]] || '') !== x[1]) { d[x[0]] = x[1]; ch++; }
+        if (naissance.value && naissance.value > new Date().toISOString().slice(0, 10)) throw new Error('La date de naissance ne peut pas être dans le futur.');
+        var id = nouveau ? 'P' + C.hex(C.aleatoire(5)) : f.id;
+        if (nouveau && ipp.value.trim()) {
+          var deja = Object.keys(U.st().patients).map(function (k) { return U.st().patients[k]; }).filter(function (x) { return x.ipp === ipp.value.trim(); })[0];
+          if (deja) throw new Error('Un patient porte déjà l’IPP ' + deja.ipp + ' : ' + (deja.nom || '') + ' ' + (deja.prenom || '') + '.');
+        }
+        var d = { patientId: id }, ch = 0;
+        [['ipp', ipp.value.trim()], ['nom', nom.value.trim().toUpperCase()], ['prenom', prenom.value.trim()], ['nomNaissance', nomNaissance.value.trim().toUpperCase()], ['sexe', sexe.value],
+          ['naissance', naissance.value], ['protection', protection.value.trim()], ['service', sv.value], ['medecin1', medecin1.value.trim()], ['medecin2', medecin2.value.trim()]].forEach(function (x) {
+          if ((f[x[0]] || '') !== x[1]) { d[x[0]] = x[1]; ch++; }
         });
-        if (!!p.detenu !== detenu.checked) { d.detenu = detenu.checked; ch++; }
+        if (!!f.detenu !== detenu.checked && !zoneDetenu.hidden) { d.detenu = detenu.checked; ch++; }
+        if (JSON.stringify(f.referents || []) !== JSON.stringify(referents)) { d.referents = referents; ch++; }
         if (!ch) return true;
         await U.App.session.enregistrer('PATIENT', d);
-        U.toast('Fiche mise à jour.');
+        U.toast(nouveau ? 'Fiche créée.' : 'Fiche mise à jour.');
+      } } : null].filter(Boolean), { large: true });
+  }
+  function fermerPuis(fn) { var dlg = document.querySelector('dialog[open]'); if (dlg) dlg.dispatchEvent(new Event('cancel')); setTimeout(fn, 0); }
+
+  /** Séjour d'un patient (nouveau si `sj` est nul) : numéro de séjour (IEP), entrée, sortie, unité, chambre et lit. */
+  function modaleSejour(p, sj) {
+    var x = sj || {};
+    var iep = h('input', { type: 'text', value: x.iep || '' }), entree = h('input', { type: 'date', value: x.entree || new Date().toISOString().slice(0, 10) });
+    var sortie = h('input', { type: 'date', value: x.sortie || '' });
+    var sv = h('select', {}, U.services().map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === (x.service || p.service) }); }));
+    var chambre = h('input', { type: 'text', value: x.chambre || '', placeholder: 'ex. 412' }), lit = h('input', { type: 'text', value: x.lit || '', placeholder: 'ex. U, P, F' });
+    U.modale((sj ? 'Séjour' : 'Nouveau séjour') + ' — ' + (p.nom || '') + ' ' + (p.prenom || ''), h('div', { class: 'pile' },
+      h('div', { class: 'grille-2' }, h('label', {}, 'Numéro de séjour (IEP, facultatif)', iep), h('label', {}, 'Unité', sv)),
+      h('div', { class: 'grille-2' }, h('label', {}, 'Entrée', entree), h('label', {}, 'Sortie (vide : séjour en cours)', sortie)),
+      h('div', { class: 'grille-2' }, h('label', {}, 'Chambre', chambre), h('label', {}, 'Lit', lit)),
+      !sj && P.sejourEnCours(p) ? h('p', { class: 'alerte', text: 'Un séjour est déjà en cours (entrée le ' + jj(P.sejourEnCours(p).entree) + ') : indiquez sa date de sortie s’il est terminé.' }) : null), [
+      { texte: 'Annuler' },
+      { texte: 'Enregistrer', classe: 'primaire', action: async function () {
+        if (!entree.value) throw new Error('Indiquez la date d’entrée.');
+        if (sortie.value && sortie.value < entree.value) throw new Error('La sortie ne peut pas précéder l’entrée.');
+        var d = { patientId: p.id, sejourId: x.id || 'S' + C.hex(C.aleatoire(4)) }, ch = 0;
+        [['iep', iep.value.trim()], ['entree', entree.value], ['sortie', sortie.value], ['service', sv.value], ['chambre', chambre.value.trim()], ['lit', lit.value.trim().toUpperCase()]].forEach(function (v) {
+          if ((x[v[0]] || '') !== v[1]) { d[v[0]] = v[1]; ch++; }
+        });
+        if (!ch) return true;
+        await U.App.session.enregistrer('SEJOUR', d);
+        U.toast('Séjour enregistré.');
       } }]);
   }
 

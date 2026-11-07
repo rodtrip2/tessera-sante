@@ -11,7 +11,7 @@
 | Élément | Choix technique | État |
 | --- | --- | --- |
 | Type d'application | Page web statique (HTML, CSS, JavaScript), sans serveur applicatif, sans base de données, sans étape de construction | existant |
-| Organisation | Un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** : Patients, Isolement et contention (Isocont), Agenda du service | existant : socle commun et contrat de module (registre des modules), module Isocont, module Patients (journal et clé propres) ; à construire : écrans et import du module Patients, Agenda |
+| Organisation | Un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** : Patients, Isolement et contention (Isocont), Agenda du service | existant : socle commun et contrat de module (registre des modules), module Isocont, module Patients (journal et clé propres, fiche commune et séjours) ; à construire : import de la liste des patients, Agenda |
 | Dépendances | Aucune bibliothèque externe ; uniquement les API standard du navigateur | existant |
 | Stockage | Dossier d'un partage réseau (SMB) accédé par l'API *File System Access* du navigateur ; un sous-dossier et un journal par module | existant : un journal du socle et un journal par module |
 | Chiffrement | AES-GCM 256 bits côté poste (Web Crypto API), chiffrement en enveloppe ; **une clé par module**, remise seulement aux agents qui y ont droit | existant (depuis la version 0.4.4) |
