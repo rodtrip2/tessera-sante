@@ -1,5 +1,15 @@
 # Journal des modifications — Tessera Santé
 
+## 0.6.2 — 7 novembre 2026
+
+Étape 5 (module Patients), troisième sous-étape, première partie : **droits de la fiche patient et onglet en tête**. Décisions du porteur du 7 novembre 2026.
+
+- Créer ou corriger une fiche patient : IDE, secrétaire et cadre par défaut. **L'AS ne crée plus de fiche** : dans la fenêtre *Nouvelle mesure*, elle choisit une fiche existante ; si la date de naissance manque, un IDE, la secrétaire ou le cadre la complète. La secrétaire peut désormais créer et corriger les fiches (onglet *Patients*). Réglable dans *Rôles et accès* (accès « Fiches patient : créer et corriger »).
+- Le mode d'hospitalisation reste saisi avec la mesure : il passe dans l'accès « Début et fin des mesures, changement de lieu, mode d'hospitalisation ». Un rôle créé par l'établissement qui avait l'accès aux fiches sans celui des mesures ne saisit plus le mode.
+- La fiche suit le patient lors d'un transfert, même sans le droit de corriger les fiches.
+- L'onglet *Patients* appartient au module Patients et s'affiche en tête de la barre d'onglets.
+- Tests mis à jour (189 au vert) ; fenêtre *Nouvelle mesure* vue avec le rôle AS dans Chrome.
+
 ## 0.6.1 — 7 novembre 2026
 
 Étape 5 (module Patients), deuxième sous-étape : **la fiche patient est tenue par le module Patients**. Aucun changement de calcul : registre, cumuls et échéances identiques.

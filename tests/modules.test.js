@@ -23,7 +23,8 @@ test('Isocont : contrat déclaré au registre, identique à ce que le modèle ex
   assert.equal(contrat.reglages.defaut, M.CONFIG_DEFAUT);
   assert.equal(contrat.reglages.groupes, M.GROUPES_REGLAGES);
   assert.equal(contrat.saisies.reduire, M.reduire);
-  assert.deepEqual(contrat.vues.onglets.filter((o) => o.masquable).map((o) => o.code), M.ONGLETS_MASQUABLES);
+  assert.deepEqual(registre.onglets().filter((o) => o.masquable).map((o) => o.code).sort(), M.ONGLETS_MASQUABLES.slice().sort());
+  assert.deepEqual(registre.onglets().map((o) => o.code).slice(0, 2), ['patients', 'tableau']);   // Patients en tête
   // Droits liés aux données d'Isocont : mêmes réponses que l'interface historique du modèle
   const cfg = { roles: { IDE: { journal: 'siennes' }, R_DIR: { libelle: 'Direction (fictif)', acces: ['stats'], services: false } } };
   for (const r of ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'ADMIN', 'R_DIR']) {
@@ -40,7 +41,7 @@ test('Isocont : contrat déclaré au registre, identique à ce que le modèle ex
 
 test('Module Patients : module de référence, saisies de la fiche, chargé avant Isocont, fiche reconstituée', () => {
   const P = registre.obtenir('patients');
-  assert.ok(P.reference && P.vues.onglets.length === 0);
+  assert.ok(P.reference && P.vues.onglets.length === 1);
   assert.deepEqual(registre.affiches().map((m) => m.id), ['isocont']);
   assert.deepEqual(registre.ordre().map((m) => m.id), ['patients', 'isocont']);
   assert.equal(registre.moduleDuType('PATIENT').id, 'patients');

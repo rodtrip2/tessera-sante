@@ -29,8 +29,9 @@
   // actions JLD (usage prévu le week-end et en l'absence de la secrétaire).
   var DROITS = {
     IDE: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],
-    AS: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],   // mêmes droits que l'IDE
-    SECRETAIRE: ['JLD', 'RECOURS'],
+    // AS : ni création ni correction des fiches patient (décision du porteur du 7 novembre 2026), sinon comme l'IDE
+    AS: ['MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],
+    SECRETAIRE: ['PATIENT', 'JLD', 'RECOURS'],   // fiches patient : IDE, secrétaire et cadre par défaut (décision du 4 novembre 2026)
     CADRE: ['PATIENT', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'ENTRETIEN', 'CORRECTION', 'REFUS_PROPOSITION', 'ANNULATION', 'STATS', 'FUSION'],
     ADMIN: ['CONFIG', 'ANNULATION', 'COMPTE', 'LOT', 'INTEGRITE']
   };
@@ -41,8 +42,8 @@
    * Le rôle Administrateur est fixe : droits d'administration, non modifiable (choix du porteur).
    */
   var ACCES = [
-    { code: 'patients', libelle: 'Fiches patient et mode d’hospitalisation', types: ['PATIENT', 'MODE_HOSPI'] },
-    { code: 'mesures', libelle: 'Début et fin des mesures, changement de lieu', types: ['MESURE_DEBUT', 'MESURE_FIN'] },
+    { code: 'patients', libelle: 'Fiches patient : créer et corriger (module Patients)', types: ['PATIENT'] },
+    { code: 'mesures', libelle: 'Début et fin des mesures, changement de lieu, mode d’hospitalisation', types: ['MESURE_DEBUT', 'MESURE_FIN', 'MODE_HOSPI'] },
     { code: 'pauses', libelle: 'Pauses (levées temporaires) et reprises', types: ['PAUSE', 'REPRISE'] },
     { code: 'tiers', libelle: 'Information du tiers', types: ['TIERS'] },
     { code: 'jld', libelle: 'Envois au JLD et décisions reçues', types: ['JLD'] },
