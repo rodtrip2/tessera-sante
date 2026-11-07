@@ -40,6 +40,7 @@ require('../app/js/store.js');
 require('../app/js/session.js');
 const { Dossier, Session } = globalThis.SIC;
 const C = globalThis.SIC.crypto;
+const M = globalThis.SIC.model;
 
 async function nouveauDossier() {
   const racine = new Repertoire('TesseraSante');
@@ -157,4 +158,37 @@ test('Dossier de secours : journaux copiés, instantanés et jeu de formation ex
   assert.ok(!isoS.e.has('instantanes') && !isoS.e.has('formation'));
   const s = await connecter(secoursRep);
   assert.ok(s.etat.mesures.M1);
+});
+
+test('Activation du module par service : réglage du socle, services visibles, saisies refusées, consultation par l’encadrement', async () => {
+  const { racine, admin } = await nouveauDossier();
+  await admin.enregistrer('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'Unité 1 (fictive)' }, { code: 'U2', libelle: 'Unité 2 (fictive)' }] });
+  await admin.enregistrer('MESURE_DEBUT', { mesureId: 'M2', patientId: 'P', service: 'U2', typeMesure: 'Isolement', debut: Date.now() - 3600e3, csi: true });
+  await admin.creerComptes([
+    { nom: 'IDE (fictif)', login: 'ide', motDePasse: 'mot de passe ide 1', roles: ['IDE'], services: ['U1', 'U2'] },
+    { nom: 'Cadre (fictif)', login: 'cadre', motDePasse: 'mot de passe cadre', roles: ['CADRE'], services: ['U1', 'U2'] }
+  ]);
+  const co = async (login, mdp) => { const s = new Session(new Dossier(racine, 'reseau')); await s.chargerCoffre(); await s.connexionMotDePasse(login, mdp); return s; };
+  // Sans réglage : activé partout (comportement d'origine)
+  let ide = await co('ide', 'mot de passe ide 1');
+  assert.deepEqual(ide.mesServices(), ['U1', 'U2']);
+  // Désactivation pour U2 : saisie de l'administrateur au journal du socle
+  const r = await admin.enregistrer('CONFIG', { cle: 'modulesServices', valeur: { isocont: { tous: false, services: ['U1'] } } });
+  assert.ok(saisiesDe(racine, SOCLE).includes(r.id));
+  ide = await co('ide', 'mot de passe ide 1');
+  const cadre = await co('cadre', 'mot de passe cadre');
+  assert.deepEqual(ide.mesServices(), ['U1']);                       // l'IDE ne voit plus U2
+  assert.deepEqual(cadre.mesServices(), ['U1', 'U2']);               // l'encadrement consulte U2
+  assert.deepEqual(admin.mesServices(), ['U1', 'U2']);
+  assert.deepEqual(M.droits.servicesInactifs(cadre.etat.config), ['U2']);
+  // Aucune saisie dans U2, même pour le cadre ; U1 inchangé
+  await assert.rejects(cadre.enregistrer('MESURE_DEBUT', { mesureId: 'M3', patientId: 'P', service: 'U2', typeMesure: 'Isolement', debut: Date.now(), csi: true }), /désactivé pour le service Unité 2/);
+  await assert.rejects(cadre.enregistrer('MESURE_FIN', { mesureId: 'M2', fin: Date.now() }), /consultation seule/);
+  await cadre.enregistrer('MESURE_DEBUT', { mesureId: 'M1', patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: Date.now(), csi: true });
+  assert.ok(cadre.etat.mesures.M2 && cadre.etat.mesures.M1);         // données de U2 conservées
+  // Un service créé ensuite reste à activer ; la réactivation de tous les services rend le réglage d'origine
+  await admin.enregistrer('CONFIG', { cle: 'services', valeur: admin.etat.config.services.concat([{ code: 'U3', libelle: 'Unité 3 (fictive)' }]) });
+  assert.equal(M.droits.serviceActif(admin.etat.config, 'U3'), false);
+  await admin.enregistrer('CONFIG', { cle: 'modulesServices', valeur: {} });
+  assert.deepEqual(M.droits.servicesInactifs(admin.etat.config), []);
 });

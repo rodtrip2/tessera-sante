@@ -26,12 +26,34 @@
    * Droits d'un module. `def` : { roles: { CODE: libellé } (ADMIN compris), rolesDeService, droits: { CODE: [types] },
    * acces: [{ code, libelle, types }], typesAdmin, rolesFournis, ongletsMasquables, typesEnPlus: { CODE: [types] }
    * (ajoutés aux droits historiques pour les accès par défaut), rolesJournalComplet (journal complet par défaut),
-   * ongletRegistreSeul (seul onglet d'un rôle « registre seulement ») }.
+   * ongletRegistreSeul (seul onglet d'un rôle « registre seulement »), module (identifiant du module, pour son activation
+   * par service), rolesEncadrement (rôles qui consultent un service où le module est désactivé, avec l'administrateur) }.
    */
   function creer(def) {
     var ROLES = def.roles, ROLES_DE_SERVICE = def.rolesDeService || [], DROITS = def.droits || {}, ACCES = def.acces || [];
     var TYPES_ADMIN = def.typesAdmin || [], ROLES_FOURNIS = def.rolesFournis || [], ONGLETS_MASQUABLES = def.ongletsMasquables || [];
     var TYPES_EN_PLUS = def.typesEnPlus || {}, JOURNAL_COMPLET = def.rolesJournalComplet || [], ONGLET_REGISTRE_SEUL = def.ongletRegistreSeul || null;
+    var MODULE = def.module || null, ENCADREMENT = def.rolesEncadrement || [];
+
+    // ------------------------------------------------ Activation du module par service (étape 3, architecture § 5)
+    /**
+     * Services où le module est activé (`config.modulesServices[module]`) : null = tous, y compris les services créés
+     * ensuite (sans réglage : comportement d'origine) ; sinon la liste des codes activés.
+     */
+    function activation(config) {
+      var v = MODULE && config && config.modulesServices && config.modulesServices[MODULE];
+      if (!v || v.tous !== false) return null;
+      return Array.isArray(v.services) ? v.services.map(String) : [];
+    }
+    function serviceActif(config, code) { var a = activation(config); return !a || a.indexOf(code) >= 0; }
+    /** Services où le module est désactivé (données conservées, plus de saisie, consultation par l'encadrement). */
+    function servicesInactifs(config) {
+      return ((config && config.services) || []).map(function (s) { return s.code; }).filter(function (c) { return !serviceActif(config, c); });
+    }
+    /** Vrai si ces rôles consultent les services où le module est désactivé (administrateur, encadrement). */
+    function consulteInactifs(roles) {
+      return (roles || []).some(function (r) { return r === 'ADMIN' || ENCADREMENT.indexOf(r) >= 0; });
+    }
 
 
 
@@ -145,6 +167,8 @@
     function servicesDe(compte, config) {
       var tous = (config.services || []).map(function (s) { return s.code; });
       if (!compte) return [];
+      // Services où le module est désactivé : visibles de l'administrateur et de l'encadrement seulement (consultation)
+      if (!consulteInactifs(compte.roles)) tous = tous.filter(function (c) { return serviceActif(config, c); });
       if (voitTousServices(compte.roles, config)) return tous;
       var affectes = compte.services || [];
       return tous.filter(function (c) { return affectes.indexOf(c) >= 0; });
@@ -173,7 +197,8 @@
       accesFormation: accesFormation, accesDefaut: accesDefaut, rolesConfig: rolesConfig, libRole: libRole, peut: peut,
       voitTousServices: voitTousServices, exigeService: exigeService, servicesDe: servicesDe,
       NIVEAUX_JOURNAL: NIVEAUX_JOURNAL, niveauJournal: niveauJournal, journalVisible: journalVisible,
-      ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, registreSeul: registreSeul
+      ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, registreSeul: registreSeul,
+      module: MODULE, ROLES_ENCADREMENT: ENCADREMENT, activation: activation, serviceActif: serviceActif, servicesInactifs: servicesInactifs, consulteInactifs: consulteInactifs
     };
   }
 

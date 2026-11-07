@@ -28,6 +28,7 @@
         'REFUS_PROPOSITION', 'STATS'],
       champ: M.champ,
       services: M.servicesSaisie,   // services concernés par une saisie (visibilité du journal)
+      cibles: M.servicesCibles,     // services sur lesquels une saisie agit (activation du module par service)
       reduire: M.reduire
     },
 

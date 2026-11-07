@@ -86,6 +86,19 @@
     if (TYPES_SOCLE[type] || (type === 'CONFIG' && data && REGLAGES_SOCLE[data.cle])) return js[0];
     return js[1];
   }
+  /**
+   * Activation du module par service (architecture § 5) : aucune saisie du module ne peut toucher un service où il
+   * est désactivé (données conservées, consultation seule). Les saisies du socle ne sont pas concernées.
+   */
+  function controlerActivation(s, type, data) {
+    var m = moduleActif(), cfg = config(s);
+    if (!s.etat || !m.saisies.cibles || journalPour(journaux(s), type, data).nom === SOCLE) return;
+    var inactifs = m.saisies.cibles(s.etat, { type: type, data: data || {} }).filter(function (c) { return !m.droits.serviceActif(cfg, c); });
+    if (inactifs.length) {
+      var lib = inactifs.map(function (c) { var x = (cfg.services || []).filter(function (v) { return v.code === c; })[0]; return x ? x.libelle : c; }).join(', ');
+      throw new Error('Le module « ' + (m.libelle || m.id) + ' » est désactivé pour ' + (inactifs.length > 1 ? 'les services ' : 'le service ') + lib + ' : consultation seule, aucune saisie possible.');
+    }
+  }
   function oublierJournaux(s) {
     s.journauxActifs = null; s.evts = []; s.rejetes = []; s.etat = null; s.integrite = null;
   }
@@ -365,6 +378,7 @@
     // Aperçu d'un rôle : rien n'est enregistré (seules les traces techniques des opérations réellement faites passent)
     if (this.apercu && type !== 'COMPTE') throw new Error('Aperçu de l’affichage du rôle « ' + this.apercu.libelle + ' » : aucune saisie n’est enregistrée. Revenez à votre affichage (liste « Affichage » en haut de l’écran) pour saisir.');
     if (!(options && options.sansControle) && !this.peut(type)) throw new Error("Votre rôle ne permet pas cette action.");
+    if (!(options && options.sansControle)) controlerActivation(this, type, data);
     var at = (options && options.at) || new Date().toISOString();
     var by = (options && options.by) || this.utilisateur.id;
     var j = journalPour(journaux(this), type, data), d = await dossierJournal(this, j, true);

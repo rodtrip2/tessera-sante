@@ -1,5 +1,15 @@
 # Journal des modifications — Tessera Santé
 
+## 0.4.0 — 7 novembre 2026
+
+**Étape 3 du plan d'architecture terminée** : comptes et services au socle, activation des modules par service.
+
+- **Modules activés par service** (*Administration → Établissement et services*, nouveau panneau) : l'administrateur coche, service par service, les modules activés. Réglage enregistré au journal du socle, annulable. Sans réglage, le module est activé pour tous les services (comportement d'origine).
+- **Service où le module est désactivé** : données conservées ; aucune saisie possible (refus expliqué) ; consultation par le cadre de santé et l'administrateur seulement, le service étant marqué « consultation seule » dans la liste de l'en-tête ; les autres agents ne le voient plus. Un agent dont tous les services sont désactivés en est informé.
+- Dès qu'un module est désactivé pour un service, un service créé ensuite est à activer dans le panneau.
+- Règles au socle (`droits.js`), services sur lesquels agit une saisie déclarés par le module (`saisies.cibles`).
+- Tests : activation, services visibles, refus des saisies, consultation par l'encadrement, réactivation.
+
 ## 0.3.1 — 7 novembre 2026
 
 Étape 3 du plan d'architecture, première partie : **journal du socle et rangement par journal**, sans changement de fonctionnement à l'écran.
