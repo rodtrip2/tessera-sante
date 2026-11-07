@@ -77,9 +77,12 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 
 ## 5. Module Agenda du service
 
-- **Calendrier du service** où apparaissent automatiquement les **échéances JLD** des mesures en cours, calculées par le module Isocont et toujours à jour.
-- Selon le choix de l'établissement, l'agenda affiche le patient par la référence de la mesure, ses initiales, son IPP ou son nom ; un clic ouvre la mesure pour qui y a accès.
-- Le contenu détaillé de l'agenda (autres événements du service) sera défini avec les équipes.
+- **Agenda du service** (jour, semaine) : accompagnements de patients avec les professionnels prévus et une plage horaire, activités thérapeutiques et liste des patients prévus, réunions, sorties ; répétition (chaque jour, certains jours, chaque mois) ; un élément d'un autre service qui concerne un patient hospitalisé dans le service s'y affiche aussi.
+- **Check-lists** (ex. sortie d'un patient) : chaque point a son délai (infirmier libéral prévenu 2 jours avant, transport commandé la veille, ordonnance le jour même…) et apparaît « en retard » s'il n'est pas fait à temps.
+- **Tâches** ponctuelles ou récurrentes, cochées « faites » par les agents : celles du service, réglées par le cadre, peuvent être affectées à un agent mais ne sont supprimées que par lui ; celles de l'équipe sont gérées par toute l'équipe.
+- **Absences** des professionnels (motif facultatif), signalées sur les éléments où ils étaient prévus.
+- À venir : **alertes** (patient à voir par le médecin, échéances JLD calculées par le module Isocont, réunions, check-lists) et **« Mon agenda »** de chaque professionnel.
+- Selon le choix de l'établissement, l'agenda désigne le patient par ses initiales (par défaut), son IPP ou son nom. Aucune donnée clinique : le contenu des prises en charge reste dans le dossier du patient.
 
 ## 6. Organisation et rôles
 

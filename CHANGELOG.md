@@ -1,5 +1,17 @@
 # Journal des modifications — Tessera Santé
 
+## 0.8.4 — 7 novembre 2026
+
+Agenda : décisions du porteur du 7 novembre 2026 sur les tâches, les check-lists et la répétition.
+
+- **Retirer cette date et les suivantes** : arrête la répétition d'un événement à partir d'une date (les dates précédentes sont gardées), à côté de *Retirer cette date*.
+- **Deux niveaux de tâches**, chacun avec ses droits :
+  - *tâche du service*, créée par les rôles qui règlent les tâches (cadre par défaut) : les autres rôles la cochent et, avec l'accès « Ajuster les tâches du service » (IDE et cadre par défaut), l'**ajustent** dans les limites du réglage : **agent affecté** à une date ou à certains jours de la répétition (affichage « → nom » dans l'agenda, bouton *Affecter*), et si l'établissement le permet heure et précision ; **seuls les rôles qui règlent les tâches la suppriment** ;
+  - *tâche de l'équipe*, créée par un agent (accès « Tâches de l'équipe » : IDE, AS, secrétaire, cadre) : modifiable et supprimable par toute l'équipe ; ponctuelle seulement, sauf réglage.
+  - Contrôles faits avant l'enregistrement (une saisie de l'équipe ne peut ni modifier ni supprimer une tâche du service) ; réglages dans *Administration → Agenda* ; onglet *Tâches du service* ouvert à qui a l'un des trois accès.
+- **Délai d'alerte pour chaque point de check-list** (jour même, veille, 2, 3, 5, 7 ou 14 jours avant, ou sans alerte). Modèle « Sortie du patient » fourni : infirmier libéral prévenu 2 jours avant ; rendez-vous au centre médico-psychologique et transport la veille ; lettre de sortie et ordonnance le jour même. Point non coché à sa date : « en retard » sur l'élément et dans sa check-list. Les alertes de l'agenda (sous-étape suivante) reprendront ces points.
+- Nouveaux tests (délais, tâches du service et de l'équipe, ajustement, contrôles par la session ; 207 au vert) ; écrans vérifiés dans Chrome.
+
 ## 0.8.3 — 7 novembre 2026
 
 Étape 6 (module Agenda), troisième sous-étape : **tâches, absences, répétition et check-lists**. Décisions du porteur du 7 novembre 2026.

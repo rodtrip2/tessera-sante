@@ -210,3 +210,69 @@ test('Check-list d’un événement (sortie) : points cochés par occurrence ; m
   assert.ok(A.tachePour(st.taches.T1, { id: 'x', roles: ['IDE'] }) && !A.tachePour(st.taches.T1, { id: 'y', roles: ['AS'] }));
   assert.equal(A.absences(st, L(2026, 11, 10), L(2026, 11, 11))[0].categorie, undefined);   // motif facultatif
 });
+
+test('Check-list : délai d’alerte par point (modèle de sortie), points en retard, anciens modèles en texte', () => {
+  const A = require('../app/js/module-agenda.js');
+  const L = (a, m, j, h) => new Date(a, m - 1, j, h || 0).getTime();
+  const sortie = A.checklists({})[0];
+  assert.deepEqual(sortie.items.map((x) => x.delai), [2, 1, 1, 0, 0]);
+  assert.deepEqual(A.checklists({ agenda: { checklists: [{ code: 'x', libelle: 'X', items: ['Point (fictif)'] }] } })[0].items, [{ libelle: 'Point (fictif)', delai: null }]);
+  const st = A.reduire([{ id: 'a', at: '2026-11-01T08:00:00.000Z', by: 'u', type: 'RDV', data: { id: 'S1', nature: 'sortie', titre: 'Sortie (fictif)', debut: L(2026, 11, 10, 14), service: 'U1', patients: [],
+    checklist: [{ id: 'i1', libelle: 'IDE libéral (fictif)', delai: 2 }, { id: 'i2', libelle: 'Transport (fictif)', delai: 1 }, { id: 'i3', libelle: 'Ordonnance (fictif)', delai: 0 }, { id: 'i4', libelle: 'Divers (fictif)' }] } },
+  { id: 'b', at: '2026-11-08T08:00:00.000Z', by: 'u', type: 'CHECK', data: { rdv: 'S1', item: 'i1', occurrence: '2026-11-10' } }]);
+  const e = A.etatChecklist(st.rdv.S1, '2026-11-10', L(2026, 11, 9, 10));
+  assert.equal(e.items[1].echeance, L(2026, 11, 9));
+  assert.deepEqual(e.items.map((x) => x.alerte), [false, true, false, false]);   // i1 fait ; transport attendu la veille ; ordonnance le jour même ; sans délai
+  assert.equal(A.etatChecklist(st.rdv.S1, '2026-11-10', L(2026, 11, 10, 9)).alertes, 2);
+  const al = A.alertesChecklists(st, {}, ['U1'], L(2026, 11, 9, 10));
+  assert.deepEqual(al.map((x) => x.item.id), ['i2']);
+});
+
+test('Tâches : du service (protégées) et de l’équipe, ajustement et affectation, contrôles', () => {
+  const A = require('../app/js/module-agenda.js');
+  const L = (a, m, j) => new Date(a, m - 1, j).getTime();
+  const D = SIC.modules.obtenir('agenda').droits;
+  assert.ok(D.peut(['IDE'], 'TACHE_AJUSTEMENT', {}) && D.peut(['IDE'], 'TACHE_EQUIPE', {}) && !D.peut(['IDE'], 'TACHE', {}));
+  assert.ok(D.peut(['AS'], 'TACHE_EQUIPE', {}) && !D.peut(['AS'], 'TACHE_AJUSTEMENT', {}));
+  let n = 0;
+  const ev = (type, data) => ({ id: 'e' + (++n), at: '2026-11-01T08:00:00.000Z', by: 'u', type, data });
+  const evts = [
+    ev('TACHE', { id: 'T1', titre: 'Chariot d’urgence (fictif)', service: 'U1', debut: '2026-11-02', regularite: { type: 'semaine', jours: [1, 4] } }),
+    ev('TACHE_EQUIPE', { id: 'T1', supprime: true }),   // une saisie d'équipe ne touche pas une tâche du service
+    ev('TACHE_EQUIPE', { id: 'T2', titre: 'Ranger la salle (fictif)', service: 'U1', debut: '2026-11-05' }),
+    ev('TACHE_AJUSTEMENT', { tache: 'T1', jours: [1], agent: 'u1', nom: 'IDE A (fictif)' }),
+    ev('TACHE_AJUSTEMENT', { tache: 'T1', occurrence: '2026-11-09', agent: 'u2', nom: 'IDE B (fictif)' }),
+    ev('TACHE_AJUSTEMENT', { tache: 'T1', occurrence: '2026-11-16', agent: null })];
+  const st = A.reduire(evts);
+  assert.equal(st.taches.T1.supprime, undefined);
+  assert.equal(st.taches.T1.niveau, 'service');
+  assert.equal(st.taches.T2.niveau, 'equipe');
+  const dues = A.tachesDues(st, ['U1'], L(2026, 11, 2), L(2026, 11, 17));
+  assert.deepEqual(dues.filter((x) => x.tache.id === 'T1').map((x) => [x.occurrence, x.affecte && x.affecte.agent]),
+    [['2026-11-02', 'u1'], ['2026-11-05', null], ['2026-11-09', 'u2'], ['2026-11-12', null], ['2026-11-16', null]]);
+  const ctx = (config, peut) => ({ etat: st, config, peut: (t) => (peut || []).includes(t) });
+  assert.throws(() => A.controler('TACHE_EQUIPE', { id: 'T1', titre: 'x' }, ctx({})), /tâche du service/);
+  assert.throws(() => A.controler('TACHE_EQUIPE', { id: 'T3', regularite: { type: 'jour' } }, ctx({})), /récurrentes/);
+  A.controler('TACHE_EQUIPE', { id: 'T3', regularite: { type: 'jour' } }, ctx({ agenda: { taches: { equipeRecurrentes: true } } }));
+  A.controler('TACHE_EQUIPE', { id: 'T3', regularite: { type: 'jour' } }, ctx({}, ['TACHE']));
+  A.controler('TACHE_EQUIPE', { id: 'T2', supprime: true }, ctx({}));
+  A.controler('TACHE_AJUSTEMENT', { tache: 'T1', occurrence: '2026-11-12', agent: 'u1' }, ctx({}));
+  assert.throws(() => A.controler('TACHE_AJUSTEMENT', { tache: 'T1', heure: '09:00' }, ctx({})), /heure/);
+  A.controler('TACHE_AJUSTEMENT', { tache: 'T1', heure: '09:00' }, ctx({ agenda: { taches: { ajustables: ['heure'] } } }));
+  assert.throws(() => A.controler('TACHE_AJUSTEMENT', { tache: 'T2', occurrence: '2026-11-05' }, ctx({})), /introuvable/);
+});
+
+test('Tâches de l’équipe et ajustement : contrôles appliqués par la session', async () => {
+  const { racine, admin, id } = await equipe();
+  await admin.enregistrer('TACHE', { id: 'T1', titre: 'Chariot (fictif)', service: 'U1', debut: '2026-11-02', regularite: { type: 'jour' } });
+  const as = await co(racine, 'as.a', 'mot de passe as a');
+  await as.enregistrer('TACHE_EQUIPE', { id: 'T2', titre: 'Ranger (fictif)', service: 'U1', debut: '2026-11-05' });
+  await assert.rejects(as.enregistrer('TACHE_EQUIPE', { id: 'T1', supprime: true, service: 'U1' }), /tâche du service/);
+  await assert.rejects(as.enregistrer('TACHE_AJUSTEMENT', { tache: 'T1', occurrence: '2026-11-03', agent: id('as.a'), service: 'U1' }), /rôle/);
+  const ide = await co(racine, 'ide.a', 'mot de passe ide a');
+  await ide.enregistrer('TACHE_AJUSTEMENT', { tache: 'T1', occurrence: '2026-11-03', agent: id('as.a'), nom: 'AS A (fictif)', service: 'U1' });
+  await ide.enregistrer('TACHE_EQUIPE', { id: 'T2', supprime: true, service: 'U1' });   // tâche d'équipe : supprimable par un autre agent
+  const st = ide.etatModule('agenda');
+  assert.equal(st.taches.T1.affectations['2026-11-03'].agent, id('as.a'));
+  assert.equal(st.taches.T2.supprime, true);
+});

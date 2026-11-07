@@ -489,3 +489,8 @@ fieldset.role { margin-bottom: 12px; }
 .agenda-taches { display: grid; gap: 2px; margin-bottom: 6px; padding: 4px 6px; background: var(--muted-soft); border-radius: 6px; font-size: .84rem; }
 .agenda-tache.faite span { text-decoration: line-through; color: var(--ink-2); }
 .agenda-tache.autre { opacity: .75; }
+/* Agenda : point de check-list et son délai d'alerte sur une ligne */
+.agenda-point { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.agenda-point > .case { flex: 1 1 14rem; }
+.agenda-point select.delai { width: auto; flex: 0 0 auto; }
+.agenda-point input[type=text] { flex: 1 1 14rem; width: auto; }
