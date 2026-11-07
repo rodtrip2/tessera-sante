@@ -336,7 +336,7 @@ Points de vigilance : `ui.js` est le découpage le plus long, à faire par blocs
 | Absences | Saisies par le cadre et par l'agent pour lui-même ; motif facultatif (catégorie seulement : congé, formation, réunion extérieure, autre) | 7 nov. 2026 |
 | Tâches du service | Onglet réservé à l'accès « Régler les tâches » pour les tâches ponctuelles et récurrentes | 7 nov. 2026 |
 | Événements | Répétition possible ; check-list de points à réaliser avant l'événement | 7 nov. 2026 |
-| Icône | Pas d'initiales (« TS » connoté en psychiatrie) : mosaïque de tesselles | 7 nov. 2026 |
+| Icône | Pas d'initiales écrites (« TS » connoté en psychiatrie) : rosace de tesselles de plusieurs teintes (verts, bleu pétrole, vert sauge, ambre), dont les tesselles claires dessinent un T | 7 nov. 2026 |
 | Tâches | Validation = simple coche « faite » (nom et heure gardés) | 7 nov. 2026 |
 | Alertes de l'Agenda | Types paramétrables (liste fournie modifiable, types ajoutés par l'établissement, « Autre » libre) ; saisies par l'équipe ; certificats légaux calculés plus tard | 7 nov. 2026 |
 | Patient suivi par un autre service | Les éléments de l'agenda du service B concernant un patient hospitalisé dans le service A s'affichent dans l'agenda de A : lecture seule par défaut, modification réglable, commentaire toujours possible | 7 nov. 2026 |

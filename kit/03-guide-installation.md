@@ -29,7 +29,7 @@
 
 **Intranet (recommandé)** — copier le contenu de `app/` dans un site web statique servi en HTTPS, par exemple `https://intranet.etablissement.fr/tessera/`. Ajouter les en-têtes conseillés dans la fiche technique (section 4, *Serveur web*). Diffuser le lien sur les postes (favori, raccourci).
 
-**Raccourci et icône, dans une fenêtre séparée.** L'application fournit son icône (`app/img/icone.ico`, mosaïque de tesselles) et se déclare comme application : installée, elle s'ouvre **dans sa propre fenêtre**, sans onglets ni barre d'adresse. Quatre façons de la mettre à disposition :
+**Raccourci et icône, dans une fenêtre séparée.** L'application fournit son icône (`app/img/icone.ico`, rosace de tesselles) et se déclare comme application : installée, elle s'ouvre **dans sa propre fenêtre**, sans onglets ni barre d'adresse. Quatre façons de la mettre à disposition :
 
 - **depuis l'outil** (HTTPS) : bouton *Installer comme application* (en-tête, écran d'accueil ou de connexion), affiché quand Edge ou Chrome le permet ;
 - **stratégie Edge déployée par le service informatique** (recommandé, HTTPS) : la stratégie `WebAppInstallForceList` installe l'outil sur les postes choisis, avec un raccourci sur le bureau. Valeur (JSON) : `[{"url": "https://intranet.etablissement.fr/tessera/", "default_launch_container": "window", "create_desktop_shortcut": true}]` (Chrome : même stratégie) ;

@@ -1,5 +1,10 @@
 # Journal des modifications — Tessera Santé
 
+## 0.9.2 — 7 novembre 2026
+
+- **Nouvelle icône** (choix du porteur) : rosace de tesselles sur le fond vert de l'outil, en plusieurs teintes accordées (verts, bleu pétrole, vert sauge, quelques tesselles ambre) ; les tesselles claires dessinent un T. Version simplifiée pour les petites tailles (onglet du navigateur), où le T reste lisible. Produite par `scripts/icone.py` (icône Windows, PNG de l'en-tête et de l'application installée).
+- Captures du guide pratique IDE et AS refaites.
+
 ## 0.9.1 — 7 novembre 2026
 
 Décisions du porteur du 7 novembre 2026.
