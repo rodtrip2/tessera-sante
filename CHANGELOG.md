@@ -1,5 +1,17 @@
 # Journal des modifications — Tessera Santé
 
+## 0.4.4 — 7 novembre 2026
+
+Étape 4 (trousseau), quatrième sous-étape : **remise et retrait des clés selon les droits**. Un droit = une clé est désormais effectif.
+
+- La clé d'Isocont n'est remise qu'aux comptes qui ont un rôle d'Isocont et au moins un service où le module est activé (cadre et administrateur selon les règles d'activation ; l'administrateur a toujours toutes les clés). Un agent sans cette clé ne lit pas le journal d'Isocont et en est informé ; les réglages communs (services, établissement) restent lisibles.
+- Retrait d'un rôle, désactivation d'un compte, module désactivé pour les services d'un agent : nouvelle génération de la clé concernée, automatique, remise aux seuls détenteurs restants ; l'agent retiré ne lit pas les saisies postérieures, même avec une clé gardée. Retrait du rôle d'administrateur : nouvelle clé maîtresse ; le code de secours lit toujours toutes les générations.
+- Premier changement de mot de passe : l'agent crée sa propre clé personnelle, que l'administrateur n'a jamais connue.
+- Postes ouverts : trousseau relu quand le coffre change ; accès retiré ou clés renouvelées → verrouillage avec message.
+- *Comptes et sécurité* : « Clés à réémettre » liste les comptes au trousseau incomplet, avec réémission.
+- Défaut trouvé et corrigé pendant le développement (jamais publié) : une copie de travail du trousseau partageait les octets des clés et pouvait les effacer. Garde-fou ajouté : une clé aux octets tous nuls est refusée.
+- Nouveau test `tests/trousseau-droits.test.js` (166 au vert) ; vérification dans Chrome.
+
 ## 0.4.3 — 7 novembre 2026
 
 Étape 4 (trousseau), troisième sous-étape : **migration d'un coffre version 1**.
