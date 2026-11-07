@@ -208,14 +208,21 @@ La règle est enregistrée avec le modèle d'import. Les lignes que la règle ne
 | `Nom prénom` | Nom, prénom, nom de naissance | Découpée : « NOM PRENOM Née NOMNAISSANCE », mot-clé `Née` ou `Né` toujours présent, même si le nom de naissance est identique |
 | `Né·e le` | Date de naissance | JJ/MM/AAAA |
 | `Entrée` | Date d'entrée du séjour | JJ/MM/AAAA |
-| `RM`, `RH` | Unité médicale, unité d'hébergement | Codes d'unité du DPI, à faire correspondre aux services de Tessera (sens à confirmer) |
-| `Loc.` | Chambre (et lit) | Ex. `HD412-U` : découpage de la chambre et du lit à confirmer |
+| `RM`, `RH` | Unité médicale, unité d'hébergement | Codes d'unité du DPI (confirmé), à faire correspondre aux services de Tessera |
+| `Loc.` | Chambre et lit | Ex. `HD412-U` = chambre 412, lit U (unique) ; P = côté porte, F = côté fenêtre (confirmé). Le préfixe (`HD`) est conservé tel quel |
 | `Médecin responsable` | Non importé par défaut | Médecin référent du DPI, distinct des médecins de 1re et 2e ligne de Tessera |
 | `Commentaires` | Non importé | Texte libre : risque de données cliniques |
 
 **Identifiant d'épisode (IEP) et identifiant permanent (IPP).** L'IEP identifie un séjour, l'IPP identifie le patient pour toute sa vie. Si l'export ne contient que l'IEP, une réadmission arrive avec un nouvel IEP : Tessera doit alors rattacher le patient à sa fiche existante par la détection des doublons (nom, prénom, nom de naissance, date de naissance, sexe), avec confirmation dans l'aperçu. Le registre de l'isolement et de la contention exige l'identifiant du patient : **l'ajout de l'IPP à l'export est à demander** à l'administrateur du DPI ; à défaut, il est saisi dans Tessera.
 
-**Découpage du nom quand tout est en majuscules.** Avec « NOM NOM PRENOM Né … », un nom composé sans trait d'union ne se distingue pas d'un prénom si l'export écrit tout en capitales. Règle proposée : le dernier mot avant le mot-clé est le prénom, le reste est le nom ; un prénom composé avec trait d'union reste entier. Les lignes de plus de deux mots avant le mot-clé sont signalées dans l'aperçu pour vérification, et une fiche déjà connue garde le découpage validé.
+**Découpage du nom.** Dans l'export de Sillage, tout est en majuscules sauf le mot-clé `Né` ou `Née` (confirmé par le porteur) : un nom composé sans trait d'union (« LE GALL ») ne se distingue donc pas d'un prénom par l'écriture. Règles appliquées dans l'ordre :
+
+1. **Le mot-clé sépare le nom de naissance** : ce qui suit `Né` ou `Née` est le nom de naissance.
+2. **Le nom de naissance sert de repère** : si le texte avant le mot-clé commence par le nom de naissance, ce nom est le nom d'usage et le reste est le prénom (« LE GALL MARIE Née LE GALL » → nom LE GALL, prénom MARIE). C'est le cas de la plupart des hommes et des femmes qui portent leur nom de naissance.
+3. **Sinon, le dernier mot avant le mot-clé est le prénom**, le reste est le nom ; un prénom composé avec trait d'union reste entier.
+4. **Vérification** : toute ligne découpée par la règle 3 avec plus de deux mots avant le mot-clé est signalée dans l'aperçu (nom composé ou prénom composé sans trait d'union) ; le découpage validé est gardé pour cette fiche aux imports suivants.
+
+Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre ») ; le nom reste en capitales.
 
 **À prévoir par l'établissement** : le fichier exporté du DPI contient des données nominatives en clair sur le poste. Il doit être enregistré dans un dossier aux droits restreints et supprimé après l'import. Aucune interface automatique avec le DPI n'est prévue à ce stade ; des flux HL7 (profil IHE PAM, extension française) pourraient être étudiés plus tard avec le service informatique.
 
