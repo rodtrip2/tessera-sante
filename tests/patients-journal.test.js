@@ -262,3 +262,28 @@ test('Reprise de l’historique puis liste du DPI : deux lots liés, calculs ide
   const loin = new Date(maintenant); loin.setFullYear(loin.getFullYear() + 3);
   assert.deepEqual(M.auDelaConservation(ad.etat, 1, loin.getTime()).map((x) => x.patient.ipp), ['000002']);
 });
+
+test('Synchronisation : un journal interrompu ne fait perdre ni les patients ni les mesures ; lectures simultanées sans doublon (défaut du 7 novembre 2026)', async () => {
+  const { racine, admin } = await nouveauDossier();
+  await admin.enregistrer('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1' }] });
+  await admin.enregistrer('PATIENT', { patientId: 'P1', nom: 'MARTIN (fictif)', prenom: 'Lou', service: 'U1' });
+  await admin.enregistrer('PATIENT', { patientId: 'P2', nom: 'DURAND (fictif)', prenom: 'Sam', service: 'U1' });
+  const s = new Session(new Dossier(racine, 'reseau'));
+  await s.chargerCoffre();
+  // Parcours du journal d'Isocont interrompu (dossier modifié pendant la lecture par un autre poste)
+  const iso = racine.e.get('modules').e.get('patients').e.get('evenements');
+  const origine = iso.values;
+  iso.values = async function* () { throw Object.assign(new Error('état du dossier modifié'), { name: 'InvalidStateError' }); };
+  await s.connexionMotDePasse('admin', 'mot de passe solide');
+  assert.ok(s.interruption, 'interruption signalée');
+  iso.values = origine;
+  await s.synchroniser();
+  assert.ok(!s.interruption);
+  assert.equal(Object.keys(s.etat.patients).length, 2, 'fiches relues à la synchronisation suivante');
+  // Plusieurs synchronisations lancées en même temps : chaque saisie une seule fois
+  await admin.enregistrer('PATIENT', { patientId: 'P3', nom: 'PETIT (fictif)', service: 'U1' });
+  await Promise.all([s.synchroniser(), s.synchroniser(), s.synchroniser()]);
+  const ids = s.evts.map((e) => e.id);
+  assert.equal(new Set(ids).size, ids.length, 'aucune saisie en double');
+  assert.equal(Object.keys(s.etat.patients).length, 3);
+});

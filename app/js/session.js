@@ -427,6 +427,7 @@
   }
 
   function oublierJournaux(s) {
+    s.epoque = (s.epoque || 0) + 1;
     s.journauxActifs = null; s.evts = []; s.rejetes = []; s.etat = null; s.integrite = null;
   }
 
@@ -1407,7 +1408,25 @@
     this.notifier(info);
   };
 
-  Session.prototype.synchroniser = async function () {
+  /**
+   * Synchronisation : une seule à la fois (les appels se suivent dans une file). Deux lectures simultanées des mêmes
+   * journaux, ou une lecture commencée avant un changement de clés ou de jeu (formation), pouvaient laisser la session
+   * sans patients ni mesures jusqu'à la reconnexion (défaut signalé par le porteur le 7 novembre 2026).
+   */
+  Session.prototype.synchroniser = function () {
+    var s = this;
+    // Appel fait pendant une synchronisation (jeu de formation changé depuis un autre poste) : lecture immédiate,
+    // sinon elle attendrait la fin de celle qui l'a demandée ; les journaux changés écartent l'ancienne lecture.
+    if (s.dansSynchro) return synchroniserUneFois(s);
+    var suite = (s.fileSynchro || Promise.resolve()).catch(function () {}).then(async function () {
+      s.dansSynchro = true;
+      try { return await synchroniserUneFois(s); } finally { s.dansSynchro = false; }
+    });
+    s.fileSynchro = suite;
+    return suite;
+  };
+  async function synchroniserUneFois(s) { return Session.prototype.synchroniserUneFois.call(s); }
+  Session.prototype.synchroniserUneFois = async function () {
     if (!this.cle) return 0;
     if (this.derniereSynchro && Date.now() - (this.dernierCoffre || 0) > 60000) {
       this.dernierCoffre = Date.now();
@@ -1436,11 +1455,15 @@
         }
       } catch (e) { /* coffre momentanément illisible : nouvelle tentative plus tard */ }
     }
-    var js = journaux(this), nouveaux = [];
+    var js = journaux(this), nouveaux = [], epoque = this.epoque || 0, interruption = null;
     for (var k = 0; k < js.length; k++) {
-      var j = js[k], d = await dossierJournal(this, j, false);
-      if (!d) continue;   // journal pas encore créé (aucune saisie)
-      var r = await d.lireNouveaux(j.cle, j.connus);
+      var j = js[k], d = null, r;
+      try {
+        d = await dossierJournal(this, j, false);
+        if (!d) continue;   // journal pas encore créé (aucune saisie)
+        r = await d.lireNouveaux(j.cle, j.connus);
+      } catch (e) { interruption = e; continue; }   // journal momentanément illisible : les autres sont lus quand même
+      if (r.interrompu) interruption = new Error(r.interrompu);
       // Fichiers illisibles : liste tenue à jour à chaque lecture (un fichier relu avec succès en sort)
       var lus = {}; r.evenements.forEach(function (e) { lus[e.id + '.enc'] = true; });
       var parNom = {}; j.rejetes.forEach(function (x) { if (!lus[x.nom]) parNom[x.nom] = x; });
@@ -1449,7 +1472,10 @@
       j.evts = j.evts.concat(r.evenements);
       nouveaux = nouveaux.concat(r.evenements);
     }
+    // Journaux oubliés pendant la lecture (clés ou jeu changés) : résultat écarté, la lecture suivante repart de zéro
+    if ((this.epoque || 0) !== epoque || this.journauxActifs !== js) return 0;
     this.rejetes = [].concat.apply([], js.map(function (x) { return x.rejetes; }));
+    this.interruption = interruption ? String(interruption.message || interruption) : null;
     this.derniereSynchro = Date.now();
     if (nouveaux.length || !this.etat) {
       this.evts = this.evts.concat(nouveaux);
