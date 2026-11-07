@@ -220,3 +220,45 @@ test('Séjour : saisie du module Patients, permise aux IDE, secrétaire et cadre
   await assert.rejects(as.enregistrer('PATIENT', { patientId: 'P1', nom: 'X' }), /rôle/);
   assert.equal(as.etat.patients.P1.nom, 'SEJOUR (fictif)');                   // l'AS lit la fiche
 });
+
+test('Reprise de l’historique puis liste du DPI : deux lots liés, calculs identiques à un lot unique, fiche complétée par l’IPP, relance sans doublon', async () => {
+  const R = require('../app/js/import-registre.js');
+  const IP = require('../app/js/import-patients.js');
+  const { racine } = await equipe();
+  const ad = await connecter(racine);
+  const REG = [
+    'N° registre;Cat.;IPP;Âge;Mode;Date début;Heure début;Date fin;Heure fin;Lieu;Psychiatre;Soignants',
+    'A1;A;000001;35;SDT;02/01/2026;08:00;02/01/2026;12:00;CSI 1;Dr Exemple (fictif);Agent A (fictif) (IDE)',
+    'C2;C;000001;35;SDT;02/01/2026;12:00;02/01/2026;18:00;CSI 1;Dr Exemple (fictif);Agent A (fictif) (IDE)',
+    'B3;B;000002;50;SPI;10/01/2026;09:00;10/01/2026;15:00;Chambre 3;Dr Autre (fictif);'].join('\r\n');
+  const lignes = R.lireCSV(REG), g = R.deviner(lignes), maintenant = Date.now();
+  const prep = R.preparer({ lignes, ligneEntete: g.ligneEntete, correspondance: g.correspondance }, ad.etat, { maintenant, serviceParDefaut: 'U1' });
+  const avant = ad.evts.slice();
+  const lot = await ad.enregistrerLot(prep.evenements, { libelle: 'Import du registre (fictif)' });
+  const lots = ad.evts.filter((e) => e.type === 'LOT');
+  assert.deepEqual(lots.map((e) => e.data.journal).sort(), ['isocont', 'patients']);
+  // Calculs identiques à ceux d'un lot unique (comme avant la séparation des journaux)
+  const unique = M.reduire(avant.concat([{ id: 'zLOT', at: lot.at, by: ad.utilisateur.id, type: 'LOT', data: { evenements: prep.evenements } }]));
+  const reg = (st) => M.registre(st, 'U1', 2026, maintenant).map((e) => [e.numero, e.categorie, e.debut, e.fin]);
+  assert.deepEqual(reg(ad.etat), reg(unique));
+  assert.deepEqual(Object.values(ad.etat.patients).map((p) => p.ipp).sort(), ['000001', '000002']);
+  // Fiches de l'historique : source « import », complétées par la liste du DPI (rattachées par l'IPP)
+  const p1 = Object.values(ad.etat.patients).find((p) => p.ipp === '000001');
+  assert.equal(p1.sources.ipp, 'import');
+  const LISTE = ['IPP;IEP;Sexe;Nom prénom;Né·e le;Entrée;RM;Loc.', '000001;8001;F;MARTIN ZOE Née MARTIN;01/02/1991;01/11/2026;UHP1;HD412-U'].join('\r\n');
+  const l2 = IP.lireCSV(LISTE), m2 = IP.appliquerModele(l2, null); m2.unites = { UHP1: 'U1' };
+  const an = IP.analyser(l2, m2, ad.etat.patients, {});
+  assert.equal(an.lignes[0].fiche.id, p1.id);
+  await ad.enregistrerLot(IP.saisies(an, {}).evenements, { libelle: 'Liste du DPI (fictif)' });
+  const f = ad.etat.patients[p1.id];
+  assert.equal(f.nom, 'MARTIN'); assert.equal(f.prenom, 'Zoe'); assert.equal(f.sexe, 'F');
+  assert.equal(f.sejours[0].chambre, '412');
+  assert.equal(ad.etat.mesures[Object.keys(ad.etat.mesures).find((k) => ad.etat.mesures[k].patientId === p1.id)].patientId, p1.id);
+  // Relance de l'import du registre : aucun doublon
+  const prep2 = R.preparer({ lignes, ligneEntete: g.ligneEntete, correspondance: g.correspondance }, ad.etat, { maintenant, serviceParDefaut: 'U1' });
+  assert.equal(prep2.rapport.mesures, 0);
+  assert.equal(prep2.rapport.patients, 0);
+  // Durée de conservation : séjour en cours (Patients) retient le patient malgré une mesure ancienne
+  const loin = new Date(maintenant); loin.setFullYear(loin.getFullYear() + 3);
+  assert.deepEqual(M.auDelaConservation(ad.etat, 1, loin.getTime()).map((x) => x.patient.ipp), ['000002']);
+});

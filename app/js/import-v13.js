@@ -174,7 +174,7 @@
       var id = 'P' + aleatoire();
       var sv = S(col(info, 'Service')) || svDefaut;
       var nom = txt(col(info, 'Nom')) || txt(nomMesure) || 'IMPORT ' + ipp;
-      ajouter('PATIENT', { patientId: id, ipp: ipp, nom: nom.toUpperCase(), prenom: txt(col(info, 'Prenom')), naissance: dateISO(col(info, 'Naissance')), protection: oui(col(info, 'Mesure de protection juridique (OUI/NON)')) ? 'Mesure de protection juridique' : '', service: sv });
+      ajouter('PATIENT', { patientId: id, ipp: ipp, nom: nom.toUpperCase(), prenom: txt(col(info, 'Prenom')), naissance: dateISO(col(info, 'Naissance')), protection: oui(col(info, 'Mesure de protection juridique (OUI/NON)')) ? 'Mesure de protection juridique' : '', service: sv, origine: 'import-historique' });
       var depuis = (premiereMesure[ipp] || maintenant) - H;
       var hist = (historique[ipp] || []).sort(function (a, b) { return a.date - b.date; });
       var initial = hist.length ? (hist[0].ancien || hist[0].nouveau) : txt(col(info, "Mode d'hospitalisation"));

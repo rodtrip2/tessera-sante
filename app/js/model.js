@@ -750,14 +750,19 @@
     return { patient: p, mesures: mesures, registre: entrees.sort(function (a, b) { return a.debut - b.debut; }) };
   }
 
-  /** Patients dont la dernière mesure s'est terminée il y a plus de `ans` années (durée de conservation dépassée). */
+  /**
+   * Patients dont la dernière activité, dans tous les modules, remonte à plus de `ans` années (durée de conservation
+   * dépassée) : fin de la dernière mesure (Isocont) et sortie du dernier séjour (Patients) ; une mesure ou un séjour en
+   * cours retient le patient. Signalement seulement, aucune suppression.
+   */
   function auDelaConservation(st, ans, maintenant) {
     if (!ans) return [];
     var limite = new Date(maintenant); limite.setFullYear(limite.getFullYear() - ans);
     var derniere = {};
-    listeMesures(st).forEach(function (m) {
-      var f = typeof m.fin === 'number' ? m.fin : Infinity;
-      if (!(m.patientId in derniere) || f > derniere[m.patientId]) derniere[m.patientId] = f;
+    function noter(id, f) { if (!(id in derniere) || f > derniere[id]) derniere[id] = f; }
+    listeMesures(st).forEach(function (m) { noter(m.patientId, typeof m.fin === 'number' ? m.fin : Infinity); });
+    Object.keys(st.patients).forEach(function (id) {
+      (st.patients[id].sejours || []).forEach(function (s) { noter(id, s.sortie ? new Date(s.sortie + 'T23:59:59').getTime() : Infinity); });
     });
     return Object.keys(derniere).filter(function (id) { return derniere[id] < limite.getTime() && st.patients[id]; })
       .map(function (id) { return { patient: st.patients[id], derniereFin: derniere[id] }; });

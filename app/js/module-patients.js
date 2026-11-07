@@ -42,7 +42,7 @@
           p[k] = d[k];
           // Source de chaque champ : import de la liste du DPI ou saisie dans Tessera (une saisie n'est pas écrasée
           // par un import ultérieur)
-          (p.sources = p.sources || {})[k] = d.origine === 'import-dpi' ? 'import' : 'saisie';
+          (p.sources = p.sources || {})[k] = /^import/.test(d.origine || '') ? 'import' : 'saisie';
         });
         st.fiches[id] = p;
         break;

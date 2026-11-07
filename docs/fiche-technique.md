@@ -188,14 +188,14 @@ Les mots de passe ne figurent jamais dans le journal. Désactiver un compte supp
 - **Travail hors réseau** (postes désignés) : outil mis en cache (`sw.js`, empreintes SHA-256 contrôlées) et copie locale des données chiffrées ; disque chiffré (BitLocker) et liste nominative des postes exigés.
 - **Anomalie** : liste des fichiers à restaurer à l'identique ; réparation depuis une copie complète (seuls les fichiers absents ou illisibles) ; quarantaine des fichiers illisibles, jamais de suppression.
 
-## 8. Imports *(liste des patients : existant depuis la version 0.6.4 ; historique des mesures : imports existants d'Isocont, à adapter)*
+## 8. Imports *(existant : liste des patients depuis la version 0.6.4, historique des mesures depuis la version 0.7.0)*
 
 Tous les fichiers importés sont **lus dans le navigateur** ; ils ne sont ni copiés sur le partage, ni envoyés ailleurs.
 
 | Import | Fonctionnement |
 | --- | --- |
 | Liste des patients exportée du DPI (CSV ou Excel) | Un agent exporte la liste depuis le DPI et l'ouvre dans Tessera. Attribution des colonnes au moment de l'import (l'export diffère d'un DPI à l'autre), mémorisée dans les réglages ; **découpage d'une colonne qui regroupe plusieurs champs** (voir ci-dessous) ; correspondance des valeurs (sexe, codes d'unité, formats de date) ; aperçu ; enregistrement en un lot annulable. L'IPP est indispensable pour retrouver la fiche d'un import à l'autre. |
-| Historique des mesures (registre du service ou classeur Excel existant) | Import existant d'Isocont, adapté : il prépare un lot pour Patients et un lot pour Isocont, liés par un identifiant d'import commun (annulation conjointe, pas de doublon si relancé). |
+| Historique des mesures (registre du service ou classeur Excel existant) | Import existant d'Isocont, adapté (existant depuis la version 0.7.0) : un lot pour Patients et un lot pour Isocont, liés (annulation conjointe, pas de doublon si relancé). |
 
 **Colonne regroupant plusieurs champs.** Certains DPI exportent le nom, le prénom et le nom de naissance dans une seule colonne. L'import permet d'attribuer une colonne à plusieurs champs et de la découper selon une règle choisie sur un aperçu des premières lignes :
 

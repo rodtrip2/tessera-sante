@@ -231,11 +231,17 @@
   function exporterPatient(p) {
     var d = M.donneesPatient(U.st(), p.id, Date.now());
     var o = M.optionsQualite(U.config());
+    function jour(x) { return x ? x.split('-').reverse().join('/') : ''; }
     var lignes = [['Données concernant ' + (p.nom || '') + ' ' + (p.prenom || '') + ' — IPP ' + (p.ipp || '—') + ' — édité le ' + U.date(Date.now())], [],
-      ['Fiche'], ['Nom', p.nom || ''], ['Prénom', p.prenom || ''], ['Date de naissance', p.naissance ? p.naissance.split('-').reverse().join('/') : ''], ['Protection juridique', p.protection || ''], ['Détenu', p.detenu ? 'oui' : 'non'], [],
-      ['Modes d’hospitalisation'], ['Date', 'Mode']].concat((p.modes || []).map(function (x) { return [U.date(x.date), x.mode]; }),
-      [[], ['Changements de la fiche'], ['Date', 'Donnée', 'Valeur']], changementsFiche(p), [[], ['Mesures'],
-      ['Type', 'Début', 'Fin', 'Lieu', 'Psychiatre (début)', 'Psychiatre (fin)', 'Motif de fin', 'Motif du recours', 'Levées temporaires', 'Étapes JLD', 'Recours', 'Information du tiers', o.nomEntretien]]);
+      ['Fiche'], ['Nom', p.nom || ''], ['Prénom', p.prenom || ''], ['Nom de naissance', p.nomNaissance || ''], ['Sexe', p.sexe ? (SIC.patients.SEXES[p.sexe] || p.sexe) : ''],
+      ['Date de naissance', jour(p.naissance)], ['Protection juridique', p.protection || ''], ['Détenu', p.detenu ? 'oui' : 'non'],
+      ['Médecin de 1re ligne', p.medecin1 || ''], ['Médecin de 2e ligne', p.medecin2 || ''], ['Référents soignants', (p.referents || []).map(function (r) { return r.nom; }).join(', ')], [],
+      ['Séjours'], ['Numéro de séjour', 'Entrée', 'Sortie', 'Unité', 'Chambre', 'Lit']]
+      .concat((p.sejours || []).map(function (x) { return [x.iep || '', jour(x.entree), x.sortie ? jour(x.sortie) : 'en cours', x.service ? U.libService(x.service) : '', x.chambre || '', x.lit || '']; }))
+      .concat([[], ['Modes d’hospitalisation'], ['Date', 'Mode']])
+      .concat((p.modes || []).map(function (x) { return [U.date(x.date), x.mode]; }))
+      .concat([[], ['Changements de la fiche'], ['Date', 'Donnée', 'Valeur']], changementsFiche(p))
+      .concat([[], ['Mesures'], ['Type', 'Début', 'Fin', 'Lieu', 'Psychiatre (début)', 'Psychiatre (fin)', 'Motif de fin', 'Motif du recours', 'Levées temporaires', 'Étapes JLD', 'Recours', 'Information du tiers', o.nomEntretien]]);
     d.mesures.forEach(function (m) {
       var jld = [];
       Object.keys(m.jld).forEach(function (c) { ['INFO', 'SAISINE', 'DECISION'].forEach(function (n) { var x = m.jld[c][n]; if (x) jld.push('cycle ' + c + ' ' + U.LIB_NATURE[n].toLowerCase() + ' ' + U.date(x.date) + (x.decision ? ' (' + (x.decision === 'LEVEE' ? 'mainlevée' : 'maintien') + ')' : '')); }); });
