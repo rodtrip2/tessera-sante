@@ -75,6 +75,10 @@
   function moduleActif() { return SIC.modules.actif(); }
   /** Éléments d'interface du module (vues, libellés du journal, panneaux d'administration) : ui-isocont.js. */
   function interfaceModule() { return moduleActif().interface || {}; }
+  /** Module affiché (choisi par l'agent dans l'en-tête ou l'accueil des modules, étape 6). */
+  function moduleAffiche() { return (App.session && SIC.modules.obtenir(App.session.moduleAffiche())) || moduleActif(); }
+  /** Libellés du journal d'une saisie : ceux du module qui déclare son type, sinon ceux du module principal. */
+  function journalDe(e) { var m = e && SIC.modules.moduleDuType(e.type); return (m && m.interface && m.interface.journal) || interfaceModule().journal; }
   function droits() { return moduleActif().droits; }
   function st() { return App.session && App.session.etat; }
   function config() { return st() ? st().config : moduleActif().reglages.defaut; }
@@ -590,7 +594,37 @@
 
   /** Onglets : ceux du module (son contrat), puis le journal et l'administration du socle. */
   function onglets() {
-    return SIC.modules.onglets().map(function (o) { return [o.code, o.libelle]; }).concat([['journal', 'Journal'], ['admin', 'Administration']]);
+    var plusieurs = App.session && App.session.modulesAccessibles().length > 1;
+    return (plusieurs ? [['accueil', 'Accueil']] : []).concat(SIC.modules.onglets(App.session ? App.session.moduleAffiche() : null).map(function (o) { return [o.code, o.libelle]; }), [['journal', 'Journal'], ['admin', 'Administration']]);
+  }
+
+  /** Choix du module affiché : premier onglet du module, choix retenu sur le poste. */
+  function ouvrirModule(id) {
+    if (!App.session.choisirModule(id)) return;
+    try { localStorage.setItem('sic-module', id); } catch (e) { /* stockage indisponible */ }
+    var m = SIC.modules.obtenir(id), premier = m.vues.onglets[0];
+    App.onglet = premier ? premier.code : 'journal';
+    rendreContenu();
+  }
+  /** Liste « Module » de l'en-tête (plusieurs modules accessibles). */
+  function selModule(s) {
+    var ms = s.modulesAccessibles();
+    if (ms.length < 2) return null;
+    var sel = h('select', { 'aria-label': 'Module', onchange: function () { ouvrirModule(sel.value); } },
+      ms.map(function (m) { return h('option', { value: m.id, text: m.libelle, selected: m.id === s.moduleAffiche() }); }));
+    return sel;
+  }
+  /** Accueil des modules : les modules ouverts à l'agent (rôle, clé, activation dans l'un de ses services). */
+  function vueAccueil() {
+    var s = App.session;
+    return h('div', {}, h('h1', { text: 'Accueil' }),
+      h('p', { class: 'muted', text: 'Modules ouverts à vos rôles dans vos services. L’onglet Patients et le journal sont communs à tous les modules.' }),
+      h('div', { class: 'grille-3' }, s.modulesAccessibles().map(function (m) {
+        var courant = m.id === s.moduleAffiche();
+        return h('section', { class: 'panneau' }, h('h2', { text: m.libelle }),
+          h('p', { class: 'muted', text: ({ isocont: 'Mesures d’isolement et de contention : délais et envois au juge des libertés et de la détention (JLD), registre, statistiques.', agenda: 'Organisation du service : accompagnements, activités, réunions, tâches, absences, alertes.' })[m.id] || '' }),
+          h('button', { class: 'btn' + (courant ? '' : ' primaire'), onclick: function () { ouvrirModule(m.id); } }, courant ? 'Module affiché — ouvrir' : 'Ouvrir'));
+      })));
   }
 
   /** Liste « Affichage » de l'en-tête (administrateur) : voir l'outil comme un agent portant un autre rôle. */
@@ -664,6 +698,9 @@
     var focus = document.activeElement && document.activeElement.closest && document.activeElement.closest('dialog');
     if (focus) return; // ne pas reconstruire derrière une fenêtre ouverte
     if (s.utilisateur && s.utilisateur.mdpProvisoire) return rendre();
+    // Module affiché retenu sur le poste (étape 6) ; un module devenu inaccessible ramène au module principal
+    if (s.moduleChoisi === undefined) { try { s.choisirModule(localStorage.getItem('sic-module') || ''); } catch (e) { s.moduleChoisi = null; } }
+    else if (s.moduleChoisi && !s.modulesAccessibles().some(function (m) { return m.id === s.moduleChoisi; })) s.choisirModule(null);
     var maintenant = Date.now();
     var estAdmin = s.roles().indexOf('ADMIN') >= 0;
     var nivJournal = droits().niveauJournal(s.roles(), config());
@@ -695,7 +732,7 @@
       mesSv.map(function (x) { return h('option', { value: x.code, text: x.libelle + (droits().serviceActif(config(), x.code) ? '' : ' — consultation seule'), selected: App.service === x.code }); }));
     if (App.service === '*') selService.value = '*';
     var age = s.derniereSynchro ? Math.round((maintenant - s.derniereSynchro) / 1000) : null;
-    zoneEntete.appendChild(h('div', { class: 'entete-haut' }, marque(etablissement() || App.dossier.nom), h('div', { class: 'espace' }), mesSv.length ? selService : null,
+    zoneEntete.appendChild(h('div', { class: 'entete-haut' }, marque(etablissement() || App.dossier.nom), h('div', { class: 'espace' }), selModule(s), mesSv.length ? selService : null,
       h('div', { class: 'statut-synchro', title: s.evts.length + ' saisies dans le journal' }, h('span', { class: 'point' }), age !== null ? 'Synchronisé' : '—'),
       h('div', { class: 'utilisateur' }, h('b', { text: s.utilisateur.nom }), s.utilisateur.roles.map(function (r) { return droits().libRole(config(), r); }).join(' · ')),
       selApercu(s),
@@ -727,15 +764,15 @@
 
     zoneContenu.style.minHeight = zoneContenu.offsetHeight + 'px';   // évite que la page se replie pendant la reconstruction
     vider(zoneContenu);
-    var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: vueAdmin };
-    var vuesModule = interfaceModule().vues || {};
-    var vue = vues[App.onglet] || vuesModule[App.onglet] || vuesModule[moduleActif().vues.onglets[0].code];
-    if (!s.accesModule() && App.onglet !== 'journal' && App.onglet !== 'admin') {
+    var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: vueAdmin, accueil: vueAccueil };
+    var mAff = moduleAffiche(), vuesAff = (mAff.interface && mAff.interface.vues) || {}, vuesModule = interfaceModule().vues || {};
+    var vue = vues[App.onglet] || vuesAff[App.onglet] || vuesModule[App.onglet] || vuesAff[(mAff.vues.onglets[0] || {}).code] || vues.aucun;
+    if (mAff === moduleActif() && !s.accesModule() && ['journal', 'admin', 'accueil'].indexOf(App.onglet) < 0) {
       zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Les données du module « ' + moduleActif().libelle + ' » ne vous sont pas remises : vous n’y avez pas de rôle, ou il n’est activé pour aucun de vos services. Demandez à l’administrateur si vous devez y avoir accès.' }));
       return;
     }
     var affectes = (s.compteEffectif().services || []).filter(function (c) { return tousServices().some(function (x) { return x.code === c; }); });
-    if (!mesSv.length && !estAdmin && affectes.length) { zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Le module « ' + moduleActif().libelle + ' » n’est activé pour aucun de vos services. Demandez à l’administrateur de vérifier son activation (Administration → Établissement et services).' })); return; }
+    if (!mesSv.length && !estAdmin && affectes.length) { zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Le module « ' + mAff.libelle + ' » n’est activé pour aucun de vos services. Demandez à l’administrateur de vérifier son activation (Administration → Établissement et services).' })); return; }
     if (!mesSv.length && !estAdmin) { zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Aucun service ne vous est affecté. Demandez à l’administrateur de vous en attribuer un.' })); return; }
     try { zoneContenu.appendChild(vue(maintenant)); }
     catch (e) { zoneContenu.appendChild(h('div', { class: 'erreur', text: 'Erreur d’affichage : ' + e.message })); console.error(e); }
@@ -751,11 +788,11 @@
   function modaleAnnulationJournal(e, a) {
     var motif = h('textarea', { rows: 2, placeholder: a.action === 'retablir' ? 'Ex. : annulation faite par erreur' : 'Ex. : saisie en double, erreur de patient…' });
     var cible = a.cible;
-    var effet = a.action === 'retablir' ? 'La saisie annulée produit de nouveau son effet.' : (interfaceModule().journal.effetAnnulation(cible) || 'La saisie cesse de produire son effet (échéances, registre et statistiques sont recalculés).');
+    var effet = a.action === 'retablir' ? 'La saisie annulée produit de nouveau son effet.' : ((journalDe(cible).effetAnnulation && journalDe(cible).effetAnnulation(cible)) || 'La saisie cesse de produire son effet (échéances, registre et statistiques sont recalculés).');
     modale(a.action === 'retablir' ? 'Rétablir une saisie annulée' : 'Annuler une saisie', h('div', { class: 'pile' },
       h('div', { class: 'recap' },
-        h('div', {}, h('b', { text: interfaceModule().journal.libelleType(cible.type) + ' — ' }), date(Date.parse(cible.at)) + ', ' + App.session.nomAuteur(cible.by)),
-        h('div', { text: interfaceModule().journal.resume(cible) })),
+        h('div', {}, h('b', { text: journalDe(cible).libelleType(cible.type) + ' — ' }), date(Date.parse(cible.at)) + ', ' + App.session.nomAuteur(cible.by)),
+        h('div', { text: journalDe(cible).resume(cible) })),
       h('div', { class: 'alerte', text: effet + ' Rien n’est effacé : la saisie et son annulation restent au journal, et l’annulation peut elle-même être annulée.' }),
       h('label', {}, 'Motif (obligatoire)', motif)), [
       { texte: 'Fermer' },
@@ -795,8 +832,8 @@
           } }, 'Garder');
         }
         return h('div', { class: 'recap' },
-          h('div', {}, h('b', { text: 'Appliquée : ' }), interfaceModule().journal.resume(a), ' — ', App.session.nomAuteur(a.by), ' ', choix(a, b)),
-          h('div', {}, h('b', { text: 'Concurrente : ' }), interfaceModule().journal.resume(b), ' — ', App.session.nomAuteur(b.by), ' ', choix(b, a)));
+          h('div', {}, h('b', { text: 'Appliquée : ' }), journalDe(a).resume(a), ' — ', App.session.nomAuteur(a.by), ' ', choix(a, b)),
+          h('div', {}, h('b', { text: 'Concurrente : ' }), journalDe(b).resume(b), ' — ', App.session.nomAuteur(b.by), ' ', choix(b, a)));
       })) : null;
     var complet = niveau === 'complet';
     var manquants = complet && etat.manquants.length ? h('div', { class: 'erreur', text: etat.manquants.length + ' saisie(s) manquante(s) dans le dossier (fichier supprimé ou non encore synchronisé) : ' + etat.manquants.map(function (x) { return x.manque; }).join(', ') + '. Détail, réparation depuis une copie ou prise d’acte : Administration → Sauvegardes et exports.' }) : null;
@@ -815,8 +852,8 @@
           return h('tr', { class: annule ? 'ancienne' : '' },
             h('td', { class: 'nowrap', text: date(Date.parse(e.at)) }),
             h('td', { text: App.session.nomAuteur(e.by) }),
-            h('td', {}, interfaceModule().journal.action(e)),
-            h('td', {}, interfaceModule().journal.resume(e)),
+            h('td', {}, (journalDe(e).action || interfaceModule().journal.action)(e)),
+            h('td', {}, journalDe(e).resume(e)),
             h('td', {}, annule ? h('span', { class: 'badge', text: 'annulée' }) : null, conflitsIds[e.id] ? h('span', { class: 'badge bad', text: 'conflit' }) : null),
             h('td', { class: 'actions-ligne' }, boutonAnnulationJournal(etat, e)));
         })))),

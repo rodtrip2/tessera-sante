@@ -27,13 +27,17 @@
    * acces: [{ code, libelle, types }], typesAdmin, rolesFournis, ongletsMasquables, typesEnPlus: { CODE: [types] }
    * (ajoutés aux droits historiques pour les accès par défaut), rolesJournalComplet (journal complet par défaut),
    * ongletRegistreSeul (seul onglet d'un rôle « registre seulement »), module (identifiant du module, pour son activation
-   * par service), rolesEncadrement (rôles qui consultent un service où le module est désactivé, avec l'administrateur) }.
+   * par service), rolesEncadrement (rôles qui consultent un service où le module est désactivé, avec l'administrateur),
+   * lireAcces (r ↦ liste des accès du module cochés pour le rôle `r` de `config.roles` ; par défaut `r.acces`, ceux
+   * d'Isocont ; un autre module range les siens dans `r.accesModules[module]`, étape 6), appartenance ('role' : tout rôle
+   * a un rôle dans le module ; 'acces' : seulement un rôle qui y a au moins un accès) }.
    */
   function creer(def) {
     var ROLES = def.roles, ROLES_DE_SERVICE = def.rolesDeService || [], DROITS = def.droits || {}, ACCES = def.acces || [];
     var TYPES_ADMIN = def.typesAdmin || [], ROLES_FOURNIS = def.rolesFournis || [], ONGLETS_MASQUABLES = def.ongletsMasquables || [];
     var TYPES_EN_PLUS = def.typesEnPlus || {}, JOURNAL_COMPLET = def.rolesJournalComplet || [], ONGLET_REGISTRE_SEUL = def.ongletRegistreSeul || null;
     var MODULE = def.module || null, ENCADREMENT = def.rolesEncadrement || [];
+    var LIRE_ACCES = def.lireAcces || function (r) { return r.acces; }, APPARTENANCE = def.appartenance || 'role';
 
     // ------------------------------------------------ Activation du module par service (étape 3, architecture § 5)
     /**
@@ -80,7 +84,8 @@
         var r = reg[code] || {}, fourni = ROLES_FOURNIS.indexOf(code) >= 0;
         if (!fourni && !reg[code]) return;
         if (r.supprime) return;
-        var acces = Array.isArray(r.acces) ? r.acces.filter(function (a) { return ACCES.some(function (x) { return x.code === a; }); }) : (fourni ? accesDefaut(code) : []);
+        var brut = LIRE_ACCES(r);
+        var acces = Array.isArray(brut) ? brut.filter(function (a) { return ACCES.some(function (x) { return x.code === a; }); }) : (fourni ? accesDefaut(code) : []);
         var types = [];
         ACCES.forEach(function (a) { if (acces.indexOf(a.code) >= 0) a.types.forEach(function (t) { if (types.indexOf(t) < 0) types.push(t); }); });
         var svc = r.services === undefined ? true : !!r.services;
@@ -152,6 +157,13 @@
       });
     }
 
+    /** Vrai si l'un des rôles donne un rôle dans le module (clé du module, onglets) ; l'administrateur toujours. */
+    function membre(roles, config) {
+      if ((roles || []).indexOf('ADMIN') >= 0) return true;
+      var rc = rolesConfig(config);
+      return (roles || []).some(function (code) { var r = rc.filter(function (x) { return x.code === code && !x.admin; })[0]; return !!r && (APPARTENANCE !== 'acces' || r.acces.length > 0); });
+    }
+
     /** Vrai si l'un des rôles voit tous les services (administrateur, ou rôle réglé ainsi). */
     function voitTousServices(roles, config) {
       var rc = rolesConfig(config);
@@ -195,7 +207,7 @@
     return {
       ROLES: ROLES, DROITS: DROITS, ACCES: ACCES, TYPES_ADMIN: TYPES_ADMIN, ROLES_FOURNIS: ROLES_FOURNIS, ROLES_DE_SERVICE: ROLES_DE_SERVICE,
       accesFormation: accesFormation, accesDefaut: accesDefaut, rolesConfig: rolesConfig, libRole: libRole, peut: peut,
-      voitTousServices: voitTousServices, exigeService: exigeService, servicesDe: servicesDe,
+      voitTousServices: voitTousServices, exigeService: exigeService, servicesDe: servicesDe, membre: membre, LIRE_ACCES: LIRE_ACCES,
       NIVEAUX_JOURNAL: NIVEAUX_JOURNAL, niveauJournal: niveauJournal, journalVisible: journalVisible,
       ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, registreSeul: registreSeul,
       module: MODULE, ROLES_ENCADREMENT: ENCADREMENT, activation: activation, serviceActif: serviceActif, servicesInactifs: servicesInactifs, consulteInactifs: consulteInactifs
