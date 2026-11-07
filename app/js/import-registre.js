@@ -174,7 +174,7 @@
     lignes.forEach(function (r) {
       if (!parIdent[r.identifiant]) {
         var id = 'P' + aleatoire();
-        ajouter('PATIENT', { patientId: id, ipp: r.identifiant, nom: (r.nom || 'REGISTRE ' + r.identifiant).toUpperCase(), prenom: r.prenom, naissance: r.naissance ? M.dateLocaleISO(r.naissance) : '', protection: '', service: r.service });
+        ajouter('PATIENT', { patientId: id, ipp: r.identifiant, nom: (r.nom || 'REGISTRE ' + r.identifiant).toUpperCase(), prenom: r.prenom, naissance: r.naissance ? M.dateLocaleISO(r.naissance) : '', protection: '', service: r.service, origine: 'import-historique' });
         parIdent[r.identifiant] = { id: id, existant: false };
         rapport.patients++;
         if (!r.naissance) rapport.avertissements.push('Patient ' + r.identifiant + ' : date de naissance à compléter' + (r.age != null ? ' (âge indiqué dans le registre : ' + r.age + ' ans)' : '') + '.');

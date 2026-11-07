@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: EUPL-1.2
-(self.SIC = self.SIC || {}).VERSION = '0.6.4';
+(self.SIC = self.SIC || {}).VERSION = '0.7.0';

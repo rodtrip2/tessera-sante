@@ -1,5 +1,15 @@
 # Journal des modifications — Tessera Santé
 
+## 0.7.0 — 7 novembre 2026
+
+Étape 5 (module Patients) terminée : **reprise de l'historique sur les deux modules**.
+
+- Imports du registre et du classeur : fiches patient dans le journal de Patients, mesures dans celui d'Isocont, en deux lots liés (annulés et rétablis ensemble) ; registre et calculs identiques à ceux d'un import en un seul lot (vérifié par test). Relancer l'import ne crée pas de doublon.
+- Les fiches créées par la reprise de l'historique sont marquées comme importées : la liste du DPI importée ensuite les complète (rattachement par l'IPP ; séjour, chambre et lit, sexe, prénom). Ordre conseillé : historique, puis liste du DPI.
+- Droit d'accès : l'export réunit la fiche complète (nom de naissance, sexe, médecins, référents), les séjours, les modes d'hospitalisation, les changements datés et les mesures.
+- Durée de conservation : calculée sur la dernière activité dans tous les modules (fin de la dernière mesure, sortie du dernier séjour) ; un séjour en cours retient le patient. Signalement seulement, aucune suppression.
+- Nouveau test de bout en bout (registre, puis liste du DPI, relance, conservation ; 197 au vert) ; export du droit d'accès vérifié dans Chrome.
+
 ## 0.6.4 — 7 novembre 2026
 
 Étape 5 (module Patients), quatrième sous-étape : **import de la liste des patients exportée du DPI**.
