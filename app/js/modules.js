@@ -136,6 +136,17 @@
         }
         return null;
       },
+      /**
+       * Lecture à la volée d'une fourniture à partir de l'état déjà reconstitué du module fournisseur (évite de tout
+       * recalculer à chaque affichage) : `lire(etat, options)` du fournisseur. null si aucun module ne la fournit.
+       */
+      lire: function (nom, etat, options) {
+        for (var i = 0; i < liste.length; i++) {
+          var f = liste[i].fournitures.filter(function (x) { return x.nom === nom && typeof x.lire === 'function'; })[0];
+          if (f) return etat ? f.lire(etat, options || {}) : [];
+        }
+        return null;
+      },
       /** Module qui déclare un type de saisie (null : saisie du socle ou inconnue). */
       moduleDuType: function (type) { return liste.filter(function (m) { return m.saisies.types.indexOf(type) >= 0; })[0] || null; },
       /** Modules qui ont besoin d'une fourniture du module `id`. */

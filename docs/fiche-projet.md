@@ -81,7 +81,8 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 - **Check-lists** (ex. sortie d'un patient) : chaque point a son délai (infirmier libéral prévenu 2 jours avant, transport commandé la veille, ordonnance le jour même…) et apparaît « en retard » s'il n'est pas fait à temps.
 - **Tâches** ponctuelles ou récurrentes, cochées « faites » par les agents : celles du service, réglées par le cadre, peuvent être affectées à un agent mais ne sont supprimées que par lui ; celles de l'équipe sont gérées par toute l'équipe.
 - **Absences** des professionnels (motif facultatif), signalées sur les éléments où ils étaient prévus.
-- À venir : **alertes** (patient à voir par le médecin, échéances JLD calculées par le module Isocont, réunions, check-lists) et **« Mon agenda »** de chaque professionnel.
+- **Alertes** : alertes saisies par l'équipe (patient à voir par le médecin…, types réglables par service) affichées jusqu'à « vu », prochaines **échéances JLD** calculées par le module Isocont (pour qui y a accès), points de check-list en retard, réunions à venir.
+- **« Mon agenda »** : la semaine de chaque professionnel sur tous ses services (où il est prévu, ses tâches, ses absences, les alertes qui le visent), dans Tessera seulement.
 - Selon le choix de l'établissement, l'agenda désigne le patient par ses initiales (par défaut), son IPP ou son nom. Aucune donnée clinique : le contenu des prises en charge reste dans le dossier du patient.
 
 ## 6. Organisation et rôles

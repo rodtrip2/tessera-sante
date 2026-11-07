@@ -8,7 +8,7 @@
   'use strict';
   var SIC = self.SIC, U = SIC.ui, h = U.h, A = SIC.agenda, C = SIC.crypto;
   var JOUR = 864e5, JOURS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
-  var vue = { mode: 'semaine', ref: minuit(Date.now()), nature: '' };
+  var vue = { mode: 'semaine', ref: minuit(Date.now()), nature: '', alertesVues: false };
   try { vue.mode = localStorage.getItem('sic-agenda-mode') === 'jour' ? 'jour' : 'semaine'; } catch (e) { /* stockage indisponible */ }
 
   function st() { return (U.App.session && U.App.session.etatModule('agenda')) || { rdv: {}, taches: {}, absences: {}, alertes: {} }; }
@@ -50,6 +50,7 @@
         peut('RDV') ? h('button', { class: 'btn primaire', onclick: function () { modaleElement(null, vue.mode === 'jour' ? vue.ref : null); } }, '+ Nouveau') : null,
         h('button', { class: 'btn', onclick: function () { modaleAbsence(null); } }, '+ Absence'),
         h('div', { class: 'espace' }), h('label', { class: 'en-ligne nowrap' }, 'Afficher', selNature), mode('jour', 'Jour'), mode('semaine', 'Semaine')),
+      resumeAlertes(maintenant),
       h('div', { class: 'barre' },
         h('button', { class: 'btn petit', type: 'button', onclick: function () { vue.ref = plusJours(vue.ref, -pas); U.rendreContenu(); } }, '◀'),
         h('button', { class: 'btn petit', type: 'button', onclick: function () { vue.ref = minuit(Date.now()); U.rendreContenu(); } }, 'Aujourd’hui'),
@@ -59,7 +60,7 @@
       h('p', { class: 'muted' }, h('small', { text: 'Organisation du service, sans donnée clinique (le contenu des accompagnements et des activités reste dans le dossier du patient). Patients désignés selon le réglage de l’établissement (' + A.IDENTITES[opts().identite].toLowerCase() + '). Un élément marqué d’un autre service concerne un patient hospitalisé ici : il se consulte, il se modifie dans l’agenda de son service.' })));
   }
 
-  function carteElement(x, jour) {
+  function carteElement(x, jour, avecService) {
     var r = x.rdv;
     var plage = (x.debut < jour ? '…' : hm(x.debut)) + (x.fin ? ' – ' + (x.fin >= plusJours(jour, 1) ? '…' : hm(x.fin)) : '');
     var modifiable = peut('RDV') && (!x.externe || opts().modifAutresServices);
@@ -68,7 +69,7 @@
       onclick: function () { modaleElement(r, null, !modifiable, x.externe ? x.patients : null, x.externe, x.occurrence); },
       onkeydown: function (ev) { if (ev.key === 'Enter') modaleElement(r, null, !modifiable, x.externe ? x.patients : null, x.externe, x.occurrence); } },
       h('div', { class: 'agenda-plage', text: plage }),
-      h('div', {}, h('span', { class: 'badge', text: A.NATURES[r.nature] || 'Élément' }), x.externe ? h('span', { class: 'badge warn', text: U.libService(r.service) }) : null),
+      h('div', {}, h('span', { class: 'badge', text: A.NATURES[r.nature] || 'Élément' }), x.externe ? h('span', { class: 'badge warn', text: U.libService(r.service) }) : (avecService ? h('span', { class: 'badge', text: U.libService(r.service) }) : null)),
       h('b', { text: r.titre || '' }),
       r.lieu ? h('div', {}, h('small', { text: r.lieu })) : null,
       x.patients.length ? h('div', {}, h('small', { text: (x.patients.length > 1 ? 'Patients : ' : 'Patient : ') + nomsPatients(x.patients).join(', ') })) : null,
@@ -411,6 +412,162 @@
       aj('consigne') ? h('label', {}, 'Précision (pas de donnée clinique)', consigne) : null), boutons, { large: true });
   }
 
+  // ------------------------------------------------------------ Alertes (sous-étape 6.4)
+  function patientsDuService(service, garder) {
+    var f = fiches();
+    return Object.keys(f).map(function (k) { return f[k]; }).filter(function (p) { return A.serviceDuPatient(p) === service || p.id === garder; })
+      .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
+  }
+  function libAvant(a) { return a.avant ? 'avant le ' + a.avant.split('-').reverse().join('/') + (a.heure ? ' ' + a.heure : '') : 'sans date limite'; }
+  function libPour(a) {
+    var p = a.pour || {};
+    if (p.agent) return p.nom || U.App.session.nomAuteur(p.agent);
+    if (p.role) return SIC.modules.obtenir('agenda').droits.libRole(U.config(), p.role);
+    return 'toute l’équipe';
+  }
+  /** Échéances JLD lues à la volée chez Isocont : seulement pour qui a l'accès aux envois au JLD et la clé d'Isocont. */
+  function echeancesJLD(maintenant, services) {
+    var s = U.App.session;
+    if (!s.peut('JLD')) return null;
+    var etat = s.etatModule('isocont');
+    return etat ? SIC.modules.lire('isocont.echeancesJLD', etat, { maintenant: maintenant, services: services }) || [] : null;
+  }
+  function allerAuxAlertes() { U.App.onglet = 'alertes'; U.rendreContenu(); }
+
+  /** Ligne de résumé en tête de l'agenda : alertes de l'équipe, échéances JLD, points de check-list en retard. */
+  function resumeAlertes(maintenant) {
+    var svs = servicesAffiches(), al = A.alertesEquipe(st(), U.config(), svs, maintenant), jld = echeancesJLD(maintenant, svs) || [], cl = A.alertesChecklists(st(), fiches(), svs, maintenant);
+    var parts = [];
+    if (al.length) parts.push(al.length + (al.length > 1 ? ' alertes de l’équipe' : ' alerte de l’équipe') + (al.some(function (a) { return a.depassee; }) ? ' (dont en retard)' : ''));
+    if (jld.length) parts.push(jld.length + (jld.length > 1 ? ' échéances' : ' échéance') + ' JLD sous 72 h');
+    if (cl.length) parts.push(cl.length + (cl.length > 1 ? ' points de check-list en retard' : ' point de check-list en retard'));
+    if (!parts.length) return null;
+    var grave = jld.some(function (j) { return j.statut === 'depasse' || j.statut === 'proche'; }) || al.some(function (a) { return a.depassee; }) || cl.length;
+    return h('div', { class: 'agenda-resume-alertes' + (grave ? ' grave' : '') }, h('span', { text: parts.join(' · ') }),
+      h('button', { class: 'btn petit', type: 'button', onclick: allerAuxAlertes }, 'Voir les alertes'));
+  }
+
+  function carteAlerte(a, avecService) {
+    var f = fiches()[a.patientId];
+    return h('article', { class: 'agenda-alerte' + (a.depassee ? ' depassee' : '') + (a.vue ? ' vue' : '') },
+      h('div', { class: 'barre' }, h('b', { text: a.titre }), a.patientId ? h('span', { class: 'badge', text: A.identite(f, opts().identite) }) : null,
+        avecService ? h('span', { class: 'badge', text: U.libService(a.service) }) : null,
+        h('span', { class: 'badge ' + (a.depassee ? 'bad' : (a.vue ? 'ok' : 'warn')), text: a.vue ? 'Vue' : (a.depassee ? 'En retard, ' : '') + libAvant(a) }),
+        h('div', { class: 'espace' }),
+        peut('ALERTE_VUE') ? h('button', { class: 'btn petit' + (a.vue ? '' : ' primaire'), type: 'button', onclick: async function () {
+          try { await U.App.session.enregistrer('ALERTE_VUE', { alerte: a.id, annule: a.vue ? true : undefined, service: a.service }); U.rendreContenu(); } catch (e) { alert(e.message); }
+        } }, a.vue ? 'Remettre à voir' : 'Vu') : null,
+        peut('ALERTE') && !a.vue ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleAlerte(a); } }, 'Modifier') : null),
+      a.precision ? h('div', { text: a.precision }) : null,
+      h('small', { class: 'muted', text: 'Pour ' + libPour(a) + ' — signalée par ' + U.App.session.nomAuteur(a.par) + ', ' + U.date(Date.parse(a.cree)) + (a.vue ? ' — vue par ' + U.App.session.nomAuteur(a.vue.par) + ', ' + U.date(Date.parse(a.vue.le)) : '') }));
+  }
+
+  function vueAlertes(maintenant) {
+    var svs = servicesAffiches(), plusieurs = svs.length > 1;
+    var al = A.alertesEquipe(st(), U.config(), svs, maintenant, vue.alertesVues ? 7 : 0);
+    var jld = echeancesJLD(maintenant, svs), cl = A.alertesChecklists(st(), fiches(), svs, maintenant), reu = A.reunionsAVenir(st(), fiches(), svs, maintenant, 7);
+    var cbVues = h('input', { type: 'checkbox', checked: vue.alertesVues, onchange: function () { vue.alertesVues = cbVues.checked; U.rendreContenu(); } });
+    var TYPES_MESURE = { Isolement: 'Isolement', Contention: 'Contention' };
+    return h('div', {},
+      h('div', { class: 'barre' }, h('h1', { text: 'Alertes' }), peut('ALERTE') ? h('button', { class: 'btn primaire', onclick: function () { modaleAlerte(null); } }, '+ Nouvelle alerte') : null),
+      h('section', { class: 'panneau' }, h('div', { class: 'barre' }, h('h2', { text: 'Alertes de l’équipe' }), h('div', { class: 'espace' }), h('label', { class: 'case' }, cbVues, h('span', { text: 'Montrer les alertes vues depuis 7 jours' }))),
+        al.length ? h('div', { class: 'pile' }, al.map(function (a) { return carteAlerte(a, plusieurs); })) : h('p', { class: 'muted', text: 'Aucune alerte à voir.' }),
+        h('small', { class: 'muted', text: 'Signalées par l’équipe (ex. patient à voir par le médecin), affichées jusqu’à « Vu ». Information d’organisation : le motif clinique reste dans le dossier du patient.' })),
+      jld === null ? null : h('section', { class: 'panneau' }, h('h2', { text: 'Échéances JLD (dépassées ou dans les 72 heures)' }),
+        jld.length ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Échéance', 'Démarche', 'Mesure', 'Patient'].concat(plusieurs ? ['Service'] : []).map(function (t) { return h('th', { text: t }); }))),
+          h('tbody', {}, jld.map(function (j) {
+            return h('tr', {}, h('td', {}, h('span', { class: 'badge ' + (j.statut === 'depasse' ? 'bad' : (j.statut === 'proche' ? 'warn' : '')), text: U.date(j.date) + (j.statut === 'depasse' ? ' (dépassée)' : '') })),
+              h('td', { text: j.libelle }), h('td', { text: (TYPES_MESURE[j.typeMesure] || j.typeMesure) + (j.cycle > 1 ? ', cycle ' + j.cycle : '') }),
+              h('td', { text: A.identite(fiches()[j.patientId], opts().identite) }), plusieurs ? h('td', { text: U.libService(j.service) }) : null);
+          })))) : h('p', { class: 'muted', text: 'Aucune échéance JLD dans les 72 heures.' }),
+        h('small', { class: 'muted', text: 'Calculées par le module Isolement et contention depuis le début de chaque mesure, toujours à jour. L’envoi se trace dans ce module (onglet JLD).' })),
+      h('section', { class: 'panneau' }, h('h2', { text: 'Points de check-list en retard' }),
+        cl.length ? h('ul', { class: 'liste-simple' }, cl.map(function (c) {
+          return h('li', {}, h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleElement(c.rdv, null, !peut('RDV'), null, false, c.occurrence); } }, c.rdv.titre || 'Élément'),
+            h('span', { text: ' (' + libJour(c.debut) + ' ' + hm(c.debut) + ') : ' + c.item.libelle + ' — attendu ' + (c.item.delai ? 'le ' + libJour(c.item.echeance) : 'le jour même') }));
+        })) : h('p', { class: 'muted', text: 'Aucun point en retard.' })),
+      h('section', { class: 'panneau' }, h('h2', { text: 'Réunions des 7 prochains jours' }),
+        reu.length ? h('ul', { class: 'liste-simple' }, reu.map(function (x) {
+          return h('li', {}, h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleElement(x.rdv, null, !peut('RDV'), null, false, x.occurrence); } }, x.rdv.titre || 'Réunion'),
+            h('span', { text: ' — ' + libJour(x.debut) + ' ' + hm(x.debut) + (x.rdv.lieu ? ', ' + x.rdv.lieu : '') + (plusieurs ? ' (' + U.libService(x.rdv.service) + ')' : '') }));
+        })) : h('p', { class: 'muted', text: 'Aucune réunion prévue.' })));
+  }
+
+  /** Alerte de l'équipe : type de la liste du service (ou « Autre »), patient du service facultatif, date limite, personne visée. */
+  function modaleAlerte(a) {
+    var x = a || {}, nouveau = !a;
+    var sv = h('select', {}, U.services().map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === (x.service || (U.App.service !== '*' ? U.App.service : '')) }); }));
+    var selType = h('select', {}), libre = h('input', { type: 'text', maxlength: 80, value: x.type === 'autre' ? x.libelle || '' : '', placeholder: 'Intitulé de l’alerte' });
+    var selPatient = h('select', {}), selPour = h('select', {});
+    var zoneLibre = h('label', {}, 'Intitulé', libre);
+    function remplir() {
+      U.vider(selType);
+      A.optionsAgenda(U.config(), sv.value).typesAlertes.concat([{ code: 'autre', libelle: 'Autre (intitulé libre)' }]).forEach(function (t) { selType.appendChild(h('option', { value: t.code, text: t.libelle, selected: t.code === x.type })); });
+      if (x.type && !Array.prototype.some.call(selType.options, function (o) { return o.value === x.type; })) selType.appendChild(h('option', { value: x.type, text: x.titre || x.type, selected: true }));
+      U.vider(selPatient); selPatient.appendChild(h('option', { value: '', text: 'Aucun patient en particulier' }));
+      patientsDuService(sv.value, x.patientId).forEach(function (p) { selPatient.appendChild(h('option', { value: p.id, text: ((p.nom || '') + ' ' + (p.prenom || '')).trim() + (p.ipp ? ' — IPP ' + p.ipp : ''), selected: p.id === x.patientId })); });
+      U.vider(selPour); selPour.appendChild(h('option', { value: '', text: 'Toute l’équipe' }));
+      var D = SIC.modules.obtenir('agenda').droits, p = x.pour || {};
+      D.rolesConfig(U.config()).filter(function (r) { return !r.admin; }).forEach(function (r) { selPour.appendChild(h('option', { value: 'r:' + r.code, text: 'Rôle : ' + r.libelle, selected: p.role === r.code })); });
+      (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && (!(c.services || []).length || (c.services || []).indexOf(sv.value) >= 0); })
+        .sort(function (m, n) { return (m.nom || '').localeCompare(n.nom || ''); })
+        .forEach(function (c) { selPour.appendChild(h('option', { value: 'a:' + c.id, text: c.nom, selected: p.agent === c.id })); });
+      majType();
+    }
+    function majType() { zoneLibre.hidden = selType.value !== 'autre'; }
+    selType.addEventListener('change', majType); sv.addEventListener('change', remplir);
+    var avant = h('input', { type: 'date', value: x.avant || '' }), heure = h('input', { type: 'time', value: x.heure || '' });
+    var precision = h('input', { type: 'text', maxlength: 160, value: x.precision || '', placeholder: 'ex. avant la sortie de vendredi (pas de donnée clinique)' });
+    remplir();
+    var boutons = [{ texte: 'Annuler' }];
+    if (!nouveau) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
+      if (!confirm('Supprimer cette alerte ?')) return false;
+      await U.App.session.enregistrer('ALERTE', { id: x.id, supprime: true, service: x.service });
+      U.toast('Alerte supprimée.');
+    } });
+    boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
+      if (selType.value === 'autre' && !libre.value.trim()) throw new Error('Indiquez l’intitulé de l’alerte.');
+      var pv = selPour.value, comptes = U.App.session.comptes || [];
+      var pour = pv.indexOf('r:') === 0 ? { role: pv.slice(2) } : (pv.indexOf('a:') === 0 ? { agent: pv.slice(2), nom: (comptes.filter(function (c) { return c.id === pv.slice(2); })[0] || {}).nom || '' } : null);
+      var d = { id: x.id || 'L' + C.hex(C.aleatoire(6)), type: selType.value, libelle: selType.value === 'autre' ? libre.value.trim() : '', service: sv.value, patientId: selPatient.value || null,
+        avant: avant.value || '', heure: avant.value ? heure.value || '' : '', pour: pour, precision: precision.value.trim() };
+      await U.App.session.enregistrer('ALERTE', d);
+      U.toast(nouveau ? 'Alerte ajoutée.' : 'Alerte modifiée.');
+    } });
+    U.modale(nouveau ? 'Nouvelle alerte' : 'Modifier l’alerte', h('div', { class: 'pile' },
+      h('div', { class: 'grille-2' }, h('label', {}, 'Service', sv), h('label', {}, 'Type', selType)), zoneLibre,
+      h('label', {}, 'Patient (facultatif)', selPatient),
+      h('div', { class: 'grille-3' }, h('label', {}, 'À faire avant le (facultatif)', avant), h('label', {}, 'Heure', heure), h('label', {}, 'Pour', selPour)),
+      h('label', {}, 'Précision (facultatif)', precision),
+      h('small', { class: 'muted', text: 'Information d’organisation, sans donnée clinique : le motif reste dans le dossier du patient. L’alerte reste affichée jusqu’à ce qu’un agent la marque « Vu ».' })), boutons, { large: true });
+  }
+
+  // ------------------------------------------------------------ Mon agenda (sous-étape 6.4)
+  function vueMonAgenda(maintenant) {
+    var s = U.App.session, moi = s.compteEffectif(), svs = s.mesServices().map(function (x) { return x.code || x; });
+    var debut = lundi(vue.ref), fin = plusJours(debut, 7), m = A.monAgenda(st(), fiches(), U.config(), moi, svs, debut, fin, maintenant);
+    var colonnes = [];
+    for (var i = 0; i < 7; i++) {
+      var j0 = plusJours(debut, i), j1 = plusJours(debut, i + 1), iso = A.jourISO(j0);
+      var els = m.elements.filter(function (x) { return x.debut < j1 && (x.fin || x.debut) >= j0; }), ts = m.taches.filter(function (x) { return x.occurrence === iso; });
+      var abs = m.absences.filter(function (a) { return a.debut < j1 && (a.fin || a.debut) >= j0; });
+      colonnes.push(h('section', { class: 'agenda-jour' + (j0 === minuit(maintenant) ? ' aujourdhui' : '') }, h('h3', { text: libJour(j0) }),
+        abs.length ? h('div', { class: 'agenda-absents' }, h('span', { text: 'Absent(e)' + (abs[0].categorie ? ' (' + (A.CATEGORIES_ABSENCE[abs[0].categorie] || '').toLowerCase() + ')' : '') })) : null,
+        ts.length ? h('div', { class: 'agenda-taches' }, ts.map(ligneTache)) : null,
+        els.length ? els.map(function (x) { return carteElement(x, j0, svs.length > 1); }) : (ts.length || abs.length ? null : h('p', { class: 'muted', text: '—' }))));
+    }
+    return h('div', {},
+      h('div', { class: 'barre' }, h('h1', { text: 'Mon agenda' }), h('div', { class: 'espace' }), h('button', { class: 'btn', onclick: function () { modaleAbsence(null); } }, '+ Absence')),
+      m.alertes.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Alertes qui me sont adressées' }), h('div', { class: 'pile' }, m.alertes.map(function (a) { return carteAlerte(a, svs.length > 1); }))) : null,
+      h('div', { class: 'barre' },
+        h('button', { class: 'btn petit', type: 'button', onclick: function () { vue.ref = plusJours(vue.ref, -7); U.rendreContenu(); } }, '◀'),
+        h('button', { class: 'btn petit', type: 'button', onclick: function () { vue.ref = minuit(Date.now()); U.rendreContenu(); } }, 'Aujourd’hui'),
+        h('button', { class: 'btn petit', type: 'button', onclick: function () { vue.ref = plusJours(vue.ref, 7); U.rendreContenu(); } }, '▶'),
+        h('b', { text: 'Semaine du ' + libJour(debut) + ' au ' + libJour(plusJours(debut, 6)) + ' ' + new Date(debut).getFullYear() })),
+      h('div', { class: 'agenda-semaine' }, colonnes),
+      h('p', { class: 'muted' }, h('small', { text: 'Tous vos services réunis : accompagnements, activités et réunions où vous êtes prévu(e), tâches qui vous sont affectées ou qui reviennent à votre rôle, vos absences. Cette vue reste dans Tessera : aucune copie hors de l’outil.' })));
+  }
+
   // ------------------------------------------------------------ Réglages (Administration → Agenda)
   function panneauReglages() {
     var o = opts(), copie = function (l) { return l.map(function (t) { return { code: t.code, libelle: t.libelle }; }); };
@@ -515,14 +672,16 @@
       case 'TACHE': return (d.supprime ? 'Tâche supprimée' : 'Tâche') + (d.titre ? ' « ' + d.titre + ' »' : '') + (d.regularite ? ', ' + libRepetition(d.regularite) : '');
       case 'TACHE_FAITE': return (d.annule ? 'Tâche décochée' : 'Tâche faite') + ' (échéance ' + (d.occurrence || '') + ')';
       case 'ABSENCE': return (d.supprime ? 'Absence supprimée : ' : 'Absence : ') + (d.nom || '') + (d.debut ? ' du ' + U.date(d.debut) : '') + (d.fin ? ' au ' + U.date(d.fin) : '') + (d.categorie ? ' (' + (A.CATEGORIES_ABSENCE[d.categorie] || d.categorie).toLowerCase() + ')' : '');
-      case 'ALERTE': return (d.supprime ? 'Alerte supprimée' : 'Alerte') + (d.libelle ? ' « ' + d.libelle + ' »' : '') + (d.avant ? ' avant le ' + U.date(d.avant) : '');
-      case 'ALERTE_VUE': return 'Alerte marquée vue';
+      case 'ALERTE': var tl = A.optionsAgenda(U.config(), d.service).typesAlertes.filter(function (t) { return t.code === d.type; })[0];
+        return (d.supprime ? 'Alerte supprimée' : 'Alerte') + (d.libelle ? ' « ' + d.libelle + ' »' : (tl ? ' « ' + tl.libelle + ' »' : '')) + (d.patientId ? ' — ' + A.identite(fiches()[d.patientId], opts().identite) : '') + (d.avant ? ' avant le ' + d.avant.split('-').reverse().join('/') : '') + (d.service ? ' (' + U.libService(d.service) + ')' : '');
+      case 'ALERTE_VUE': var av = st().alertes[d.alerte], tv = av && A.optionsAgenda(U.config(), av.service).typesAlertes.filter(function (t) { return t.code === av.type; })[0];
+        return (d.annule ? 'Alerte remise à voir' : 'Alerte marquée vue') + (av ? ' « ' + (av.libelle || (tv ? tv.libelle : 'alerte')) + ' »' + (av.patientId ? ' — ' + A.identite(fiches()[av.patientId], opts().identite) : '') : '');
     }
     return e.type;
   }
 
   SIC.modules.completerInterface('agenda', {
-    vues: { agenda: vueAgenda, taches: vueTaches },
+    vues: { agenda: vueAgenda, taches: vueTaches, alertes: vueAlertes, 'mon-agenda': vueMonAgenda },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'L’élément de l’agenda revient à son état précédent.'; } },
     admin: { onglets: function () { return [['agenda', 'Agenda', [panneauReglages()]]]; } }
   });

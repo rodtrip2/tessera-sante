@@ -10,6 +10,30 @@
 })(typeof self !== 'undefined' ? self : this, function (M, registre, root) {
   'use strict';
 
+  /**
+   * Fourniture `isocont.echeancesJLD` v1 (lue par l'Agenda) : prochaine échéance JLD non encore tracée de chaque mesure en cours
+   * des services demandés, dépassées ou dans les `heures` à venir (72 par défaut). Toujours calculées par le moteur
+   * d'Isocont (depuis le début de la mesure), jamais recopiées. options : { maintenant, services, heures }.
+   */
+  var NATURES_JLD = { info: 'Information du juge', saisine: 'Saisine du juge', decision: 'Décision du juge attendue' };
+  function echeancesJLD(st, options) {
+    var maintenant = options.maintenant || Date.now(), horizon = maintenant + (options.heures || 72) * 36e5, res = [];
+    if (!st || !st.mesures || !M) return res;
+    Object.keys(st.mesures).forEach(function (k) {
+      var m = st.mesures[k];
+      if (typeof m.fin === 'number' || m.annulee || (options.services && options.services.indexOf(m.service) < 0)) return;
+      var j = M.suiviJLD(st, m, maintenant);
+      // Prochaine démarche seulement (la première non tracée), pour ne pas encombrer l'agenda des étapes suivantes
+      var suivante = ['info', 'saisine', 'decision'].filter(function (n) { return j[n] && typeof j[n].echeance === 'number' && typeof j[n].effective !== 'number'; })[0];
+      [suivante].forEach(function (n) {
+        var e = n && j[n];
+        if (!e || e.echeance > horizon) return;
+        res.push({ date: e.echeance, nature: n, libelle: NATURES_JLD[n], typeMesure: m.type, service: m.service, mesure: m.id, patientId: m.patientId, cycle: j.cycle, statut: e.statut });
+      });
+    });
+    return res.sort(function (a, b) { return a.date - b.date; });
+  }
+
   var contrat = {
     // Identité
     id: 'isocont',
@@ -54,8 +78,8 @@
 
     // Fournitures : lues à la volée par d'autres modules (calcul à brancher avec l'Agenda, étape 6)
     fournitures: [
-      { nom: 'isocont.echeancesJLD', version: 1, acces: 'jld',
-        champs: ['date', 'nature', 'typeMesure', 'service', 'mesure', 'statut'] }
+      { nom: 'isocont.echeancesJLD', version: 1, acces: 'jld', lire: echeancesJLD,
+        champs: ['date', 'nature', 'typeMesure', 'service', 'mesure', 'patientId', 'statut'] }
     ],
 
     // Besoins : la fiche commune du module Patients (étape 5), indispensable

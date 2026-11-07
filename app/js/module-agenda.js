@@ -135,6 +135,47 @@
     return res.sort(function (a, b) { return a.item.echeance - b.item.echeance || a.debut - b.debut; });
   }
 
+  /**
+   * Alertes de l'équipe des services (décision du porteur : saisies par l'équipe, visibles jusqu'à « vu ») :
+   * non supprimées, non vues (ou vues depuis moins de `joursVues` jours si demandé), triées par date limite.
+   * `depassee` : date limite passée. Libellé : celui du type (liste du service ou de l'établissement), ou le libellé libre.
+   */
+  function alertesEquipe(st, config, services, maintenant, joursVues) {
+    var aujourdhui = jourISO(maintenant);
+    return Object.keys(st.alertes || {}).map(function (k) { return st.alertes[k]; }).filter(function (a) {
+      if (a.supprime || services.indexOf(a.service) < 0) return false;
+      if (!a.vue) return true;
+      return joursVues > 0 && Date.parse(a.vue.le) >= maintenant - joursVues * 864e5;
+    }).map(function (a) {
+      var t = optionsAgenda(config, a.service).typesAlertes.concat(optionsAgenda(config).typesAlertesEtablissement).filter(function (x) { return x.code === a.type; })[0];
+      return Object.assign({}, a, { titre: a.type === 'autre' || !t ? (a.libelle || 'Alerte') : t.libelle, depassee: !a.vue && !!a.avant && a.avant < aujourdhui });
+    }).sort(function (a, b) { return !!a.vue - !!b.vue || String(a.avant || '9999').localeCompare(String(b.avant || '9999')) || String(a.heure || '').localeCompare(String(b.heure || '')) || String(a.cree).localeCompare(String(b.cree)); });
+  }
+  /** Une alerte concerne-t-elle l'agent (`compte` : id, roles) ? Personne visée, rôle visé, ou toute l'équipe (pour vide). */
+  function alertePour(a, compte) {
+    var p = a.pour || {};
+    if (p.agent) return p.agent === compte.id;
+    if (p.role) return (compte.roles || []).indexOf(p.role) >= 0;
+    return true;
+  }
+  /** Réunions des services dans les `jours` à venir (7 par défaut), à partir de maintenant. */
+  function reunionsAVenir(st, fiches, services, maintenant, jours) {
+    return elements(st, fiches, services, maintenant, plusJours(maintenant, jours || 7)).filter(function (x) { return x.rdv.nature === 'reunion' && !x.externe && x.debut >= maintenant - 36e5; });
+  }
+
+  /**
+   * « Mon agenda » (décision du porteur : vue dans Tessera seulement, tous services confondus) : éléments où l'agent
+   * est prévu, tâches qui lui reviennent (affectées à lui, ou sans affectation et pour son rôle ou toute l'équipe),
+   * ses absences, alertes qui le visent (personne ou rôle). `services` : tous les services de l'agent.
+   */
+  function monAgenda(st, fiches, config, compte, services, debut, fin, maintenant) {
+    var els = elements(st, fiches, services, debut, fin).filter(function (x) { return !x.externe && (x.rdv.professionnels || []).some(function (p) { return p.id === compte.id; }); });
+    var taches = tachesDues(st, services, debut, fin).filter(function (x) { return x.affecte ? x.affecte.agent === compte.id : tachePour(x.tache, compte); });
+    var abs = absences(st, debut, fin).filter(function (a) { return a.agent === compte.id; });
+    var al = alertesEquipe(st, config, services, maintenant || debut).filter(function (a) { return a.pour && (a.pour.agent || a.pour.role) && alertePour(a, compte); });
+    return { elements: els, taches: taches, absences: abs, alertes: al };
+  }
+
   /** Réglages des tâches (`config.agenda.taches`) : ce que les rôles qui ajustent peuvent changer ; tâches d'équipe récurrentes. */
   function optionsTaches(config) {
     var t = ((config && config.agenda) || {}).taches || {};
@@ -299,11 +340,11 @@
       case 'ALERTE':
         if (!d.id) break;
         var al = st.alertes[d.id] || { id: d.id, cree: e.at, par: e.by };
-        ['type', 'libelle', 'patientId', 'service', 'avant', 'pour', 'motif', 'supprime'].forEach(function (k) { if (d[k] !== undefined) al[k] = d[k]; });
+        ['type', 'libelle', 'patientId', 'service', 'avant', 'heure', 'pour', 'precision', 'supprime'].forEach(function (k) { if (d[k] !== undefined) al[k] = d[k]; });
         st.alertes[d.id] = al;
         break;
       case 'ALERTE_VUE':
-        if (st.alertes[d.alerte]) st.alertes[d.alerte].vue = { par: e.by, le: e.at, evt: e.id };
+        if (st.alertes[d.alerte]) st.alertes[d.alerte].vue = d.annule ? null : { par: e.by, le: e.at, evt: e.id };
         break;
     }
   }
@@ -365,7 +406,7 @@
       services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [] },
     // Onglet « Tâches du service » : affiché à qui peut régler les tâches (décision du porteur du 7 novembre 2026)
-    vues: { onglets: [{ code: 'agenda', libelle: 'Agenda' }, { code: 'taches', libelle: 'Tâches du service', droit: ['TACHE', 'TACHE_AJUSTEMENT', 'TACHE_EQUIPE'] }] },
+    vues: { onglets: [{ code: 'agenda', libelle: 'Agenda' }, { code: 'alertes', libelle: 'Alertes' }, { code: 'mon-agenda', libelle: 'Mon agenda' }, { code: 'taches', libelle: 'Tâches du service', droit: ['TACHE', 'TACHE_AJUSTEMENT', 'TACHE_EQUIPE'] }] },
     migrations: [],
     fournitures: [],
     besoins: [{ fourniture: 'patients.fiches', version: 1, obligatoire: true }, { fourniture: 'isocont.echeancesJLD', version: 1, obligatoire: false }]
@@ -375,5 +416,6 @@
   return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
+    alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
     etatChecklist: etatChecklist, checklists: checklists, alertesChecklists: alertesChecklists, optionsTaches: optionsTaches, AJUSTABLES: AJUSTABLES, affectation: affectation, controler: controler, tachePour: tachePour, tachesDues: tachesDues, absences: absences, prevusAbsents: prevusAbsents, jourISO: jourISO, depuisISO: depuisISO };
 });
