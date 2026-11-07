@@ -4,7 +4,7 @@
  *
  * Organisation du service, aucune donnée clinique : accompagnements, activités thérapeutiques et réunions (`RDV`,
  * selon `nature`), tâches ponctuelles ou régulières (`TACHE`, `TACHE_FAITE`), absences des professionnels (`ABSENCE`),
- * alertes « à voir par le médecin » (`ALERTE_MEDECIN`, `ALERTE_VUE`). Journal `modules\agenda\`, clé propre, activation
+ * alertes de types réglables par l'établissement (`ALERTE`, `ALERTE_VUE`). Journal `modules\agenda\`, clé propre, activation
  * par service ; lecture à la volée des fiches (Patients) et des échéances JLD (Isocont), jamais d'écriture ailleurs.
  *
  * Sous-étape 6.1 : contrat, droits et reconstitution de l'état ; les écrans viennent aux sous-étapes suivantes.
@@ -15,22 +15,73 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre) {
   'use strict';
 
-  var TYPES = ['RDV', 'TACHE', 'TACHE_FAITE', 'ABSENCE', 'ALERTE_MEDECIN', 'ALERTE_VUE'];
+  var TYPES = ['RDV', 'TACHE', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
   var NATURES = { accompagnement: 'Accompagnement', activite: 'Activité thérapeutique', reunion: 'Réunion' };
   var CATEGORIES_ABSENCE = { conge: 'Congé', formation: 'Formation', exterieur: 'Réunion extérieure', autre: 'Autre' };
+  // Identité du patient affichée dans l'agenda (décision du 4 novembre 2026 ; défaut proposé : initiales)
+  var IDENTITES = { aucune: 'Aucune (« patient »)', initiales: 'Initiales', ipp: 'IPP', nom: 'Nom complet' };
+  // Types d'alertes fournis (décision du 7 novembre 2026 : liste modifiable, types ajoutés, « Autre » libre à la saisie)
+  var TYPES_ALERTE_DEFAUT = [
+    { code: 'medecin', libelle: 'À voir par le médecin' }, { code: 'psychologue', libelle: 'À voir par le psychologue' },
+    { code: 'social', libelle: 'À voir par l’assistant(e) de service social' }, { code: 'rdv', libelle: 'Rendez-vous à organiser' },
+    { code: 'transmission', libelle: 'Information à transmettre' }
+  ];
+
+  /** Réglages de l'Agenda (`config.agenda`, journal du socle), validés à la lecture. */
+  function optionsAgenda(config) {
+    var a = (config && config.agenda) || {};
+    var types = Array.isArray(a.typesAlertes) ? a.typesAlertes.filter(function (t) { return t && t.code && String(t.libelle || '').trim(); })
+      .map(function (t) { return { code: String(t.code).slice(0, 40), libelle: String(t.libelle).trim().slice(0, 80) }; }) : TYPES_ALERTE_DEFAUT.slice();
+    return { identite: IDENTITES[a.identite] ? a.identite : 'initiales', typesAlertes: types };
+  }
+
+  /** Désignation d'un patient selon le réglage : initiales, IPP, nom complet, ou « patient ». */
+  function identite(fiche, mode) {
+    if (!fiche) return 'patient';
+    if (mode === 'nom') return ((fiche.nom || '') + ' ' + (fiche.prenom || '')).trim() || 'patient';
+    if (mode === 'ipp') return fiche.ipp ? 'IPP ' + fiche.ipp : 'patient (sans IPP)';
+    if (mode === 'aucune') return 'patient';
+    var ini = function (s) { return String(s || '').split(/[\s-]+/).filter(function (x) { return /^[A-Za-zÀ-ÖØ-öø-ÿ]/.test(x); }).map(function (x) { return x[0].toUpperCase(); }).join(''); };
+    return (ini(fiche.prenom) + '.' + ini(fiche.nom) + '.').replace(/^\./, '') || 'patient';
+  }
+
+  /** Service où le patient est hospitalisé : unité du séjour en cours, sinon service de la fiche. */
+  function serviceDuPatient(fiche) {
+    var s = (fiche && fiche.sejours) || [], cours = null;
+    s.forEach(function (x) { if (!x.sortie) cours = x; });
+    return (cours && cours.service) || (fiche && fiche.service) || null;
+  }
+
+  /**
+   * Éléments de l'agenda des services `services` qui chevauchent [debut, fin[ : ceux des services eux-mêmes, et ceux
+   * d'un autre service qui concernent un patient hospitalisé dans l'un d'eux (décision du porteur du 7 novembre 2026 :
+   * affichés en lecture seule, avec les seuls patients concernés). Triés par heure de début.
+   */
+  function elements(st, fiches, services, debut, fin) {
+    var res = [];
+    Object.keys(st.rdv).forEach(function (k) {
+      var r = st.rdv[k];
+      if (r.supprime || !(r.debut < fin) || !((r.fin || r.debut) >= debut)) return;
+      if (services.indexOf(r.service) >= 0) { res.push({ rdv: r, externe: false, patients: r.patients || [] }); return; }
+      if (r.nature === 'reunion') return;
+      var concernes = (r.patients || []).filter(function (pid) { return services.indexOf(serviceDuPatient(fiches[pid])) >= 0; });
+      if (concernes.length) res.push({ rdv: r, externe: true, patients: concernes });
+    });
+    return res.sort(function (a, b) { return a.rdv.debut - b.rdv.debut || String(a.rdv.titre).localeCompare(String(b.rdv.titre)); });
+  }
 
   // Accès cochables dans « Rôles et accès » (rangés dans config.roles[CODE].accesModules.agenda)
   var ACCES = [
     { code: 'agenda.consulter', libelle: 'Consulter l’agenda du service', types: [] },
     { code: 'agenda.planifier', libelle: 'Planifier : accompagnements, activités, réunions, tâches', types: ['RDV', 'TACHE'] },
     { code: 'agenda.taches', libelle: 'Cocher les tâches faites', types: ['TACHE_FAITE'] },
-    { code: 'agenda.alertes', libelle: 'Alertes « à voir par le médecin » : créer, marquer vu', types: ['ALERTE_MEDECIN', 'ALERTE_VUE'] },
+    { code: 'agenda.alertes', libelle: 'Alertes (à voir par le médecin…) : créer, marquer vue', types: ['ALERTE', 'ALERTE_VUE'] },
     { code: 'agenda.absences', libelle: 'Saisir les absences de l’équipe (chacun saisit les siennes)', types: ['ABSENCE'] }
   ];
   // Accès par défaut des rôles fournis (proposition, réglable par l'établissement)
   var DROITS = {
-    IDE: ['RDV', 'TACHE', 'TACHE_FAITE', 'ALERTE_MEDECIN', 'ALERTE_VUE'],
-    AS: ['TACHE_FAITE', 'ALERTE_MEDECIN', 'ALERTE_VUE'],
+    IDE: ['RDV', 'TACHE', 'TACHE_FAITE', 'ALERTE', 'ALERTE_VUE'],
+    AS: ['TACHE_FAITE', 'ALERTE', 'ALERTE_VUE'],
     SECRETAIRE: ['RDV', 'TACHE', 'TACHE_FAITE'],
     CADRE: TYPES.slice()
   };
@@ -70,10 +121,10 @@
         ['agent', 'nom', 'debut', 'fin', 'categorie', 'service', 'supprime'].forEach(function (k) { if (d[k] !== undefined) a[k] = d[k]; });
         st.absences[d.id] = a;
         break;
-      case 'ALERTE_MEDECIN':
+      case 'ALERTE':
         if (!d.id) break;
         var al = st.alertes[d.id] || { id: d.id, cree: e.at, par: e.by };
-        ['patientId', 'service', 'avant', 'medecin', 'motif', 'supprime'].forEach(function (k) { if (d[k] !== undefined) al[k] = d[k]; });
+        ['type', 'libelle', 'patientId', 'service', 'avant', 'pour', 'motif', 'supprime'].forEach(function (k) { if (d[k] !== undefined) al[k] = d[k]; });
         st.alertes[d.id] = al;
         break;
       case 'ALERTE_VUE':
@@ -116,5 +167,6 @@
   };
 
   registre.declarer(contrat);
-  return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D };
+  return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
+    IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements };
 });
