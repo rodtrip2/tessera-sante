@@ -9,7 +9,8 @@
   'use strict';
   var SIC = self.SIC, U = SIC.ui, h = U.h;
 
-  function generer(config) { return SIC.donneesFictives({ config: config }); }
+  // Saisies fictives du jeu de formation : fournies par le module (contrat, élément « formation »)
+  function generer(config) { return SIC.modules.actif().formation.generer(config); }
 
   U.formation = {
     /** Champ de choix affiché sur l'écran de connexion. */

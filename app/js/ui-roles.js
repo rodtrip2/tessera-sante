@@ -3,11 +3,15 @@
  * Rôles et accès (Administration → Comptes et sécurité) : libellé et accès des rôles fournis (IDE, AS,
  * Secrétaire, Cadre de santé), création de rôles propres à l'établissement, rôle Administrateur fixe.
  * Réglage `config.roles`, enregistré par une saisie CONFIG (tracée au journal, annulable).
- * Règles : model.js (ACCES, rolesConfig, peut, voitTousServices, exigeService).
+ * Accès, rôles fournis et onglets : contrat du module (registre des modules) ; règles : droits.js.
  */
 (function () {
   'use strict';
-  var SIC = self.SIC, U = SIC.ui, M = SIC.model, h = U.h;
+  var SIC = self.SIC, U = SIC.ui, h = U.h;
+  // Accès, rôles fournis et onglets : déclarés par le module dans son contrat (registre des modules)
+  function mod() { return SIC.modules.actif(); }
+  function D() { return mod().droits; }
+  function ongletsMasquables() { return mod().vues.onglets.filter(function (o) { return o.masquable; }).map(function (o) { return o.code; }); }
 
   function comptesAvec(code) {
     return (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && (c.roles || []).indexOf(code) >= 0; });
@@ -20,18 +24,18 @@
     return code;
   }
 
-  var LIB_ONGLETS = { tableau: 'Tableau de bord', mesures: 'Mesures', patients: 'Patients', jld: 'JLD', surveillance: 'Surveillance CSI', registre: 'Registre', stats: 'Statistiques' };
-  function libOnglets(l) { return l.length ? l.map(function (o) { return U.lieu(LIB_ONGLETS[o]); }).join(', ') : 'aucun'; }
-  function libJournal(c) { var n = M.NIVEAUX_JOURNAL.filter(function (x) { return x.code === c; })[0]; return n ? n.libelle : c; }
+  function libOnglet(code) { var o = mod().vues.onglets.filter(function (x) { return x.code === code; })[0]; return o ? o.libelle : code; }
+  function libOnglets(l) { return l.length ? l.map(function (o) { return U.lieu(libOnglet(o)); }).join(', ') : 'aucun'; }
+  function libJournal(c) { var n = D().NIVEAUX_JOURNAL.filter(function (x) { return x.code === c; })[0]; return n ? n.libelle : c; }
   function minuscule(t) { return t.charAt(0).toLowerCase() + t.slice(1); }
   function resumeAcces(acces) {
-    return acces.length ? M.ACCES.filter(function (a) { return acces.indexOf(a.code) >= 0; }).map(function (a) { return minuscule(U.lieu(a.libelle)); }).join(', ') : 'aucun accès (consultation seule)';
+    return acces.length ? mod().acces.filter(function (a) { return acces.indexOf(a.code) >= 0; }).map(function (a) { return minuscule(U.lieu(a.libelle)); }).join(', ') : 'aucun accès (consultation seule)';
   }
 
   function panneau() {
     var cfg = U.config();
     // Copie de travail des rôles réglables (l'administrateur est fixe)
-    var liste = M.rolesConfig(cfg).filter(function (r) { return !r.admin; }).map(function (r) {
+    var liste = D().rolesConfig(cfg).filter(function (r) { return !r.admin; }).map(function (r) {
       return { code: r.code, libelle: r.libelle, acces: r.acces.slice(), services: r.services, journal: r.journal, registreSeul: !!r.registreSeul, ongletsMasques: r.ongletsMasques.slice(), fourni: r.fourni };
     });
     var avant = JSON.parse(JSON.stringify(liste));
@@ -39,9 +43,9 @@
 
     function carte(r) {
       var lib = h('input', { type: 'text', maxlength: 40, value: r.libelle, 'aria-label': 'Libellé du rôle', oninput: function () { r.libelle = lib.value; } });
-      var cases = M.ACCES.map(function (a) {
+      var cases = mod().acces.map(function (a) {
         var cb = h('input', { type: 'checkbox', checked: r.acces.indexOf(a.code) >= 0, onchange: function () {
-          r.acces = M.ACCES.map(function (x) { return x.code; }).filter(function (c) { return c === a.code ? cb.checked : r.acces.indexOf(c) >= 0; });
+          r.acces = mod().acces.map(function (x) { return x.code; }).filter(function (c) { return c === a.code ? cb.checked : r.acces.indexOf(c) >= 0; });
         } });
         return h('label', { class: 'case' }, cb, h('span', { text: U.lieu(a.libelle) }));
       });
@@ -54,16 +58,16 @@
         noteJournal.hidden = !arbitre;
       }
       var selJournal = h('select', { 'aria-label': 'Journal des saisies', onchange: function () { r.journal = selJournal.value; majNote(); } },
-        M.NIVEAUX_JOURNAL.map(function (x) { return h('option', { value: x.code, text: x.libelle, selected: r.journal === x.code }); }));
+        D().NIVEAUX_JOURNAL.map(function (x) { return h('option', { value: x.code, text: x.libelle, selected: r.journal === x.code }); }));
       majNote();
       // Rôle « registre seulement » (rôles créés) : remplace les accès et le journal
       var grilleAcces = h('div', { class: 'grille-acces' }, cases), blocJournal = h('label', {}, 'Journal des saisies', selJournal);
       // Onglets masquables (Surveillance CSI, Registre, Statistiques) : cochés = affichés
-      var blocOnglets = h('div', { class: 'pile' }, h('span', { text: 'Onglets affichés' }), h('div', { class: 'actions gauche' }, M.ONGLETS_MASQUABLES.map(function (o) {
+      var blocOnglets = h('div', { class: 'pile' }, h('span', { text: 'Onglets affichés' }), h('div', { class: 'actions gauche' }, ongletsMasquables().map(function (o) {
         var cb = h('input', { type: 'checkbox', checked: r.ongletsMasques.indexOf(o) < 0, onchange: function () {
-          r.ongletsMasques = M.ONGLETS_MASQUABLES.filter(function (x) { return x === o ? !cb.checked : r.ongletsMasques.indexOf(x) >= 0; });
+          r.ongletsMasques = ongletsMasquables().filter(function (x) { return x === o ? !cb.checked : r.ongletsMasques.indexOf(x) >= 0; });
         } });
-        return h('label', { class: 'case' }, cb, h('span', { text: U.lieu(LIB_ONGLETS[o]) }));
+        return h('label', { class: 'case' }, cb, h('span', { text: U.lieu(libOnglet(o)) }));
       })), h('small', { class: 'muted', text: 'Le journal se règle ci-dessous (« Journal des saisies ») ; l’onglet Administration est réservé à l’administrateur. Un agent qui cumule des rôles voit un onglet dès qu’un de ses rôles l’affiche. Masquer le JLD ou la surveillance retire aussi leurs éléments du tableau de bord.' }));
       var cbAnonyme = r.fourni ? null : h('input', { type: 'checkbox', checked: !!r.registreSeul, onchange: function () { r.registreSeul = cbAnonyme.checked; majAnonyme(); } });
       var noteAnonyme = h('small', { class: 'muted', text: 'Seul l’onglet Registre est ouvert, tel qu’il s’affiche habituellement (patients désignés par leur identifiant, IPP, et leur âge ; psychiatre et soignants chargés de la surveillance) : ni mesures, ni fiches patient, ni journal, ni fenêtre des exports, aucune saisie. Les agents peuvent l’imprimer et l’enregistrer en PDF ou en CSV. Exemple : membre d’une instance, direction, chargé de qualité.' });
@@ -79,7 +83,7 @@
         blocOnglets, blocJournal, noteJournal,
         h('div', { class: 'actions gauche' },
           r.fourni ? h('button', { class: 'btn petit', type: 'button', onclick: function () {
-            r.acces = M.accesDefaut(r.code); r.ongletsMasques = []; r.services = true; r.libelle = M.ROLES[r.code]; r.journal = M.rolesConfig({}).filter(function (x) { return x.code === r.code; })[0].journal; dessiner();
+            r.acces = D().accesDefaut(r.code); r.ongletsMasques = []; r.services = true; r.libelle = D().ROLES[r.code]; r.journal = D().rolesConfig({}).filter(function (x) { return x.code === r.code; })[0].journal; dessiner();
           } }, 'Rétablir les droits par défaut') : null,
           !r.fourni ? h('button', { class: 'btn petit danger', type: 'button', disabled: n > 0, title: n ? 'Retirez d’abord ce rôle des ' + n + ' compte(s) qui le portent.' : '', onclick: function () {
             liste.splice(liste.indexOf(r), 1); dessiner();
@@ -89,7 +93,7 @@
     function dessiner() {
       U.vider(zone);
       liste.forEach(function (r) { zone.appendChild(carte(r)); });
-      zone.appendChild(h('fieldset', { class: 'role' }, h('legend', { text: M.ROLES.ADMIN }),
+      zone.appendChild(h('fieldset', { class: 'role' }, h('legend', { text: D().ROLES.ADMIN }),
         h('small', { class: 'muted', text: 'Rôle fixe : réglages, comptes et clés, imports, annulation de toute saisie, intégrité des données, accès à tous les services, journal complet. Il ne se modifie pas, pour qu’un établissement ne puisse pas perdre l’accès aux réglages ; il se cumule avec un autre rôle.' })));
     }
 
@@ -116,8 +120,8 @@
         liste.forEach(function (r) {
           var l = String(r.libelle || '').trim();
           if (!l) throw new Error('Un rôle n’a pas de libellé.');
-          if (vus[l.toLowerCase()] || l.toLowerCase() === M.ROLES.ADMIN.toLowerCase()) throw new Error('Deux rôles portent le libellé « ' + l + ' ».');
-          if (!r.registreSeul && r.ongletsMasques.length === M.ONGLETS_MASQUABLES.length && r.journal === 'aucun') throw new Error('Le rôle « ' + l + ' » n’affiche aucun onglet : laissez au moins un onglet ou le journal.');
+          if (vus[l.toLowerCase()] || l.toLowerCase() === D().ROLES.ADMIN.toLowerCase()) throw new Error('Deux rôles portent le libellé « ' + l + ' ».');
+          if (!r.registreSeul && r.ongletsMasques.length === ongletsMasquables().length && r.journal === 'aucun') throw new Error('Le rôle « ' + l + ' » n’affiche aucun onglet : laissez au moins un onglet ou le journal.');
           vus[l.toLowerCase()] = 1;
           valeur[r.code] = { libelle: l, acces: r.registreSeul ? [] : r.acces.slice(), services: !!r.services, journal: r.journal };
           if (!r.registreSeul && r.ongletsMasques.length) valeur[r.code].ongletsMasques = r.ongletsMasques.slice();

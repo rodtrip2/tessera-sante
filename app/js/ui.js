@@ -70,8 +70,14 @@
   try { App.service = localStorage.getItem('sic-service') || '*'; } catch (e) { /* stockage indisponible */ }
   var racine = document.getElementById('app');
 
+  // Socle et module affiché (contrat déclaré au registre des modules, modules.js)
+  var X = SIC.exportsRangement, N = SIC.noyauJournal;
+  function moduleActif() { return SIC.modules.actif(); }
+  /** Éléments d'interface du module (vues, libellés du journal, panneaux d'administration) : ui-isocont.js. */
+  function interfaceModule() { return moduleActif().interface || {}; }
+  function droits() { return moduleActif().droits; }
   function st() { return App.session && App.session.etat; }
-  function config() { return st() ? st().config : M.CONFIG_DEFAUT; }
+  function config() { return st() ? st().config : moduleActif().reglages.defaut; }
   /** Texte de l'outil avec l'appellation des lieux d'isolement de l'établissement (« CSI » par défaut). */
   function lieu(texte) { return M.txtLieu(config(), texte); }
   function tousServices() { return config().services || []; }
@@ -414,10 +420,10 @@
 
   /** Dossiers d'exports visibles par l'agent : ses services ; « Etablissement » si son rôle couvre plusieurs services. */
   function dossiersExportsVisibles() {
-    var s = App.session, tous = M.voitTousServices(s.roles(), config());
+    var s = App.session, tous = droits().voitTousServices(s.roles(), config());
     var vis = {};
-    (tous ? tousServices() : services()).forEach(function (x) { vis[M.dossierExportService(x.code)] = x.libelle; });
-    if (tous || s.peut('STATS') || s.peut('EXPORT_PATIENT') || s.peut('CONFIG')) vis[M.DOSSIER_ETABLISSEMENT] = 'Établissement (plusieurs services)';
+    (tous ? tousServices() : services()).forEach(function (x) { vis[X.dossierExportService(x.code)] = x.libelle; });
+    if (tous || s.peut('STATS') || s.peut('EXPORT_PATIENT') || s.peut('CONFIG')) vis[X.DOSSIER_ETABLISSEMENT] = 'Établissement (plusieurs services)';
     return { libelles: vis, tous: tous };
   }
 
@@ -425,7 +431,7 @@
   function modaleExports() {
     var s = App.session, zone = h('div', { class: 'pile' }, h('div', { class: 'muted', text: 'Lecture du dossier des exports…' }));
     var vis = dossiersExportsVisibles();
-    var filtreSv = h('select', { 'aria-label': 'Service', class: 'champ-moyen' }, h('option', { value: '', text: 'Tous mes services' }), Object.keys(vis.libelles).map(function (k) { return h('option', { value: k, text: vis.libelles[k], selected: App.service !== '*' && M.dossierExportService(App.service) === k }); }));
+    var filtreSv = h('select', { 'aria-label': 'Service', class: 'champ-moyen' }, h('option', { value: '', text: 'Tous mes services' }), Object.keys(vis.libelles).map(function (k) { return h('option', { value: k, text: vis.libelles[k], selected: App.service !== '*' && X.dossierExportService(App.service) === k }); }));
     var filtre = h('select', { 'aria-label': 'Catégorie', class: 'champ-moyen' }, h('option', { value: '', text: 'Toutes les catégories' }), Object.keys(LIB_CATEGORIES_EXPORT).map(function (k) { return h('option', { value: k, text: LIB_CATEGORIES_EXPORT[k] }); }));
     var cherche = h('input', { type: 'search', placeholder: 'Rechercher un fichier', class: 'champ-moyen' });
     var zoneChemin = h('div', { class: 'pile' });
@@ -439,7 +445,7 @@
     function majChemin() {
       vider(zoneChemin);
       var sous = filtreSv.value ? [filtreSv.value] : [];
-      var chemin = M.cheminWindowsExports(config(), sous);
+      var chemin = X.cheminWindowsExports(config(), sous);
       if (!chemin) {
         zoneChemin.appendChild(h('small', { class: 'muted', text: s.peut('CONFIG') ? 'Pour proposer un accès direct au dossier depuis Windows, renseignez le chemin réseau du dossier des données (Administration → Sauvegardes et exports → Dossier des exports).' : 'Accès direct au dossier depuis Windows : demandez à l’administrateur de renseigner le chemin réseau.' }));
         return;
@@ -501,9 +507,9 @@
     filtre.addEventListener('change', dessiner); cherche.addEventListener('input', dessiner);
     majChemin();
     s.listerExports().then(function (l) { liste = l; dessiner(); }).catch(function (e) { vider(zone).appendChild(h('div', { class: 'erreur', text: e.message })); });
-    var dossier = M.dossierExports(config()), nomDossier = App.dossier && App.dossier.handle && App.dossier.handle.name;
+    var dossier = X.dossierExports(config()), nomDossier = App.dossier && App.dossier.handle && App.dossier.handle.name;
     modale('Exports', h('div', { class: 'pile' },
-      M.optionsExports(config()).conservationJours ? h('p', { class: 'muted', text: 'Durée de conservation fixée par l’établissement : ' + M.optionsExports(config()).conservationJours + ' jours ; les fichiers plus anciens sont supprimés automatiquement.' }) : null,
+      X.optionsExports(config()).conservationJours ? h('p', { class: 'muted', text: 'Durée de conservation fixée par l’établissement : ' + X.optionsExports(config()).conservationJours + ' jours ; les fichiers plus anciens sont supprimés automatiquement.' }) : null,
       h('p', { class: 'muted', text: 'Les décomptes, registres, statistiques et autres exports sont enregistrés automatiquement dans le dossier « ' + dossier + ' »' + (nomDossier ? ' du dossier des données (« ' + nomDossier + ' »)' : '') + (App.session.formation ? ', jeu de formation' : '') + ', un sous-dossier par service. Vous voyez les fichiers de vos services. Ils contiennent des données nominatives : ne les copiez pas hors du réseau de l’établissement.' }),
       zoneChemin,
       h('div', { class: 'actions gauche' }, filtreSv, filtre, cherche),
@@ -549,7 +555,7 @@
   /** Purge automatique des exports (règle de l'administrateur), une fois par jour et par poste. */
   function purgeAutomatique() {
     var s = App.session;
-    if (!s || !s.etat || !M.optionsExports(s.etat.config).conservationJours) return;
+    if (!s || !s.etat || !X.optionsExports(s.etat.config).conservationJours) return;
     var cle = 'sic-purge-exports' + (s.formation ? '-formation' : ''), jour = M.dateLocaleISO(Date.now());
     try { if (localStorage.getItem(cle) === jour) return; localStorage.setItem(cle, jour); } catch (e) { /* stockage indisponible : purge à chaque connexion */ }
     s.purgerExports().then(function (f) { if (f.length) toast(f.length + ' ancien(s) export(s) supprimé(s) selon la durée de conservation de l’établissement.'); }).catch(function () { /* nouvelle tentative au prochain jour */ });
@@ -582,10 +588,10 @@
   // ================================================================ Application
   var zoneContenu = null, zoneEntete = null;
 
-  var ONGLETS = [
-    ['tableau', 'Tableau de bord'], ['mesures', 'Mesures'], ['patients', 'Patients'], ['jld', 'JLD'], ['surveillance', 'Surveillance CSI'],
-    ['registre', 'Registre'], ['stats', 'Statistiques'], ['journal', 'Journal'], ['admin', 'Administration']
-  ];
+  /** Onglets : ceux du module (son contrat), puis le journal et l'administration du socle. */
+  function onglets() {
+    return moduleActif().vues.onglets.map(function (o) { return [o.code, o.libelle]; }).concat([['journal', 'Journal'], ['admin', 'Administration']]);
+  }
 
   /** Liste « Affichage » de l'en-tête (administrateur) : voir l'outil comme un agent portant un autre rôle. */
   function selApercu(s) {
@@ -595,7 +601,7 @@
       if (s.apercu && App.onglet === 'admin') App.onglet = 'tableau';
       rendreContenu();
     } }, h('option', { value: '', text: 'Affichage : le mien' }),
-      M.rolesConfig(config()).filter(function (r) { return !r.admin; }).map(function (r) { return h('option', { value: r.code, text: 'Affichage : ' + r.libelle, selected: !!s.apercu && s.apercu.code === r.code }); }));
+      droits().rolesConfig(config()).filter(function (r) { return !r.admin; }).map(function (r) { return h('option', { value: r.code, text: 'Affichage : ' + r.libelle, selected: !!s.apercu && s.apercu.code === r.code }); }));
     return sel;
   }
 
@@ -660,17 +666,17 @@
     if (s.utilisateur && s.utilisateur.mdpProvisoire) return rendre();
     var maintenant = Date.now();
     var estAdmin = s.roles().indexOf('ADMIN') >= 0;
-    var nivJournal = M.niveauJournal(s.roles(), config());
+    var nivJournal = droits().niveauJournal(s.roles(), config());
     // Rôle « registre seulement » : un seul onglet, le registre tel qu'il s'affiche habituellement
-    var anonyme = M.registreSeul(s.roles(), config());
+    var anonyme = droits().registreSeul(s.roles(), config());
     // Onglets affichés : réglage des rôles (Rôles et accès), journal selon son niveau, administration pour l'administrateur
     function affichable(o) {
       if (o === 'admin') return estAdmin;
       if (o === 'journal') return nivJournal !== 'aucun' && !anonyme;
       if (anonyme) return o === 'registre';
-      return M.ongletVisible(s.roles(), config(), o);
+      return droits().ongletVisible(s.roles(), config(), o);
     }
-    if (!affichable(App.onglet)) App.onglet = (ONGLETS.filter(function (o) { return affichable(o[0]); })[0] || ['aucun'])[0];
+    if (!affichable(App.onglet)) App.onglet = (onglets().filter(function (o) { return affichable(o[0]); })[0] || ['aucun'])[0];
     var conflits = nivJournal === 'aucun' ? 0 : conflitsVisibles().length;
     // Pages de tableaux : toute la largeur de l'écran (les pages de réglage gardent une largeur de lecture)
     zoneContenu.classList.toggle('large', ['tableau', 'mesures', 'patients', 'jld', 'surveillance', 'registre', 'journal', 'stats'].indexOf(App.onglet) >= 0);
@@ -691,7 +697,7 @@
     var age = s.derniereSynchro ? Math.round((maintenant - s.derniereSynchro) / 1000) : null;
     zoneEntete.appendChild(h('div', { class: 'entete-haut' }, marque(etablissement() || App.dossier.nom), h('div', { class: 'espace' }), mesSv.length ? selService : null,
       h('div', { class: 'statut-synchro', title: s.evts.length + ' saisies dans le journal' }, h('span', { class: 'point' }), age !== null ? 'Synchronisé' : '—'),
-      h('div', { class: 'utilisateur' }, h('b', { text: s.utilisateur.nom }), s.utilisateur.roles.map(function (r) { return M.libRole(config(), r); }).join(' · ')),
+      h('div', { class: 'utilisateur' }, h('b', { text: s.utilisateur.nom }), s.utilisateur.roles.map(function (r) { return droits().libRole(config(), r); }).join(' · ')),
       selApercu(s),
       s.utilisateur.id !== 'secours' ? h('button', { class: 'btn petit', onclick: modaleMonMotDePasse }, 'Mot de passe') : null,
       anonyme ? null : h('button', { class: 'btn petit', title: 'Fichiers exportés (décomptes, registres, statistiques…)', onclick: modaleExports }, 'Exports'),
@@ -708,7 +714,7 @@
       h('button', { class: 'btn petit', type: 'button', onclick: function () { s.definirApercu(null); rendreContenu(); } }, 'Revenir à mon affichage')));
     var bl = SIC.ui.miroir.bandeauLocal(); if (bl) zoneEntete.appendChild(bl);
     var nav = h('nav', { class: 'onglets', 'aria-label': 'Sections' });
-    ONGLETS.forEach(function (o) {
+    onglets().forEach(function (o) {
       if (!affichable(o[0])) return;
       nav.appendChild(h('button', { 'aria-current': App.onglet === o[0] ? 'page' : null, onclick: function () { App.onglet = o[0]; rendreContenu(); } },
         lieu(o[1]), o[0] === 'journal' && conflits ? h('span', { class: 'pastille', text: conflits }) : null));
@@ -718,7 +724,8 @@
     zoneContenu.style.minHeight = zoneContenu.offsetHeight + 'px';   // évite que la page se replie pendant la reconstruction
     vider(zoneContenu);
     var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: vueAdmin };
-    var vue = vues[App.onglet] || SIC.ui.vues[App.onglet] || SIC.ui.vues.tableau;
+    var vuesModule = interfaceModule().vues || {};
+    var vue = vues[App.onglet] || vuesModule[App.onglet] || vuesModule[moduleActif().vues.onglets[0].code];
     if (!mesSv.length && !estAdmin) { zoneContenu.appendChild(h('div', { class: 'panneau vide', text: 'Aucun service ne vous est affecté. Demandez à l’administrateur de vous en attribuer un.' })); return; }
     try { zoneContenu.appendChild(vue(maintenant)); }
     catch (e) { zoneContenu.appendChild(h('div', { class: 'erreur', text: 'Erreur d’affichage : ' + e.message })); console.error(e); }
@@ -727,18 +734,18 @@
   // ---------------------------------------------------------------- Journal
   // ---------------------------------------------------------------- Annulation depuis le journal
   function boutonAnnulationJournal(etat, e) {
-    var a = M.annulabilite(etat, e);
+    var a = N.annulabilite(etat, e);
     if (!a || !App.session.peut(a.droit) || !App.session.peut('ANNULATION')) return null;
     return h('button', { class: 'btn petit', title: a.action === 'retablir' ? 'Annuler cette annulation : la saisie d’origine produit de nouveau son effet' : 'Annuler cette saisie (motif obligatoire ; elle reste au journal)', onclick: function () { modaleAnnulationJournal(e, a); } }, a.action === 'retablir' ? 'Rétablir' : 'Annuler');
   }
   function modaleAnnulationJournal(e, a) {
     var motif = h('textarea', { rows: 2, placeholder: a.action === 'retablir' ? 'Ex. : annulation faite par erreur' : 'Ex. : saisie en double, erreur de patient…' });
     var cible = a.cible;
-    var effet = a.action === 'retablir' ? 'La saisie annulée produit de nouveau son effet.' : (SIC.ui.journal.effetAnnulation(cible) || 'La saisie cesse de produire son effet (échéances, registre et statistiques sont recalculés).');
+    var effet = a.action === 'retablir' ? 'La saisie annulée produit de nouveau son effet.' : (interfaceModule().journal.effetAnnulation(cible) || 'La saisie cesse de produire son effet (échéances, registre et statistiques sont recalculés).');
     modale(a.action === 'retablir' ? 'Rétablir une saisie annulée' : 'Annuler une saisie', h('div', { class: 'pile' },
       h('div', { class: 'recap' },
-        h('div', {}, h('b', { text: SIC.ui.journal.libelleType(cible.type) + ' — ' }), date(Date.parse(cible.at)) + ', ' + App.session.nomAuteur(cible.by)),
-        h('div', { text: SIC.ui.journal.resume(cible) })),
+        h('div', {}, h('b', { text: interfaceModule().journal.libelleType(cible.type) + ' — ' }), date(Date.parse(cible.at)) + ', ' + App.session.nomAuteur(cible.by)),
+        h('div', { text: interfaceModule().journal.resume(cible) })),
       h('div', { class: 'alerte', text: effet + ' Rien n’est effacé : la saisie et son annulation restent au journal, et l’annulation peut elle-même être annulée.' }),
       h('label', {}, 'Motif (obligatoire)', motif)), [
       { texte: 'Fermer' },
@@ -750,17 +757,17 @@
   }
 
   /** Saisies du journal visibles par l'agent connecté (niveau de ses rôles, Rôles et accès). */
-  function journalVisible() { return M.journalVisible(st(), App.session.compteEffectif(), config()); }
+  function journalVisible() { return droits().journalVisible(st().journal, App.session.compteEffectif(), config(), function (e) { return moduleActif().saisies.services(st(), e); }); }
   /** Conflits dont les deux saisies sont visibles par l'agent connecté. */
   function conflitsVisibles() {
     var etat = st();
-    if (M.niveauJournal(App.session.roles(), config()) === 'complet') return etat.conflits;
+    if (droits().niveauJournal(App.session.roles(), config()) === 'complet') return etat.conflits;
     var vis = {}; journalVisible().forEach(function (e) { vis[e.id] = 1; });
     return etat.conflits.filter(function (c) { return vis[c.retenu] || vis[c.concurrent]; });
   }
 
   function vueJournal() {
-    var etat = st(), niveau = M.niveauJournal(App.session.roles(), config());
+    var etat = st(), niveau = droits().niveauJournal(App.session.roles(), config());
     if (niveau === 'aucun') return h('p', { class: 'muted', text: 'Le journal n’est pas accessible avec vos rôles.' });
     var visibles = journalVisible(), conflitsV = conflitsVisibles();
     var conflitsIds = {};
@@ -778,8 +785,8 @@
           } }, 'Garder');
         }
         return h('div', { class: 'recap' },
-          h('div', {}, h('b', { text: 'Appliquée : ' }), SIC.ui.journal.resume(a), ' — ', App.session.nomAuteur(a.by), ' ', choix(a, b)),
-          h('div', {}, h('b', { text: 'Concurrente : ' }), SIC.ui.journal.resume(b), ' — ', App.session.nomAuteur(b.by), ' ', choix(b, a)));
+          h('div', {}, h('b', { text: 'Appliquée : ' }), interfaceModule().journal.resume(a), ' — ', App.session.nomAuteur(a.by), ' ', choix(a, b)),
+          h('div', {}, h('b', { text: 'Concurrente : ' }), interfaceModule().journal.resume(b), ' — ', App.session.nomAuteur(b.by), ' ', choix(b, a)));
       })) : null;
     var complet = niveau === 'complet';
     var manquants = complet && etat.manquants.length ? h('div', { class: 'erreur', text: etat.manquants.length + ' saisie(s) manquante(s) dans le dossier (fichier supprimé ou non encore synchronisé) : ' + etat.manquants.map(function (x) { return x.manque; }).join(', ') + '. Détail, réparation depuis une copie ou prise d’acte : Administration → Sauvegardes et exports.' }) : null;
@@ -787,7 +794,7 @@
 
     var lignes = visibles.slice().reverse().slice(0, 400);
     var portee = complet ? null : h('p', { class: 'muted', text: niveau === 'siennes' ? 'Vous voyez vos propres saisies (réglage de vos rôles).' : 'Vous voyez les saisies concernant vos services et vos propres saisies (réglage de vos rôles).' });
-    SIC.ui.journal.preparer();
+    interfaceModule().journal.preparer();
     return h('div', {},
       h('div', { class: 'barre' }, h('h1', { text: 'Journal des saisies' }), h('div', { class: 'espace' }), h('small', { class: 'muted', text: (complet ? etat.journal.length + ' saisies' : visibles.length + ' saisies affichées') + ', chacune dans un fichier chiffré distinct, jamais modifié.' })),
       portee, rejetes, manquants, blocConflits,
@@ -798,8 +805,8 @@
           return h('tr', { class: annule ? 'ancienne' : '' },
             h('td', { class: 'nowrap', text: date(Date.parse(e.at)) }),
             h('td', { text: App.session.nomAuteur(e.by) }),
-            h('td', {}, SIC.ui.journal.action(e)),
-            h('td', {}, SIC.ui.journal.resume(e)),
+            h('td', {}, interfaceModule().journal.action(e)),
+            h('td', {}, interfaceModule().journal.resume(e)),
             h('td', {}, annule ? h('span', { class: 'badge', text: 'annulée' }) : null, conflitsIds[e.id] ? h('span', { class: 'badge bad', text: 'conflit' }) : null),
             h('td', { class: 'actions-ligne' }, boutonAnnulationJournal(etat, e)));
         })))),
@@ -872,10 +879,10 @@
       h('div', { class: 'table-wrap' }, h('table', {},
         h('thead', {}, h('tr', {}, ['Nom', 'Identifiant', 'Rôles', 'Services', 'État', ''].map(function (t) { return h('th', { text: t }); }))),
         h('tbody', {}, s.comptes.map(function (c) {
-          var admin = M.voitTousServices(c.roles, config());
+          var admin = droits().voitTousServices(c.roles, config());
           return h('tr', { class: c.actif ? '' : 'ancienne' },
             h('td', { text: c.nom }), h('td', { class: 'mono', text: c.login }),
-            h('td', { text: c.roles.map(function (r) { return M.libRole(config(), r); }).join(', ') }),
+            h('td', { text: c.roles.map(function (r) { return droits().libRole(config(), r); }).join(', ') }),
             h('td', {}, admin ? h('small', { text: c.roles.indexOf('ADMIN') >= 0 ? 'Tous (administrateur)' : 'Tous' }) : ((c.services || []).length ? (c.services || []).map(libService).join(', ') : h('span', { class: 'badge warn', text: 'aucun' }))),
             h('td', {}, h('span', { class: 'badge ' + (c.actif ? 'ok' : ''), text: c.actif ? 'actif' : 'désactivé' }), (function () {
               var v = SIC.comptes.validite(c, Date.now());
@@ -948,11 +955,11 @@
       }));
 
     // -- Dossier des exports
-    var tExports = h('input', { type: 'text', maxlength: 120, value: M.dossierExports(cfg), placeholder: 'exports' });
-    var oExp = M.optionsExports(cfg);
+    var tExports = h('input', { type: 'text', maxlength: 120, value: X.dossierExports(cfg), placeholder: 'exports' });
+    var oExp = X.optionsExports(cfg);
     var tReseau = h('input', { type: 'text', maxlength: 200, value: oExp.cheminReseau, placeholder: '\\\\serveur\\partage\\SuiviIsoCont' });
     function libConservation(j) { return !j ? 'Aucune purge automatique' : j < 365 ? Math.round(j / 30.5) + ' mois' : Math.round(j / 365.25) + ' an' + (Math.round(j / 365.25) > 1 ? 's' : ''); }
-    var selConservation = h('select', {}, M.CONSERVATION_EXPORTS.map(function (j) { return h('option', { value: j, text: libConservation(j), selected: j === oExp.conservationJours }); }));
+    var selConservation = h('select', {}, X.CONSERVATION_EXPORTS.map(function (j) { return h('option', { value: j, text: libConservation(j), selected: j === oExp.conservationJours }); }));
     var apercuPurge = h('small', { class: 'muted' });
     function majApercuPurge() {
       var j = +selConservation.value;
@@ -972,7 +979,7 @@
       h('label', {}, 'Durée de conservation des exports', selConservation), h('div', {}, h('b', {}, apercuPurge)),
       h('small', { class: 'muted', text: 'Purge automatique : à la première connexion de la journée sur chaque poste, les fichiers du dossier des exports plus anciens que cette durée (date d’enregistrement) sont supprimés, et la purge est inscrite au journal. La durée est à fixer avec le délégué à la protection des données ; elle ne concerne que les exports, jamais les données de l’outil ni le registre.' }),
       h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: async function () {
-        var j = M.optionsExports(config()).conservationJours;
+        var j = X.optionsExports(config()).conservationJours;
         if (!j) return alert('Aucune durée de conservation enregistrée : choisissez une durée puis « Enregistrer ».');
         var l = await App.session.purgerExports({ simulation: true });
         if (!l.length) return toast('Aucun export à purger.');
@@ -984,7 +991,7 @@
         if (!SIC.cheminExport(v)) throw new Error('Nom de dossier invalide : lettres, chiffres, espaces, tirets, points et « / » entre sous-dossiers ; jamais « .. ».');
         if (['evenements', 'instantanes', 'coffre-historique', 'reperes', 'quarantaine', 'preferences', 'formation'].indexOf(SIC.cheminExport(v)[0].toLowerCase()) >= 0) throw new Error('Ce nom est réservé par l’outil.');
         var j = +selConservation.value;
-        if (j && j < M.optionsExports(config()).conservationJours || (j && !M.optionsExports(config()).conservationJours)) {
+        if (j && j < X.optionsExports(config()).conservationJours || (j && !X.optionsExports(config()).conservationJours)) {
           var l = await App.session.purgerExports({ simulation: true, conservationJours: j });
           if (l.length && !confirm('Avec une conservation de ' + libConservation(j) + ', ' + l.length + ' fichier(s) existant(s) seront supprimés à la prochaine purge automatique (première connexion de la journée). Enregistrer ?')) return;
         }
@@ -995,7 +1002,7 @@
 
     // -- Organisation des envois au JLD (texte affiché en tête de l'onglet JLD)
     // Panneaux du module (onglets propres et contributions aux onglets communs) : ui-isocont.js
-    var pModule = SIC.ui.admin.panneaux(!!s.formation);
+    var pModule = interfaceModule().admin.panneaux(!!s.formation);
 
     var demo = App.dossier.mode === 'demo' ? h('section', { class: 'panneau' }, h('h2', { text: 'Démonstration' }),
       h('p', { class: 'muted', text: 'Efface toutes les données de démonstration de ce navigateur et revient à l’accueil.' }),
@@ -1048,7 +1055,7 @@
   function casesRoles(actuels) {
     var bloc = h('div', { class: 'pile' });
     var cases = {};
-    M.rolesConfig(config()).forEach(function (r) {
+    droits().rolesConfig(config()).forEach(function (r) {
       cases[r.code] = h('input', { type: 'checkbox', checked: actuels.indexOf(r.code) >= 0 });
       var resume = r.admin ? 'réglages, comptes, imports, annulations' : SIC.ui.roles.resumeAcces(r.acces);
       bloc.appendChild(h('label', { class: 'case' }, cases[r.code], h('span', { text: r.libelle + ' — ' + resume + (!r.admin && !r.services ? ' (tous les services)' : '') })));
@@ -1075,14 +1082,14 @@
     bloc.appendChild(note);
     function maj() {
       var choisis = Object.keys(roles.cases).filter(function (r) { return roles.cases[r].checked; });
-      var tous = M.voitTousServices(choisis, config());
+      var tous = droits().voitTousServices(choisis, config());
       note.hidden = !tous;
       Object.keys(cases).forEach(function (k) { cases[k].disabled = tous; });
     }
     Object.keys(roles.cases).forEach(function (r) { roles.cases[r].addEventListener('change', maj); }); maj();
     bloc.valeur = function (rolesChoisis) {
       var v = Object.keys(cases).filter(function (k) { return cases[k].checked; });
-      var exige = M.exigeService(rolesChoisis, config());
+      var exige = droits().exigeService(rolesChoisis, config());
       if (exige && !v.length) throw new Error('Affectez au moins un service.');
       return v;
     };
