@@ -13,13 +13,29 @@
   function libServices(g) { return g.services.length ? g.services.map(U.libService).join(', ') : 'tout l’établissement'; }
   function comptesActifs() { return (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours'; }); }
 
+  // ------------------------------------------------------------ Information du cadre d'un agent ajouté à un groupe d'un autre service
+  function avisVus() { var p = U.App.session.preferences || {}; return Array.isArray(p.avisGroupesVus) ? p.avisGroupesVus : []; }
+  function mesAvis() { try { return G.avisMembresExterieurs(U.config(), U.App.session.comptes || [], moi(), avisVus()); } catch (e) { return []; } }
+  async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisGroupesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
+  function bandeauAvis() {
+    var av = mesAvis();
+    if (!av.length) return null;
+    return h('section', { class: 'panneau ag-avis', role: 'status' },
+      h('div', { class: 'barre' }, h('h2', { text: av.length > 1 ? av.length + ' agents de vos services ajoutés à un groupe' : 'Un agent de vos services ajouté à un groupe' }), h('div', { class: 'espace' }),
+        h('button', { class: 'btn petit', type: 'button', onclick: function () { marquerVus(av.map(function (a) { return a.id; })); } }, 'Tout marquer vu')),
+      h('ul', { class: 'liste-simple' }, av.map(function (a) {
+        return h('li', {}, h('span', { text: (a.membre.nom || U.App.session.nomAuteur(a.membre.id)) + ' (' + a.servicesAgent.map(U.libService).join(', ') + ') a été ajouté(e) au groupe « ' + a.groupe.libelle + ' » (' + a.groupe.services.map(U.libService).join(', ') + ') par ' + U.App.session.nomAuteur(a.membre.ajoute.par) + ', le ' + U.date(Date.parse(a.membre.ajoute.le)) + '. ' }),
+          h('button', { class: 'btn petit', type: 'button', onclick: function () { marquerVus([a.id]); } }, 'Vu'));
+      })));
+  }
+
   function vueGroupes() {
     var cfg = U.config(), groupes = G.liste(cfg), mien = moi();
     var visibles = estAdmin() ? groupes : groupes.filter(function (g) { return !g.services.length || g.services.some(function (s) { return (mien.services || []).indexOf(s) >= 0; }); });
-    return h('div', {},
+    return h('div', {}, bandeauAvis(),
       h('div', { class: 'barre' }, h('h1', { text: 'Groupes d’agents' }),
         h('button', { class: 'btn primaire', onclick: function () { modaleGroupe(null); } }, '+ Nouveau groupe')),
-      h('p', { class: 'muted', text: 'En plus de leur affectation à un ou plusieurs services, les agents peuvent être réunis en groupes : équipe de jour, équipe de nuit, groupe de travail… Une tâche ou une alerte de l’agenda peut être adressée à un groupe ; ses membres la retrouvent dans « Mon agenda ». Le cadre crée et modifie les groupes de ses services ; un groupe de tout l’établissement est créé par l’administrateur.' }),
+      h('p', { class: 'muted', text: 'En plus de leur affectation à un ou plusieurs services, les agents peuvent être réunis en groupes : équipe de jour, équipe de nuit, groupe de travail… Une tâche ou une alerte de l’agenda peut être adressée à un groupe ; ses membres la retrouvent dans « Mon agenda ». Le cadre crée et modifie les groupes de ses services ; il peut y ajouter des agents d’autres services, dont le cadre est alors informé. Un groupe de tout l’établissement est créé par l’administrateur.' }),
       visibles.length ? h('div', { class: 'table-wrap' }, h('table', {},
         h('thead', {}, h('tr', {}, ['Groupe', 'Services', 'Membres', ''].map(function (t) { return h('th', { text: t }); }))),
         h('tbody', {}, visibles.map(function (g) {
@@ -44,17 +60,24 @@
     var actif = h('input', { type: 'checkbox', checked: x.actif !== false });
     function dessinerMembres() {
       U.vider(zoneMembres);
-      // Agents affectés à l'un des services du groupe (tous les agents pour un groupe de l'établissement), et membres déjà inscrits
-      var candidats = comptesActifs().filter(function (c) { return !choisis.length || !(c.services || []).length || (c.services || []).some(function (s) { return choisis.indexOf(s) >= 0; }); });
-      membres.forEach(function (m) { if (!candidats.some(function (c) { return c.id === m.id; })) candidats.push({ id: m.id, nom: m.nom || U.App.session.nomAuteur(m.id) }); });
-      candidats.sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
-      if (!candidats.length) return zoneMembres.appendChild(h('p', { class: 'muted', text: 'Aucun agent affecté à ces services.' }));
-      zoneMembres.appendChild(h('div', { class: 'grille-3' }, candidats.map(function (c) {
-        var cb = h('input', { type: 'checkbox', checked: membres.some(function (m) { return m.id === c.id; }), onchange: function () {
-          membres = cb.checked ? membres.concat([{ id: c.id, nom: c.nom || '' }]) : membres.filter(function (m) { return m.id !== c.id; });
-        } });
-        return h('label', { class: 'case' }, cb, h('span', { text: c.nom || c.id }));
-      })));
+      // Tous les agents actifs (décision du 8 novembre 2026) : ceux des services du groupe d'abord, puis ceux des autres
+      // services (leur cadre est informé de l'ajout) ; membres déjà inscrits gardés
+      var tous = comptesActifs().map(function (c) { return { id: c.id, nom: c.nom || c.id, services: c.services || [] }; });
+      membres.forEach(function (m) { if (!tous.some(function (c) { return c.id === m.id; })) tous.push({ id: m.id, nom: m.nom || U.App.session.nomAuteur(m.id), services: [] }); });
+      tous.sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
+      var duGroupe = function (c) { return !choisis.length || !c.services.length || c.services.some(function (x) { return choisis.indexOf(x) >= 0; }); };
+      function cases(l) {
+        return h('div', { class: 'grille-3' }, l.map(function (c) {
+          var cb = h('input', { type: 'checkbox', checked: membres.some(function (m) { return m.id === c.id; }), onchange: function () {
+            membres = cb.checked ? membres.concat([{ id: c.id, nom: c.nom || '', ajoute: { par: mien.id, le: new Date().toISOString() } }]) : membres.filter(function (m) { return m.id !== c.id; });
+          } });
+          return h('label', { class: 'case' }, cb, h('span', { text: c.nom + (duGroupe(c) || !c.services.length ? '' : ' (' + c.services.map(U.libService).join(', ') + ')') }));
+        }));
+      }
+      var a = tous.filter(duGroupe), b = tous.filter(function (c) { return !duGroupe(c); });
+      zoneMembres.appendChild(a.length ? cases(a) : h('p', { class: 'muted', text: 'Aucun agent affecté à ces services.' }));
+      if (b.length) zoneMembres.appendChild(h('details', { open: b.some(function (c) { return membres.some(function (m) { return m.id === c.id; }); }) },
+        h('summary', { text: 'Agents d’autres services (' + b.length + ') — leur cadre sera informé de l’ajout' }), cases(b)));
     }
     dessinerMembres();
     var boutons = [{ texte: 'Annuler' }];
@@ -85,4 +108,5 @@
   }
 
   U.vueGroupes = vueGroupes;
+  U.pastilleGroupes = function () { return mesAvis().length; };
 })();

@@ -1,5 +1,10 @@
 # Journal des modifications — Tessera Santé
 
+## 0.15.2 — 8 novembre 2026
+
+- **Groupes d'agents — agents d'autres services** (décision du porteur du 8 novembre 2026) : le cadre peut ajouter à un groupe de ses services des agents qui n'y sont pas affectés (liste « Agents d'autres services » dans la fenêtre du groupe) ; l'ajout est daté et **le cadre des services de l'agent en est informé** : bandeau dans l'onglet *Groupes d'agents*, pastille sur l'icône Administration, « Vu ».
+- Nouveau test (233 au vert) ; écran vérifié dans Chrome ; architecture, fiche projet et guide utilisateur à jour.
+
 ## 0.15.1 — 8 novembre 2026
 
 Décisions du porteur du 8 novembre 2026.

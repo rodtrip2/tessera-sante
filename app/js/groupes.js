@@ -21,7 +21,11 @@
       return {
         code: x.code, libelle: String(x.libelle).trim().slice(0, 60),
         services: Array.isArray(x.services) ? x.services.filter(function (s) { return typeof s === 'string'; }) : [],
-        membres: Array.isArray(x.membres) ? x.membres.filter(function (m) { return m && typeof m.id === 'string'; }).map(function (m) { return { id: m.id, nom: String(m.nom || '') }; }) : [],
+        membres: Array.isArray(x.membres) ? x.membres.filter(function (m) { return m && typeof m.id === 'string'; }).map(function (m) {
+          var o = { id: m.id, nom: String(m.nom || '') };
+          if (m.ajoute && typeof m.ajoute.par === 'string' && typeof m.ajoute.le === 'string') o.ajoute = { par: m.ajoute.par, le: m.ajoute.le };
+          return o;
+        }) : [],
         actif: x.actif !== false
       };
     });
@@ -60,5 +64,28 @@
     return true;
   }
 
-  return { liste: liste, de: de, pourService: pourService, libelle: libelle, modifiable: modifiable, controler: controler };
+  /**
+   * Agent d'un autre service ajouté à un groupe (décision du porteur du 8 novembre 2026) : le cadre peut ajouter à un
+   * groupe de ses services des agents qui n'y sont pas affectés ; le cadre de leurs services en est informé.
+   * Membre « extérieur » : aucun de ses services n'est un service du groupe. Informations pour `moi` (cadre des services
+   * de l'agent, autre que l'auteur de l'ajout), sauf celles déjà vues (`vus`). `comptes` : [{ id, nom, roles, services }].
+   */
+  function avisMembresExterieurs(config, comptes, moi, vus) {
+    var v = vus || [], roles = (moi && moi.roles) || [], mesSv = (moi && moi.services) || [], res = [];
+    if (roles.indexOf('CADRE') < 0) return res;
+    liste(config).forEach(function (g) {
+      if (!g.actif || !g.services.length) return;
+      g.membres.forEach(function (m) {
+        if (!m.ajoute || m.ajoute.par === moi.id || m.id === moi.id) return;
+        var c = (comptes || []).filter(function (x) { return x.id === m.id; })[0], sv = (c && c.services) || [];
+        if (sv.some(function (x) { return g.services.indexOf(x) >= 0; })) return;      // agent d'un service du groupe
+        if (!sv.some(function (x) { return mesSv.indexOf(x) >= 0; })) return;           // pas un agent de mes services
+        var id = g.code + '|' + m.id + '|' + m.ajoute.le;
+        if (v.indexOf(id) < 0) res.push({ id: id, groupe: g, membre: m, servicesAgent: sv });
+      });
+    });
+    return res.sort(function (a, b) { return String(b.membre.ajoute.le).localeCompare(String(a.membre.ajoute.le)); });
+  }
+
+  return { liste: liste, avisMembresExterieurs: avisMembresExterieurs, de: de, pourService: pourService, libelle: libelle, modifiable: modifiable, controler: controler };
 });
