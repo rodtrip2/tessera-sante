@@ -84,4 +84,37 @@ test('Message de conflit avec le libellé du service ; jeu de démonstration du 
   assert.ok(Object.values(d.reservations).some((r) => r.lien && r.lien.transport === 'tm'), 'réservation liée à l’agenda');
   assert.equal(Object.keys(d.prets).length, 2);
   assert.equal(V.signalementsOuverts(d).length, 2);
+  assert.ok(d.reservations.RV006.supplantee && d.reservations.RV005.statut === 'pre');
+  assert.equal(V.avisPour(d, { agent: 'cadre', servicesInformes: ['U1'] }, [], Date.now()).length, 1);
+});
+
+test('Pré-réservation : avertit sans bloquer, réservation forcée en la désignant, auteur, cadre et secrétaire informés', () => {
+  const evts = [
+    ev('VEHICULE', { id: 'V1', nom: 'Clio (fictif)', service: 'U1' }),
+    Object.assign(ev('RESERVATION', { id: 'P1', statut: 'pre', vehicule: 'V1', debut: j('2026-11-12', 9), fin: j('2026-11-12', 11), service: 'U1', agent: 'a1', nom: 'Agent A (fictif)', motif: 'Visite à domicile' }), { by: 'a1' })
+  ];
+  let st = V.reduire(evts);
+  const p = V.peutReserver(st, 'V1', 'U1', j('2026-11-12', 10), j('2026-11-12', 12));
+  assert.ok(p.ok);
+  assert.deepEqual(p.pre.map((x) => x.id), ['P1']);
+  assert.match(p.avertissement, /pré-réservé par Agent A \(fictif\).*Visite à domicile/);
+  const ctx = { etat: st };
+  // Sans désigner la pré-réservation : refus ; une autre pré-réservation est permise
+  assert.throws(() => V.contrat.saisies.controler('RESERVATION', { id: 'R1', vehicule: 'V1', service: 'U1', debut: j('2026-11-12', 10), fin: j('2026-11-12', 12) }, ctx), /Confirmez pour forcer/);
+  V.contrat.saisies.controler('RESERVATION', { id: 'P2', statut: 'pre', vehicule: 'V1', service: 'U1', debut: j('2026-11-12', 10), fin: j('2026-11-12', 12) }, ctx);
+  V.contrat.saisies.controler('RESERVATION', { id: 'R1', vehicule: 'V1', service: 'U1', debut: j('2026-11-12', 10), fin: j('2026-11-12', 12), supplante: ['P1'] }, ctx);
+  // Une réservation ferme bloque une pré-réservation
+  const evts2 = evts.concat([Object.assign(ev('RESERVATION', { id: 'R1', vehicule: 'V1', service: 'U1', debut: j('2026-11-12', 10), fin: j('2026-11-12', 12), nom: 'Agent B (fictif)', supplante: ['P1'] }), { by: 'b1' })]);
+  st = V.reduire(evts2);
+  assert.ok(st.reservations.P1.supplantee && st.reservations.P1.supplantee.reservation === 'R1');
+  assert.deepEqual(V.reservationsActives(st, 'V1', j('2026-11-12', 0), j('2026-11-13', 0)).map((r) => r.id), ['R1']);
+  assert.throws(() => V.contrat.saisies.controler('RESERVATION', { id: 'P3', statut: 'pre', vehicule: 'V1', service: 'U1', debut: j('2026-11-12', 11), fin: j('2026-11-12', 13) }, { etat: st }), /indisponible/);
+  // Informés : l'auteur de la pré-réservation, le cadre et la secrétaire du service ; pas l'auteur de la réservation forcée
+  const now = j('2026-11-10', 8);
+  assert.equal(V.avisPour(st, { agent: 'a1', servicesInformes: [] }, [], now).length, 1);
+  assert.equal(V.avisPour(st, { agent: 'cadre', servicesInformes: ['U1'] }, [], now).length, 1);
+  assert.equal(V.avisPour(st, { agent: 'cadre', servicesInformes: ['U2'] }, [], now).length, 0);
+  assert.equal(V.avisPour(st, { agent: 'b1', servicesInformes: ['U1'] }, [], now).length, 0);
+  const vu = V.avisPour(st, { agent: 'a1' }, [], now)[0].id;
+  assert.equal(V.avisPour(st, { agent: 'a1' }, [vu], now).length, 0);
 });

@@ -1,5 +1,11 @@
 # Journal des modifications — Tessera Santé
 
+## 0.14.1 — 8 novembre 2026
+
+- **Pré-réservation d'un véhicule** (décision du porteur du 8 novembre 2026) : nature « Pré-réservation » avec motif obligatoire ; on sait qui a pré-réservé et pourquoi. Elle **n'empêche pas de réserver** : la personne qui réserve sur ce créneau est avertie (nom, service, horaires, motif) et peut **forcer la réservation** ; la pré-réservation est alors remplacée et **son auteur, le cadre et la secrétaire de son service sont informés** (bandeau dans la fenêtre Véhicules, pastille, « Vu »). Le module refuse une réservation qui passerait outre une pré-réservation sans la désigner. *Confirmer la réservation* passe une pré-réservation en réservation. Même avertissement depuis l'Agenda (transport « Véhicule du service »), puis réservation forcée.
+- Planning : pré-réservations hachurées, avec leur auteur et leur motif.
+- Démonstration : une pré-réservation en cours, une pré-réservation remplacée (information visible du cadre). Nouveau test (228 au vert) ; écrans vérifiés dans Chrome ; architecture, fiche projet, guide utilisateur et éléments RGPD à jour.
+
 ## 0.14.0 — 8 novembre 2026
 
 Nouveau module demandé par le porteur (8 novembre 2026) : **Véhicules de l'établissement** (journal `modules\vehicules\`, clé et droits propres, activation par service, icône dans la barre des modules).

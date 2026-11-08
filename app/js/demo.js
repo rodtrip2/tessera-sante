@@ -235,6 +235,11 @@
     resa({ id: 'RV004', vehicule: minibus, debut: jour(1, 9), fin: jour(1, 11, 30), service: U1, motif: 'Agenda : Activité', lien: { rdv: marche, occurrence: SIC.model.dateLocaleISO(jour(1)), transport: 'tm' } });
     ajouter(avant, 'TRANSPORT', { rdv: marche, transport: 'tm', occurrence: SIC.model.dateLocaleISO(jour(1)), statut: 'reserve', precision: 'Minibus 9 places (fictif) (XX-002-XX)', service: U1 });
     rdv({ nature: 'accompagnement', titre: 'Démarches à la mairie', debut: jour(4, 14), fin: jour(4, 16), lieu: 'Mairie (fictif)', service: U1, patients: ['P02'], accompagnateurs: 1, transports: [{ id: 'tc', type: 'vehicule', nombre: 1, vehicule: clio }] });
+    // Pré-réservations : une en cours (le véhicule reste réservable : la démarche à la mairie ci-dessus le montre), une
+    // remplacée par une réservation forcée (information de l'auteur, du cadre et de la secrétaire)
+    resa({ id: 'RV005', statut: 'pre', vehicule: clio, debut: jour(4, 13), fin: jour(4, 17), service: U1, motif: 'Visite à domicile, à confirmer', agent: 'demo-d', nom: 'Agent D (fictif)' });
+    resa({ id: 'RV006', statut: 'pre', vehicule: minibus, debut: jour(2, 10), fin: jour(2, 12), service: U1, motif: 'Sortie au parc, à confirmer', agent: 'demo-d', nom: 'Agent D (fictif)' });
+    ajouter(t(-10), 'RESERVATION', { id: 'RV007', statut: 'ferme', vehicule: minibus, debut: jour(2, 9, 30), fin: jour(2, 12), service: U1, motif: 'Rendez-vous extérieur', agent: 'demo-b', nom: 'Agent B (fictif)', supplante: ['RV006'] });
     ajouter(t(-20), 'SIGNALEMENT', { id: 'SG001', vehicule: clio, type: 'plein', texte: 'Reste un quart du réservoir' });
     ajouter(t(-30), 'SIGNALEMENT', { id: 'SG002', vehicule: minibus, type: 'voyant', texte: 'Voyant orange de pression des pneus' });
     ajouter(t(-24 * 4), 'SIGNALEMENT', { id: 'SG003', vehicule: minibus, type: 'nettoyage', texte: 'Sièges arrière' });

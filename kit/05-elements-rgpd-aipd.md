@@ -61,7 +61,7 @@ Tessera Santé est une plateforme : un **socle commun** (comptes, droits, chiffr
 | Finalités | Connaître le parc des véhicules et leur service d'affectation, organiser leur prêt entre services, les réserver (directement ou pour un événement de l'agenda), suivre les tâches qui les concernent (plein, nettoyage, voyant, entretien) |
 | Base légale (à valider) | Article 6.1.e du RGPD (mission d'intérêt public) ou 6.1.b (gestion du personnel et des moyens), à valider |
 | Personnes concernées | Professionnels (auteur d'une réservation ou d'un signalement). **Aucun patient** : une réservation faite depuis l'agenda porte la catégorie de l'événement (ex. « Activité »), jamais l'identité du patient |
-| Données | Véhicules (caractéristiques, immatriculation, stationnement, informations ajoutées par l'administrateur) ; réservations (véhicule, horaires, service, agent, motif court) ; signalements (type, précision, auteur, date, « fait ») |
+| Données | Véhicules (caractéristiques, immatriculation, stationnement, informations ajoutées par l'administrateur) ; réservations et pré-réservations (véhicule, horaires, service, agent, motif court ; pré-réservation remplacée : par qui, quand) ; signalements (type, précision, auteur, date, « fait ») |
 | Lecture d'autres modules | L'agenda lit à la volée la disponibilité des véhicules du service ; aucune copie |
 | Destinataires | Agents habilités des services où le module est activé ; un service emprunteur voit le véhicule prêté ou mis à disposition |
 

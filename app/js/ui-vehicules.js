@@ -23,10 +23,33 @@
   function libSignalement(code) { var t = opts().signalements.filter(function (x) { return x.code === code; })[0]; return t ? t.libelle : (code || 'Signalement'); }
   function moi() { return U.App.session.compteEffectif(); }
 
+  // ------------------------------------------------------------ Informations : pré-réservations remplacées
+  function avisVus() { var p = U.App.session.preferences || {}; return Array.isArray(p.avisVehiculesVus) ? p.avisVehiculesVus : []; }
+  /** Services dont l'agent est cadre ou secrétaire : il est informé des pré-réservations de ces services remplacées. */
+  function servicesInformes() {
+    var s = U.App.session, roles = (s.roles && s.roles()) || [];
+    return roles.some(function (x) { return x === 'CADRE' || x === 'SECRETAIRE' || x === 'ADMIN'; }) ? U.services().map(function (x) { return x.code; }) : [];
+  }
+  function mesAvis() { try { return V.avisPour(st(), { agent: moi().id, servicesInformes: servicesInformes() }, avisVus(), Date.now()); } catch (e) { return []; } }
+  async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisVehiculesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
+  function bandeauAvis() {
+    var av = mesAvis();
+    if (!av.length) return null;
+    return h('section', { class: 'panneau ag-avis', role: 'status' },
+      h('div', { class: 'barre' }, h('h2', { text: av.length > 1 ? av.length + ' pré-réservations remplacées' : 'Une pré-réservation remplacée' }), h('div', { class: 'espace' }),
+        h('button', { class: 'btn petit', type: 'button', onclick: function () { marquerVus(av.map(function (a) { return a.id; })); } }, 'Tout marquer vu')),
+      h('ul', { class: 'liste-simple' }, av.map(function (a) {
+        var p = a.preReservation, f = a.reservationForcee || {}, mien = p.agent === moi().id || p.par === moi().id;
+        return h('li', {}, h('span', { text: (mien ? 'Votre pré-réservation' : 'La pré-réservation de ' + (p.nom || 'un agent')) + ' — ' + V.libelleVehicule(st().vehicules[p.vehicule]) + ', ' + quand(p) + (p.motif ? ' (' + p.motif + ')' : '') +
+          ' — a été remplacée par la réservation de ' + (f.nom || U.App.session.nomAuteur(a.par)) + ' (' + U.libService(f.service) + ')' + (f.debut ? ', ' + quand(f) : '') + ', le ' + U.date(Date.parse(a.le)) + '. ' }),
+          h('button', { class: 'btn petit', type: 'button', onclick: function () { marquerVus([a.id]); } }, 'Vu'));
+      })));
+  }
+
   // ------------------------------------------------------------ Parc
   function vueParc(maintenant) {
     var svs = servicesAffiches(), vs = V.vehiculesPour(st(), svs);
-    return h('div', {},
+    return h('div', {}, bandeauAvis(),
       h('div', { class: 'barre' }, h('h1', { text: 'Véhicules' }),
         peut('VEHICULE') ? h('button', { class: 'btn primaire', onclick: function () { modaleVehicule(null); } }, '+ Nouveau véhicule') : null,
         peut('RESERVATION') ? h('button', { class: 'btn', onclick: function () { modaleReservation(null, {}); } }, 'Réserver un véhicule') : null),
@@ -53,7 +76,7 @@
         return h('span', { class: 'badge', title: p.motif || '', text: (p.mode === 'pret' ? 'Prêté à ' + (p.services || []).map(U.libService).join(', ') : 'À disposition de ' + ((p.services || []).length ? p.services.map(U.libService).join(', ') : 'tous les services')) + ' ' + V.libPeriode(p) });
       })) : null,
       h('div', {}, h('small', { class: 'muted', text: prochaines.length ? 'Prochaines réservations : ' : 'Aucune réservation dans les 30 jours.' }),
-        prochaines.map(function (r) { return h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleReservation(r, {}); } }, quand(r) + ' (' + U.libService(r.service) + ')'); })),
+        prochaines.map(function (r) { return h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleReservation(r, {}); } }, (r.statut === 'pre' ? 'Pré-réservé ' : '') + quand(r) + ' (' + U.libService(r.service) + (r.statut === 'pre' && r.nom ? ', ' + r.nom : '') + ')'); })),
       h('div', { class: 'actions gauche' },
         peut('RESERVATION') && v.actif !== false ? h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { modaleReservation(null, { vehicule: v.id }); } }, 'Réserver') : null,
         peut('SIGNALEMENT') ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleSignalement(v); } }, 'Signaler…') : null,
@@ -143,7 +166,10 @@
     var base = x.debut || ini.debut || (minuit(Date.now()) + 9 * 36e5);
     var dateD = h('input', { type: 'date', value: V.jourISO(base) }), hD = h('input', { type: 'time', value: hm(base) });
     var dateF = h('input', { type: 'date', value: V.jourISO(x.fin || base + 2 * 36e5) }), hF = h('input', { type: 'time', value: hm(x.fin || base + 2 * 36e5) });
-    var selV = h('select', {}), etat = h('div', { class: 'pile' });
+    var selV = h('select', {}), etat = h('div', { class: 'pile' }), info = null;
+    // Réservation ou pré-réservation (décision du porteur du 8 novembre 2026) : la pré-réservation dit qui et pourquoi,
+    // sans empêcher une réservation forcée après avertissement (l'auteur, le cadre et la secrétaire sont informés)
+    var statut = h('select', { 'aria-label': 'Nature' }, Object.keys(V.STATUTS).map(function (k) { return h('option', { value: k, text: V.STATUTS[k], selected: (x.statut || ini.statut || 'ferme') === k }); }));
     var motif = h('input', { type: 'text', maxlength: 120, value: x.motif || '', placeholder: 'Motif (ex. rendez-vous extérieur, sortie thérapeutique ; pas de donnée clinique)' });
     function periode() { return [new Date(dateD.value + 'T' + hD.value).getTime(), new Date(dateF.value + 'T' + hF.value).getTime()]; }
     function majVehicules() {
@@ -154,10 +180,12 @@
       liste.forEach(function (y) { selV.appendChild(h('option', { value: y.id, text: y.libelle + (y.places ? ' — ' + y.places + ' places' : '') + (y.ok ? '' : ' — indisponible'), selected: y.id === choix })); });
       U.vider(etat);
       var y = liste.filter(function (z) { return z.id === selV.value; })[0];
+      info = y || null;
       if (!liste.length) etat.appendChild(h('div', { class: 'alerte', text: 'Aucun véhicule pour ce service.' }));
+      else if (y && y.ok && y.avertissement) etat.appendChild(h('div', { class: 'alerte avertissement', text: 'Attention, véhicule ' + y.avertissement + '. ' + (statut.value === 'pre' ? 'Vous pouvez pré-réserver aussi.' : 'Vous pouvez forcer la réservation : l’auteur de la pré-réservation, le cadre et la secrétaire de son service en seront informés.') }));
       else if (y) etat.appendChild(h('div', { class: y.ok ? 'info' : 'alerte', text: y.ok ? 'Disponible.' + (y.signalements ? ' ' + y.signalements + ' signalement(s) en cours : voir l’onglet Véhicules.' : '') : 'Indisponible : ' + y.raison + '.' }));
     }
-    [sv, dateD, hD, dateF, hF, selV].forEach(function (c) { c.addEventListener('change', majVehicules); });
+    [sv, dateD, hD, dateF, hF, selV, statut].forEach(function (c) { c.addEventListener('change', majVehicules); });
     dateD.addEventListener('change', function () { if (dateF.value < dateD.value) dateF.value = dateD.value; });
     majVehicules();
     var boutons = [{ texte: 'Fermer' }];
@@ -168,21 +196,29 @@
       await s.enregistrer('RESERVATION', { id: r.id, annulee: true, motifAnnulation: mo.trim(), service: r.service });
       U.toast('Réservation annulée.');
     } });
-    if (!r || peut('RESERVATION')) boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
+    async function enregistrer(st0) {
       var p = periode();
       if (!selV.value) throw new Error('Choisissez un véhicule.');
       if (!(p[1] > p[0])) throw new Error('La fin doit suivre le début.');
       if (r && r.lien) throw new Error('Réservation liée à un événement de l’agenda : modifiez l’événement.');
-      var d = { id: x.id || 'RV' + C.hex(C.aleatoire(5)), vehicule: selV.value, debut: p[0], fin: p[1], service: sv.value, agent: x.agent || m.id, nom: x.nom || m.nom, motif: motif.value.trim() };
+      if (st0 === 'pre' && !motif.value.trim()) throw new Error('Indiquez le motif de la pré-réservation.');
+      var d = { id: x.id || 'RV' + C.hex(C.aleatoire(5)), vehicule: selV.value, debut: p[0], fin: p[1], service: sv.value, agent: x.agent || m.id, nom: x.nom || m.nom, motif: motif.value.trim(), statut: st0 };
+      if (info && info.pre && info.pre.length) {
+        if (!confirm('Véhicule ' + info.avertissement + '.\n\n' + (st0 === 'pre' ? 'Pré-réserver quand même ?' : 'Forcer la réservation ? L’auteur de la pré-réservation, le cadre et la secrétaire de son service en seront informés.'))) return false;
+        if (st0 !== 'pre') d.supplante = info.pre.slice();
+      }
       await s.enregistrer('RESERVATION', d);
-      U.toast(r ? 'Réservation modifiée.' : 'Véhicule réservé.');
-    } });
-    U.modale(r ? 'Réservation' : 'Réserver un véhicule', h('div', { class: 'pile' },
+      U.toast(st0 === 'pre' ? (r ? 'Pré-réservation modifiée.' : 'Véhicule pré-réservé.') : (r && r.statut === 'pre' ? 'Réservation confirmée.' : r ? 'Réservation modifiée.' : 'Véhicule réservé.'));
+    }
+    if (r && r.statut === 'pre' && peut('RESERVATION')) boutons.push({ texte: 'Confirmer la réservation', action: function () { return enregistrer('ferme'); } });
+    if (!r || peut('RESERVATION')) boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: function () { return enregistrer(statut.value); } });
+    U.modale(r ? (r.statut === 'pre' ? 'Pré-réservation' : 'Réservation') : 'Réserver un véhicule', h('div', { class: 'pile' },
       r && r.lien ? h('p', { class: 'muted', text: 'Réservée depuis un événement de l’agenda : elle suit l’événement (modification, annulation de la date, suppression).' }) : null,
-      h('div', { class: 'grille-2' }, h('label', {}, 'Service', sv), h('label', {}, 'Véhicule', selV)),
+      h('div', { class: 'grille-3' }, h('label', {}, 'Nature', statut), h('label', {}, 'Service', sv), h('label', {}, 'Véhicule', selV)),
       h('div', { class: 'grille-4' }, h('label', {}, 'Jour de départ', dateD), h('label', {}, 'Heure', hD), h('label', {}, 'Jour de retour', dateF), h('label', {}, 'Heure', hF)),
       etat, h('label', {}, 'Motif', motif),
-      r ? h('small', { class: 'muted', text: 'Réservée par ' + (r.nom || s.nomAuteur(r.par)) + ', ' + U.date(Date.parse(r.cree)) + '.' }) : null), boutons, { large: true });
+      h('small', { class: 'muted', text: 'Pré-réservation : le véhicule reste réservable ; la personne qui réserve est avertie de votre pré-réservation et de son motif, et vous en êtes informé(e), ainsi que le cadre et la secrétaire du service.' }),
+      r ? h('small', { class: 'muted', text: (r.statut === 'pre' ? 'Pré-réservée par ' : 'Réservée par ') + (r.nom || s.nomAuteur(r.par)) + ', ' + U.date(Date.parse(r.cree)) + '.' }) : null), boutons, { large: true });
   }
 
   // ------------------------------------------------------------ Planning (semaine par véhicule)
@@ -200,13 +236,13 @@
           return h('td', { class: 'cellule-vehicule' + (j0 === minuit(maintenant) ? ' aujourdhui' : '') },
             prets.map(function (p) { return h('div', { class: 'pret-vehicule', title: p.motif || '', text: p.mode === 'pret' ? 'Prêté : ' + (p.services || []).map(U.libService).join(', ') : 'À disposition' }); }),
             duJour.map(function (r) {
-              return h('button', { class: 'resa-vehicule' + (r.lien ? ' liee' : ''), type: 'button', title: (r.motif || '') + ' — ' + (r.nom || ''), onclick: function () { modaleReservation(r, {}); } },
-                (r.debut < j0 ? '…' : hm(r.debut)) + '–' + (r.fin > j1 ? '…' : hm(r.fin)) + ' ' + U.libService(r.service) + (r.motif ? ' · ' + r.motif : ''));
+              return h('button', { class: 'resa-vehicule' + (r.lien ? ' liee' : '') + (r.statut === 'pre' ? ' pre' : ''), type: 'button', title: (r.statut === 'pre' ? 'Pré-réservation — ' : '') + (r.motif || '') + ' — ' + (r.nom || ''), onclick: function () { modaleReservation(r, {}); } },
+                (r.statut === 'pre' ? 'Pré-réservé ' : '') + (r.debut < j0 ? '…' : hm(r.debut)) + '–' + (r.fin > j1 ? '…' : hm(r.fin)) + ' ' + U.libService(r.service) + (r.statut === 'pre' && r.nom ? ' · ' + r.nom : '') + (r.motif ? ' · ' + r.motif : ''));
             }),
             peut('RESERVATION') && v.actif !== false ? h('button', { class: 'btn lien petit', type: 'button', 'aria-label': 'Réserver ' + (v.nom || '') + ' le ' + libJour(j0), onclick: function () { modaleReservation(null, { vehicule: v.id, debut: j0 + 9 * 36e5 }); } }, '+') : null);
         }));
     });
-    return h('div', {},
+    return h('div', {}, bandeauAvis(),
       h('div', { class: 'barre' }, h('h1', { text: 'Réservations des véhicules' }), peut('RESERVATION') ? h('button', { class: 'btn primaire', onclick: function () { modaleReservation(null, {}); } }, 'Réserver un véhicule') : null),
       h('div', { class: 'barre' },
         h('button', { class: 'btn petit', type: 'button', 'aria-label': '7 jours précédents', onclick: function () { vue.ref = plusJours(vue.ref, -7); U.rendreContenu(); } }, '◀'),
@@ -214,7 +250,7 @@
         h('button', { class: 'btn petit', type: 'button', 'aria-label': '7 jours suivants', onclick: function () { vue.ref = plusJours(vue.ref, 7); U.rendreContenu(); } }, '▶'),
         h('b', { text: 'Du ' + libJour(debut) + ' au ' + libJour(plusJours(debut, 6)) })),
       vs.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'planning-vehicules' }, h('thead', {}, tete), h('tbody', {}, lignes))) : h('div', { class: 'panneau vide', text: 'Aucun véhicule pour vos services.' }),
-      h('p', { class: 'muted' }, h('small', { text: 'Réservation en pointillé : faite depuis un événement de l’agenda. « + » réserve le véhicule ce jour-là.' })));
+      h('p', { class: 'muted' }, h('small', { text: 'Réservation en pointillé : faite depuis un événement de l’agenda ; hachurée : pré-réservation (qui, pourquoi), qui n’empêche pas de réserver après avertissement. « + » réserve le véhicule ce jour-là.' })));
   }
 
   // ------------------------------------------------------------ Signalements
@@ -328,7 +364,9 @@
       case 'VEHICULE': return d.supprime ? 'Véhicule retiré du parc : ' + vh(d.id) : 'Véhicule ' + (d.nom ? '« ' + d.nom + ' »' : vh(d.id)) + (d.service ? ' — ' + U.libService(d.service) : '') + (d.actif === false ? ' (hors service)' : '');
       case 'PRET': return d.supprime ? 'Prêt supprimé (' + vh(d.vehicule) + ')' : (d.mode === 'pret' ? 'Prêt de ' : 'Mise à disposition de ') + vh(d.vehicule) + ' à ' + ((d.services || []).length ? d.services.map(U.libService).join(', ') : 'tous les services') + ' ' + V.libPeriode(d);
       case 'RESERVATION': var r = st().reservations[d.id] || d;
-        return d.annulee ? 'Réservation annulée : ' + vh(r.vehicule) + (r.debut ? ' ' + quand(r) : '') + (d.motifAnnulation ? ' (' + d.motifAnnulation + ')' : '') : 'Réservation de ' + vh(d.vehicule) + ' ' + quand(d) + ' — ' + U.libService(d.service) + (d.lien ? ' (depuis l’agenda)' : '') + (d.motif ? ' : ' + d.motif : '');
+        var nat = d.statut === 'pre' ? 'Pré-réservation' : 'Réservation';
+        return d.annulee ? nat + ' annulée : ' + vh(r.vehicule) + (r.debut ? ' ' + quand(r) : '') + (d.motifAnnulation ? ' (' + d.motifAnnulation + ')' : '') : nat + ' de ' + vh(d.vehicule || r.vehicule) + (d.debut ? ' ' + quand(d) : '') + (d.service ? ' — ' + U.libService(d.service) : '') + (d.lien ? ' (depuis l’agenda)' : '') + (d.motif ? ' : ' + d.motif : '') +
+          ((d.supplante || []).length ? ' — forcée sur ' + d.supplante.length + ' pré-réservation(s)' : '');
       case 'SIGNALEMENT': return 'Signalement « ' + libSignalement(d.type) + ' » — ' + vh(d.vehicule) + (d.texte ? ' : ' + d.texte : '');
       case 'SIGNALEMENT_FAIT': var sg = st().signalements[d.signalement]; return (d.annule ? 'Signalement remis à faire' : 'Signalement fait') + (sg ? ' : « ' + libSignalement(sg.type) + ' » — ' + vh(sg.vehicule) : '');
     }
@@ -339,7 +377,7 @@
     vues: { parc: vueParc, planning: vuePlanning, signalements: vueSignalements },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'Le véhicule ou la réservation revient à son état précédent.'; } },
     admin: { onglets: function () { return [['vehicules', 'Véhicules', [panneauReglages()]]]; } },
-    pastille: function () { try { return V.signalementsOuverts(st()).filter(function (sg) { return V.vehiculesPour(st(), U.services().map(function (x) { return x.code; })).some(function (v) { return v.id === sg.vehicule; }); }).length; } catch (e) { return 0; } }
+    pastille: function () { try { return mesAvis().length + V.signalementsOuverts(st()).filter(function (sg) { return V.vehiculesPour(st(), U.services().map(function (x) { return x.code; })).some(function (v) { return v.id === sg.vehicule; }); }).length; } catch (e) { return 0; } }
   });
-  U.vehicules = { modaleReservation: modaleReservation };
+  U.vehicules = { modaleReservation: modaleReservation, mesAvis: mesAvis };
 })();
