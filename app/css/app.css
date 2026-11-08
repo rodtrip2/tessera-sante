@@ -612,3 +612,4 @@ table.liste-patients .btn.tri { color: inherit; text-decoration: none; font-weig
 .ag-categorie summary { cursor: pointer; font-weight: 600; display: flex; gap: 6px; align-items: center; }
 .ag-categorie.inactive { opacity: .7; }
 .ag-categorie[open] > .pile { margin-top: 8px; }
+.colonnes-affichage { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 2px 16px; margin-top: 6px; }

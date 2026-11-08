@@ -1,5 +1,10 @@
 # Journal des modifications — Tessera Santé
 
+## 0.12.1 — 8 novembre 2026
+
+- **Affichages par défaut de la liste des patients** (*Administration → Patients → Liste des patients*, décision du porteur du 8 novembre 2026) : colonnes **cochées et ordonnées directement** dans chaque affichage, ainsi que le périmètre, la présentation, le tri, l'ordre et la couleur selon le mode ; *Reprendre l'affichage en cours* reste proposé.
+- Écran vérifié dans Chrome ; architecture et guide utilisateur à jour (223 tests au vert).
+
 ## 0.12.0 — 8 novembre 2026
 
 Décisions du porteur du 8 novembre 2026.

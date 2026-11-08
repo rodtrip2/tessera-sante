@@ -214,12 +214,34 @@
         var nom = h('input', { type: 'text', maxlength: 60, value: v.nom, 'aria-label': 'Nom de l’affichage', oninput: function () { v.nom = nom.value; } });
         var cs = U.tousServices().map(function (sv) { var cb = h('input', { type: 'checkbox', checked: v.services.indexOf(sv.code) >= 0, onchange: function () { v.services = cb.checked ? v.services.concat([sv.code]) : v.services.filter(function (x) { return x !== sv.code; }); } }); return h('label', { class: 'case' }, cb, h('span', { text: sv.libelle })); });
         var cr = roles.map(function (r) { var cb = h('input', { type: 'checkbox', checked: v.roles.indexOf(r.code) >= 0, onchange: function () { v.roles = cb.checked ? v.roles.concat([r.code]) : v.roles.filter(function (x) { return x !== r.code; }); } }); return h('label', { class: 'case' }, cb, h('span', { text: r.libelle })); });
-        var rg = L.reglage(v.reglage);
+        // Réglage de l'affichage modifiable directement (décision du porteur du 8 novembre 2026) : périmètre, présentation,
+        // tri, couleur, colonnes cochées et ordonnées ; ou repris de l'affichage en cours
+        var rg = v.reglage = L.reglage(v.reglage);
+        function choix(lib, valeurs, cle) {
+          var x = h('select', { 'aria-label': lib, onchange: function () { rg[cle] = cle === 'sens' ? +x.value : x.value; } }, Object.keys(valeurs).map(function (k) { return h('option', { value: k, text: valeurs[k], selected: String(rg[cle]) === k }); }));
+          return h('label', { class: 'en-ligne nowrap' }, lib, x);
+        }
+        var tris = {}; L.TRIS.forEach(function (k) { tris[k] = libColonne(k); });
+        var ordre = rg.colonnes.concat(L.COLONNES.map(function (c) { return c.code; }).filter(function (c) { return rg.colonnes.indexOf(c) < 0; }));
+        var zoneCols = h('div', { class: 'colonnes-affichage' });
+        function dessinerCols() {
+          U.vider(zoneCols);
+          ordre.forEach(function (code, k) {
+            var c = L.COLONNES.filter(function (y) { return y.code === code; })[0];
+            var cb = h('input', { type: 'checkbox', checked: rg.colonnes.indexOf(code) >= 0, disabled: !!c.toujours, onchange: function () { rg.colonnes = ordre.filter(function (y) { return y === code ? cb.checked : rg.colonnes.indexOf(y) >= 0; }); } });
+            zoneCols.appendChild(h('div', { class: 'agenda-point' }, h('label', { class: 'case' }, cb, h('span', { text: libColonne(code) + (c.isocont ? ' (Isolement et contention)' : '') })),
+              h('button', { class: 'btn petit', type: 'button', disabled: k === 0, 'aria-label': 'Monter ' + c.libelle, onclick: function () { ordre.splice(k - 1, 0, ordre.splice(k, 1)[0]); rg.colonnes = ordre.filter(function (y) { return rg.colonnes.indexOf(y) >= 0; }); dessinerCols(); } }, '▲'),
+              h('button', { class: 'btn petit', type: 'button', disabled: k === ordre.length - 1, 'aria-label': 'Descendre ' + c.libelle, onclick: function () { ordre.splice(k + 1, 0, ordre.splice(k, 1)[0]); rg.colonnes = ordre.filter(function (y) { return rg.colonnes.indexOf(y) >= 0; }); dessinerCols(); } }, '▼')));
+          });
+        }
+        dessinerCols();
         zone.appendChild(h('fieldset', { class: 'role' }, h('legend', { text: (i + 1) + '. ' + (v.nom || 'Nouvel affichage') }),
           h('label', {}, 'Nom', nom),
           h('div', {}, h('small', { class: 'muted', text: 'Services (aucun : tous)' }), h('div', { class: 'actions gauche' }, cs)),
           h('div', {}, h('small', { class: 'muted', text: 'Métiers (aucun : tous)' }), h('div', { class: 'actions gauche' }, cr)),
-          h('small', { class: 'muted', text: L.PERIMETRES[rg.perimetre] + ' · ' + L.REGROUPEMENTS[rg.regroupement] + ' · ' + L.COLORATIONS[rg.coloration] + ' · colonnes : ' + rg.colonnes.map(function (c) { return libColonne(c); }).join(', ') }),
+          h('div', { class: 'actions gauche' }, choix('Patients', L.PERIMETRES, 'perimetre'), choix('Présentation', L.REGROUPEMENTS, 'regroupement'), choix('Tri', tris, 'tri'),
+            choix('Ordre', { 1: 'croissant', '-1': 'décroissant' }, 'sens'), choix('Couleur selon le mode', L.COLORATIONS, 'coloration')),
+          h('details', {}, h('summary', { text: 'Colonnes affichées (' + rg.colonnes.length + ')' }), zoneCols),
           h('div', { class: 'actions gauche' },
             h('button', { class: 'btn petit', type: 'button', title: 'Remplacer le réglage par l’affichage en cours dans la liste des patients', onclick: function () { v.reglage = reglageCourant(); dessiner(); } }, 'Reprendre l’affichage en cours'),
             h('button', { class: 'btn petit', type: 'button', disabled: i === 0, onclick: function () { vues.splice(i - 1, 0, vues.splice(i, 1)[0]); dessiner(); } }, '▲ Monter'),
