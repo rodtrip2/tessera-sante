@@ -10,6 +10,11 @@
  * anciens noms ; les saisies faites sous un ancien nom (fiche patient, présences, entretiens, Isocont) le suivent : les
  * écrans les ramènent à son nom actuel (`nomActuel`, `resoudre`). Les nouvelles saisies du Suivi médical portent en plus
  * son identifiant. Le rattachement à un compte ne change ni l'identifiant ni le nom : les saisies suivent de même.
+ * Médecin non répertorié (décision du porteur du 8 novembre 2026) : tout agent qui renseigne un médecin (fiche patient,
+ * Isocont, Suivi médical) peut en ajouter un absent de la liste ; sa fiche porte `aConfirmer` (et `propose` : par qui,
+ * quand, pour quel service), elle est utilisable aussitôt, marquée « à confirmer », jusqu'à ce que les gestionnaires de
+ * la liste la confirment (corrigée au besoin), la réunissent avec un médecin existant (le nom saisi devient un ancien nom
+ * de celui-ci : les saisies le suivent) ou la refusent (le nom reste dans les saisies, marqué « hors liste » ; `refuses`).
  * Reprise de l'existant : les noms de l'ancienne liste `psychiatres` absents de la liste commune y figurent comme
  * psychiatres titulaires ; à l'enregistrement, `psychiatres` est tenue à jour (noms des psychiatres actifs) pour les
  * écrans qui la lisent encore.
@@ -35,7 +40,9 @@
       services: Array.isArray(m.services) ? m.services.filter(function (s) { return typeof s === 'string'; }) : [],
       statut: STATUTS[m.statut] ? m.statut : 'titulaire', debut: dateISO(m.debut), fin: dateISO(m.fin),
       compte: typeof m.compte === 'string' && m.compte ? m.compte : null, actif: m.actif !== false,
-      anciensNoms: Array.isArray(m.anciensNoms) ? m.anciensNoms.map(function (n) { return texte(n, 60); }).filter(Boolean) : []
+      anciensNoms: Array.isArray(m.anciensNoms) ? m.anciensNoms.map(function (n) { return texte(n, 60); }).filter(Boolean) : [],
+      aConfirmer: m.aConfirmer === true,
+      propose: m.aConfirmer === true && m.propose && typeof m.propose === 'object' ? { par: texte(m.propose.par, 40), nom: texte(m.propose.nom, 60), le: texte(m.propose.le, 30), service: texte(m.propose.service, 20) } : null
     };
   }
   function brut(config) { var x = config && config.medecins; return x && typeof x === 'object' && !Array.isArray(x) ? x : { liste: Array.isArray(x) ? x : [] }; }
@@ -54,6 +61,34 @@
       res.push(normaliser({ nom: n, fonction: 'psychiatre', statut: 'titulaire', repris: true }));
     });
     return res;
+  }
+  function refuses(config) { var x = brut(config).refuses; return Array.isArray(x) ? x.filter(function (n) { return typeof n === 'string' && n.trim(); }) : []; }
+  function estRefuse(config, nom) { var n = texte(nom).toLowerCase(); return !!n && refuses(config).some(function (x) { return x.toLowerCase() === n; }); }
+  /** Fiches à confirmer par les gestionnaires de la liste. */
+  function aConfirmer(config) { return liste(config).filter(function (m) { return m.aConfirmer; }); }
+  /**
+   * Noms saisis qui ne désignent aucun médecin de la liste (ni nom actuel ni ancien nom) et qui n'ont pas été laissés
+   * hors liste : « Noms à rattacher ». `noms` : [{ nom, source }] ; rend [{ nom, sources: { source: nombre } }].
+   */
+  function nonRattaches(config, noms) {
+    var res = {};
+    (noms || []).forEach(function (x) {
+      var n = texte(x && x.nom, 60);
+      if (!n || parNom(config, n) || estRefuse(config, n)) return;
+      var r = res[n.toLowerCase()] = res[n.toLowerCase()] || { nom: n, sources: {} };
+      r.sources[x.source] = (r.sources[x.source] || 0) + 1;
+    });
+    return Object.keys(res).map(function (k) { return res[k]; }).sort(function (a, b) { return a.nom.localeCompare(b.nom); });
+  }
+  /** Réunir une fiche (à confirmer, ou un nom hors liste) avec un médecin existant : le nom devient un ancien nom de celui-ci. */
+  function reunir(l, nom, cibleId) {
+    var n = texte(nom, 60);
+    return l.filter(function (m) { return !(m.aConfirmer && m.nom.toLowerCase() === n.toLowerCase()); }).map(function (m) {
+      if (m.id !== cibleId) return m;
+      var x = normaliser(m);
+      if (n && x.nom.toLowerCase() !== n.toLowerCase() && !x.anciensNoms.some(function (a) { return a.toLowerCase() === n.toLowerCase(); })) x.anciensNoms.push(n);
+      return x;
+    });
   }
   function gestion(config) { var g = brut(config).gestion; return Array.isArray(g) ? g.filter(function (r) { return typeof r === 'string'; }) : GESTION_DEFAUT.slice(); }
   /** Médecin présent à une date : actif, et dans sa période pour un intérimaire (ou une période renseignée). */
@@ -92,19 +127,30 @@
   }
   function estPsychiatre(config, nom) { var m = parNom(config, nom); return !!m && m.fonction === 'psychiatre'; }
   /** Noms des psychiatres actifs : valeur tenue à jour de l'ancienne liste `psychiatres`. */
-  function psychiatres(l) { return l.filter(function (m) { return m.actif && m.fonction === 'psychiatre'; }).map(function (m) { return m.nom; }); }
+  function psychiatres(l) { return l.filter(function (m) { return m.actif && !m.aConfirmer && m.fonction === 'psychiatre'; }).map(function (m) { return m.nom; }); }
   function peutGerer(config, compte) {
     var r = (compte && compte.roles) || [];
     return r.indexOf('ADMIN') >= 0 || r.some(function (x) { return gestion(config).indexOf(x) >= 0; });
   }
   /** Contrôle d'un nouveau réglage `medecins` (ou `psychiatres`, tenu à jour) écrit par un compte non administrateur. */
   function controler(config, cle, nouveau, compte) {
-    if (!peutGerer(config, compte)) throw new Error('La liste des médecins est gérée par l’administrateur et les rôles désignés (cadre et secrétaire par défaut).');
+    if (!peutGerer(config, compte)) {
+      // Un agent qui ne gère pas la liste peut seulement y ajouter des médecins non répertoriés, à confirmer
+      if (cle !== 'medecins') throw new Error('La liste des médecins est gérée par l’administrateur et les rôles désignés (cadre et secrétaire par défaut).');
+      var avant = brut(config), apres = brut({ medecins: nouveau }), id = compte && compte.id;
+      var la = (avant.liste || []).map(normaliser), ln = (apres.liste || []).map(normaliser);
+      var memes = la.every(function (m) { return ln.some(function (y) { return JSON.stringify(y) === JSON.stringify(m); }); });
+      var ajouts = ln.filter(function (y) { return !la.some(function (m) { return m.id === y.id; }); });
+      if (!memes || ln.length !== la.length + ajouts.length || ajouts.some(function (y) { return !y.aConfirmer || !y.propose || y.propose.par !== id; })
+        || JSON.stringify(gestion({ medecins: nouveau })) !== JSON.stringify(gestion(config)) || JSON.stringify(refuses({ medecins: nouveau })) !== JSON.stringify(refuses(config)))
+        throw new Error('Vous pouvez ajouter un médecin non répertorié (à confirmer) ; la liste est gérée par le cadre et la secrétaire.');
+      return true;
+    }
     var admin = ((compte && compte.roles) || []).indexOf('ADMIN') >= 0;
     if (cle === 'medecins' && !admin && JSON.stringify(gestion({ medecins: nouveau })) !== JSON.stringify(gestion(config))) throw new Error('Seul l’administrateur choisit qui gère la liste des médecins.');
     return true;
   }
 
   return { FONCTIONS: FONCTIONS, STATUTS: STATUTS, GESTION_DEFAUT: GESTION_DEFAUT, liste: liste, gestion: gestion, enActivite: enActivite, proposes: proposes, noms: noms,
-    parNom: parNom, parId: parId, parCompte: parCompte, resoudre: resoudre, nomActuel: nomActuel, meme: meme, renommer: renommer, estPsychiatre: estPsychiatre, psychiatres: psychiatres, peutGerer: peutGerer, controler: controler, normaliser: normaliser, slug: slug };
+    parNom: parNom, parId: parId, refuses: refuses, estRefuse: estRefuse, aConfirmer: aConfirmer, nonRattaches: nonRattaches, reunir: reunir, parCompte: parCompte, resoudre: resoudre, nomActuel: nomActuel, meme: meme, renommer: renommer, estPsychiatre: estPsychiatre, psychiatres: psychiatres, peutGerer: peutGerer, controler: controler, normaliser: normaliser, slug: slug };
 });

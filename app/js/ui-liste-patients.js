@@ -31,7 +31,7 @@
   function changer(f) { var r = JSON.parse(JSON.stringify(reglageCourant())); f(r); etat.reglage = L.reglage(r); retenir(); U.rendreContenu(); }
   /** Colonnes du module Suivi médical : lues à la volée (fourniture suivi.patient) si l'agent en détient la clé. */
   /** Nom actuel d'un médecin (un ancien nom saisi dans la fiche suit le médecin). */
-  function nomMed(n) { return n && SIC.medecins ? SIC.medecins.nomActuel(U.config(), n) : (n || ''); }
+  function nomMed(n, id) { return (n || id) && SIC.medecins ? SIC.medecins.resoudre(U.config(), n, id) : (n || ''); }
   function suiviLisible() { var s = session(); return !!(s.detientCle && s.detientCle('suivi')) && !!s.etatModule('suivi'); }
   function isocontLisible() { var s = session(); return !!(s.detientCle && s.detientCle('isocont')) && !!U.st() && !!U.st().mesures; }
   /** Données complémentaires de la fiche visibles par l'agent (tous ses services), en colonnes « c:<id> ». */
@@ -63,8 +63,8 @@
       case 'entree': return h('td', { class: 'nowrap', text: dateFr(l.entree) });
       case 'sortie': return h('td', { class: 'nowrap', text: dateFr(l.sortie) });
       case 'mode': return h('td', {}, l.mode ? teinter(h('span', { class: 'badge mode-hospi', text: l.mode }), opts().couleursModes[l.mode]) : '—');
-      case 'medecin1': return h('td', { text: nomMed(p.medecin1) || '—' });
-      case 'medecin2': return h('td', { text: nomMed(p.medecin2) || '—' });
+      case 'medecin1': return h('td', { text: nomMed(p.medecin1, p.medecin1Id) || '—' });
+      case 'medecin2': return h('td', { text: nomMed(p.medecin2, p.medecin2Id) || '—' });
       case 'referents': return h('td', { text: (p.referents || []).map(function (r) { return r.nom; }).join(', ') || '—' });
       case 'psychologue': return h('td', { text: p.psychologue || '—' });
       case 'suiviAS': var a = p.suiviAS; return h('td', { text: !a ? '—' : (a.suivi ? 'Oui' + (a.nom ? ' (' + a.nom + ')' : '') : 'Non') });

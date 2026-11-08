@@ -58,7 +58,7 @@
     var heure = function (ms) { return Math.abs(ms - maintenant) < 20 * H ? new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : court(ms); };
     return p.depassee
       ? h('span', { class: 'badge bad', title: 'Pause depuis ' + date(p.debut) + (p.motif ? ' — ' + p.motif : ''), text: 'Reprise ' + heure(p.reprisePrevue) + ' à confirmer' })
-      : h('span', { class: 'badge pause', title: 'Pause depuis ' + date(p.debut) + (p.motif ? ' — ' + p.motif : '') + ' (' + (nomMed(p.psychiatre) || '?') + ')', text: 'Pause → ' + heure(p.reprisePrevue) });
+      : h('span', { class: 'badge pause', title: 'Pause depuis ' + date(p.debut) + (p.motif ? ' — ' + p.motif : '') + ' (' + (nomMed(p.psychiatre, p.psychiatreId) || '?') + ')', text: 'Pause → ' + heure(p.reprisePrevue) });
   }
 
   function legendeEcheances() {
@@ -374,15 +374,24 @@
 
 
   /** Nom actuel d'un psychiatre (liste commune des médecins : un ancien nom suit le médecin). */
-  function nomMed(n) { return n && SIC.medecins ? SIC.medecins.nomActuel(config(), n) : n; }
-  function selectPsychiatre(valeur) {
-    var liste = SIC.medecins ? SIC.medecins.noms(config(), { fonction: 'psychiatre' }) : (config().psychiatres || []);   // liste commune des médecins
+  function nomMed(n, id) { return (n || id) && SIC.medecins ? SIC.medecins.resoudre(config(), n, id) : n; }
+  /**
+   * Psychiatre décisionnaire : liste commune des médecins (psychiatres du service, puis autres), avec « + Médecin non
+   * répertorié… » dont la fiche est à confirmer par le cadre ou la secrétaire (décision du porteur du 8 novembre 2026).
+   * Rend un bloc avec valeur() (nom, obligatoire) et medecinId().
+   */
+  function selectPsychiatre(valeur, service) {
+    if (SIC.ui.medecins && SIC.ui.medecins.champ) {
+      var c = SIC.ui.medecins.champ({ valeur: valeur, service: service || (App.service !== '*' ? App.service : ''), fonction: 'psychiatre', libelle: 'psychiatre' });
+      c.valeur = function () { var v = c.nom(); if (!v) throw new Error('Indiquez le psychiatre décisionnaire.'); return v; };
+      return c;
+    }
+    var liste = (config().psychiatres || []).slice();
     if (valeur && liste.indexOf(valeur) < 0) liste = liste.concat([valeur]);
-    var sel = h('select', {}, h('option', { value: '', text: '— Choisir —' }), liste.map(function (p) { return h('option', { value: p, text: p, selected: p === valeur }); }), h('option', { value: '__autre', text: 'Autre…' }));
-    var autre = h('input', { type: 'text', placeholder: 'Nom du psychiatre', hidden: true });
-    sel.addEventListener('change', function () { autre.hidden = sel.value !== '__autre'; if (!autre.hidden) autre.focus(); });
-    var bloc = h('div', { class: 'pile' }, sel, autre);
-    bloc.valeur = function () { var v = sel.value === '__autre' ? autre.value.trim() : sel.value; if (!v) throw new Error('Indiquez le psychiatre décisionnaire.'); return v; };
+    var sel = h('select', {}, h('option', { value: '', text: '— Choisir —' }), liste.map(function (p) { return h('option', { value: p, text: p, selected: p === valeur }); }));
+    var bloc = h('div', { class: 'pile' }, sel);
+    bloc.valeur = function () { if (!sel.value) throw new Error('Indiquez le psychiatre décisionnaire.'); return sel.value; };
+    bloc.medecinId = function () { return null; };
     return bloc;
   }
 
@@ -639,7 +648,7 @@
           if (!debutInitial.value || !isFinite(tInitial)) throw new Error('Indiquez la date et l’heure de la décision initiale.');
           if (tInitial >= tDebut) throw new Error('La décision initiale doit précéder l’arrivée dans le service.');
         }
-        var commun = { patientId: patientId, service: selSv.value, debut: tDebut, debutInitial: tInitial == null ? undefined : tInitial, lieuInitial: tInitial == null ? undefined : lieuInitial.value.trim(), lieu: hors ? 'Chambre ' + chambre.value.trim() : selLieu.value, csi: !hors, psychiatre: psyNom, modeHospi: selMode.value, motifRecours: motifRecours && motifRecours.valeur() ? motifRecours.valeur() : undefined };
+        var commun = { patientId: patientId, service: selSv.value, debut: tDebut, debutInitial: tInitial == null ? undefined : tInitial, lieuInitial: tInitial == null ? undefined : lieuInitial.value.trim(), lieu: hors ? 'Chambre ' + chambre.value.trim() : selLieu.value, csi: !hors, psychiatre: psyNom, psychiatreId: psy.medecinId(), modeHospi: selMode.value, motifRecours: motifRecours && motifRecours.valeur() ? motifRecours.valeur() : undefined };
         if (!blocIso.hidden && avecIso.checked) { crees.push(idMesure()); await s.enregistrer('MESURE_DEBUT', Object.assign({ mesureId: crees[crees.length - 1], typeMesure: 'Isolement' }, commun)); }
         crees.push(idMesure());
         await s.enregistrer('MESURE_DEBUT', Object.assign({ mesureId: crees[crees.length - 1], typeMesure: type.value, exception: hors && type.value === 'Contention' && exception.checked }, commun));
@@ -655,7 +664,7 @@
     var base = m.version;
     var pause = M.pauseEnCours(m, Date.now(), config());
     var fin = h('input', { type: 'datetime-local', value: versSaisie(pause ? pause.debut : Date.now()) });
-    var psy = selectPsychiatre(nomMed(m.psychiatreDebut));
+    var psy = selectPsychiatre(nomMed(m.psychiatreDebut, m.psychiatreDebutId), m.service);
     var lies = M.listeMesures(st()).filter(function (x) { return x.patientId === m.patientId && x.id !== m.id && typeof x.fin !== 'number'; });
     var motif = h('select', {}, M.listesConfig(config()).motifsFin.map(function (x) { return h('option', { value: x, text: x, selected: m.leveeJLD ? x === 'Suite à la mainlevée du JLD' : false }); }));
     var precision = h('input', { type: 'text', placeholder: 'Précision (facultatif)' });
@@ -684,7 +693,7 @@
         if (t < m.debut) throw new Error('La fin ne peut pas précéder le début (' + date(m.debut) + ').');
         if (t > Date.now() + 10 * 60000) throw new Error('La date de fin ne peut pas être dans le futur.');
         if (motif.value === 'Autre' && !precision.value.trim()) throw new Error('Précisez le motif de fin.');
-        await App.session.enregistrer('MESURE_FIN', { mesureId: m.id, fin: t, psychiatre: psy.valeur(), motif: motif.value + (precision.value.trim() ? ' (' + precision.value.trim() + ')' : '') }, base);
+        await App.session.enregistrer('MESURE_FIN', { mesureId: m.id, fin: t, psychiatre: psy.valeur(), psychiatreId: psy.medecinId(), motif: motif.value + (precision.value.trim() ? ' (' + precision.value.trim() + ')' : '') }, base);
         toast('Fin de mesure enregistrée.');
       } }]);
   }
@@ -717,7 +726,7 @@
     var reprise = h('input', { type: 'datetime-local', value: versSaisie(maintenant + H) });
     var blocHeure = h('label', { hidden: true }, 'Date et heure de reprise prévue', reprise);
     var resume = h('div', { class: 'info' });
-    var psy = selectPsychiatre(nomMed(m.psychiatreDebut));
+    var psy = selectPsychiatre(nomMed(m.psychiatreDebut, m.psychiatreDebutId), m.service);
     var motif = h('select', {}, M.listesConfig(config()).motifsPause.map(function (x) { return h('option', { value: x, text: x }); }));
     var precision = h('input', { type: 'text', placeholder: 'Précision (facultatif)' });
     var conts = contentionsLiees(m, maintenant, false);
@@ -795,10 +804,10 @@
         if (sort === 'fin') conts.forEach(function (c) { if (b.t0 < c.debut) throw new Error('La contention a commencé après le début de la pause : elle ne peut pas y prendre fin.'); });
         var cibles = [m].concat(sort === 'pause' ? conts : [], portee() === 'les-deux' ? isos : []);
         if (sort === 'fin') for (var k = 0; k < conts.length; k++) {
-          await App.session.enregistrer('MESURE_FIN', { mesureId: conts[k].id, fin: b.t0, psychiatre: nomPsy, motif: 'Fin lors de la levée temporaire de l’isolement' }, conts[k].version);
+          await App.session.enregistrer('MESURE_FIN', { mesureId: conts[k].id, fin: b.t0, psychiatre: nomPsy, psychiatreId: psy.medecinId(), motif: 'Fin lors de la levée temporaire de l’isolement' }, conts[k].version);
         }
         for (var i = 0; i < cibles.length; i++) {
-          await App.session.enregistrer('PAUSE', { mesureId: cibles[i].id, debut: Math.max(b.t0, cibles[i].debut), reprisePrevue: b.t1, psychiatre: nomPsy, motif: texteMotif }, cibles[i].version);
+          await App.session.enregistrer('PAUSE', { mesureId: cibles[i].id, debut: Math.max(b.t0, cibles[i].debut), reprisePrevue: b.t1, psychiatre: nomPsy, psychiatreId: psy.medecinId(), motif: texteMotif }, cibles[i].version);
         }
         toast(sort === 'fin' ? 'Pause de l’isolement et fin de la contention enregistrées.' : cibles.length > 1 ? 'Pause enregistrée (isolement et contention).' : m.type === 'Contention' && isos.length ? 'Pause de la contention enregistrée ; l’isolement continue.' : 'Pause enregistrée.');
       } }]);
@@ -822,7 +831,7 @@
     }
     quand.addEventListener('input', maj); quand.addEventListener('change', maj); maj();
     modale('Reprise de la mesure', h('div', { class: 'pile' }, recapMesure(m, maintenant),
-      h('div', { class: 'recap' }, h('div', { text: 'En pause depuis le ' + date(p.debut) + (p.motif ? ' — ' + p.motif : '') + ' (' + (nomMed(p.psychiatre) || '?') + ')' }), h('div', { text: 'Reprise prévue le ' + date(p.reprisePrevue) })),
+      h('div', { class: 'recap' }, h('div', { text: 'En pause depuis le ' + date(p.debut) + (p.motif ? ' — ' + p.motif : '') + ' (' + (nomMed(p.psychiatre, p.psychiatreId) || '?') + ')' }), h('div', { text: 'Reprise prévue le ' + date(p.reprisePrevue) })),
       h('label', {}, 'Date et heure de la reprise effective', quand, aQuand),
       conts.length ? h('label', { class: 'case' }, avecCont, h('span', { text: m.type === 'Isolement' ? 'Reprendre aussi la contention en pause' : 'Reprendre aussi l’isolement en pause' })) : null,
       h('p', { class: 'muted' }, h('small', { text: 'Si le psychiatre décide de ne pas reprendre la mesure, fermez cette fenêtre et utilisez « Fin ».' }))), [
@@ -866,7 +875,7 @@
     var motif = h('input', { type: 'text', placeholder: 'Précision (facultatif)' });
     var fonctions = M.informateursTiers(config());
     var informateur = h('select', {}, fonctions.map(function (f) { return h('option', { value: f.code, text: f.psychiatre ? 'Le psychiatre' : f.libelle }); }));
-    var psy = selectPsychiatre(nomMed(m.psychiatreDebut));
+    var psy = selectPsychiatre(nomMed(m.psychiatreDebut, m.psychiatreDebutId), m.service);
     var blocPsy = h('label', {}, 'Psychiatre ayant informé', psy);
     var nomAutre = h('input', { type: 'text', placeholder: 'Facultatif' });
     var blocNom = h('label', { hidden: true }, 'Nom de la personne ayant informé', nomAutre);
@@ -934,14 +943,14 @@
         h('div', { text: 'Mode d’hospitalisation retenu : ' + (M.modeRetenu(st(), m).mode || '—') }),
         m.debutInitial ? h('div', { text: 'Mesure débutée le ' + date(m.debutInitial) + (m.lieuInitial ? ' (' + m.lieuInitial + ')' : '') + ', arrivée dans le service le ' + date(m.debut) + ' : délais JLD et cumuls depuis la décision initiale, registre depuis l’arrivée.' }) : null,
         j.apresMainlevee ? h('div', { class: 'texte-bad', text: 'Mesure décidée moins de 48 h après la mainlevée ordonnée par le JLD le ' + date(j.apresMainlevee.date) + (M.optionsCas(config()).mainleveeInfoSansDelai ? ' : information du JLD due sans délai.' : '.') }) : null,
-        m.fin ? h('div', { text: 'Fin : ' + date(m.fin) + ' (' + (nomMed(m.psychiatreFin) || '?') + ')' }) : null),
+        m.fin ? h('div', { text: 'Fin : ' + date(m.fin) + ' (' + (nomMed(m.psychiatreFin, m.psychiatreFinId) || '?') + ')' }) : null),
       (m.pauses || []).length ? h('div', { class: 'recap' },
         h('b', { text: 'Levées temporaires (' + m.pauses.length + ', total ' + duree(M.dureePausesHeures(m, maintenant, config())) + (M.optionsPauses(config()).retrancher ? ', déduites du cumul, échéances reportées d’autant' : ', comptées dans le cumul') + ')' }),
         m.pauses.map(function (p) {
           var effective = p.reprise != null ? 'reprise le ' + date(p.reprise)
             : M.repriseAutomatique(m, p, maintenant, config()) ? 'reprise automatique le ' + date(p.reprisePrevue)
             : (typeof m.fin === 'number' ? 'fin de mesure pendant la pause' : (maintenant > p.reprisePrevue ? 'reprise non confirmée' : 'en cours'));
-          return h('div', { text: date(p.debut) + ' → reprise prévue ' + date(p.reprisePrevue) + ' — ' + effective + (p.motif ? ' — ' + p.motif : '') + ' (' + (nomMed(p.psychiatre) || '?') + ')' });
+          return h('div', { text: date(p.debut) + ' → reprise prévue ' + date(p.reprisePrevue) + ' — ' + effective + (p.motif ? ' — ' + p.motif : '') + ' (' + (nomMed(p.psychiatre, p.psychiatreId) || '?') + ')' });
         })) : null,
       SIC.ui.alertes.detailMesure(m),
       SIC.ui.parcours.detailMesure(m),
@@ -989,7 +998,7 @@
     var selLieu = h('select', {}, lieux.filter(function (l) { return l !== m.lieu; }).map(function (l) { return h('option', { value: l, text: l }); }), h('option', { value: '__hors', text: lieu('Hors CSI (chambre)') }));
     var chambre = h('input', { type: 'text', placeholder: 'N° de chambre', hidden: selLieu.value !== '__hors' });
     selLieu.addEventListener('change', function () { chambre.hidden = selLieu.value !== '__hors'; });
-    var psy = selectPsychiatre(nomMed(m.psychiatreDebut));
+    var psy = selectPsychiatre(nomMed(m.psychiatreDebut, m.psychiatreDebutId), m.service);
     modale('Changement de lieu', h('div', { class: 'pile' }, recapMesure(m),
       h('div', { class: 'info', text: 'Pour une erreur de saisie, utilisez « Corriger » (cadre de santé). Un changement réel de lieu termine la mesure en cours et en ouvre une nouvelle du même type au nouveau lieu, à la même heure. Les échéances JLD de la nouvelle mesure tiennent compte du cumul des 15 derniers jours.' }),
       h('div', { class: 'grille-2' }, h('label', {}, 'Date et heure du changement', quand), h('label', {}, 'Nouveau lieu', selLieu, chambre)),
@@ -1001,8 +1010,8 @@
         if (t > Date.now() + 10 * 60000) throw new Error('La date ne peut pas être dans le futur.');
         if (hors && !chambre.value.trim()) throw new Error('Indiquez la chambre.');
         var nomPsy = psy.valeur();
-        await App.session.enregistrer('MESURE_FIN', { mesureId: m.id, fin: t, psychiatre: nomPsy, motif: 'Changement de lieu' }, base);
-        await App.session.enregistrer('MESURE_DEBUT', { mesureId: idMesure(), patientId: m.patientId, service: m.service, typeMesure: m.type, debut: t, lieu: hors ? 'Chambre ' + chambre.value.trim() : selLieu.value, csi: !hors, psychiatre: nomPsy, exception: false, modeHospi: m.modeHospi, suiteDe: m.id });
+        await App.session.enregistrer('MESURE_FIN', { mesureId: m.id, fin: t, psychiatre: nomPsy, psychiatreId: psy.medecinId(), motif: 'Changement de lieu' }, base);
+        await App.session.enregistrer('MESURE_DEBUT', { mesureId: idMesure(), patientId: m.patientId, service: m.service, typeMesure: m.type, debut: t, lieu: hors ? 'Chambre ' + chambre.value.trim() : selLieu.value, csi: !hors, psychiatre: nomPsy, psychiatreId: psy.medecinId(), exception: false, modeHospi: m.modeHospi, suiteDe: m.id });
         toast('Changement de lieu enregistré.');
       } }]);
   }

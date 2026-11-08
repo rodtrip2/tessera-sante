@@ -254,11 +254,12 @@
     var detenu = h('input', Object.assign({ type: 'checkbox', checked: !!f.detenu }, dis));
     var services = U.services();
     var sv = h('select', dis, services.map(function (x) { return h('option', { value: x.code, text: x.libelle, selected: x.code === (f.service || U.App.service) }); }));
-    var listeMed = 'medecins-' + Date.now();
-    // Liste commune des médecins (décision du 8 novembre 2026) : médecins en activité du service
-    var datalist = h('datalist', { id: listeMed }, (SIC.medecins ? SIC.medecins.noms(U.config(), { service: f.service || (U.App.service !== '*' ? U.App.service : '') }) : (U.config().psychiatres || [])).map(function (n) { return h('option', { value: n }); }));
-    var nomMed = function (n) { return n && SIC.medecins ? SIC.medecins.nomActuel(U.config(), n) : (n || ''); };   // un ancien nom suit le médecin
-    var medecin1 = champ(nomMed(f.medecin1), { list: listeMed }), medecin2 = champ(nomMed(f.medecin2), { list: listeMed });
+    // Médecins liés à la liste commune (décision du porteur du 8 novembre 2026) : choix dans la liste, ou médecin non
+    // répertorié dont la fiche est à confirmer par le cadre ou la secrétaire ; l'identifiant est enregistré avec le nom
+    var svMed = f.service || (U.App.service !== '*' ? U.App.service : '');
+    var medecin1 = U.medecins.champ({ valeur: f.medecin1, id: f.medecin1Id, service: svMed, libelle: '1re ligne' }), medecin2 = U.medecins.champ({ valeur: f.medecin2, id: f.medecin2Id, service: svMed, libelle: '2e ligne' });
+    if (!peut) { medecin1.select.disabled = true; medecin2.select.disabled = true; }
+    var datalist = null;
     // Psychologue référent et suivi par l'assistant(e) social(e) du service (décision du porteur du 7 novembre 2026)
     var listeAgents = 'ag-' + C.hex(C.aleatoire(3));
     var datalistAgents = h('datalist', { id: listeAgents }, (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours'; }).map(function (c) { return h('option', { value: c.nom }); }));
@@ -377,7 +378,7 @@
         }
         var d = { patientId: id }, ch = 0;
         [['ipp', ipp.value.trim()], ['nom', nom.value.trim().toUpperCase()], ['prenom', prenom.value.trim()], ['nomNaissance', nomNaissance.value.trim().toUpperCase()], ['sexe', sexe.value],
-          ['naissance', naissance.value], ['protection', protection.value.trim()], ['service', sv.value], ['medecin1', medecin1.value.trim()], ['medecin2', medecin2.value.trim()]].forEach(function (x) {
+          ['naissance', naissance.value], ['protection', protection.value.trim()], ['service', sv.value], ['medecin1', medecin1.nom()], ['medecin2', medecin2.nom()], ['medecin1Id', medecin1.medecinId() || ''], ['medecin2Id', medecin2.medecinId() || '']].forEach(function (x) {
           if ((f[x[0]] || '') !== x[1]) { d[x[0]] = x[1]; ch++; }
         });
         if (!!f.detenu !== detenu.checked && !zoneDetenu.hidden) { d.detenu = detenu.checked; ch++; }
