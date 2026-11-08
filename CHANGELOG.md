@@ -1,5 +1,15 @@
 # Journal des modifications — Tessera Santé
 
+## 0.15.0 — 8 novembre 2026
+
+Décisions du porteur du 8 novembre 2026.
+
+- **Groupes d'agents** : en plus de leur affectation aux services, les agents peuvent être réunis en groupes (équipe de jour, équipe de nuit, groupe de travail…). Fenêtre *Administration*, onglet *Groupes d'agents* : nom, services (aucun : tout l'établissement, réservé à l'administrateur), membres, actif. **Le cadre crée et modifie les groupes de ses services** (la fenêtre Administration lui est ouverte avec ce seul onglet) ; son écriture est contrôlée groupe par groupe. Agenda : tâche et alerte adressées à un groupe, retrouvées par ses membres dans *Mon agenda*. Un groupe ne donne aucun droit. Réglage `groupes` (journal du socle, export des réglages).
+- **Véhicules** : **motif obligatoire** pour une réservation comme pour une pré-réservation (contrôlé par le module) ; l'information d'une pré-réservation remplacée va à son auteur, au **cadre et à la secrétaire** (plus à l'administrateur).
+- **Évolutions futures** : module Messagerie (groupes et services, accusé de lecture automatique ou à confirmer, message important retiré seulement après validation de lecture) ; module Demandes de travaux et de réparation (type, lieu, chambre, gravité, urgence, texte libre ; réalisation confirmée par le cadre).
+- Démonstration : équipes de jour et de nuit de l'Unité 1, groupe de travail qualité commun aux deux unités ; tâche pour l'équipe de nuit, tâche et alerte pour le groupe qualité.
+- Quatre nouveaux tests (232 au vert) ; écrans vérifiés dans Chrome ; architecture (§ 6 bis, décisions), fiche projet, guide utilisateur et évolutions futures à jour.
+
 ## 0.14.1 — 8 novembre 2026
 
 - **Pré-réservation d'un véhicule** (décision du porteur du 8 novembre 2026) : nature « Pré-réservation » avec motif obligatoire ; on sait qui a pré-réservé et pourquoi. Elle **n'empêche pas de réserver** : la personne qui réserve sur ce créneau est avertie (nom, service, horaires, motif) et peut **forcer la réservation** ; la pré-réservation est alors remplacée et **son auteur, le cadre et la secrétaire de son service sont informés** (bandeau dans la fenêtre Véhicules, pastille, « Vu »). Le module refuse une réservation qui passerait outre une pré-réservation sans la désigner. *Confirmer la réservation* passe une pré-réservation en réservation. Même avertissement depuis l'Agenda (transport « Véhicule du service »), puis réservation forcée.

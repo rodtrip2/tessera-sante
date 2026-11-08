@@ -28,7 +28,7 @@
   /** Services dont l'agent est cadre ou secrétaire : il est informé des pré-réservations de ces services remplacées. */
   function servicesInformes() {
     var s = U.App.session, roles = (s.roles && s.roles()) || [];
-    return roles.some(function (x) { return x === 'CADRE' || x === 'SECRETAIRE' || x === 'ADMIN'; }) ? U.services().map(function (x) { return x.code; }) : [];
+    return roles.some(function (x) { return x === 'CADRE' || x === 'SECRETAIRE'; }) ? U.services().map(function (x) { return x.code; }) : [];
   }
   function mesAvis() { try { return V.avisPour(st(), { agent: moi().id, servicesInformes: servicesInformes() }, avisVus(), Date.now()); } catch (e) { return []; } }
   async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisVehiculesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
@@ -170,7 +170,7 @@
     // Réservation ou pré-réservation (décision du porteur du 8 novembre 2026) : la pré-réservation dit qui et pourquoi,
     // sans empêcher une réservation forcée après avertissement (l'auteur, le cadre et la secrétaire sont informés)
     var statut = h('select', { 'aria-label': 'Nature' }, Object.keys(V.STATUTS).map(function (k) { return h('option', { value: k, text: V.STATUTS[k], selected: (x.statut || ini.statut || 'ferme') === k }); }));
-    var motif = h('input', { type: 'text', maxlength: 120, value: x.motif || '', placeholder: 'Motif (ex. rendez-vous extérieur, sortie thérapeutique ; pas de donnée clinique)' });
+    var motif = h('input', { type: 'text', maxlength: 120, value: x.motif || '', placeholder: 'Motif obligatoire (ex. rendez-vous extérieur, sortie thérapeutique ; pas de donnée clinique)' });
     function periode() { return [new Date(dateD.value + 'T' + hD.value).getTime(), new Date(dateF.value + 'T' + hF.value).getTime()]; }
     function majVehicules() {
       var p = periode(), choix = selV.value || x.vehicule || ini.vehicule;
@@ -201,7 +201,7 @@
       if (!selV.value) throw new Error('Choisissez un véhicule.');
       if (!(p[1] > p[0])) throw new Error('La fin doit suivre le début.');
       if (r && r.lien) throw new Error('Réservation liée à un événement de l’agenda : modifiez l’événement.');
-      if (st0 === 'pre' && !motif.value.trim()) throw new Error('Indiquez le motif de la pré-réservation.');
+      if (!motif.value.trim()) throw new Error('Indiquez le motif' + (st0 === 'pre' ? ' de la pré-réservation.' : ' de la réservation.'));
       var d = { id: x.id || 'RV' + C.hex(C.aleatoire(5)), vehicule: selV.value, debut: p[0], fin: p[1], service: sv.value, agent: x.agent || m.id, nom: x.nom || m.nom, motif: motif.value.trim(), statut: st0 };
       if (info && info.pre && info.pre.length) {
         if (!confirm('Véhicule ' + info.avertissement + '.\n\n' + (st0 === 'pre' ? 'Pré-réserver quand même ?' : 'Forcer la réservation ? L’auteur de la pré-réservation, le cadre et la secrétaire de son service en seront informés.'))) return false;

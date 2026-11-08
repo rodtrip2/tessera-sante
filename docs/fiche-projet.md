@@ -97,8 +97,13 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 - **Parc** : automobiles, minibus, véhicules adaptés… avec leur service d'affectation, leur immatriculation, leur nombre de places, leur lieu de stationnement et les informations propres à l'établissement (carte carburant, prochaine révision, équipement…), réglées par l'administrateur.
 - **Prêt** à un autre service pendant une période (seul le service emprunteur le réserve) ou **mise à disposition** (réservable aussi par d'autres services).
 - **Réservation** directe ou depuis un événement de l'agenda : la disponibilité est vérifiée et la réservation suit l'événement (modification, annulation). Planning des véhicules sur 7 jours.
+- **Motif** obligatoire pour toute réservation.
 - **Pré-réservation** : on sait qui a pré-réservé le véhicule et pourquoi ; une autre personne peut quand même réserver après avertissement, et l'auteur de la pré-réservation, le cadre et la secrétaire en sont informés.
 - **Signalements** : faire le plein, voyant allumé, à nettoyer, entretien à prévoir… marqués « faits » par l'équipe.
+
+## 5 ter. Groupes d'agents
+
+En plus de leur affectation aux services, les agents peuvent être réunis par le cadre en groupes (équipe de jour, équipe de nuit, groupe de travail) ; une tâche ou une alerte de l'agenda peut être adressée à un groupe.
 
 ## 6. Organisation et rôles
 
