@@ -257,7 +257,8 @@
     var listeMed = 'medecins-' + Date.now();
     // Liste commune des médecins (décision du 8 novembre 2026) : médecins en activité du service
     var datalist = h('datalist', { id: listeMed }, (SIC.medecins ? SIC.medecins.noms(U.config(), { service: f.service || (U.App.service !== '*' ? U.App.service : '') }) : (U.config().psychiatres || [])).map(function (n) { return h('option', { value: n }); }));
-    var medecin1 = champ(f.medecin1, { list: listeMed }), medecin2 = champ(f.medecin2, { list: listeMed });
+    var nomMed = function (n) { return n && SIC.medecins ? SIC.medecins.nomActuel(U.config(), n) : (n || ''); };   // un ancien nom suit le médecin
+    var medecin1 = champ(nomMed(f.medecin1), { list: listeMed }), medecin2 = champ(nomMed(f.medecin2), { list: listeMed });
     // Psychologue référent et suivi par l'assistant(e) social(e) du service (décision du porteur du 7 novembre 2026)
     var listeAgents = 'ag-' + C.hex(C.aleatoire(3));
     var datalistAgents = h('datalist', { id: listeAgents }, (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours'; }).map(function (c) { return h('option', { value: c.nom }); }));

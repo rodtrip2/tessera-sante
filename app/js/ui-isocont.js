@@ -58,7 +58,7 @@
     var heure = function (ms) { return Math.abs(ms - maintenant) < 20 * H ? new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : court(ms); };
     return p.depassee
       ? h('span', { class: 'badge bad', title: 'Pause depuis ' + date(p.debut) + (p.motif ? ' — ' + p.motif : ''), text: 'Reprise ' + heure(p.reprisePrevue) + ' à confirmer' })
-      : h('span', { class: 'badge pause', title: 'Pause depuis ' + date(p.debut) + (p.motif ? ' — ' + p.motif : '') + ' (' + (p.psychiatre || '?') + ')', text: 'Pause → ' + heure(p.reprisePrevue) });
+      : h('span', { class: 'badge pause', title: 'Pause depuis ' + date(p.debut) + (p.motif ? ' — ' + p.motif : '') + ' (' + (nomMed(p.psychiatre) || '?') + ')', text: 'Pause → ' + heure(p.reprisePrevue) });
   }
 
   function legendeEcheances() {
@@ -373,6 +373,8 @@
   }
 
 
+  /** Nom actuel d'un psychiatre (liste commune des médecins : un ancien nom suit le médecin). */
+  function nomMed(n) { return n && SIC.medecins ? SIC.medecins.nomActuel(config(), n) : n; }
   function selectPsychiatre(valeur) {
     var liste = SIC.medecins ? SIC.medecins.noms(config(), { fonction: 'psychiatre' }) : (config().psychiatres || []);   // liste commune des médecins
     if (valeur && liste.indexOf(valeur) < 0) liste = liste.concat([valeur]);
@@ -653,7 +655,7 @@
     var base = m.version;
     var pause = M.pauseEnCours(m, Date.now(), config());
     var fin = h('input', { type: 'datetime-local', value: versSaisie(pause ? pause.debut : Date.now()) });
-    var psy = selectPsychiatre(m.psychiatreDebut);
+    var psy = selectPsychiatre(nomMed(m.psychiatreDebut));
     var lies = M.listeMesures(st()).filter(function (x) { return x.patientId === m.patientId && x.id !== m.id && typeof x.fin !== 'number'; });
     var motif = h('select', {}, M.listesConfig(config()).motifsFin.map(function (x) { return h('option', { value: x, text: x, selected: m.leveeJLD ? x === 'Suite à la mainlevée du JLD' : false }); }));
     var precision = h('input', { type: 'text', placeholder: 'Précision (facultatif)' });
@@ -715,7 +717,7 @@
     var reprise = h('input', { type: 'datetime-local', value: versSaisie(maintenant + H) });
     var blocHeure = h('label', { hidden: true }, 'Date et heure de reprise prévue', reprise);
     var resume = h('div', { class: 'info' });
-    var psy = selectPsychiatre(m.psychiatreDebut);
+    var psy = selectPsychiatre(nomMed(m.psychiatreDebut));
     var motif = h('select', {}, M.listesConfig(config()).motifsPause.map(function (x) { return h('option', { value: x, text: x }); }));
     var precision = h('input', { type: 'text', placeholder: 'Précision (facultatif)' });
     var conts = contentionsLiees(m, maintenant, false);
@@ -820,7 +822,7 @@
     }
     quand.addEventListener('input', maj); quand.addEventListener('change', maj); maj();
     modale('Reprise de la mesure', h('div', { class: 'pile' }, recapMesure(m, maintenant),
-      h('div', { class: 'recap' }, h('div', { text: 'En pause depuis le ' + date(p.debut) + (p.motif ? ' — ' + p.motif : '') + ' (' + (p.psychiatre || '?') + ')' }), h('div', { text: 'Reprise prévue le ' + date(p.reprisePrevue) })),
+      h('div', { class: 'recap' }, h('div', { text: 'En pause depuis le ' + date(p.debut) + (p.motif ? ' — ' + p.motif : '') + ' (' + (nomMed(p.psychiatre) || '?') + ')' }), h('div', { text: 'Reprise prévue le ' + date(p.reprisePrevue) })),
       h('label', {}, 'Date et heure de la reprise effective', quand, aQuand),
       conts.length ? h('label', { class: 'case' }, avecCont, h('span', { text: m.type === 'Isolement' ? 'Reprendre aussi la contention en pause' : 'Reprendre aussi l’isolement en pause' })) : null,
       h('p', { class: 'muted' }, h('small', { text: 'Si le psychiatre décide de ne pas reprendre la mesure, fermez cette fenêtre et utilisez « Fin ».' }))), [
@@ -864,7 +866,7 @@
     var motif = h('input', { type: 'text', placeholder: 'Précision (facultatif)' });
     var fonctions = M.informateursTiers(config());
     var informateur = h('select', {}, fonctions.map(function (f) { return h('option', { value: f.code, text: f.psychiatre ? 'Le psychiatre' : f.libelle }); }));
-    var psy = selectPsychiatre(m.psychiatreDebut);
+    var psy = selectPsychiatre(nomMed(m.psychiatreDebut));
     var blocPsy = h('label', {}, 'Psychiatre ayant informé', psy);
     var nomAutre = h('input', { type: 'text', placeholder: 'Facultatif' });
     var blocNom = h('label', { hidden: true }, 'Nom de la personne ayant informé', nomAutre);
@@ -932,14 +934,14 @@
         h('div', { text: 'Mode d’hospitalisation retenu : ' + (M.modeRetenu(st(), m).mode || '—') }),
         m.debutInitial ? h('div', { text: 'Mesure débutée le ' + date(m.debutInitial) + (m.lieuInitial ? ' (' + m.lieuInitial + ')' : '') + ', arrivée dans le service le ' + date(m.debut) + ' : délais JLD et cumuls depuis la décision initiale, registre depuis l’arrivée.' }) : null,
         j.apresMainlevee ? h('div', { class: 'texte-bad', text: 'Mesure décidée moins de 48 h après la mainlevée ordonnée par le JLD le ' + date(j.apresMainlevee.date) + (M.optionsCas(config()).mainleveeInfoSansDelai ? ' : information du JLD due sans délai.' : '.') }) : null,
-        m.fin ? h('div', { text: 'Fin : ' + date(m.fin) + ' (' + (m.psychiatreFin || '?') + ')' }) : null),
+        m.fin ? h('div', { text: 'Fin : ' + date(m.fin) + ' (' + (nomMed(m.psychiatreFin) || '?') + ')' }) : null),
       (m.pauses || []).length ? h('div', { class: 'recap' },
         h('b', { text: 'Levées temporaires (' + m.pauses.length + ', total ' + duree(M.dureePausesHeures(m, maintenant, config())) + (M.optionsPauses(config()).retrancher ? ', déduites du cumul, échéances reportées d’autant' : ', comptées dans le cumul') + ')' }),
         m.pauses.map(function (p) {
           var effective = p.reprise != null ? 'reprise le ' + date(p.reprise)
             : M.repriseAutomatique(m, p, maintenant, config()) ? 'reprise automatique le ' + date(p.reprisePrevue)
             : (typeof m.fin === 'number' ? 'fin de mesure pendant la pause' : (maintenant > p.reprisePrevue ? 'reprise non confirmée' : 'en cours'));
-          return h('div', { text: date(p.debut) + ' → reprise prévue ' + date(p.reprisePrevue) + ' — ' + effective + (p.motif ? ' — ' + p.motif : '') + ' (' + (p.psychiatre || '?') + ')' });
+          return h('div', { text: date(p.debut) + ' → reprise prévue ' + date(p.reprisePrevue) + ' — ' + effective + (p.motif ? ' — ' + p.motif : '') + ' (' + (nomMed(p.psychiatre) || '?') + ')' });
         })) : null,
       SIC.ui.alertes.detailMesure(m),
       SIC.ui.parcours.detailMesure(m),
@@ -987,7 +989,7 @@
     var selLieu = h('select', {}, lieux.filter(function (l) { return l !== m.lieu; }).map(function (l) { return h('option', { value: l, text: l }); }), h('option', { value: '__hors', text: lieu('Hors CSI (chambre)') }));
     var chambre = h('input', { type: 'text', placeholder: 'N° de chambre', hidden: selLieu.value !== '__hors' });
     selLieu.addEventListener('change', function () { chambre.hidden = selLieu.value !== '__hors'; });
-    var psy = selectPsychiatre(m.psychiatreDebut);
+    var psy = selectPsychiatre(nomMed(m.psychiatreDebut));
     modale('Changement de lieu', h('div', { class: 'pile' }, recapMesure(m),
       h('div', { class: 'info', text: 'Pour une erreur de saisie, utilisez « Corriger » (cadre de santé). Un changement réel de lieu termine la mesure en cours et en ouvre une nouvelle du même type au nouveau lieu, à la même heure. Les échéances JLD de la nouvelle mesure tiennent compte du cumul des 15 derniers jours.' }),
       h('div', { class: 'grille-2' }, h('label', {}, 'Date et heure du changement', quand), h('label', {}, 'Nouveau lieu', selLieu, chambre)),

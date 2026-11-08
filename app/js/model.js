@@ -1303,7 +1303,7 @@
         dureeReelleHeures: (finRef - x.debut) / H,
         pauses: pausesSur(x.mesure, x.debut, finRef, maintenant, st.config).map(function (q) { return [q.debut, q.fin]; }),
         type: x.mesure.type, lieu: x.mesure.lieu,
-        psychiatre: x.mesure.psychiatreDebut, modeHospi: mode.mode, basculeMode: mode.bascule,
+        psychiatre: nomMedecin(st.config, x.mesure.psychiatreDebut), modeHospi: mode.mode, basculeMode: mode.bascule,
         professionnelsDetail: (x._pd = professionnelsEntree(st, service, x, finRef)),
         professionnels: x._pd.map(function (p) { return p.nom + (p.fonction ? ' (' + p.fonction + ')' : ''); }),
         ipp: (st.patients[x.mesure.patientId] || {}).ipp || '', age: ageAu(st, x.mesure.patientId, x.debut),
@@ -1399,6 +1399,11 @@
    * Options d'occultation du registre communiqué à un tiers (demande CADA, art. L. 311-6 CRPA).
    * Par défaut, les options les plus protectrices (CE, 8 février 2023, n° 455887).
    */
+  /** Nom actuel d'un psychiatre de la liste commune des médecins (un ancien nom suit le médecin ; medecins.js). */
+  function nomMedecin(config, n) {
+    if (!n) return n;
+    try { var MED = (typeof self !== 'undefined' && self.SIC && self.SIC.medecins) || require('./medecins.js'); return MED.nomActuel(config, n); } catch (e) { return n; }
+  }
   var OCCULTATION_DEFAUT = { patient: 'masquer', age: 'mineur', dates: 'jour', psychiatre: 'masquer', professionnels: 'masquer', lieu: 'masquer', mode: 'afficher', pauses: 'afficher' };
   var OCCULTATION_CHOIX = {
     patient: ['masquer', 'numero'], age: ['exact', 'tranche', 'mineur', 'masquer'], dates: ['complete', 'jour', 'mois'],

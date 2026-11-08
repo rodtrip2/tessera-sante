@@ -30,6 +30,9 @@
     var t = identite(p), i = t.lastIndexOf(' (');
     return h('span', {}, h('b', { text: i > 0 ? t.slice(0, i) : t }), i > 0 ? h('span', { text: t.slice(i) }) : null);
   }
+  /** Nom actuel d'un médecin (identifiant, nom actuel ou ancien : les anciennes saisies suivent). */
+  function nomMed(n, id) { return n || id ? MED.resoudre(cfg(), n, id) : ''; }
+  function idMed(n) { var m = MED.parNom(cfg(), n); return m ? m.id : null; }
   function serviceCourant() { return U.App.service !== '*' ? U.App.service : (servicesAffiches()[0] || ''); }
   function bouton(texte, f, classe) { return h('button', { class: 'btn' + (classe ? ' ' + classe : ''), type: 'button', onclick: f }, texte); }
 
@@ -120,7 +123,7 @@
         h('tbody', {},
           sm.lignes.length ? sm.lignes.map(function (l) { return h('tr', {}, h('th', { text: libLieu(l.lieu) }), js.map(function (j) { return h('td', {}, txt(l.cases[idx(j)])); })); })
             : h('tr', {}, h('td', { colspan: js.length + 1, class: 'muted', text: 'Aucune présence cette semaine.' })),
-          h('tr', { class: 'ligne-gardes' }, h('th', { text: 'Absences' }), js.map(function (j) { return h('td', {}, sm.absences[idx(j)].items.map(function (a) { return h('div', {}, h('small', { text: (a.precision || 'Absent') + (a.remplacant ? ' — remplacé par ' + a.remplacant : '') })); })); })),
+          h('tr', { class: 'ligne-gardes' }, h('th', { text: 'Absences' }), js.map(function (j) { return h('td', {}, sm.absences[idx(j)].items.map(function (a) { return h('div', {}, h('small', { text: (a.precision || 'Absent') + (a.remplacant ? ' — remplacé par ' + nomMed(a.remplacant, a.remplacantId) : '') })); })); })),
           h('tr', { class: 'ligne-gardes' }, h('th', { text: 'Gardes et astreintes' }), js.map(function (j) { return h('td', {}, sm.gardes[idx(j)].items.map(function (g) { return h('div', {}, h('small', { text: g.libelle + (g.lieu ? ' (' + libLieu(g.lieu) + ')' : '') })); })); }))))),
       h('h2', { text: 'Présences, absences et gardes enregistrées' }),
       sm.presences.length ? h('div', { class: 'pile' }, sm.presences.sort(function (a, b) { return String(b.debut).localeCompare(String(a.debut)); }).map(lignePresence))
@@ -130,16 +133,16 @@
     var g = p.nature === 'garde' ? opts().gardes.filter(function (x) { return x.code === p.garde; })[0] : null;
     var quand = p.repetition === 'date' ? 'le ' + dateFr(p.debut) : S.REPETITIONS[p.repetition].toLowerCase() + ' le ' + (p.jours || []).map(function (j) { return JOURS[j]; }).join(', ') + ' depuis le ' + dateFr(p.debut) + (p.fin ? ' jusqu’au ' + dateFr(p.fin) : '');
     var moms = p.nature === 'garde' ? '' : ' (' + (p.moments && p.moments.length === 1 ? S.MOMENTS[p.moments[0]].toLowerCase() : 'matin et après-midi') + ')';
-    return (p.nature === 'presence' ? 'Présence — ' + libLieu(p.service) : p.nature === 'absence' ? 'Absence' + (p.remplacant ? ', remplacé par ' + p.remplacant : '') : (g ? S.libGarde(g) : 'Garde')) + ' — ' + quand + moms + (p.precision ? ' — ' + p.precision : '');
+    return (p.nature === 'presence' ? 'Présence — ' + libLieu(p.service) : p.nature === 'absence' ? 'Absence' + (p.remplacant ? ', remplacé par ' + nomMed(p.remplacant, p.remplacantId) : '') : (g ? S.libGarde(g) : 'Garde')) + ' — ' + quand + moms + (p.precision ? ' — ' + p.precision : '');
   }
   function lignePresence(p) {
-    return h('div', { class: 'agenda-point' }, h('span', { text: p.medecin + ' : ' + libPresence(p) }),
+    return h('div', { class: 'agenda-point' }, h('span', { text: S.medecinDe(cfg(), p) + ' : ' + libPresence(p) }),
       peut('PRESENCE') ? bouton('Modifier', function () { modalePresence(p); }, 'petit') : null);
   }
   /** Case de la grille : ce qui s'applique ce jour-là, avec modification, et ajout. */
   function modaleCase(medecin, c) {
     var ps = Object.keys(st().presences).map(function (k) { return st().presences[k]; }).filter(function (p) {
-      return !p.supprime && p.medecin === medecin && S.couvre(p, c.jour) && (p.nature === 'garde' || !p.moments || !p.moments.length || p.moments.indexOf(c.moment) >= 0);
+      return !p.supprime && S.medecinDe(cfg(), p) === medecin && S.couvre(p, c.jour) && (p.nature === 'garde' || !p.moments || !p.moments.length || p.moments.indexOf(c.moment) >= 0);
     });
     U.modale(medecin + ' — ' + jourFr(c.jour) + ' ' + S.MOMENTS[c.moment].toLowerCase(), h('div', { class: 'pile' },
       ps.length ? ps.map(lignePresence) : h('p', { class: 'muted', text: 'Rien d’enregistré pour ce moment.' })), [
@@ -158,7 +161,7 @@
       selMed.appendChild(h('option', { value: '', text: '— Choisir le médecin —' }));
       l.forEach(function (m) { selMed.appendChild(h('option', { value: m.nom, text: m.nom + (m.statut === 'interimaire' ? ' — intérimaire' : ''), selected: m.nom === choix })); });
     }
-    remplirMed(x.medecin || ini.medecin || '');
+    remplirMed(x.medecin ? S.medecinDe(cfg(), x) : (ini.medecin || ''));
     var selLieu = h('select', { 'aria-label': 'Service ou lieu' }, lieux().map(function (l) { return h('option', { value: l.code, text: l.libelle, selected: l.code === (x.service || ini.lieu) }); }));
     var selGarde = h('select', { 'aria-label': 'Type de garde' }, o.gardes.map(function (g) { return h('option', { value: g.code, text: S.libGarde(g) + (g.lieu ? ' — ' + libLieu(g.lieu) : ''), selected: g.code === x.garde }); }));
     var joursChoisis = (x.jours || (ini.jour ? [new Date(S.depuisISO(ini.jour)).getDay()] : [1, 2, 3, 4, 5])).slice();
@@ -174,7 +177,7 @@
     var rep = h('select', { 'aria-label': 'Répétition' }, Object.keys(S.REPETITIONS).map(function (k) { return h('option', { value: k, text: S.REPETITIONS[k], selected: (x.repetition || (ini.jour ? 'date' : 'semaine')) === k }); }));
     var debut = h('input', { type: 'date', value: x.debut || ini.jour || S.jourISO(Date.now()) }), fin = h('input', { type: 'date', value: x.fin || '' });
     var precision = h('input', { type: 'text', maxlength: 100, value: x.precision || '', placeholder: 'ex. staff, consultations, congé, formation' });
-    var selRemp = h('select', { 'aria-label': 'Remplaçant' }, [h('option', { value: '', text: '— Pas de remplaçant —' })].concat(MED.proposes(cfg(), {}).map(function (m) { return h('option', { value: m.nom, text: m.nom, selected: m.nom === x.remplacant }); })));
+    var selRemp = h('select', { 'aria-label': 'Remplaçant' }, [h('option', { value: '', text: '— Pas de remplaçant —' })].concat(MED.proposes(cfg(), {}).map(function (m) { return h('option', { value: m.nom, text: m.nom, selected: x.remplacant && m.nom === nomMed(x.remplacant, x.remplacantId) }); })));
     var zoneJours = h('div', {}, h('b', { text: 'Jours' }), h('div', { class: 'actions gauche' }, casesJours));
     function dessiner() {
       U.vider(radios);
@@ -197,14 +200,15 @@
     dessiner();
     var boutons = [{ texte: 'Annuler' }];
     if (p) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
-      if (!confirm('Supprimer : ' + p.medecin + ' — ' + libPresence(p) + ' ?')) return false;
+      if (!confirm('Supprimer : ' + S.medecinDe(cfg(), p) + ' — ' + libPresence(p) + ' ?')) return false;
       await U.App.session.enregistrer('PRESENCE', { id: p.id, supprime: true, service: p.service || serviceCourant() });
       U.toast('Supprimé.');
     } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       var d = { id: x.id || 'PM' + C.hex(C.aleatoire(5)), medecin: selMed.value, nature: nature, repetition: rep.value, debut: debut.value, fin: rep.value === 'date' ? '' : fin.value,
         jours: rep.value === 'date' ? [] : joursChoisis.slice().sort(), moments: nature === 'garde' ? [] : momChoisis, precision: precision.value.trim(),
-        service: nature === 'presence' ? selLieu.value : serviceCourant(), garde: nature === 'garde' ? selGarde.value : '', remplacant: nature === 'absence' ? selRemp.value : '' };
+        service: nature === 'presence' ? selLieu.value : serviceCourant(), garde: nature === 'garde' ? selGarde.value : '', remplacant: nature === 'absence' ? selRemp.value : '',
+        medecinId: idMed(selMed.value), remplacantId: nature === 'absence' && selRemp.value ? idMed(selRemp.value) : null };
       if (nature !== 'garde' && !d.moments.length) throw new Error('Choisissez le matin, l’après-midi ou les deux.');
       await U.App.session.enregistrer('PRESENCE', d);
       U.toast('Enregistré.');
@@ -239,14 +243,14 @@
   }
   function suivisAffiches(maintenant) {
     var ls = S.suivis(st(), cfg(), fiches(), servicesAffiches(), maintenant);
-    if (vue.filtreMedecin) ls = ls.filter(function (x) { return x.patient.medecin1 === vue.filtreMedecin || x.patient.medecin2 === vue.filtreMedecin; });
+    if (vue.filtreMedecin) ls = ls.filter(function (x) { return nomMed(x.patient.medecin1) === vue.filtreMedecin || nomMed(x.patient.medecin2) === vue.filtreMedecin; });
     if (vue.enRetard) ls.sort(function (a, b) { return ((b.entretien.retard ? 2 : 0) + (b.contrat.retard ? 1 : 0)) - ((a.entretien.retard ? 2 : 0) + (a.contrat.retard ? 1 : 0)); });
     return ls;
   }
   function vueEntretiens(maintenant) {
     var ls = suivisAffiches(maintenant), toutes = S.suivis(st(), cfg(), fiches(), servicesAffiches(), maintenant);
     var nE = toutes.filter(function (x) { return x.entretien.retard; }).length, nC = toutes.filter(function (x) { return x.contrat.retard; }).length;
-    var meds = {}; toutes.forEach(function (x) { [x.patient.medecin1, x.patient.medecin2].forEach(function (m) { if (m) meds[m] = true; }); });
+    var meds = {}; toutes.forEach(function (x) { [x.patient.medecin1, x.patient.medecin2].forEach(function (m) { if (m) meds[nomMed(m)] = true; }); });
     var selMed = h('select', { class: 'select-barre', 'aria-label': 'Médecin', onchange: function () { vue.filtreMedecin = selMed.value; U.rendreContenu(); } }, [h('option', { value: '', text: 'Tous les médecins' })].concat(Object.keys(meds).sort().map(function (m) { return h('option', { value: m, text: m, selected: m === vue.filtreMedecin }); })));
     var cbR = h('input', { type: 'checkbox', checked: vue.enRetard, onchange: function () { vue.enRetard = cbR.checked; U.rendreContenu(); } });
     var tr = opts().tranches;
@@ -265,7 +269,7 @@
           var p = x.patient;
           return h('tr', {}, h('td', {}, nomPatient(p), servicesAffiches().length > 1 ? h('div', {}, h('small', { class: 'muted', text: U.libService(S.serviceDe(p)) })) : null),
             h('td', {}, modeDe(p) ? h('span', { class: 'badge', text: modeDe(p) }) : '—'),
-            h('td', { text: (p.medecin1 || 'non attribué') + ' / ' + (p.medecin2 || 'non attribué') }),
+            h('td', { text: (nomMed(p.medecin1) || 'non attribué') + ' / ' + (nomMed(p.medecin2) || 'non attribué') }),
             h('td', {}, h('small', { text: x.delais.entretien + ' j / ' + x.delais.contrat + ' j' })),
             h('td', {}, badgeDate(x.entretien), x.entretien.medecin ? h('div', {}, h('small', { class: 'muted', text: x.entretien.medecin })) : null),
             h('td', {}, badgeDate(x.contrat)),
@@ -296,7 +300,7 @@
     var quoi = h('select', { 'aria-label': 'Ce qui a été fait' }, Object.keys(S.QUOI).map(function (k) { return h('option', { value: k, text: S.QUOI[k] }); }));
     var recherche = h('input', { type: 'search', placeholder: 'Rechercher un patient', 'aria-label': 'Rechercher un patient' });
     var grille = h('div', { class: 'grille-2' }), compte = h('span', { class: 'muted' });
-    function niveau(p) { return selMed.value && p.medecin1 === selMed.value ? 1 : selMed.value && p.medecin2 === selMed.value ? 2 : 0; }
+    function niveau(p) { return selMed.value && nomMed(p.medecin1) === selMed.value ? 1 : selMed.value && nomMed(p.medecin2) === selMed.value ? 2 : 0; }
     function dessiner() {
       U.vider(grille);
       var q = recherche.value.trim().toLowerCase();
@@ -304,7 +308,7 @@
         var n = niveau(p), d = S.derniers(st(), p.id).entretien;
         var cb = h('input', { type: 'checkbox', checked: !!coches[p.id], onchange: function () { coches[p.id] = cb.checked; dessiner(); } });
         grille.appendChild(h('label', { class: 'case case-patient' + (n === 1 ? ' ligne1' : n === 2 ? ' ligne2' : '') + (coches[p.id] ? ' coche' : '') }, cb,
-          h('span', { class: 'espace' }, nomPatient(p), h('br'), h('small', { class: 'muted', text: (p.medecin1 || 'non attribué') + (d ? ' · vu le ' + dateFr(d.date) : ' · pas d’entretien') })),
+          h('span', { class: 'espace' }, nomPatient(p), h('br'), h('small', { class: 'muted', text: (nomMed(p.medecin1) || 'non attribué') + (d ? ' · vu le ' + dateFr(d.date) : ' · pas d’entretien') })),
           n ? h('span', { class: 'badge ' + (n === 1 ? 'ligne1' : 'ligne2'), text: n === 1 ? '1re ligne' : '2e ligne' }) : null));
       });
       var nb = Object.keys(coches).filter(function (k) { return coches[k]; }).length;
@@ -329,7 +333,7 @@
         if (!selMed.value) throw new Error('Choisissez le médecin.');
         for (var i = 0; i < ids.length; i++) {
           var p = fiches()[ids[i]];
-          await U.App.session.enregistrer('SUIVI', { id: 'SV' + C.hex(C.aleatoire(5)), patient: ids[i], service: S.serviceDe(p), date: date.value, medecin: selMed.value, quoi: quoi.value });
+          await U.App.session.enregistrer('SUIVI', { id: 'SV' + C.hex(C.aleatoire(5)), patient: ids[i], service: S.serviceDe(p), date: date.value, medecin: selMed.value, medecinId: idMed(selMed.value), quoi: quoi.value });
         }
         U.toast(ids.length + (ids.length > 1 ? ' patients enregistrés.' : ' patient enregistré.'));
       } }], { large: true });
@@ -339,7 +343,7 @@
     var corps = h('table', {}, h('thead', {}, h('tr', {}, ['Patient', 'Mode', 'Médecins (1re / 2e ligne)', 'Dernier entretien médical', 'Contrat de soins réévalué le'].map(function (x) { return h('th', { text: x }); }))),
       h('tbody', {}, ls.map(function (x) {
         var p = x.patient;
-        return h('tr', {}, h('td', {}, nomPatient(p)), h('td', { text: modeDe(p) || '—' }), h('td', { text: (p.medecin1 || 'non attribué') + ' / ' + (p.medecin2 || 'non attribué') }),
+        return h('tr', {}, h('td', {}, nomPatient(p)), h('td', { text: modeDe(p) || '—' }), h('td', { text: (nomMed(p.medecin1) || 'non attribué') + ' / ' + (nomMed(p.medecin2) || 'non attribué') }),
           h('td', {}, dateImprimee('', x.entretien), x.entretien.medecin ? ' (' + x.entretien.medecin + ')' : ''), h('td', {}, dateImprimee('', x.contrat)));
       })));
     U.imprimer(documentImprime('Entretiens médicaux et contrats de soins', servicesAffiches().map(U.libService).join(', '), corps, legendeRetard()));
@@ -388,14 +392,14 @@
   /** Ajout depuis une case : patients sans médecin à ce niveau d'abord ; changement de responsabilité confirmé. */
   function modaleAjout(nom, niveau, sv) {
     var champ = niveau === 1 ? 'medecin1' : 'medecin2', lib = niveau === 1 ? '1re ligne' : '2e ligne';
-    var patients = S.hospitalises(fiches(), [sv]).filter(function (p) { return p[champ] !== nom; }).sort(function (a, b) { return (a[champ] ? 1 : 0) - (b[champ] ? 1 : 0); });
+    var patients = S.hospitalises(fiches(), [sv]).filter(function (p) { return nomMed(p[champ]) !== nom; }).sort(function (a, b) { return (a[champ] ? 1 : 0) - (b[champ] ? 1 : 0); });
     var choix = null, recherche = h('input', { type: 'search', placeholder: 'Rechercher un patient du service', 'aria-label': 'Rechercher un patient' }), liste = h('div', { class: 'pile' });
     function dessiner() {
       U.vider(liste);
       var q = recherche.value.trim().toLowerCase();
       patients.filter(function (p) { return !q || identite(p).toLowerCase().indexOf(q) >= 0; }).forEach(function (p) {
         var r = h('input', { type: 'radio', name: 'ajout-patient', checked: choix === p.id, onchange: function () { choix = p.id; } });
-        liste.appendChild(h('label', { class: 'case case-patient' }, r, h('span', {}, nomPatient(p), h('br'), h('small', { class: 'muted', text: '1re ligne : ' + (p.medecin1 || 'non attribué') + ' · 2e ligne : ' + (p.medecin2 || 'non attribué') }))));
+        liste.appendChild(h('label', { class: 'case case-patient' }, r, h('span', {}, nomPatient(p), h('br'), h('small', { class: 'muted', text: '1re ligne : ' + (nomMed(p.medecin1) || 'non attribué') + ' · 2e ligne : ' + (nomMed(p.medecin2) || 'non attribué') }))));
       });
       if (!liste.childNodes.length) liste.appendChild(h('p', { class: 'muted', text: 'Aucun patient.' }));
     }
@@ -406,7 +410,7 @@
       { texte: 'Ajouter', classe: 'primaire', action: async function () {
         if (!choix) throw new Error('Choisissez un patient.');
         var p = fiches()[choix];
-        if (p[champ] && p[champ] !== nom && !confirm('Changer de responsabilité de ' + lib + ' ?\n\n' + identite(p) + ' a déjà ' + p[champ] + ' comme médecin de ' + lib + '.\nLe remplacer par ' + nom + ' ?\n\n(Le changement est daté et inscrit au journal ; il apparaît dans la fiche patient.)')) return false;
+        if (p[champ] && nomMed(p[champ]) !== nom && !confirm('Changer de responsabilité de ' + lib + ' ?\n\n' + identite(p) + ' a déjà ' + nomMed(p[champ]) + ' comme médecin de ' + lib + '.\nLe remplacer par ' + nom + ' ?\n\n(Le changement est daté et inscrit au journal ; il apparaît dans la fiche patient.)')) return false;
         var d = { patientId: p.id }; d[champ] = nom;
         await U.App.session.enregistrer('PATIENT', d);
         U.toast(nom + ' : médecin de ' + lib + ' de ' + identite(p) + '.');
@@ -492,8 +496,8 @@
   var LIB = { PRESENCE: 'Suivi médical : présence, absence ou garde', SUIVI: 'Suivi médical : entretien ou contrat de soins' };
   function resume(e) {
     var d = e.data || {};
-    if (e.type === 'PRESENCE') { var p = st().presences[d.id] || d; return d.supprime ? 'Supprimé : ' + (p.medecin || '') + ' — ' + (p.nature ? libPresence(p) : '') : (d.medecin || p.medecin) + ' — ' + libPresence(Object.assign({}, p, d)); }
-    if (e.type === 'SUIVI') { var s = st().suivis[d.id] || d, pt = fiches()[s.patient]; return (d.annule ? 'Annulé : ' : '') + (S.QUOI[s.quoi] || 'Saisie') + ' le ' + (s.date ? s.date.split('-').reverse().join('/') : '') + ' — ' + (pt ? identite(pt) : 'patient') + (s.medecin ? ' — ' + s.medecin : ''); }
+    if (e.type === 'PRESENCE') { var p = st().presences[d.id] || d; return d.supprime ? 'Supprimé : ' + nomMed(p.medecin, p.medecinId) + ' — ' + (p.nature ? libPresence(p) : '') : nomMed(d.medecin || p.medecin, d.medecinId || p.medecinId) + ' — ' + libPresence(Object.assign({}, p, d)); }
+    if (e.type === 'SUIVI') { var s = st().suivis[d.id] || d, pt = fiches()[s.patient]; return (d.annule ? 'Annulé : ' : '') + (S.QUOI[s.quoi] || 'Saisie') + ' le ' + (s.date ? s.date.split('-').reverse().join('/') : '') + ' — ' + (pt ? identite(pt) : 'patient') + (s.medecin ? ' — ' + nomMed(s.medecin, s.medecinId) : ''); }
     return e.type;
   }
   function pastille() {

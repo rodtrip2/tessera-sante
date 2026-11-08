@@ -66,13 +66,13 @@
         if (!d.id) return;
         if (d.supprime) { if (st.presences[d.id]) st.presences[d.id].supprime = true; return; }
         var p = Object.assign({}, st.presences[d.id] || { id: d.id, par: e.by, cree: e.at });
-        ['medecin', 'service', 'nature', 'garde', 'jours', 'moments', 'repetition', 'debut', 'fin', 'precision', 'remplacant'].forEach(function (k) { if (d[k] !== undefined) p[k] = d[k]; });
+        ['medecin', 'medecinId', 'service', 'nature', 'garde', 'jours', 'moments', 'repetition', 'debut', 'fin', 'precision', 'remplacant', 'remplacantId'].forEach(function (k) { if (d[k] !== undefined) p[k] = d[k]; });
         p.modifie = e.at; st.presences[d.id] = p;
         return;
       case 'SUIVI':
         if (!d.id) return;
         if (d.annule) { if (st.suivis[d.id]) st.suivis[d.id].annule = { par: e.by, le: e.at }; return; }
-        st.suivis[d.id] = { id: d.id, patient: d.patient, service: d.service || '', date: d.date, medecin: d.medecin || '', quoi: QUOI[d.quoi] ? d.quoi : 'entretien', par: e.by, le: e.at };
+        st.suivis[d.id] = { id: d.id, patient: d.patient, service: d.service || '', date: d.date, medecin: d.medecin || '', medecinId: d.medecinId || null, quoi: QUOI[d.quoi] ? d.quoi : 'entretien', par: e.by, le: e.at };
         return;
     }
   }
@@ -92,6 +92,8 @@
     return true;
   }
   function moments(p) { var m = Array.isArray(p.moments) && p.moments.length ? p.moments : ['matin', 'apresmidi']; return m.filter(function (x) { return MOMENTS[x]; }); }
+  /** Médecin d'une présence, ramené à son nom actuel (identifiant d'abord, puis nom actuel ou ancien). */
+  function medecinDe(config, p) { return MED.resoudre(config, p.medecin, p.medecinId); }
   function presencesActives(st) { return Object.keys(st.presences || {}).map(function (k) { return st.presences[k]; }).filter(function (p) { return !p.supprime; }); }
 
   /**
@@ -100,9 +102,9 @@
    * le type est rattaché à ce lieu compte comme une présence (ex. garde de jour aux urgences médico-psychologiques).
    */
   function situation(st, config, medecin, lieu, j, moment) {
-    var ps = presencesActives(st).filter(function (p) { return p.medecin === medecin && couvre(p, j) && moments(p).indexOf(moment) >= 0; });
+    var ps = presencesActives(st).filter(function (p) { return medecinDe(config, p) === medecin && couvre(p, j) && moments(p).indexOf(moment) >= 0; });
     var abs = ps.filter(function (p) { return p.nature === 'absence'; })[0];
-    if (abs) return { etat: 'absent', remplacant: abs.remplacant || '', precision: abs.precision || '' };
+    if (abs) return { etat: 'absent', remplacant: abs.remplacant ? MED.resoudre(config, abs.remplacant, abs.remplacantId) : '', precision: abs.precision || '' };
     var pr = ps.filter(function (p) { return p.nature === 'presence' && p.service === lieu; })[0];
     if (pr) return { etat: pr.repetition === 'date' ? 'ponctuel' : 'present', precision: pr.precision || '' };
     var gardes = options(config).gardes;
@@ -116,7 +118,7 @@
     presencesActives(st).forEach(function (p) {
       var t = p.nature === 'garde' ? gardes.filter(function (x) { return x.code === p.garde; })[0] : null;
       if ((p.nature === 'presence' && p.service === lieu) || (t && t.lieu === lieu)) {
-        for (var j = j0; j <= j1; j = jourISO(plusJours(depuisISO(j), 1))) if (couvre(p, j)) { noms[p.medecin] = true; break; }
+        for (var j = j0; j <= j1; j = jourISO(plusJours(depuisISO(j), 1))) if (couvre(p, j)) { noms[medecinDe(config, p)] = true; break; }
       }
     });
     MED.proposes(config, { date: depuisISO(j0) }).forEach(function (m) { if (m.services.indexOf(lieu) >= 0) noms[m.nom] = true; });
@@ -159,13 +161,13 @@
     var types = options(config).gardes;
     return presencesActives(st).filter(function (p) { return p.nature === 'garde' && couvre(p, j); }).map(function (p) {
       var t = types.filter(function (x) { return x.code === p.garde; })[0] || { libelle: 'Garde', debut: '', fin: '', lieu: '' };
-      return { medecin: p.medecin, type: p.garde, libelle: t.debut ? libGarde(t) : t.libelle, lieu: t.lieu, id: p.id };
+      return { medecin: medecinDe(config, p), type: p.garde, libelle: t.debut ? libGarde(t) : t.libelle, lieu: t.lieu, id: p.id };
     }).sort(function (a, b) { return a.libelle.localeCompare(b.libelle); });
   }
   /** Semaine d'un médecin dans tous ses lieux : { jours, lignes: [{ lieu, cases: [{ jour, moments: [...] }] }], absences, gardes }. */
   function semaineMedecin(st, config, medecin, lundi) {
     var jours = []; for (var i = 0; i < 7; i++) jours.push(jourISO(plusJours(depuisISO(lundi), i)));
-    var ps = presencesActives(st).filter(function (p) { return p.medecin === medecin; });
+    var ps = presencesActives(st).filter(function (p) { return medecinDe(config, p) === medecin; });
     var lieux = {}; ps.forEach(function (p) { if (p.nature === 'presence' && jours.some(function (j) { return couvre(p, j); })) lieux[p.service] = true; });
     var lignes = Object.keys(lieux).sort().map(function (l) {
       return { lieu: l, cases: jours.map(function (j) { return { jour: j, moments: Object.keys(MOMENTS).map(function (mo) { return { moment: mo, s: situation(st, config, medecin, l, j, mo) }; }) }; }) };
@@ -208,7 +210,7 @@
     function un(x, delai, sansRetardAvant) {
       if (!x) return { date: null, jours: null, retard: j !== null && j > sansRetardAvant, delai: delai };
       var n = joursEntre(depuisISO(x.date), maintenant);
-      return { date: x.date, jours: n, retard: n > delai, delai: delai, medecin: x.medecin };
+      return { date: x.date, jours: n, retard: n > delai, delai: delai, medecin: MED.resoudre(config, x.medecin, x.medecinId) };
     }
     return { patient: p, jour: j, delais: dl, entretien: un(d.entretien, dl.entretien, o.premierEntretien), contrat: un(d.contrat, dl.contrat, dl.contrat) };
   }
@@ -234,7 +236,7 @@
     ls.forEach(function (x) {
       var p = x.patient;
       [['medecin1', 'l1'], ['medecin2', 'l2']].forEach(function (k) {
-        var nom = String(p[k[0]] || '').trim();
+        var nom = MED.nomActuel(config, p[k[0]]);   // un ancien nom de la fiche suit le médecin
         if (nom) ligne(nom)[k[1]].push(x);
         else if (x.jour === null || x.jour >= o.nonAttribueApres) na[k[1]].push(x);
       });
@@ -318,6 +320,6 @@
   registre.declarer(contrat);
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, NATURES: NATURES, MOMENTS: MOMENTS, REPETITIONS: REPETITIONS, QUOI: QUOI, TRANCHES_DEFAUT: TRANCHES_DEFAUT, GARDES_DEFAUT: GARDES_DEFAUT,
     options: options, delais: delais, libGarde: libGarde, couvre: couvre, situation: situation, grilleLieu: grilleLieu, gardesDuJour: gardesDuJour, semaineMedecin: semaineMedecin,
-    medecinsDuLieu: medecinsDuLieu, derniers: derniers, suivisDe: suivisDe, suiviPatient: suiviPatient, jourHospitalisation: jourHospitalisation, identite: identite, hospitalises: hospitalises,
+    medecinsDuLieu: medecinsDuLieu, medecinDe: medecinDe, derniers: derniers, suivisDe: suivisDe, suiviPatient: suiviPatient, jourHospitalisation: jourHospitalisation, identite: identite, hospitalises: hospitalises,
     suivis: suivis, parMedecin: parMedecin, alertes: alertes, serviceDe: serviceDe, lieuxCodes: lieuxCodes, jourISO: jourISO, depuisISO: depuisISO, plusJours: plusJours };
 });

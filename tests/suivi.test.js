@@ -109,3 +109,33 @@ test('Entretiens et contrats : délais selon la durée d’hospitalisation, reta
   assert.deepEqual(al.map((x) => x.type + (x.niveau || '') + x.suivi.patient.id).sort(), ['entretienA', 'nonAttribue1C', 'nonAttribue2A', 'nonAttribue2C']);
   assert.throws(() => S.contrat.saisies.controler('SUIVI', { id: 'x', patient: 'A', date: '2099-01-01' }, { config }), /futur/);
 });
+
+test('Renommage d’un médecin ou rattachement à un compte : les anciennes saisies suivent', () => {
+  // Avant : Dr ALPHA ; saisies sous ce nom (fiche patient, présence, entretien), et une présence portant son identifiant
+  const avant = { medecins: { liste: [{ id: 'm-alpha', nom: 'Dr ALPHA (fictif)', fonction: 'psychiatre', services: ['U1'] }, { id: 'm-bravo', nom: 'Dr BRAVO (fictif)', fonction: 'psychiatre', services: ['U1'] }] } };
+  const renomme = MED.renommer(MED.liste(avant)[0], 'Dr ALPHA-NOUVEAU (fictif)');
+  assert.deepEqual([renomme.id, renomme.nom, renomme.anciensNoms], ['m-alpha', 'Dr ALPHA-NOUVEAU (fictif)', ['Dr ALPHA (fictif)']]);
+  const apres = { medecins: { liste: [Object.assign(renomme, { compte: 'compte-42' }), MED.liste(avant)[1]] } };
+  assert.equal(MED.nomActuel(apres, 'Dr ALPHA (fictif)'), 'Dr ALPHA-NOUVEAU (fictif)');
+  assert.equal(MED.resoudre(apres, 'nom effacé', 'm-alpha'), 'Dr ALPHA-NOUVEAU (fictif)');   // l'identifiant prime
+  assert.equal(MED.parCompte(apres, 'compte-42').id, 'm-alpha');
+  assert.ok(MED.meme(apres, 'Dr ALPHA (fictif)', 'Dr ALPHA-NOUVEAU (fictif)'));
+  assert.equal(MED.renommer(renomme, 'Dr ALPHA (fictif)').anciensNoms.indexOf('Dr ALPHA (fictif)'), -1);   // retour à l'ancien nom : pas de doublon
+  const st = S.reduire([
+    ev('PRESENCE', { id: 'p1', medecin: 'Dr ALPHA (fictif)', service: 'U1', nature: 'presence', jours: [1], repetition: 'semaine', debut: '2026-11-02' }),
+    ev('PRESENCE', { id: 'p2', medecin: 'Dr BRAVO (fictif)', nature: 'absence', jours: [2], repetition: 'semaine', debut: '2026-11-02', remplacant: 'Dr ALPHA (fictif)' }),
+    ev('SUIVI', { id: 's1', patient: 'A', service: 'U1', date: '2026-11-07', medecin: 'Dr ALPHA (fictif)', medecinId: 'm-alpha', quoi: 'entretien' })
+  ]);
+  assert.equal(S.situation(st, apres, 'Dr ALPHA-NOUVEAU (fictif)', 'U1', '2026-11-09', 'matin').etat, 'present');
+  assert.equal(S.situation(st, apres, 'Dr BRAVO (fictif)', 'U1', '2026-11-10', 'matin').remplacant, 'Dr ALPHA-NOUVEAU (fictif)');
+  assert.ok(S.grilleLieu(st, apres, 'U1', '2026-11-09').lignes.every((l) => l.medecin.nom !== 'Dr ALPHA (fictif)'));   // une seule ligne, au nom actuel
+  const fiches = { A: { id: 'A', nom: 'A (fictif)', prenom: 'X', medecin1: 'Dr ALPHA (fictif)', sejours: [{ id: 's', entree: '2026-11-01', service: 'U1' }] } };
+  const pm = S.parMedecin(st, apres, fiches, 'U1', t('2026-11-08', 12));
+  assert.deepEqual(pm.lignes.find((l) => l.medecin.nom === 'Dr ALPHA-NOUVEAU (fictif)').l1.map((x) => x.patient.id), ['A']);
+  assert.equal(pm.nonAttribues.l1.length, 0);
+  assert.equal(S.suiviPatient(st, apres, fiches.A, t('2026-11-08', 12)).entretien.medecin, 'Dr ALPHA-NOUVEAU (fictif)');
+  // Liste des patients : filtre et tri au nom actuel
+  const L = require('../app/js/liste-patients.js');
+  const ls = L.lignes(fiches, { perimetre: 'hospitalises', filtres: { medecin: 'Dr ALPHA-NOUVEAU (fictif)', modes: [] } }, { maintenant: t('2026-11-08', 12), nomMedecin: (n) => MED.nomActuel(apres, n) });
+  assert.equal(ls.length, 1);
+});

@@ -6,6 +6,10 @@
  * actif }], gestion: [rôles] }. Les médecins n'ont pas besoin de compte ; `compte` permettra plus tard de rattacher un nom
  * à un compte Tessera. Gestion de la liste : administrateur, et les rôles de `gestion` (cadre et secrétaire par défaut),
  * qui ajoutent notamment les médecins intérimaires.
+ * Identité stable (décision du porteur du 8 novembre 2026) : chaque médecin garde son identifiant et la liste de ses
+ * anciens noms ; les saisies faites sous un ancien nom (fiche patient, présences, entretiens, Isocont) le suivent : les
+ * écrans les ramènent à son nom actuel (`nomActuel`, `resoudre`). Les nouvelles saisies du Suivi médical portent en plus
+ * son identifiant. Le rattachement à un compte ne change ni l'identifiant ni le nom : les saisies suivent de même.
  * Reprise de l'existant : les noms de l'ancienne liste `psychiatres` absents de la liste commune y figurent comme
  * psychiatres titulaires ; à l'enregistrement, `psychiatres` est tenue à jour (noms des psychiatres actifs) pour les
  * écrans qui la lisent encore.
@@ -30,7 +34,8 @@
       id: texte(m.id, 40) || slug(m.nom), nom: texte(m.nom, 60), fonction: FONCTIONS[m.fonction] ? m.fonction : 'psychiatre',
       services: Array.isArray(m.services) ? m.services.filter(function (s) { return typeof s === 'string'; }) : [],
       statut: STATUTS[m.statut] ? m.statut : 'titulaire', debut: dateISO(m.debut), fin: dateISO(m.fin),
-      compte: typeof m.compte === 'string' && m.compte ? m.compte : null, actif: m.actif !== false
+      compte: typeof m.compte === 'string' && m.compte ? m.compte : null, actif: m.actif !== false,
+      anciensNoms: Array.isArray(m.anciensNoms) ? m.anciensNoms.map(function (n) { return texte(n, 60); }).filter(Boolean) : []
     };
   }
   function brut(config) { var x = config && config.medecins; return x && typeof x === 'object' && !Array.isArray(x) ? x : { liste: Array.isArray(x) ? x : [] }; }
@@ -41,7 +46,7 @@
       if (!m || !texte(m.nom)) return;
       var x = normaliser(m), cle = x.nom.toLowerCase();
       if (vus[cle]) return;
-      vus[cle] = true; res.push(x);
+      vus[cle] = true; x.anciensNoms.forEach(function (a) { vus[a.toLowerCase()] = vus[a.toLowerCase()] || 'ancien'; }); res.push(x);
     });
     ((config && config.psychiatres) || []).forEach(function (n) {
       if (typeof n !== 'string' || !n.trim() || vus[n.trim().toLowerCase()]) return;
@@ -64,7 +69,27 @@
       .sort(function (a, b) { return a.nom.localeCompare(b.nom); });
   }
   function noms(config, options) { return proposes(config, options).map(function (m) { return m.nom; }); }
-  function parNom(config, nom) { var n = texte(nom).toLowerCase(); return liste(config).filter(function (m) { return m.nom.toLowerCase() === n; })[0] || null; }
+  /** Médecin désigné par un nom, actuel ou ancien (les saisies faites sous un ancien nom le suivent). */
+  function parNom(config, nom) {
+    var n = texte(nom).toLowerCase();
+    if (!n) return null;
+    var l = liste(config);
+    return l.filter(function (m) { return m.nom.toLowerCase() === n; })[0] || l.filter(function (m) { return m.anciensNoms.some(function (a) { return a.toLowerCase() === n; }); })[0] || null;
+  }
+  function parId(config, id) { return id ? liste(config).filter(function (m) { return m.id === id; })[0] || null : null; }
+  function parCompte(config, compte) { return compte ? liste(config).filter(function (m) { return m.compte === compte; })[0] || null : null; }
+  /** Nom actuel d'un médecin désigné par un nom (actuel ou ancien) ou par son identifiant ; le nom tel quel sinon. */
+  function resoudre(config, nom, id) { var m = parId(config, id) || parNom(config, nom); return m ? m.nom : texte(nom, 60); }
+  function nomActuel(config, nom) { return resoudre(config, nom, null); }
+  /** Deux désignations visent-elles le même médecin ? */
+  function meme(config, a, b) { return !!a && !!b && nomActuel(config, a).toLowerCase() === nomActuel(config, b).toLowerCase(); }
+  /** Renommage : l'ancien nom rejoint les anciens noms (sans doublon ni le nouveau nom). */
+  function renommer(m, nouveau) {
+    var x = normaliser(m), n = texte(nouveau, 60);
+    if (n && n !== x.nom) x.anciensNoms = x.anciensNoms.concat([x.nom]).filter(function (a, i, l) { return a.toLowerCase() !== n.toLowerCase() && l.indexOf(a) === i; });
+    x.nom = n || x.nom;
+    return x;
+  }
   function estPsychiatre(config, nom) { var m = parNom(config, nom); return !!m && m.fonction === 'psychiatre'; }
   /** Noms des psychiatres actifs : valeur tenue à jour de l'ancienne liste `psychiatres`. */
   function psychiatres(l) { return l.filter(function (m) { return m.actif && m.fonction === 'psychiatre'; }).map(function (m) { return m.nom; }); }
@@ -81,5 +106,5 @@
   }
 
   return { FONCTIONS: FONCTIONS, STATUTS: STATUTS, GESTION_DEFAUT: GESTION_DEFAUT, liste: liste, gestion: gestion, enActivite: enActivite, proposes: proposes, noms: noms,
-    parNom: parNom, estPsychiatre: estPsychiatre, psychiatres: psychiatres, peutGerer: peutGerer, controler: controler, normaliser: normaliser, slug: slug };
+    parNom: parNom, parId: parId, parCompte: parCompte, resoudre: resoudre, nomActuel: nomActuel, meme: meme, renommer: renommer, estPsychiatre: estPsychiatre, psychiatres: psychiatres, peutGerer: peutGerer, controler: controler, normaliser: normaliser, slug: slug };
 });

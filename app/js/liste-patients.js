@@ -142,6 +142,8 @@
   function lignes(patients, r, contexte) {
     var reg = reglage(r), c = contexte || {}, maintenant = c.maintenant || Date.now(), jours = c.joursRecents || 7, svs = c.services || null;
     var q = String(c.recherche || '').trim().toLowerCase(), f = reg.filtres;
+    // Médecins ramenés à leur nom actuel (un ancien nom suit le médecin : liste commune, medecins.js)
+    var nm = typeof c.nomMedecin === 'function' ? c.nomMedecin : function (x) { return x || ''; };
     var res = Object.keys(patients || {}).map(function (k) { return patients[k]; }).map(function (p) {
       var sc = sejourEnCours(p) || dernierSejour(p), ch = chambreDe(p);
       return { p: p, situation: situation(p, maintenant, jours), service: serviceDe(p), chambre: ch.chambre, lit: ch.lit, entree: (sc && sc.entree) || '', sortie: (sc && sc.sortie) || '', mode: modeActuel(p), age: age(p.naissance, maintenant) };
@@ -150,7 +152,7 @@
       if (reg.perimetre === 'hospitalises' && l.situation !== 'hospitalise') return false;
       if (reg.perimetre === 'recents' && l.situation === 'sorti') return false;
       if (f.modes.length && f.modes.indexOf(l.mode) < 0) return false;
-      if (f.medecin && [l.p.medecin1, l.p.medecin2].indexOf(f.medecin) < 0) return false;
+      if (f.medecin && [nm(l.p.medecin1), nm(l.p.medecin2)].indexOf(nm(f.medecin)) < 0) return false;
       if (f.referent && !(l.p.referents || []).some(function (x) { return x.nom === f.referent; }) && l.p.psychologue !== f.referent) return false;
       var ko = Object.keys(f.complements || {}).some(function (k) {
         var v = (l.p.complements || {})[k], w = f.complements[k];
@@ -165,7 +167,7 @@
     var cle = {
       patient: function (l) { return nomComplet(l.p); }, ipp: function (l) { return l.p.ipp || ''; }, naissance: function (l) { return l.p.naissance || ''; },
       service: function (l) { return l.service; }, chambre: function (l) { return (l.chambre + ' ' + l.lit).trim(); }, entree: function (l) { return l.entree; },
-      sortie: function (l) { return l.sortie; }, mode: function (l) { return l.mode; }, medecin1: function (l) { return l.p.medecin1 || ''; }, psychologue: function (l) { return l.p.psychologue || ''; }
+      sortie: function (l) { return l.sortie; }, mode: function (l) { return l.mode; }, medecin1: function (l) { return nm(l.p.medecin1); }, psychologue: function (l) { return l.p.psychologue || ''; }
     }[reg.regroupement === 'chambre' ? 'chambre' : reg.tri];
     res.sort(function (a, b) {
       var s = (reg.regroupement === 'chambre' ? 1 : reg.sens) * compNaturel(cle(a), cle(b));
