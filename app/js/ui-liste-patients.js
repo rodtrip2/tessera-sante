@@ -29,6 +29,8 @@
     return etat.reglage;
   }
   function changer(f) { var r = JSON.parse(JSON.stringify(reglageCourant())); f(r); etat.reglage = L.reglage(r); retenir(); U.rendreContenu(); }
+  /** Colonnes du module Suivi médical : lues à la volée (fourniture suivi.patient) si l'agent en détient la clé. */
+  function suiviLisible() { var s = session(); return !!(s.detientCle && s.detientCle('suivi')) && !!s.etatModule('suivi'); }
   function isocontLisible() { var s = session(); return !!(s.detientCle && s.detientCle('isocont')) && !!U.st() && !!U.st().mesures; }
   /** Données complémentaires de la fiche visibles par l'agent (tous ses services), en colonnes « c:<id> ». */
   function colonnesComplements() {
@@ -36,7 +38,7 @@
     return P.champsComplementaires(U.config()).filter(function (c) { return P.peutVoirChamp(c, roles); }).map(function (c) { return { code: 'c:' + c.id, libelle: c.libelle, champ: c }; });
   }
   function toutesColonnes() { return L.COLONNES.concat(colonnesComplements()); }
-  function colonnesVisibles(r) { var iso = isocontLisible(); return toutesColonnes().filter(function (c) { return r.colonnes.indexOf(c.code) >= 0 && (!c.isocont || iso); }).sort(function (a, b) { return r.colonnes.indexOf(a.code) - r.colonnes.indexOf(b.code); }); }
+  function colonnesVisibles(r) { var iso = isocontLisible(); var sm = suiviLisible(); return toutesColonnes().filter(function (c) { return r.colonnes.indexOf(c.code) >= 0 && (!c.isocont || iso) && (!c.suivi || sm); }).sort(function (a, b) { return r.colonnes.indexOf(a.code) - r.colonnes.indexOf(b.code); }); }
   function libColonne(code, service) {
     if (code === 'medecin1' || code === 'medecin2') return P.optionsFiche(U.config(), service || (U.App.service !== '*' ? U.App.service : (mesServices()[0] || '')))[code];
     return (toutesColonnes().filter(function (c) { return c.code === code; })[0] || {}).libelle || code;
@@ -72,6 +74,12 @@
       case 'cumuls':
         var c = M.cumulsPatient(U.st(), p.id, maintenant);
         return h('td', { class: 'nowrap' }, h('small', { text: 'Isolement ' + U.duree(c.iso15) }), h('br'), h('small', { text: 'Contention ' + U.duree(c.cont15) }));
+      case 'dernierEntretien':
+      case 'contratReevalue':
+        var sp = SIC.modules.lire('suivi.patient', session().etatModule('suivi'), { patient: p, config: U.config(), maintenant: maintenant });
+        var x = sp && (code === 'dernierEntretien' ? sp.entretien : sp.contrat);
+        if (!x || l.situation !== 'hospitalise') return h('td', { text: '—' });
+        return h('td', { class: 'nowrap' }, x.date ? dateFr(x.date) + ' ' : '', h('span', { class: 'badge ' + (x.retard ? 'bad' : 'ok'), text: x.date ? (x.jours === 0 ? 'aujourd’hui' : x.jours + ' j') : (x.retard ? 'à faire' : 'pas encore') }));
       case 'vigilance':
         var v = M.cumulsPatient(U.st(), p.id, maintenant).niveau;
         return h('td', {}, h('span', { class: 'badge ' + ({ rouge: 'bad', jaune: 'warn', vert: 'ok' })[v], text: v }));
@@ -172,9 +180,9 @@
       U.vider(zone);
       ordre.forEach(function (code, i) {
         var c = toutesColonnes().filter(function (x) { return x.code === code; })[0];
-        if (!c || (c.isocont && !iso)) return;
+        if (!c || (c.isocont && !iso) || (c.suivi && !suiviLisible())) return;
         var cb = h('input', { type: 'checkbox', checked: !!coches[code], disabled: !!c.toujours, onchange: function () { coches[code] = cb.checked; } });
-        zone.appendChild(h('div', { class: 'agenda-point' }, h('label', { class: 'case' }, cb, h('span', { text: libColonne(code) + (c.isocont ? ' (module Isolement et contention)' : '') })),
+        zone.appendChild(h('div', { class: 'agenda-point' }, h('label', { class: 'case' }, cb, h('span', { text: libColonne(code) + (c.isocont ? ' (module Isolement et contention)' : '') + (c.suivi ? ' (module Suivi médical)' : '') })),
           h('button', { class: 'btn petit', type: 'button', disabled: i === 0, title: 'Monter', 'aria-label': 'Monter ' + c.libelle, onclick: function () { ordre.splice(i - 1, 0, ordre.splice(i, 1)[0]); dessiner(); } }, '▲'),
           h('button', { class: 'btn petit', type: 'button', disabled: i === ordre.length - 1, title: 'Descendre', 'aria-label': 'Descendre ' + c.libelle, onclick: function () { ordre.splice(i + 1, 0, ordre.splice(i, 1)[0]); dessiner(); } }, '▼')));
       });
@@ -245,7 +253,7 @@
           ordre.forEach(function (code, k) {
             var c = colsAdmin.filter(function (y) { return y.code === code; })[0];
             var cb = h('input', { type: 'checkbox', checked: rg.colonnes.indexOf(code) >= 0, disabled: !!c.toujours, onchange: function () { rg.colonnes = ordre.filter(function (y) { return y === code ? cb.checked : rg.colonnes.indexOf(y) >= 0; }); } });
-            zoneCols.appendChild(h('div', { class: 'agenda-point' }, h('label', { class: 'case' }, cb, h('span', { text: (/^c:/.test(code) ? c.libelle : libColonne(code)) + (c.isocont ? ' (Isolement et contention)' : '') })),
+            zoneCols.appendChild(h('div', { class: 'agenda-point' }, h('label', { class: 'case' }, cb, h('span', { text: (/^c:/.test(code) ? c.libelle : libColonne(code)) + (c.isocont ? ' (Isolement et contention)' : '') + (c.suivi ? ' (Suivi médical)' : '') })),
               h('button', { class: 'btn petit', type: 'button', disabled: k === 0, 'aria-label': 'Monter ' + c.libelle, onclick: function () { ordre.splice(k - 1, 0, ordre.splice(k, 1)[0]); rg.colonnes = ordre.filter(function (y) { return rg.colonnes.indexOf(y) >= 0; }); dessinerCols(); } }, '▲'),
               h('button', { class: 'btn petit', type: 'button', disabled: k === ordre.length - 1, 'aria-label': 'Descendre ' + c.libelle, onclick: function () { ordre.splice(k + 1, 0, ordre.splice(k, 1)[0]); rg.colonnes = ordre.filter(function (y) { return rg.colonnes.indexOf(y) >= 0; }); dessinerCols(); } }, '▼')));
           });

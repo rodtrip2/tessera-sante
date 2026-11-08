@@ -70,7 +70,7 @@
   var SOCLE = 'socle';
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
-  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1 };
+  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1 };
 
   function nouveauJournal(nom, dossier, cle) { return { nom: nom, dossier: dossier, cle: cle, evts: [], connus: new Set(), rejetes: [], reperesLus: {} }; }
   /** Journaux du jeu de données actif. */
@@ -1078,6 +1078,12 @@
     if (type === 'CONFIG' && data && data.cle === 'groupes' && (s.utilisateur.roles || []).indexOf('CADRE') >= 0) {
       var G = socle('groupes', './groupes.js');
       return !!G && G.controler(config(s).groupes, data.valeur, s.utilisateur);
+    }
+    // Liste commune des médecins (décision du 8 novembre 2026) : gérée aussi par les rôles désignés (cadre et secrétaire
+    // par défaut) ; l'ancienne liste `psychiatres` est tenue à jour avec elle
+    if (type === 'CONFIG' && data && (data.cle === 'medecins' || data.cle === 'psychiatres')) {
+      var MD = socle('medecins', './medecins.js');
+      return !!MD && MD.controler(config(s), data.cle, data.valeur, s.utilisateur);
     }
     // Réglages qu'un module ouvre au cadre pour ses services (contrat : reglages.cadre[cle], contrôle du changement)
     if (type === 'CONFIG' && data && (s.utilisateur.roles || []).indexOf('CADRE') >= 0 && SIC.modules && SIC.modules.liste) {
