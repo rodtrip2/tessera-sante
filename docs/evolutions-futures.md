@@ -16,6 +16,8 @@
 | Patients suivis par médecin | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Petite |
 | Feuille de staff pluridisciplinaire | Tessera Santé, 8 novembre 2026 | Demande ; **données cliniques** (décision préalable) | Grande |
 | Notes par patient | Tessera Santé, 8 novembre 2026 | Demande ; **données cliniques** (décision préalable) | Moyenne |
+| Module Agents (fiches des agents et des psychiatres) | Tessera Santé, 8 novembre 2026 | Demande, à préciser ; **données du personnel** (avis préalable) | Moyenne à grande |
+| Rôle Cadre supérieur de santé | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
 
 **Règle « aucune donnée clinique ».** Trois demandes du 8 novembre 2026 (suivi des entretiens médicaux et des contrats de soins, feuille de staff avec codes CIM et projet thérapeutique, notes par patient) portent sur des **données cliniques**, que Tessera exclut aujourd'hui (le dossier patient informatisé, DPI, reste la référence clinique). Avant tout développement, il faudra : une décision explicite du porteur de lever cette règle pour ces modules ; l'avis du délégué à la protection des données (DPO, référent RGPD), avec une analyse d'impact (AIPD) mise à jour ; l'avis du responsable de la sécurité informatique (RSSI) et du service informatique (DSI ou direction du numérique, selon l'établissement), y compris sur l'hébergement (partage du réseau de l'hôpital) et sur la sauvegarde ; l'accord de la direction des soins et de la commission médicale d'établissement (CME) sur le partage avec le DPI (risque de double saisie et de divergence). Le chiffrement par module et la clé remise aux seuls agents habilités s'appliqueraient comme ailleurs.
 
@@ -196,3 +198,22 @@ Notes datées attachées au patient, organisées en **rubriques (items)** que l'
 
 - **Fonctionnement** : chaque note est une saisie datée et signée (journal en ajout seul ; une correction est une nouvelle note) ; rubriques réglables par service et par rôle (qui écrit, qui lit), comme les données complémentaires de la fiche patient.
 - **À trancher** : frontière avec les transmissions du DPI (éviter un second dossier de soins) ; durée de conservation ; export dans le cadre du droit d'accès du patient.
+
+## Module Agents (demande du porteur, 8 novembre 2026)
+
+Fiches des agents du service et des psychiatres, **gérées par le cadre**, avec des champs ajoutés par l'établissement.
+
+- **Contenu** : une fiche par agent (lien avec son compte Tessera quand il en a un) et par psychiatre (lien avec la liste commune des médecins, dont il reprendrait l'identité stable) : nom, fonction, services, groupes d'agents, et des **champs ajoutés** dont le format est choisi à leur création : texte libre, date, numéro de téléphone, notes (texte long), **entretiens** (liste datée : date, type, auteur, compte rendu court).
+- **Gestion** : création et modification par le cadre pour les agents de ses services (cadre supérieur de santé pour son pôle, administrateur pour tous) ; chaque champ a ses rôles qui lisent et qui écrivent, comme les données complémentaires de la fiche patient ; un agent pourrait voir sa propre fiche (à trancher).
+- **Lien avec l'existant** : comptes (Administration), groupes d'agents, liste commune des médecins (le module Agents pourrait l'absorber à terme), agenda (absences, entretiens planifiés).
+- **Données du personnel** : les entretiens et notes sur un agent sont des **données de ressources humaines** ; avant tout développement : avis du délégué à la protection des données (DPO, référent RGPD) et de la direction des ressources humaines, inscription au registre des traitements, durée de conservation, droit d'accès de l'agent à sa fiche, frontière avec le dossier administratif de l'agent et les outils de la direction des ressources humaines (éviter un dossier parallèle).
+- **À trancher avant développement** : champs par défaut ; types de champs proposés ; qui lit les entretiens et les notes ; l'agent voit-il sa fiche ; journal en ajout seul (une correction est une nouvelle saisie) et clé propre au module, remise aux seuls rôles habilités.
+
+## Rôle Cadre supérieur de santé (demande du porteur, 8 novembre 2026)
+
+Un rôle aux droits **entre ceux du cadre et ceux de l'administrateur**.
+
+- **Proposition de périmètre** : tout ce que fait le cadre, pour **tous les services de son pôle** (ou des services qui lui sont affectés) ; réglages des modules par service (catégories de l'agenda, véhicules, suivi médical) ; groupes d'agents et destinataires des informations sur l'ensemble de ses services ; lecture des journaux de ses services ; validation de ce que le cadre confirme (médecins non répertoriés, intérimaires…).
+- **Restent à l'administrateur** : coffre et clés, comptes et droits techniques, activation des modules, réglages généraux de l'établissement, sauvegardes et restauration.
+- **Fonctionnement** : nouveau rôle fourni (comme IDE, AS, secrétaire, cadre), avec ses accès par défaut dans chaque module et réglables dans *Rôles et accès* ; notion de pôle (regroupement de services) à ajouter aux réglages si elle est retenue.
+- **À trancher avant développement** : pôle ou liste de services ; peut-il créer des comptes pour ses services ; voit-il les données patients de tous ses services ou seulement les tableaux de bord ; ce qu'il valide à la place du cadre.
