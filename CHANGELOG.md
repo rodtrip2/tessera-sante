@@ -1,5 +1,17 @@
 # Journal des modifications — Tessera Santé
 
+## 0.13.0 — 8 novembre 2026
+
+Évolution reprise à la demande du porteur (8 novembre 2026) : **données complémentaires de la fiche patient**.
+
+- *Administration → Patients → Données complémentaires* : **tableau** des données ajoutées à la fiche, une ligne par donnée : nom, **type de valeur attendu** (oui ou non, texte court, liste de choix avec ses choix, date, nombre, professionnel), **services** concernés (aucun : tous), **rôles qui saisissent** (par défaut ceux qui ont l'accès aux fiches patient ; ouvrable à d'autres rôles, ex. aides-soignants), **rôles qui voient** (par défaut tous), proposée ou masquée, ordre. Rappel « aucune donnée clinique » et avertissement si le nom évoque une donnée clinique. Une donnée déjà enregistrée garde son type et se masque au lieu d'être retirée.
+- **Fiche patient** : section « Données complémentaires » selon le service du patient et le rôle de l'agent ; un agent sans l'accès aux fiches enregistre les données que son rôle saisit.
+- Saisie `COMPLEMENT` du module Patients, **datée** dans l'historique de la fiche, **contrôlée par le module selon les rôles réglés pour chaque donnée** (le socle demande au module qui déclare le type) ; valeur vérifiée selon son type ; reprise à la fusion de deux fiches.
+- **Liste des patients** : chaque donnée visible devient une **colonne** (choix des colonnes de l'agent et des affichages par défaut) et, pour « oui ou non » et « liste de choix », un **filtre** (dont « non renseigné »).
+- Export du droit d'accès : psychologue, suivi social et données complémentaires, avec leurs changements datés ; journal et export des réglages (`patientsChamps`, groupe « Module Patients »).
+- Démonstration : sorties libres (Unité 1, saisies aussi par les AS), éducateur référent (visible des IDE, cadres et secrétaires), repas favori (liste), une donnée masquée ; valeurs fictives.
+- Évolution retirée de `docs/evolutions-futures.md` ; architecture, guide utilisateur et éléments RGPD (document 05) à jour. Nouveau test (224 au vert) ; écrans vérifiés dans Chrome.
+
 ## 0.12.1 — 8 novembre 2026
 
 - **Affichages par défaut de la liste des patients** (*Administration → Patients → Liste des patients*, décision du porteur du 8 novembre 2026) : colonnes **cochées et ordonnées directement** dans chaque affichage, ainsi que le périmètre, la présentation, le tri, l'ordre et la couleur selon le mode ; *Reprendre l'affichage en cours* reste proposé.

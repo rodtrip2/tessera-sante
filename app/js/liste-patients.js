@@ -59,7 +59,10 @@
   function reglage(r) {
     r = r || {};
     var f = r.filtres || {};
-    var cols = Array.isArray(r.colonnes) ? r.colonnes.filter(function (c, i, t) { return CODES.indexOf(c) >= 0 && t.indexOf(c) === i; }) : REGLAGE_DEFAUT.colonnes.slice();
+    // Colonnes des données complémentaires de la fiche : « c:<identifiant> » (0.13.0)
+    var cols = Array.isArray(r.colonnes) ? r.colonnes.filter(function (c, i, t) { return (CODES.indexOf(c) >= 0 || /^c:[a-z][a-z0-9-]{1,30}$/.test(c)) && t.indexOf(c) === i; }) : REGLAGE_DEFAUT.colonnes.slice();
+    var fc = {};
+    Object.keys(f.complements || {}).forEach(function (k) { if (/^[a-z][a-z0-9-]{1,30}$/.test(k) && String(f.complements[k] || '')) fc[k] = String(f.complements[k]).slice(0, 60); });
     if (cols.indexOf('patient') < 0) cols.unshift('patient');
     return {
       perimetre: PERIMETRES[r.perimetre] ? r.perimetre : 'hospitalises',
@@ -67,7 +70,7 @@
       tri: TRIS.indexOf(r.tri) >= 0 ? r.tri : 'patient', sens: r.sens === -1 ? -1 : 1,
       coloration: COLORATIONS[r.coloration] ? r.coloration : 'aucune',
       colonnes: cols,
-      filtres: { modes: Array.isArray(f.modes) ? f.modes.map(function (m) { return texte(m, 20); }).filter(Boolean) : [], medecin: texte(f.medecin), referent: texte(f.referent) }
+      filtres: { modes: Array.isArray(f.modes) ? f.modes.map(function (m) { return texte(m, 20); }).filter(Boolean) : [], medecin: texte(f.medecin), referent: texte(f.referent), complements: fc }
     };
   }
 
@@ -147,6 +150,13 @@
       if (f.modes.length && f.modes.indexOf(l.mode) < 0) return false;
       if (f.medecin && [l.p.medecin1, l.p.medecin2].indexOf(f.medecin) < 0) return false;
       if (f.referent && !(l.p.referents || []).some(function (x) { return x.nom === f.referent; }) && l.p.psychologue !== f.referent) return false;
+      var ko = Object.keys(f.complements || {}).some(function (k) {
+        var v = (l.p.complements || {})[k], w = f.complements[k];
+        if (w === '(vide)') return v !== undefined && v !== null && v !== '';
+        if (w === 'oui' || w === 'non') return v !== (w === 'oui');
+        return String(v === undefined || v === null ? '' : (typeof v === 'object' ? v.nom : v)) !== w;
+      });
+      if (ko) return false;
       if (q && (nomComplet(l.p) + ' ' + (l.p.nomNaissance || '') + ' ' + (l.p.ipp || '') + ' ' + l.chambre).toLowerCase().indexOf(q) < 0) return false;
       return true;
     });

@@ -70,7 +70,7 @@
   var SOCLE = 'socle';
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
-  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, agenda: 1 };
+  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, agenda: 1 };
 
   function nouveauJournal(nom, dossier, cle) { return { nom: nom, dossier: dossier, cle: cle, evts: [], connus: new Set(), rejetes: [], reperesLus: {} }; }
   /** Journaux du jeu de données actif. */
@@ -1074,8 +1074,9 @@
   Session.prototype.peut = function (type) { return moduleDe(type).droits.peut(this.roles(), type, config(this)); };
   /** Saisie permise à un agent pour lui-même (ses propres absences dans l'Agenda), même sans l'accès correspondant. */
   function permisPourSoi(s, type, data) {
-    var m = moduleDe(type);
-    return !!(m.saisies && m.saisies.permisPourSoi && m.saisies.permisPourSoi(type, data, s.utilisateur));
+    // Module qui déclare le type, y compris un module de référence (données complémentaires de la fiche patient)
+    var d = SIC.modules && SIC.modules.moduleDuType ? SIC.modules.moduleDuType(type) : null, m = d && d.saisies && d.saisies.permisPourSoi ? d : moduleDe(type);
+    return !!(m.saisies && m.saisies.permisPourSoi && m.saisies.permisPourSoi(type, data, s.utilisateur, { config: config(s), peut: function (t) { return s.peut(t); } }));
   }
 
   Session.prototype.nomAuteur = function (userId) {

@@ -287,3 +287,39 @@ test('Synchronisation : un journal interrompu ne fait perdre ni les patients ni 
   assert.equal(new Set(ids).size, ids.length, 'aucune saisie en double');
   assert.equal(Object.keys(s.etat.patients).length, 3);
 });
+
+test('Données complémentaires de la fiche (0.13.0) : saisie selon les rôles réglés pour la donnée, valeur conforme, datée, fourniture', async () => {
+  const { racine, admin } = await nouveauDossier();
+  await admin.enregistrer('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1 (fictif)' }, { code: 'U2', libelle: 'U2 (fictif)' }] });
+  await admin.enregistrer('CONFIG', { cle: 'patientsChamps', valeur: [
+    { id: 'sorties-libres', libelle: 'Sorties libres', type: 'ouiNon', services: ['U1'], saisie: ['AS', 'IDE'], lecture: [] },
+    { id: 'educateur', libelle: 'Éducateur référent', type: 'professionnel', services: [], saisie: [], lecture: ['IDE', 'CADRE'] },
+    { id: 'repas', libelle: 'Repas favori', type: 'liste', choix: ['Pâtes', 'Couscous'], services: [], saisie: ['SECRETAIRE'], lecture: [], actif: false }] });
+  await admin.creerComptes([
+    { nom: 'AS (fictif)', login: 'as.a', motDePasse: 'mot de passe as a', roles: ['AS'], services: ['U1'] },
+    { nom: 'IDE (fictif)', login: 'ide.b', motDePasse: 'mot de passe ide b', roles: ['IDE'], services: ['U1'] }]);
+  await admin.enregistrer('PATIENT', { patientId: 'P1', nom: 'MARTIN (fictif)', service: 'U1' });
+  const P = require('../app/js/module-patients.js');
+  const cfg = admin.etat.config;
+  assert.deepEqual(P.champsComplementaires(cfg, { service: 'U1' }).map((c) => c.id), ['sorties-libres', 'educateur']);
+  assert.deepEqual(P.champsComplementaires(cfg, { service: 'U2' }).map((c) => c.id), ['educateur']);
+  const as = new Session(new Dossier(racine, 'reseau')); await as.chargerCoffre(); await as.connexionMotDePasse('as.a', 'mot de passe as a');
+  // L'AS n'a pas l'accès aux fiches, mais la donnée « Sorties libres » lui est ouverte
+  assert.ok(!as.peut('PATIENT'));
+  await as.enregistrer('COMPLEMENT', { patientId: 'P1', champ: 'sorties-libres', valeur: true });
+  await assert.rejects(as.enregistrer('COMPLEMENT', { patientId: 'P1', champ: 'educateur', valeur: { id: null, nom: 'M. É (fictif)' } }), /rôle/);
+  await assert.rejects(as.enregistrer('COMPLEMENT', { patientId: 'P1', champ: 'sorties-libres', valeur: 'peut-être' }), /rôle/);
+  await assert.rejects(as.enregistrer('COMPLEMENT', { patientId: 'P1', champ: 'repas', valeur: 'Pâtes' }), /rôle/, 'donnée masquée');
+  const ide = new Session(new Dossier(racine, 'reseau')); await ide.chargerCoffre(); await ide.connexionMotDePasse('ide.b', 'mot de passe ide b');
+  await ide.enregistrer('COMPLEMENT', { patientId: 'P1', champ: 'educateur', valeur: { id: null, nom: 'M. É (fictif)' } });
+  await ide.enregistrer('COMPLEMENT', { patientId: 'P1', champ: 'sorties-libres', valeur: false });
+  await ide.synchroniser();
+  const f = ide.etat.patients.P1;
+  assert.deepEqual(f.complements, { 'sorties-libres': false, educateur: { id: null, nom: 'M. É (fictif)' } });
+  assert.equal(f.historique['c:sorties-libres'].length, 2);
+  // Lecture : l'éducateur n'est visible que des IDE et cadres ; valeurs vérifiées
+  const ed = P.champsComplementaires(cfg).find((c) => c.id === 'educateur');
+  assert.ok(P.peutVoirChamp(ed, ['IDE']) && !P.peutVoirChamp(ed, ['AS']));
+  assert.throws(() => P.valeurChamp(P.champsComplementaires(cfg, { tous: true }).find((c) => c.id === 'repas'), 'Frites'), /Liste de choix|liste/i);
+  assert.deepEqual(P.libelleClinique('Traitement en cours'), ['traitement']);
+});

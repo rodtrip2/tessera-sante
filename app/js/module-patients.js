@@ -48,6 +48,15 @@
         });
         st.fiches[id] = p;
         break;
+      case 'COMPLEMENT':
+        // Donnée propre au service ajoutée par l'administrateur (8 novembre 2026), datée comme les autres champs ; null la retire
+        var pc = st.fiches[id];
+        if (!pc || !d.champ) break;
+        pc.complements = Object.assign({}, pc.complements || {});
+        if (d.valeur === null || d.valeur === undefined || d.valeur === '') delete pc.complements[d.champ]; else pc.complements[d.champ] = d.valeur;
+        var hc = (pc.historique = pc.historique || {})['c:' + d.champ] = (pc.historique['c:' + d.champ] || []);
+        hc.push({ le: e.at, valeur: d.valeur === undefined ? null : d.valeur, evt: e.id });
+        break;
       case 'SEJOUR':
         // Séjours successifs (décision du 7 novembre 2026) : un par numéro de séjour, complété saisie après saisie
         var ps = st.fiches[id];
@@ -67,6 +76,7 @@
         var g = cible(st, d.garde), a = cible(st, d.absorbe), pg = st.fiches[g], pa = st.fiches[a];
         if (!pg || !pa || g === a) break;
         COMPLETES_A_LA_FUSION.forEach(function (k) { if (!pg[k] && pa[k]) pg[k] = pa[k]; });
+        if (pa.complements) { pg.complements = Object.assign({}, pa.complements, pg.complements || {}); }
         pg.modes = pg.modes.concat(pa.modes).sort(function (x, y) { return x.date - y.date; });
         if (pa.sejours) pg.sejours = (pg.sejours || []).concat(pa.sejours).sort(function (x, y) { return String(x.entree || '').localeCompare(String(y.entree || '')); });
         pg.fusionnes = (pg.fusionnes || []).concat([{ id: a, ipp: pa.ipp || '', nom: pa.nom || '', prenom: pa.prenom || '', naissance: pa.naissance || '', evt: e.id, motif: d.motif || '' }], pa.fusionnes || []);
@@ -76,6 +86,69 @@
     }
   }
   function cible(st, id) { var n = 0; while (st.fusions[id] && n++ < 50) id = st.fusions[id]; return id; }
+
+  // ------------------------------------------------------------ Données complémentaires (décision du porteur du 8 novembre 2026)
+  /**
+   * Données ajoutées à la fiche par l'administrateur (`config.patientsChamps`), pour certains services et certains rôles :
+   * { id, libelle, type, choix (liste), services ([] : tous), saisie (rôles qui saisissent ; [] : ceux qui ont l'accès aux
+   * fiches patient), lecture (rôles qui voient ; [] : tous), actif (false : masquée, jamais effacée du journal) }.
+   */
+  var TYPES_CHAMP = { ouiNon: 'Oui ou non', texte: 'Texte court', liste: 'Liste de choix', date: 'Date', nombre: 'Nombre', professionnel: 'Professionnel' };
+  // Libellés qui évoquent une donnée clinique (rappel à la création : aucune donnée clinique dans Tessera)
+  var MOTS_CLINIQUES = ['traitement', 'diagnostic', 'pathologie', 'symptome', 'medicament', 'antecedent', 'maladie', 'trouble', 'posologie', 'allergie', 'addiction', 'suicid', 'delire', 'hallucination', 'psychose'];
+  function champsComplementaires(config, options) {
+    var o = options || {}, l = Array.isArray(config && config.patientsChamps) ? config.patientsChamps : [];
+    return l.filter(function (c) { return c && /^[a-z][a-z0-9-]{1,30}$/.test(c.id || '') && String(c.libelle || '').trim() && TYPES_CHAMP[c.type]; }).map(function (c) {
+      return { id: c.id, libelle: String(c.libelle).trim().slice(0, 60), type: c.type, choix: c.type === 'liste' && Array.isArray(c.choix) ? c.choix.map(function (x) { return String(x).trim().slice(0, 60); }).filter(Boolean) : [],
+        services: Array.isArray(c.services) ? c.services.slice() : [], saisie: Array.isArray(c.saisie) ? c.saisie.slice() : [], lecture: Array.isArray(c.lecture) ? c.lecture.slice() : [], actif: c.actif !== false };
+    }).filter(function (c) {
+      if (!o.tous && !c.actif) return false;
+      if (o.service && c.services.length && c.services.indexOf(o.service) < 0) return false;
+      return true;
+    });
+  }
+  function aRole(liste, roles) { return !liste.length || (roles || []).some(function (r) { return r === 'ADMIN' || liste.indexOf(r) >= 0; }); }
+  function peutVoirChamp(champ, roles) { return aRole(champ.lecture, roles); }
+  /** `peutFiche` : l'agent a l'accès aux fiches patient (règle des données sans rôles de saisie précisés). */
+  function peutSaisirChamp(champ, roles, peutFiche) {
+    if ((roles || []).indexOf('ADMIN') >= 0) return true;
+    return champ.saisie.length ? aRole(champ.saisie, roles) && peutVoirChamp(champ, roles) : !!peutFiche;
+  }
+  /** Valeur conforme au type, ou erreur. '' ou null : retire la valeur. */
+  function valeurChamp(champ, v) {
+    if (v === null || v === undefined || v === '') return null;
+    switch (champ.type) {
+      case 'ouiNon': if (v === true || v === false) return v; if (v === 'oui') return true; if (v === 'non') return false; break;
+      case 'texte': return String(v).trim().slice(0, 200) || null;
+      case 'liste': if (champ.choix.indexOf(String(v)) >= 0) return String(v); break;
+      case 'date': if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v; break;
+      case 'nombre': if (isFinite(+v)) return +v; break;
+      case 'professionnel': if (v && typeof v === 'object' && String(v.nom || '').trim()) return { id: v.id || null, nom: String(v.nom).trim().slice(0, 80) }; break;
+    }
+    throw new Error('« ' + champ.libelle + ' » : valeur attendue — ' + TYPES_CHAMP[champ.type].toLowerCase() + '.');
+  }
+  function libValeurChamp(champ, v) {
+    if (v === null || v === undefined) return '';
+    if (champ.type === 'ouiNon') return v ? 'Oui' : 'Non';
+    if (champ.type === 'date') return String(v).split('-').reverse().join('/');
+    if (champ.type === 'professionnel') return v.nom || '';
+    return String(v);
+  }
+  function libelleClinique(libelle) {
+    var t = String(libelle || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return MOTS_CLINIQUES.filter(function (m) { return t.indexOf(m) >= 0; });
+  }
+  /**
+   * Saisie d'une donnée complémentaire permise selon les rôles réglés pour cette donnée (et non selon les accès des
+   * modules) : le module Patients la contrôle lui-même. ctx : { config, peut }.
+   */
+  function permisPourSoi(type, data, compte, ctx) {
+    if (type !== 'COMPLEMENT' || !compte || !data || !ctx) return false;
+    var c = champsComplementaires(ctx.config, { tous: true }).filter(function (x) { return x.id === data.champ; })[0];
+    if (!c || !c.actif) return false;
+    try { valeurChamp(c, data.valeur); } catch (e) { return false; }
+    return peutSaisirChamp(c, compte.roles, ctx.peut && ctx.peut('PATIENT'));
+  }
 
   function reduire(evts) {
     return N.reduire(evts, { etat: function () { return { fiches: {}, fusions: {} }; }, appliquer: appliquer });
@@ -126,8 +199,9 @@
 
     acces: [],                  // les saisies de la fiche sont permises par les accès des modules qui en dépendent
     saisies: {
-      types: ['PATIENT', 'MODE_HOSPI', 'FUSION', 'SEJOUR'],
+      types: ['PATIENT', 'MODE_HOSPI', 'FUSION', 'SEJOUR', 'COMPLEMENT'],
       champ: function () { return null; },   // conflits : comme dans Isocont, aucune saisie de la fiche n'en crée
+      permisPourSoi: permisPourSoi,
       reduire: reduire
     },
     reglages: { defaut: {}, groupes: [], exclus: [] },
@@ -136,13 +210,14 @@
     migrations: [],
     fournitures: [
       { nom: 'patients.fiches', version: 1, acces: 'lecture', calculer: fiches,
-        champs: ['id', 'ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'detenu', 'service', 'medecin1', 'medecin2', 'referents', 'psychologue', 'suiviAS', 'sejours', 'modes', 'fusionnes', 'historique'] }
+        champs: ['id', 'ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'detenu', 'service', 'medecin1', 'medecin2', 'referents', 'psychologue', 'suiviAS', 'complements', 'sejours', 'modes', 'fusionnes', 'historique'] }
     ],
     besoins: []
   };
 
   registre.declarer(contrat);
-  var api = { contrat: contrat, reduire: reduire, fiches: fiches, valeurAu: valeurAu, sejourEnCours: sejourEnCours, optionsFiche: optionsFiche, SEXES: SEXES };
+  var api = { TYPES_CHAMP: TYPES_CHAMP, champsComplementaires: champsComplementaires, peutVoirChamp: peutVoirChamp, peutSaisirChamp: peutSaisirChamp, valeurChamp: valeurChamp, libValeurChamp: libValeurChamp, libelleClinique: libelleClinique, permisPourSoi: permisPourSoi,
+    contrat: contrat, reduire: reduire, fiches: fiches, valeurAu: valeurAu, sejourEnCours: sejourEnCours, optionsFiche: optionsFiche, SEXES: SEXES };
   if (typeof self !== 'undefined' && self.SIC) self.SIC.patients = api;
   return api;
 });

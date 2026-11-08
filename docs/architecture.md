@@ -171,6 +171,7 @@ Module de référence, partagé par tous les modules qui concernent des patients
 | Référents soignants (plusieurs) | saisie dans Tessera, parmi les comptes du service, nom libre possible |
 | Protection juridique, patient détenu, mode d'hospitalisation | saisie dans Tessera |
 | Psychologue référent ; suivi par l'assistant(e) social(e) du service (oui ou non, nom facultatif) | saisie dans Tessera, datés (décision du 7 novembre 2026) |
+| **Données complémentaires** ajoutées par l'administrateur (0.13.0, décision du 8 novembre 2026) : nom, type de valeur (oui ou non, texte court, liste de choix, date, nombre, professionnel), services concernés, rôles qui saisissent (par défaut ceux qui ont l'accès aux fiches), rôles qui voient (par défaut tous) | saisie `COMPLEMENT` du module Patients, datée, contrôlée par le module selon les rôles réglés pour la donnée ; réglage `config.patientsChamps` (*Administration → Patients → Données complémentaires*, affichage en tableau) ; colonnes et filtres de la liste des patients, export du droit d'accès ; donnée retirée = masquée, jamais effacée ; rappel « aucune donnée clinique » et mots à éviter à la création |
 
 **Règles**
 
@@ -391,6 +392,7 @@ Points de vigilance : `ui.js` est le découpage le plus long, à faire par blocs
 | Inscription d'un collègue | Un agent peut inscrire ou désinscrire un collègue comme accompagnateur ; le collègue reçoit l'information dans sa session | 8 nov. 2026 |
 | Agenda dans la fiche patient | Événements à venir du patient ; création d'un événement depuis la fiche | 8 nov. 2026 |
 | Événements répétés | Patients, accompagnateurs, transports, validations, check-list, horaires et lieu réglables pour une date ou pour toutes ; une date peut être décalée ou annulée | 8 nov. 2026 |
+| Données complémentaires de la fiche | Ajoutées par l'administrateur (affichage en tableau, type de valeur attendu), affichées et saisies selon le service et le rôle | 8 nov. 2026 |
 | Catégories d'événements | Catégories ajoutées par l'administrateur, préréglages modifiables pour chaque catégorie, pour l'établissement et par service | 8 nov. 2026 |
 | Durée d'un élément | Jour de fin distinct du jour de début (ex. permission jusqu'à 48 h) | 8 nov. 2026 |
 | Administration | Un onglet de réglages généraux, puis un onglet par module | 8 nov. 2026 |

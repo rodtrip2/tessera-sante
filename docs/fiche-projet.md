@@ -130,7 +130,7 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 
 ## 9. État d'avancement
 
-- **Socle commun, modules Patients, Isolement et contention et Agenda** : développés et vérifiés par des tests automatiques (version 0.12.0), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
+- **Socle commun, modules Patients, Isolement et contention et Agenda** : développés et vérifiés par des tests automatiques (version 0.13.0), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
 - **Kit de déploiement** : guide d'installation, procédures de secours, éléments RGPD (un traitement par module), guides utilisateur et guide pratique illustré, imports (dossier `kit/` du dépôt).
 
 ## 10. Démarche

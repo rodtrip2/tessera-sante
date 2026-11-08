@@ -261,6 +261,28 @@
     var listeAgents = 'ag-' + C.hex(C.aleatoire(3));
     var datalistAgents = h('datalist', { id: listeAgents }, (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours'; }).map(function (c) { return h('option', { value: c.nom }); }));
     var psychologue = champ(f.psychologue, { list: listeAgents, placeholder: 'Nom du psychologue' });
+    // Données complémentaires ajoutées par l'administrateur (8 novembre 2026), selon le service et le rôle
+    var rolesAgent = U.App.session.roles(), complements = {};
+    var zoneComp = h('div', { class: 'pile' });
+    function dessinerComplements() {
+      U.vider(zoneComp); complements = {};
+      var champs = P.champsComplementaires(U.config(), { service: sv.value }).filter(function (c) { return P.peutVoirChamp(c, rolesAgent); });
+      if (!champs.length) return;
+      zoneComp.appendChild(h('b', { text: 'Données complémentaires' }));
+      var grille = h('div', { class: 'grille-3' });
+      champs.forEach(function (c) {
+        var v = (f.complements || {})[c.id], ok = !nouveau && P.peutSaisirChamp(c, rolesAgent, peut) && !U.App.session.apercu, d0 = ok ? {} : { disabled: true }, champ, lire;
+        if (c.type === 'ouiNon') { champ = h('select', d0, [['', '—'], ['oui', 'Oui'], ['non', 'Non']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: (v === true ? 'oui' : v === false ? 'non' : '') === x[0] }); })); lire = function () { return champ.value; }; }
+        else if (c.type === 'liste') { champ = h('select', d0, [h('option', { value: '', text: '—' })].concat(c.choix.map(function (x) { return h('option', { value: x, text: x, selected: v === x }); }))); lire = function () { return champ.value; }; }
+        else if (c.type === 'date') { champ = h('input', Object.assign({ type: 'date', value: v || '' }, d0)); lire = function () { return champ.value; }; }
+        else if (c.type === 'nombre') { champ = h('input', Object.assign({ type: 'number', value: v === undefined ? '' : v }, d0)); lire = function () { return champ.value === '' ? '' : +champ.value; }; }
+        else if (c.type === 'professionnel') { champ = h('input', Object.assign({ type: 'text', maxlength: 80, list: listeAgents, value: (v && v.nom) || '', placeholder: 'Nom du professionnel' }, d0)); lire = function () { var n = champ.value.trim(); if (!n) return ''; var a = (U.App.session.comptes || []).filter(function (x) { return x.nom === n; })[0]; return { id: a ? a.id : null, nom: n }; }; }
+        else { champ = h('input', Object.assign({ type: 'text', maxlength: 200, value: v || '' }, d0)); lire = function () { return champ.value.trim(); }; }
+        if (ok) complements[c.id] = { champ: c, lire: lire, avant: v };
+        grille.appendChild(h('label', { title: ok ? null : (nouveau ? 'Se renseigne après la création de la fiche' : 'Votre rôle ne saisit pas cette donnée') }, c.libelle, champ));
+      });
+      zoneComp.appendChild(grille);
+    }
     var as0 = f.suiviAS || {};
     var selAS = h('select', dis, [['', 'Non renseigné'], ['oui', 'Oui'], ['non', 'Non']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: (as0.suivi === true ? 'oui' : as0.suivi === false ? 'non' : '') === x[0] }); }));
     var nomAS = champ(as0.nom, { list: listeAgents, placeholder: 'Nom (facultatif)' });
@@ -297,6 +319,8 @@
         zoneRef.appendChild(h('div', { class: 'barre' }, libre, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (libre.value.trim()) { referents.push({ id: null, nom: libre.value.trim() }); dessinerRef(); } } }, 'Ajouter')));
       }
     }
+    sv.addEventListener('change', function () { dessinerComplements(); });
+    dessinerComplements();
     function majService() {
       var o = P.optionsFiche(U.config(), sv.value);
       lib1.textContent = o.medecin1; lib2.textContent = o.medecin2;
@@ -323,12 +347,25 @@
       zoneDetenu, zoneMode,
       h('div', { class: 'grille-2' }, h('label', {}, lib1, medecin1), h('label', {}, lib2, medecin2)), datalist,
       h('div', { class: 'pile' }, h('b', { text: 'Référents soignants' }), zoneRef),
+      zoneComp,
       h('div', { class: 'grille-3' }, h('label', {}, 'Psychologue référent', psychologue), h('label', {}, 'Suivi par l’assistant(e) social(e) du service', selAS), h('label', {}, 'Assistant(e) social(e)', nomAS)), datalistAgents,
       h('small', { class: 'muted', text: 'Médecins et référents sont propres à Tessera (distincts du médecin responsable du dossier patient informatisé). Chaque changement est gardé avec sa date. Une mesure garde le nom affiché au moment de sa création dans le journal ; les écrans utilisent la fiche à jour.' }),
       sejours,
       !nouveau && U.agenda && U.agenda.sectionPatient ? U.agenda.sectionPatient(f, fermerPuis) : null), [
       { texte: peut ? 'Annuler' : 'Fermer' },
-      peut ? { texte: 'Enregistrer', classe: 'primaire', action: async function () {
+      peut || Object.keys(complements).length ? { texte: 'Enregistrer', classe: 'primaire', action: async function () {
+        // Données complémentaires modifiées : une saisie par donnée (permise selon les rôles réglés pour chacune)
+        var envois = [];
+        Object.keys(complements).forEach(function (k) {
+          var c = complements[k], v = P.valeurChamp(c.champ, c.lire());
+          if (JSON.stringify(v === null ? undefined : v) !== JSON.stringify(c.avant)) envois.push({ patientId: f.id, champ: k, valeur: v });
+        });
+        if (!peut) {
+          if (!envois.length) return true;
+          for (var e0 = 0; e0 < envois.length; e0++) await U.App.session.enregistrer('COMPLEMENT', envois[e0]);
+          U.toast('Fiche mise à jour.');
+          return;
+        }
         if (!nom.value.trim()) throw new Error('Le nom est obligatoire.');
         if (naissance.value && naissance.value > new Date().toISOString().slice(0, 10)) throw new Error('La date de naissance ne peut pas être dans le futur.');
         var id = nouveau ? 'P' + C.hex(C.aleatoire(5)) : f.id;
@@ -348,8 +385,9 @@
         if (JSON.stringify(f.suiviAS || null) !== JSON.stringify(as1)) { d.suiviAS = as1; ch++; }
         var avecMode = nouveau && !zoneMode.hidden && selMode.value;
         if (avecMode && U.depuisSaisie(modeDepuis.value) > Date.now() + 10 * 60000) throw new Error('La date du mode d’hospitalisation ne peut pas être dans le futur.');
-        if (!ch) return true;
-        await U.App.session.enregistrer('PATIENT', d);
+        if (!ch && !envois.length) return true;
+        if (ch) await U.App.session.enregistrer('PATIENT', d);
+        for (var e1 = 0; e1 < envois.length; e1++) await U.App.session.enregistrer('COMPLEMENT', envois[e1]);
         if (avecMode) await U.App.session.enregistrer('MODE_HOSPI', { patientId: id, mode: selMode.value, date: U.depuisSaisie(modeDepuis.value) || Date.now() });
         U.toast(nouveau ? 'Fiche créée.' : 'Fiche mise à jour.');
       } } : null].filter(Boolean), { large: true });

@@ -223,8 +223,13 @@
   /** Historique daté de la fiche (module Patients) : protection juridique, patient détenu, service. */
   function changementsFiche(p) {
     var lib = { protection: 'Protection juridique', detenu: 'Détenu', service: 'Service' }, res = [];
+    var champs = SIC.patients.champsComplementaires(U.config(), { tous: true });
     Object.keys(p.historique || {}).forEach(function (k) {
-      (p.historique[k] || []).forEach(function (x) { res.push([U.date(Date.parse(x.le)), lib[k] || k, k === 'detenu' ? (x.valeur ? 'oui' : 'non') : k === 'service' ? U.libService(x.valeur) : (x.valeur || '—')]); });
+      var cc = /^c:/.test(k) ? champs.filter(function (c) { return c.id === k.slice(2); })[0] : null;
+      (p.historique[k] || []).forEach(function (x) {
+        var val = cc ? (SIC.patients.libValeurChamp(cc, x.valeur) || '—') : (k === 'detenu' ? (x.valeur ? 'oui' : 'non') : k === 'service' ? U.libService(x.valeur) : (x.valeur && typeof x.valeur === 'object' ? (x.valeur.nom || JSON.stringify(x.valeur)) : (x.valeur || '—')));
+        res.push([U.date(Date.parse(x.le)), cc ? cc.libelle : (lib[k] || k), val]);
+      });
     });
     return res;
   }
@@ -235,8 +240,9 @@
     var lignes = [['Données concernant ' + (p.nom || '') + ' ' + (p.prenom || '') + ' — IPP ' + (p.ipp || '—') + ' — édité le ' + U.date(Date.now())], [],
       ['Fiche'], ['Nom', p.nom || ''], ['Prénom', p.prenom || ''], ['Nom de naissance', p.nomNaissance || ''], ['Sexe', p.sexe ? (SIC.patients.SEXES[p.sexe] || p.sexe) : ''],
       ['Date de naissance', jour(p.naissance)], ['Protection juridique', p.protection || ''], ['Détenu', p.detenu ? 'oui' : 'non'],
-      ['Médecin de 1re ligne', p.medecin1 || ''], ['Médecin de 2e ligne', p.medecin2 || ''], ['Référents soignants', (p.referents || []).map(function (r) { return r.nom; }).join(', ')], [],
-      ['Séjours'], ['Numéro de séjour', 'Entrée', 'Sortie', 'Unité', 'Chambre', 'Lit']]
+      ['Médecin de 1re ligne', p.medecin1 || ''], ['Médecin de 2e ligne', p.medecin2 || ''], ['Référents soignants', (p.referents || []).map(function (r) { return r.nom; }).join(', ')], ['Psychologue référent', p.psychologue || ''], ['Suivi par l’assistant(e) social(e)', p.suiviAS ? (p.suiviAS.suivi ? 'oui' + (p.suiviAS.nom ? ' (' + p.suiviAS.nom + ')' : '') : 'non') : '']]
+      .concat(SIC.patients.champsComplementaires(U.config(), { tous: true }).filter(function (c) { return (p.complements || {})[c.id] !== undefined; }).map(function (c) { return [c.libelle, SIC.patients.libValeurChamp(c, p.complements[c.id])]; }), [[],
+      ['Séjours'], ['Numéro de séjour', 'Entrée', 'Sortie', 'Unité', 'Chambre', 'Lit']])
       .concat((p.sejours || []).map(function (x) { return [x.iep || '', jour(x.entree), x.sortie ? jour(x.sortie) : 'en cours', x.service ? U.libService(x.service) : '', x.chambre || '', x.lit || '']; }))
       .concat([[], ['Modes d’hospitalisation'], ['Date', 'Mode']])
       .concat((p.modes || []).map(function (x) { return [U.date(x.date), x.mode]; }))

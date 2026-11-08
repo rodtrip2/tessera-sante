@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -47,6 +47,13 @@
       cfg('etablissement', 'Établissement fictif de démonstration');
       cfg('lieuxCSI', { U1: ['CSI 1', 'CSI 2'], U2: ['CSI A'] });
       // Agenda : audiences JLD et activités thérapeutiques en transparence tant qu'aucun patient n'y est prévu
+      // Fiche patient : données complémentaires (sorties libres saisies aussi par les AS dans l'Unité 1 ; éducateur référent
+      // visible des IDE et cadres ; repas favori en liste de choix ; une donnée masquée)
+      cfg('patientsChamps', [
+        { id: 'sorties-libres', libelle: 'Sorties libres', type: 'ouiNon', services: ['U1'], saisie: ['IDE', 'AS', 'CADRE'], lecture: [] },
+        { id: 'educateur', libelle: 'Éducateur référent', type: 'professionnel', services: [], saisie: [], lecture: ['IDE', 'CADRE', 'SECRETAIRE'] },
+        { id: 'repas', libelle: 'Repas favori', type: 'liste', choix: ['Pâtes', 'Couscous', 'Poisson', 'Végétarien'], services: [], saisie: ['IDE', 'AS', 'CADRE'], lecture: [] },
+        { id: 'activite-preferee', libelle: 'Activité préférée', type: 'texte', services: [], saisie: [], lecture: [], actif: false }]);
       // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
       cfg('agenda', { categories: {
         '*': { activite: { prereglages: { attente: true } }, examen: { prereglages: { lieu: 'Hôpital général (fictif)' } },
@@ -94,6 +101,11 @@
       ajouter(t(p[7]), 'PATIENT', { patientId: p[0], ipp: p[1], nom: p[2] + ' (fictif)', prenom: p[3], naissance: SIC.model.dateLocaleISO(now - p[6] * 365.25 * J - 40 * J), service: p[5], medecin1: 'Dr Arnaud (fictif)' });
       ajouter(t(p[7]), 'MODE_HOSPI', { patientId: p[0], mode: p[4], date: t(p[7]) });
       ajouter(t(p[8]), 'SEJOUR', { patientId: p[0], sejourId: 'S' + p[0], iep: '7' + p[1], entree: jISO(p[7]), sortie: jISO(p[8]), service: p[5], chambre: p[9] });
+    });
+    // Données complémentaires (fictives)
+    [['P01', 'sorties-libres', false], ['P03', 'sorties-libres', true], ['P05', 'sorties-libres', true], ['P01', 'educateur', { id: null, nom: 'M. Éducateur (fictif)' }],
+      ['P02', 'repas', 'Couscous'], ['P03', 'repas', 'Végétarien'], ['P04', 'educateur', { id: null, nom: 'Mme Éducatrice (fictif)' }]].forEach(function (x) {
+      ajouter(t(-24 * 5), 'COMPLEMENT', { patientId: x[0], champ: x[1], valeur: x[2] });
     });
     // Rappel : P01 soins sans consentement (SDT), P03 soins libres, P04 SDRE (Unité 2)
 

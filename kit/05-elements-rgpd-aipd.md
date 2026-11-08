@@ -86,3 +86,5 @@ Les patients sont informés par les moyens habituels de l'établissement (livret
 
 ---
 *Sources : [CNIL, liste des types d'opérations de traitement pour lesquelles une AIPD est requise](https://www.cnil.fr/sites/default/files/atoms/files/liste-traitements-avec-aipd-requise-v2.pdf) ; [article L. 3222-5-1 du code de la santé publique](https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048447133).*
+
+**Données complémentaires de la fiche patient** (version 0.13.0) : l'administrateur peut ajouter des données propres à l'établissement ou à un service (ex. sorties libres, éducateur référent). Chaque donnée ajoutée complète la fiche du registre des traitements « fiche patient » (finalité, catégorie de données, destinataires : rôles qui la voient) et est soumise à l'avis du délégué à la protection des données (DPO, référent RGPD) ; aucune donnée clinique.
