@@ -11,7 +11,7 @@
 | Élément | Choix technique | État |
 | --- | --- | --- |
 | Type d'application | Page web statique (HTML, CSS, JavaScript), sans serveur applicatif, sans base de données, sans étape de construction | existant |
-| Organisation | Un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** : Patients, Isolement et contention (Isocont), Agenda du service | existant : socle commun et contrat de module (registre des modules), module Isocont, module Patients (journal et clé propres, fiche commune et séjours, import de la liste des patients), module Agenda (journal, clé et droits propres, choix du module affiché ; agenda du service, tâches à deux niveaux de droits, absences, répétition, check-lists avec délais, alertes dont les échéances JLD lues à la volée chez Isocont, « Mon agenda ») |
+| Organisation | Un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** : Patients, Isolement et contention (Isocont), Agenda du service, Véhicules de l'établissement | existant : socle commun et contrat de module (registre des modules), module Isocont, module Patients (journal et clé propres, fiche commune et séjours, import de la liste des patients), module Agenda (journal, clé et droits propres, choix du module affiché ; agenda du service, tâches à deux niveaux de droits, absences, répétition, check-lists avec délais, alertes dont les échéances JLD lues à la volée chez Isocont, « Mon agenda »), module Véhicules (journal, clé et droits propres ; parc, prêts, réservations dont la disponibilité est lue à la volée par l'Agenda, signalements) |
 | Dépendances | Aucune bibliothèque externe ; uniquement les API standard du navigateur | existant |
 | Stockage | Dossier d'un partage réseau (SMB) accédé par l'API *File System Access* du navigateur ; un sous-dossier et un journal par module | existant : un journal du socle et un journal par module |
 | Chiffrement | AES-GCM 256 bits côté poste (Web Crypto API), chiffrement en enveloppe ; **une clé par module**, remise seulement aux agents qui y ont droit | existant (depuis la version 0.4.4) |
@@ -37,7 +37,8 @@
   │ Socle : connexion unique, trousseau de clés, comptes, droits         │
   │   ├─ module Patients    (fiche commune, import CSV du DPI)           │
   │   ├─ module Isocont     (règles légales, JLD, registre)              │
-  │   └─ module Agenda      (calendrier, échéances lues chez Isocont)    │
+  │   ├─ module Agenda      (calendrier, échéances lues chez Isocont)    │
+  │   └─ module Véhicules   (parc, réservations, signalements)           │
   │ Clés en mémoire uniquement, effacées au verrouillage                 │
   └───────────────────────────────┬──────────────────────────────────────┘
                                   │ fichiers chiffrés uniquement (SMB)
@@ -49,6 +50,7 @@
     modules\patients\...        saisies du module Patients
     modules\isocont\...         saisies du module Isocont (+ instantanes\, formation\)
     modules\agenda\...          saisies du module Agenda
+    modules\vehicules\...       saisies du module Véhicules
     reperes\  preferences\  quarantaine\  exports\
 ```
 
@@ -277,7 +279,7 @@ Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre
 | Sujet | Analyse | À valider par |
 | --- | --- | --- |
 | Hébergement de données de santé (art. L. 1111-8 du code de la santé publique) | Les données restent sur l'infrastructure de l'établissement, sans prestataire. La certification d'hébergeur de données de santé (HDS) s'impose à qui propose un service d'hébergement ; elle ne devrait donc pas s'appliquer ici, mais tout projet est examiné au cas par cas ([Agence du numérique en santé](https://esante.gouv.fr/faq/quel-est-le-champ-dapplication-de-la-legislation-relative-lhebergement-de-donnees-de-sante-caractere-personnel)). | Délégué à la protection des données (DPO, référent RGPD), service informatique |
-| RGPD | **Un traitement par module** à inscrire au registre des traitements (Patients, Isocont, Agenda) ; analyse d'impact probablement requise ([liste CNIL](https://www.cnil.fr/sites/default/files/atoms/files/liste-traitements-avec-aipd-requise-v2.pdf)). Minimisation : aucune donnée clinique ; la fiche patient ne garde que ce qui sert à plusieurs modules. | Délégué à la protection des données |
+| RGPD | **Un traitement par module** à inscrire au registre des traitements (Patients, Isocont, Agenda, Véhicules) ; analyse d'impact probablement requise ([liste CNIL](https://www.cnil.fr/sites/default/files/atoms/files/liste-traitements-avec-aipd-requise-v2.pdf)). Minimisation : aucune donnée clinique ; la fiche patient ne garde que ce qui sert à plusieurs modules. | Délégué à la protection des données |
 | Registre légal (art. L. 3222-5-1 du code de la santé publique) | Le module Isocont produit le registre ; son statut de support officiel relève d'une décision de l'établissement. | Direction |
 | Hébergement du code sur GitHub pendant le pilote | Seul le code est servi par GitHub ; aucune donnée n'y transite. Double authentification sur le compte du porteur. | Service informatique, responsable de la sécurité informatique, délégué à la protection des données |
 | Politique de sécurité | Navigateurs, clés USB, droits du partage, postes hors réseau, fichiers exportés du DPI. | Responsable de la sécurité informatique |

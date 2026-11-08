@@ -2,7 +2,7 @@
 
 Tout ce qu'il faut pour présenter, valider, installer et exploiter Tessera Santé dans un établissement de santé. Les documents existent en Markdown (modifiables) et en PDF (dossier [`pdf/`](pdf/) ; présentation et fiche technique : dossier [`docs/`](../docs/)).
 
-Tessera Santé réunit un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** activés service par service : **Patients** (fiche commune), **Isolement et contention** (Isocont), **Agenda du service**.
+Tessera Santé réunit un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** activés service par service : **Patients** (fiche commune), **Isolement et contention** (Isocont), **Agenda du service**, **Véhicules de l'établissement**.
 
 | Document | Pour qui | Usage |
 | --- | --- | --- |

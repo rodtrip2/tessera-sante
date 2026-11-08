@@ -7,7 +7,7 @@
 | En bref | |
 | --- | --- |
 | **Objet** | Réunir dans un seul outil, avec **une seule connexion**, ce dont un service a besoin au quotidien et que le dossier patient informatisé (DPI) ne couvre pas : le suivi légal des mesures d'isolement et de contention et l'agenda du service. Ces modules s'appuient sur une **fiche patient commune** : la liste des patients du service est disponible dans le DPI, mais Tessera en a besoin pour relier ses modules entre eux. |
-| **Trois modules** | **Patients** (fiche commune), **Isolement et contention** (Isocont), **Agenda du service**. D'autres pourront s'ajouter, chacun après validation. |
+| **Quatre modules** | **Patients** (fiche commune), **Isolement et contention** (Isocont), **Agenda du service**, **Véhicules de l'établissement**. D'autres pourront s'ajouter, chacun après validation. |
 | **Pour qui** | Infirmiers, aides-soignants, secrétariat médical, cadres de santé ; direction des soins pour le pilotage et le rapport annuel. |
 | **Coût** | Aucun coût de licence. Développement réalisé par le porteur sur son temps personnel. Mise en place : quelques heures du service informatique (DSI ou direction du numérique, selon l'établissement), une formation courte des équipes. |
 | **Où sont les données** | Dans un dossier du réseau de l'établissement, chiffrées. Rien n'est envoyé à l'extérieur. |
@@ -90,6 +90,14 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 - **Alertes** : alertes saisies par l'équipe (patient à voir par le médecin…, types réglables par service) affichées jusqu'à « vu », prochaines **échéances JLD** calculées par le module Isocont (pour qui y a accès), points de check-list en retard, réunions à venir.
 - **« Mon agenda »** : la semaine de chaque professionnel sur tous ses services (où il est prévu, ses tâches, ses absences, les alertes qui le visent), dans Tessera seulement.
 - Selon le choix de l'établissement, l'agenda désigne le patient par ses initiales (par défaut), son IPP ou son nom. Aucune donnée clinique : le contenu des prises en charge reste dans le dossier du patient.
+
+
+## 5 bis. Module Véhicules de l'établissement
+
+- **Parc** : automobiles, minibus, véhicules adaptés… avec leur service d'affectation, leur immatriculation, leur nombre de places, leur lieu de stationnement et les informations propres à l'établissement (carte carburant, prochaine révision, équipement…), réglées par l'administrateur.
+- **Prêt** à un autre service pendant une période (seul le service emprunteur le réserve) ou **mise à disposition** (réservable aussi par d'autres services).
+- **Réservation** directe ou depuis un événement de l'agenda : la disponibilité est vérifiée et la réservation suit l'événement (modification, annulation). Planning des véhicules sur 7 jours.
+- **Signalements** : faire le plein, voyant allumé, à nettoyer, entretien à prévoir… marqués « faits » par l'équipe.
 
 ## 6. Organisation et rôles
 
