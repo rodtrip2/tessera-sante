@@ -195,3 +195,32 @@ test('Catégories d’événements (0.12.0) : types fournis, catégorie ajoutée
   assert.deepEqual(A.typesEnAttente({ agenda: { attenteSansPatient: ['activite'] } }), ['activite']);
   assert.equal(A.categorie(config, 'permission').prereglages.dureeMax, 48);
 });
+
+test('Accompagnateurs ciblés (1 IDE matin, 1 AS soir, éducateur spécialisé) : attribution sans bloquer une autre catégorie', () => {
+  const cibles = [{ id: 'c1', nombre: 1, role: 'IDE', precision: 'matin' }, { id: 'c2', nombre: 1, role: 'AS', precision: 'soir' }, { id: 'c3', nombre: 1, role: '', precision: 'éducateur spécialisé' }];
+  const st = A.reduire([
+    { id: 'e1', at: '2026-11-07T08:00:00Z', by: 'u1', type: 'RDV', data: { id: 'R1', nature: 'activite', titre: 'Sortie (fictif)', debut: j('2026-11-10') + 9 * 36e5, fin: j('2026-11-10') + 18 * 36e5, service: 'U1', accompagnateurs: 0, ciblesAccompagnateurs: cibles } },
+    // AS inscrit sans choisir : pourvoit la cible AS ; IDE qui choisit la cible AS : hors consigne, pas bloqué
+    { id: 'e2', at: '2026-11-07T08:01:00Z', by: 'u2', type: 'INSCRIPTION', data: { rdv: 'R1', occurrence: '2026-11-10', agent: 'u2', nom: 'AS B (fictif)', role: 'AS' } },
+    { id: 'e3', at: '2026-11-07T08:02:00Z', by: 'u3', type: 'INSCRIPTION', data: { rdv: 'R1', occurrence: '2026-11-11', agent: 'u3', nom: 'IDE C (fictif)', role: 'IDE', cible: 'c2' } }
+  ]);
+  const a = A.accompagnateurs(st.rdv.R1, '2026-11-10');
+  assert.equal(a.requis, 3);
+  assert.deepEqual(a.cibles.map((c) => [c.id, c.pourvus.length, c.manque]), [['c1', 0, 1], ['c2', 1, 0], ['c3', 0, 1]]);
+  assert.equal(a.manque, 2);
+  assert.equal(A.ciblePour(a, 'IDE').id, 'c1');
+  assert.equal(A.ciblePour(a, 'SECRETAIRE').id, 'c3');   // pas de cible de son rôle : la cible sans rôle
+  const b = A.accompagnateurs(st.rdv.R1, '2026-11-11');
+  assert.equal(b.inscrits[0].cibleAttribuee, 'c2');
+  assert.equal(b.inscrits[0].horsConsigne, true);
+  // Réglage propre à une date : autres cibles ce jour-là
+  const st2 = A.reduire([
+    { id: 'e1', at: '2026-11-07T08:00:00Z', by: 'u1', type: 'RDV', data: { id: 'R1', nature: 'activite', titre: 'Piscine (fictif)', debut: j('2026-11-10') + 14 * 36e5, fin: j('2026-11-10') + 16 * 36e5, service: 'U1', ciblesAccompagnateurs: cibles, regularite: { type: 'semaine', jours: [2] } } },
+    { id: 'e2', at: '2026-11-07T08:01:00Z', by: 'u1', type: 'OCCURRENCE', data: { rdv: 'R1', occurrence: '2026-11-17', ciblesAccompagnateurs: [{ id: 'c9', nombre: 2, role: 'IDE', precision: '' }], service: 'U1' } }
+  ]);
+  assert.equal(A.accompagnateurs(A.rdvOccurrence(st2.rdv.R1, '2026-11-17'), '2026-11-17').requis, 2);
+  assert.equal(A.accompagnateurs(A.rdvOccurrence(st2.rdv.R1, '2026-11-10'), '2026-11-10').requis, 3);
+  // Professionnel prévu : pourvoit une cible restée ouverte
+  const r3 = Object.assign({}, st.rdv.R1, { professionnels: [{ id: null, nom: 'Éducatrice (fictif)' }] });
+  assert.equal(A.accompagnateurs(r3, '2026-11-10').cibles[2].pourvus[0].prevu, true);
+});
