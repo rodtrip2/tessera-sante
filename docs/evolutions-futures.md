@@ -11,15 +11,14 @@
 | Module Messagerie | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
 | Module Demandes de travaux et de réparation | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
 | Planning d'occupation des bureaux | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Petite à moyenne |
-| Planning des présences médicales | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
-| Suivi des entretiens médicaux et des contrats de soins | Tessera Santé, 8 novembre 2026 | Demande ; **données cliniques** (décision préalable) | Petite à moyenne |
-| Patients suivis par médecin | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Petite |
 | Feuille de staff pluridisciplinaire | Tessera Santé, 8 novembre 2026 | Demande ; **données cliniques** (décision préalable) | Grande |
 | Notes par patient | Tessera Santé, 8 novembre 2026 | Demande ; **données cliniques** (décision préalable) | Moyenne |
 | Module Agents (fiches des agents et des psychiatres) | Tessera Santé, 8 novembre 2026 | Demande, à préciser ; **données du personnel** (avis préalable) | Moyenne à grande |
 | Rôle Cadre supérieur de santé | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
 
-**Règle « aucune donnée clinique ».** Trois demandes du 8 novembre 2026 (suivi des entretiens médicaux et des contrats de soins, feuille de staff avec codes CIM et projet thérapeutique, notes par patient) portent sur des **données cliniques**, que Tessera exclut aujourd'hui (le dossier patient informatisé, DPI, reste la référence clinique). Avant tout développement, il faudra : une décision explicite du porteur de lever cette règle pour ces modules ; l'avis du délégué à la protection des données (DPO, référent RGPD), avec une analyse d'impact (AIPD) mise à jour ; l'avis du responsable de la sécurité informatique (RSSI) et du service informatique (DSI ou direction du numérique, selon l'établissement), y compris sur l'hébergement (partage du réseau de l'hôpital) et sur la sauvegarde ; l'accord de la direction des soins et de la commission médicale d'établissement (CME) sur le partage avec le DPI (risque de double saisie et de divergence). Le chiffrement par module et la clé remise aux seuls agents habilités s'appliqueraient comme ailleurs.
+*Réalisés dans la 0.17.0 (module Suivi médical, `docs/architecture.md` § 7 quater) : planning des présences médicales, suivi des entretiens médicaux et des contrats de soins (dates seulement), patients suivis par médecin.*
+
+**Règle « aucune donnée clinique ».** Deux demandes du 8 novembre 2026 (feuille de staff avec codes CIM et projet thérapeutique, notes par patient) portent sur des **données cliniques**, que Tessera exclut aujourd'hui (le dossier patient informatisé, DPI, reste la référence clinique). Avant tout développement, il faudra : une décision explicite du porteur de lever cette règle pour ces modules ; l'avis du délégué à la protection des données (DPO, référent RGPD), avec une analyse d'impact (AIPD) mise à jour ; l'avis du responsable de la sécurité informatique (RSSI) et du service informatique (DSI ou direction du numérique, selon l'établissement), y compris sur l'hébergement (partage du réseau de l'hôpital) et sur la sauvegarde ; l'accord de la direction des soins et de la commission médicale d'établissement (CME) sur le partage avec le DPI (risque de double saisie et de divergence). Le chiffrement par module et la clé remise aux seuls agents habilités s'appliqueraient comme ailleurs.
 
 ## Documents et outils de bureautique (étudiés le 6 novembre 2026)
 
@@ -152,32 +151,6 @@ Réserver les bureaux et salles du service (bureau d'entretien, salle de réunio
 - **Lien avec l'Agenda** : un entretien ou une réunion pourrait réserver son bureau, avec vérification de la disponibilité, comme le véhicule d'un événement.
 - **Réutilisation** : le module Véhicules fournit déjà le modèle (parc, prêts, réservations, pré-réservations, contrôle de disponibilité) ; une base commune « ressources réservables » est envisageable.
 - **À trancher** : module distinct ou ressources génériques (véhicules, bureaux, matériel) ; qui gère la liste des bureaux.
-
-## Planning des présences médicales (demande du porteur, 8 novembre 2026)
-
-Savoir quel médecin est présent, dans quel service, à quel moment, quand les médecins interviennent dans plusieurs services.
-
-- **Contenu** : présences par médecin (demi-journées, jours de la semaine, répétitions, absences et remplacements), astreintes et gardes éventuellement ; **affichage par service** (qui est présent aujourd'hui et cette semaine dans l'Unité 1) et par médecin (sa semaine dans tous ses services).
-- **Lien** : médecins de 1re et 2e ligne de la fiche patient (savoir si le médecin du patient est là), agenda (entretiens médicaux), patients suivis par médecin.
-- **À trancher** : qui saisit (secrétariat médical, médecins, cadre) ; lien éventuel avec l'outil de gestion du temps médical de l'établissement (sans connexion sortante : import de fichier seulement).
-
-## Suivi des entretiens médicaux et des contrats de soins (demande du porteur, 8 novembre 2026)
-
-*Données cliniques : voir la règle en tête de document.*
-
-Par patient : date du **dernier entretien médical** et date de la **dernière réévaluation du contrat de soins**, avec alerte quand un délai réglable est dépassé.
-
-- **Saisie rapide** : cocher **en une fois l'ensemble des patients vus le même jour** (liste des patients du service, cases à cocher, date et médecin), plutôt qu'une saisie patient par patient.
-- **Affichage** : colonnes de la liste des patients (dernier entretien, jours écoulés, contrat réévalué le…), alertes « à voir par le médecin ».
-- **À trancher** : délais par défaut ; qui coche (médecin, IDE, secrétariat) ; ce que contient « contrat de soins » selon les services (seule la date serait gardée, sans contenu).
-
-## Patients suivis par médecin (demande du porteur, 8 novembre 2026)
-
-Tableau des patients présents regroupés par médecin référent (1re et 2e ligne, déjà saisis dans la fiche patient), avec **alerte sur les patients non attribués**.
-
-- **Contenu** : un bloc par médecin (nombre de patients, chambres, mode d'hospitalisation, date d'entrée), un bloc « Non attribué » mis en évidence, filtre par service ; vue imprimable.
-- **Réutilisation** : la liste des patients configurable (regroupement par médecin) et les alertes existent déjà ; développement léger.
-- **À trancher** : alerte pour la 1re ligne seulement ou aussi la 2e ; délai après l'entrée avant l'alerte.
 
 ## Feuille de staff pluridisciplinaire (demande du porteur, 8 novembre 2026)
 

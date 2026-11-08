@@ -7,7 +7,7 @@
 | En bref | |
 | --- | --- |
 | **Objet** | Réunir dans un seul outil, avec **une seule connexion**, ce dont un service a besoin au quotidien et que le dossier patient informatisé (DPI) ne couvre pas : le suivi légal des mesures d'isolement et de contention et l'agenda du service. Ces modules s'appuient sur une **fiche patient commune** : la liste des patients du service est disponible dans le DPI, mais Tessera en a besoin pour relier ses modules entre eux. |
-| **Quatre modules** | **Patients** (fiche commune), **Isolement et contention** (Isocont), **Agenda du service**, **Véhicules de l'établissement**. D'autres pourront s'ajouter, chacun après validation. |
+| **Cinq modules** | **Patients** (fiche commune), **Isolement et contention** (Isocont), **Agenda du service**, **Véhicules de l'établissement**, **Suivi médical**. D'autres pourront s'ajouter, chacun après validation. |
 | **Pour qui** | Infirmiers, aides-soignants, secrétariat médical, cadres de santé ; direction des soins pour le pilotage et le rapport annuel. |
 | **Coût** | Aucun coût de licence. Développement réalisé par le porteur sur son temps personnel. Mise en place : quelques heures du service informatique (DSI ou direction du numérique, selon l'établissement), une formation courte des équipes. |
 | **Où sont les données** | Dans un dossier du réseau de l'établissement, chiffrées. Rien n'est envoyé à l'extérieur. |
@@ -100,6 +100,14 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 - **Motif** obligatoire pour toute réservation.
 - **Pré-réservation** : on sait qui a pré-réservé le véhicule et pourquoi ; une autre personne peut quand même réserver après avertissement, et l'auteur de la pré-réservation en est informé, ainsi que les personnes désignées par le cadre (par défaut le cadre et la secrétaire).
 - **Signalements** : faire le plein, voyant allumé, à nettoyer, entretien à prévoir… marqués « faits » par l'équipe.
+
+## 5 quater. Module Suivi médical
+
+- **Présences médicales** par service ou par médecin : présences, absences et remplacements, gardes et astreintes (horaires réglés par l'établissement), lieux sans patient comme les urgences ; alerte quand aucun psychiatre n'est présent sur une demi-journée.
+- **Entretiens médicaux et contrats de soins** : seules les dates sont gardées ; délais d'alerte qui dépendent de la durée d'hospitalisation ; saisie en une fois des patients vus par un médecin.
+- **Patients suivis par médecin** : une ligne par médecin, une colonne par niveau de responsabilité, patients non attribués en tête, attribution directe depuis le tableau.
+- **Liste commune des médecins** (fiche patient, Isolement et contention, Suivi médical), intérimaires compris ; un médecin non répertorié peut être ajouté par l'équipe et confirmé par le cadre ou la secrétaire ; un changement de nom ne coupe aucun lien.
+- Tableaux imprimables avec une mise en page dédiée (mention de confidentialité).
 
 ## 5 ter. Groupes d'agents
 
