@@ -75,7 +75,7 @@
         if (d.annulee) r.annulation = { par: e.by, le: e.at, motif: d.motifAnnulation || '' };
         st.reservations[d.id] = r;
         // Réservation forcée sur une pré-réservation (décision du porteur du 8 novembre 2026) : la pré-réservation est
-        // remplacée ; son auteur, le cadre et la secrétaire de son service en sont informés
+        // remplacée ; son auteur et les destinataires réglés pour son service (vehiculesInformation) en sont informés
         if (Array.isArray(d.supplante) && !d.annulee) d.supplante.forEach(function (id) {
           var pre = st.reservations[id];
           if (!pre || pre.statut !== 'pre' || pre.annulee || pre.supplantee || id === d.id) return;
@@ -145,15 +145,43 @@
     return 'pré-réservé ' + pres.map(function (r) { return 'par ' + (r.nom || 'un agent') + ' (' + (ls || String)(r.service) + ') de ' + heure(r.debut) + ' à ' + heure(r.fin) + (r.motif ? ' : ' + r.motif : ''); }).join(' ; ');
   }
   /**
-   * Informations sur les pré-réservations remplacées par une réservation forcée, pour un agent : son auteur, et le cadre
-   * et la secrétaire du service qui avait pré-réservé (`qui` : { agent, servicesInformes }). `vus` : identifiants déjà vus.
+   * Destinataires de l'information d'une pré-réservation remplacée, par service (décision du porteur du 8 novembre 2026) :
+   * rôles (cadre et secrétaire par défaut), groupes d'agents, agents nommés ; réglés par le cadre du service.
+   * L'auteur de la pré-réservation est toujours informé (il n'est pas réglable). Réglage `vehiculesInformation`.
    */
-  function avisPour(st, qui, vus, maintenant) {
+  var INFORMATION_DEFAUT = { roles: ['CADRE', 'SECRETAIRE'], groupes: [], agents: [] };
+  function information(config, service) {
+    var x = config && config.vehiculesInformation && config.vehiculesInformation[service];
+    if (!x || typeof x !== 'object') return { roles: INFORMATION_DEFAUT.roles.slice(), groupes: [], agents: [] };
+    var chaines = function (l) { return Array.isArray(l) ? l.filter(function (y) { return typeof y === 'string'; }) : []; };
+    return { roles: chaines(x.roles), groupes: chaines(x.groupes),
+      agents: Array.isArray(x.agents) ? x.agents.filter(function (a) { return a && typeof a.id === 'string'; }).map(function (a) { return { id: a.id, nom: String(a.nom || '') }; }) : [] };
+  }
+  /** Le cadre ne change que les destinataires de ses services ; l'administrateur, tous. Lève une erreur sinon. */
+  function controlerInformation(ancien, nouveau, compte) {
+    var roles = (compte && compte.roles) || [], sv = (compte && compte.services) || [];
+    if (roles.indexOf('ADMIN') >= 0) return true;
+    if (roles.indexOf('CADRE') < 0) throw new Error('Seuls le cadre du service et l’administrateur règlent les destinataires.');
+    var a = ancien || {}, n = nouveau || {};
+    Object.keys(a).concat(Object.keys(n)).forEach(function (c) {
+      if (JSON.stringify(a[c]) !== JSON.stringify(n[c]) && sv.indexOf(c) < 0) throw new Error('Destinataires du service ' + c + ' : réglés par le cadre de ce service.');
+    });
+    return true;
+  }
+  /**
+   * Informations sur les pré-réservations remplacées par une réservation forcée, pour un agent (`qui` : { agent, roles,
+   * groupes, services }) : auteur de la pré-réservation, puis destinataires réglés pour son service. `vus` : déjà vus.
+   */
+  function avisPour(st, qui, vus, maintenant, config) {
     var v = vus || [], limite = (maintenant || Date.now()) - 864e5, q = qui || {};
     return (st.avis || []).map(function (a) { return Object.assign({ preReservation: st.reservations[a.pre], reservationForcee: st.reservations[a.reservation] }, a); }).filter(function (a) {
       var p = a.preReservation;
       if (!p || v.indexOf(a.id) >= 0 || p.fin < limite || a.par === q.agent) return false;
-      return p.agent === q.agent || p.par === q.agent || (q.servicesInformes || []).indexOf(p.service) >= 0;
+      if (p.agent === q.agent || p.par === q.agent) return true;
+      var inf = information(config, p.service);
+      if (inf.agents.some(function (x) { return x.id === q.agent; })) return true;
+      if ((q.services || []).indexOf(p.service) < 0) return false;
+      return (q.roles || []).some(function (r) { return inf.roles.indexOf(r) >= 0; }) || (q.groupes || []).some(function (g) { return inf.groupes.indexOf(g) >= 0; });
     }).sort(function (a, b) { return String(b.le).localeCompare(String(a.le)); });
   }
   function heure(t) { var d = new Date(t); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
@@ -245,7 +273,8 @@
     droits: D,
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi,
       services: function (st, e) { return cibles(st, e); } },
-    reglages: { defaut: {}, groupes: [], exclus: [] },
+    // Réglages que le cadre écrit pour ses services (contrôle appelé par la session avant l'enregistrement)
+    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { vehiculesInformation: controlerInformation } },
     vues: { onglets: [{ code: 'parc', libelle: 'Véhicules' }, { code: 'planning', libelle: 'Réservations' }, { code: 'signalements', libelle: 'Signalements' }] },
     migrations: [],
     fournitures: [
@@ -269,5 +298,5 @@
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, options: options, valeurChamp: valeurChamp, libValeur: libValeur, TYPES_CHAMP: TYPES_CHAMP, MODES_PRET: MODES_PRET,
     TYPES_VEHICULE_DEFAUT: TYPES_VEHICULE_DEFAUT, TYPES_SIGNALEMENT_DEFAUT: TYPES_SIGNALEMENT_DEFAUT,
     libelleVehicule: libelleVehicule, pretsDe: pretsDe, peutReserver: peutReserver, vehiculesPour: vehiculesPour, signalementsOuverts: signalementsOuverts,
-    reservations: reservations, reservationsLiees: reservationsLiees, reservationsActives: reservationsActives, avisPour: avisPour, STATUTS: STATUTS, libPeriode: libPeriode, jourISO: jourISO, depuisISO: depuisISO };
+    reservations: reservations, reservationsLiees: reservationsLiees, reservationsActives: reservationsActives, avisPour: avisPour, information: information, controlerInformation: controlerInformation, STATUTS: STATUTS, libPeriode: libPeriode, jourISO: jourISO, depuisISO: depuisISO };
 });

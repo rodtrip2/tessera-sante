@@ -25,12 +25,59 @@
 
   // ------------------------------------------------------------ Informations : pré-réservations remplacées
   function avisVus() { var p = U.App.session.preferences || {}; return Array.isArray(p.avisVehiculesVus) ? p.avisVehiculesVus : []; }
-  /** Services dont l'agent est cadre ou secrétaire : il est informé des pré-réservations de ces services remplacées. */
-  function servicesInformes() {
-    var s = U.App.session, roles = (s.roles && s.roles()) || [];
-    return roles.some(function (x) { return x === 'CADRE' || x === 'SECRETAIRE'; }) ? U.services().map(function (x) { return x.code; }) : [];
+  /** L'agent tel que le voit l'information : rôles, groupes d'agents, services (destinataires réglés par le cadre). */
+  function qui() {
+    var s = U.App.session, c = moi(), cfg = U.config();
+    return { agent: c.id, roles: (s.roles && s.roles()) || [], groupes: SIC.groupes ? SIC.groupes.de(cfg, c.id) : [], services: U.services().map(function (x) { return x.code; }) };
   }
-  function mesAvis() { try { return V.avisPour(st(), { agent: moi().id, servicesInformes: servicesInformes() }, avisVus(), Date.now()); } catch (e) { return []; } }
+  function mesAvis() { try { return V.avisPour(st(), qui(), avisVus(), Date.now(), U.config()); } catch (e) { return []; } }
+  function regleInformation() { var r = (U.App.session.roles && U.App.session.roles()) || []; return r.indexOf('CADRE') >= 0 || r.indexOf('ADMIN') >= 0; }
+  /**
+   * Destinataires de l'information d'une pré-réservation remplacée, par service (décision du porteur du 8 novembre 2026) :
+   * réglés par le cadre pour ses services (l'administrateur pour tous) ; l'auteur de la pré-réservation est toujours informé.
+   */
+  function modaleInformation() {
+    var s = U.App.session, c = s.utilisateur, admin = (c.roles || []).indexOf('ADMIN') >= 0;
+    var svs = admin ? U.tousServices() : U.tousServices().filter(function (x) { return (c.services || []).indexOf(x.code) >= 0; });
+    if (!svs.length) return alert('Aucun service à régler.');
+    var tout = JSON.parse(JSON.stringify(U.config().vehiculesInformation || {}));
+    var sel = h('select', { 'aria-label': 'Service' }, svs.map(function (x) { return h('option', { value: x.code, text: x.libelle }); }));
+    var zone = h('div', { class: 'pile' }), courant = null;
+    var D = SIC.modules.obtenir('vehicules').droits;
+    function lire() {
+      if (!courant) return;
+      tout[courant.service] = { roles: courant.roles.filter(function (x) { return x.cb.checked; }).map(function (x) { return x.code; }),
+        groupes: courant.groupes.filter(function (x) { return x.cb.checked; }).map(function (x) { return x.code; }),
+        agents: courant.agents.filter(function (x) { return x.cb.checked; }).map(function (x) { return { id: x.id, nom: x.nom }; }) };
+    }
+    function dessiner() {
+      lire();
+      var sv = sel.value, inf = V.information({ vehiculesInformation: tout }, sv);
+      var cases = function (l, coche) { return l.map(function (x) { return Object.assign({ cb: h('input', { type: 'checkbox', checked: coche(x) }) }, x); }); };
+      courant = {
+        service: sv,
+        roles: cases(D.rolesConfig(U.config()).filter(function (x) { return !x.admin; }).map(function (x) { return { code: x.code, libelle: x.libelle }; }), function (x) { return inf.roles.indexOf(x.code) >= 0; }),
+        groupes: cases((SIC.groupes ? SIC.groupes.pourService(U.config(), sv) : []).map(function (g) { return { code: g.code, libelle: g.libelle }; }), function (x) { return inf.groupes.indexOf(x.code) >= 0; }),
+        agents: cases((s.comptes || []).filter(function (a) { return a.actif !== false && a.id !== 'secours' && (!(a.services || []).length || (a.services || []).indexOf(sv) >= 0); })
+          .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); }).map(function (a) { return { id: a.id, nom: a.nom || a.id }; })
+          .concat(inf.agents.filter(function (a) { return !(s.comptes || []).some(function (y) { return y.id === a.id; }); })), function (x) { return inf.agents.some(function (a) { return a.id === x.id; }); })
+      };
+      U.vider(zone);
+      var bloc = function (titre, l, lib) { return h('div', {}, h('b', { text: titre }), l.length ? h('div', { class: 'actions gauche' }, l.map(function (x) { return h('label', { class: 'case' }, x.cb, h('span', { text: lib(x) })); })) : h('p', { class: 'muted', text: 'Aucun.' })); };
+      zone.appendChild(h('p', { class: 'info', text: 'L’auteur de la pré-réservation est toujours informé.' }));
+      zone.appendChild(bloc('Rôles (agents de ce service)', courant.roles, function (x) { return x.libelle; }));
+      zone.appendChild(bloc('Groupes d’agents', courant.groupes, function (x) { return 'Groupe : ' + x.libelle; }));
+      zone.appendChild(bloc('Agents nommés', courant.agents, function (x) { return x.nom; }));
+    }
+    sel.addEventListener('change', dessiner);
+    dessiner();
+    U.modale('Information des pré-réservations remplacées', h('div', { class: 'pile' },
+      h('p', { class: 'muted', text: 'Quand une réservation est forcée sur une pré-réservation, qui est informé, en plus de son auteur ? Par défaut : le cadre et la secrétaire du service. Réglage par service, fait par le cadre du service.' }),
+      h('label', {}, 'Service de la pré-réservation', sel), zone), [
+      { texte: 'Annuler' },
+      { texte: 'Revenir au réglage par défaut', action: async function () { lire(); delete tout[sel.value]; await U.enregistrerConfig([['vehiculesInformation', tout]]); } },
+      { texte: 'Enregistrer', classe: 'primaire', action: async function () { lire(); await U.enregistrerConfig([['vehiculesInformation', tout]]); } }], { large: true });
+  }
   async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisVehiculesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
   function bandeauAvis() {
     var av = mesAvis();
@@ -52,7 +99,8 @@
     return h('div', {}, bandeauAvis(),
       h('div', { class: 'barre' }, h('h1', { text: 'Véhicules' }),
         peut('VEHICULE') ? h('button', { class: 'btn primaire', onclick: function () { modaleVehicule(null); } }, '+ Nouveau véhicule') : null,
-        peut('RESERVATION') ? h('button', { class: 'btn', onclick: function () { modaleReservation(null, {}); } }, 'Réserver un véhicule') : null),
+        peut('RESERVATION') ? h('button', { class: 'btn', onclick: function () { modaleReservation(null, {}); } }, 'Réserver un véhicule') : null,
+        regleInformation() ? h('button', { class: 'btn', onclick: modaleInformation }, 'Information des pré-réservations…') : null),
       vs.length ? h('div', { class: 'grille-vehicules' }, vs.map(function (v) { return carteVehicule(v, maintenant, svs); }))
         : h('div', { class: 'panneau vide', text: peut('VEHICULE') ? 'Aucun véhicule : ajoutez les véhicules du service (+ Nouveau véhicule).' : 'Aucun véhicule pour vos services.' }),
       h('p', { class: 'muted' }, h('small', { text: 'Un véhicule appartient à son service d’affectation ; il peut être prêté à un autre service (réservé à celui-ci pendant la période) ou mis à disposition (réservable aussi par d’autres services). Les réservations faites depuis un événement de l’agenda y sont liées.' })));
@@ -182,7 +230,7 @@
       var y = liste.filter(function (z) { return z.id === selV.value; })[0];
       info = y || null;
       if (!liste.length) etat.appendChild(h('div', { class: 'alerte', text: 'Aucun véhicule pour ce service.' }));
-      else if (y && y.ok && y.avertissement) etat.appendChild(h('div', { class: 'alerte avertissement', text: 'Attention, véhicule ' + y.avertissement + '. ' + (statut.value === 'pre' ? 'Vous pouvez pré-réserver aussi.' : 'Vous pouvez forcer la réservation : l’auteur de la pré-réservation, le cadre et la secrétaire de son service en seront informés.') }));
+      else if (y && y.ok && y.avertissement) etat.appendChild(h('div', { class: 'alerte avertissement', text: 'Attention, véhicule ' + y.avertissement + '. ' + (statut.value === 'pre' ? 'Vous pouvez pré-réserver aussi.' : 'Vous pouvez forcer la réservation : l’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.') }));
       else if (y) etat.appendChild(h('div', { class: y.ok ? 'info' : 'alerte', text: y.ok ? 'Disponible.' + (y.signalements ? ' ' + y.signalements + ' signalement(s) en cours : voir l’onglet Véhicules.' : '') : 'Indisponible : ' + y.raison + '.' }));
     }
     [sv, dateD, hD, dateF, hF, selV, statut].forEach(function (c) { c.addEventListener('change', majVehicules); });
@@ -204,7 +252,7 @@
       if (!motif.value.trim()) throw new Error('Indiquez le motif' + (st0 === 'pre' ? ' de la pré-réservation.' : ' de la réservation.'));
       var d = { id: x.id || 'RV' + C.hex(C.aleatoire(5)), vehicule: selV.value, debut: p[0], fin: p[1], service: sv.value, agent: x.agent || m.id, nom: x.nom || m.nom, motif: motif.value.trim(), statut: st0 };
       if (info && info.pre && info.pre.length) {
-        if (!confirm('Véhicule ' + info.avertissement + '.\n\n' + (st0 === 'pre' ? 'Pré-réserver quand même ?' : 'Forcer la réservation ? L’auteur de la pré-réservation, le cadre et la secrétaire de son service en seront informés.'))) return false;
+        if (!confirm('Véhicule ' + info.avertissement + '.\n\n' + (st0 === 'pre' ? 'Pré-réserver quand même ?' : 'Forcer la réservation ? L’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.'))) return false;
         if (st0 !== 'pre') d.supplante = info.pre.slice();
       }
       await s.enregistrer('RESERVATION', d);
@@ -217,7 +265,7 @@
       h('div', { class: 'grille-3' }, h('label', {}, 'Nature', statut), h('label', {}, 'Service', sv), h('label', {}, 'Véhicule', selV)),
       h('div', { class: 'grille-4' }, h('label', {}, 'Jour de départ', dateD), h('label', {}, 'Heure', hD), h('label', {}, 'Jour de retour', dateF), h('label', {}, 'Heure', hF)),
       etat, h('label', {}, 'Motif', motif),
-      h('small', { class: 'muted', text: 'Pré-réservation : le véhicule reste réservable ; la personne qui réserve est avertie de votre pré-réservation et de son motif, et vous en êtes informé(e), ainsi que le cadre et la secrétaire du service.' }),
+      h('small', { class: 'muted', text: 'Pré-réservation : le véhicule reste réservable ; la personne qui réserve est avertie de votre pré-réservation et de son motif, et vous en êtes informé(e), ainsi que les personnes désignées par le cadre pour le service (par défaut le cadre et la secrétaire).' }),
       r ? h('small', { class: 'muted', text: (r.statut === 'pre' ? 'Pré-réservée par ' : 'Réservée par ') + (r.nom || s.nomAuteur(r.par)) + ', ' + U.date(Date.parse(r.cree)) + '.' }) : null), boutons, { large: true });
   }
 

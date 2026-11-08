@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.15.1 — 8 novembre 2026
+
+Décisions du porteur du 8 novembre 2026.
+
+- **Véhicules — destinataires de l'information d'une pré-réservation remplacée réglables par le cadre** (*Information des pré-réservations…*, fenêtre Véhicules) : par service, rôles, groupes d'agents et agents nommés ; par défaut le cadre et la secrétaire ; **l'auteur de la pré-réservation est toujours informé**. Le cadre règle ses services, l'administrateur tous ; contrôle par le module avant l'enregistrement (réglages ouverts au cadre déclarés dans le contrat du module, `reglages.cadre`). Réglage `vehiculesInformation` (journal du socle, export des réglages).
+- **Évolutions futures — demandes de travaux** : liste de la plus récente à la plus ancienne, demandes traitées indiquées et grisées, délai d'affichage réglable (30 jours par défaut).
+- Démonstration : l'Unité 2 informe le cadre et le groupe qualité. Test étendu (232 au vert) ; écran vérifié dans Chrome ; architecture, fiche projet, guide utilisateur à jour.
+
 ## 0.15.0 — 8 novembre 2026
 
 Décisions du porteur du 8 novembre 2026.

@@ -70,7 +70,7 @@
   var SOCLE = 'socle';
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
-  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, agenda: 1, groupes: 1 };
+  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1 };
 
   function nouveauJournal(nom, dossier, cle) { return { nom: nom, dossier: dossier, cle: cle, evts: [], connus: new Set(), rejetes: [], reperesLus: {} }; }
   /** Journaux du jeu de données actif. */
@@ -1078,6 +1078,11 @@
     if (type === 'CONFIG' && data && data.cle === 'groupes' && (s.utilisateur.roles || []).indexOf('CADRE') >= 0) {
       var G = socle('groupes', './groupes.js');
       return !!G && G.controler(config(s).groupes, data.valeur, s.utilisateur);
+    }
+    // Réglages qu'un module ouvre au cadre pour ses services (contrat : reglages.cadre[cle], contrôle du changement)
+    if (type === 'CONFIG' && data && (s.utilisateur.roles || []).indexOf('CADRE') >= 0 && SIC.modules && SIC.modules.liste) {
+      var mc = SIC.modules.liste().filter(function (x) { return x.reglages && x.reglages.cadre && typeof x.reglages.cadre[data.cle] === 'function'; })[0];
+      if (mc) return !!mc.reglages.cadre[data.cle](config(s)[data.cle], data.valeur, s.utilisateur);
     }
     // Module qui déclare le type, y compris un module de référence (données complémentaires de la fiche patient)
     var d = SIC.modules && SIC.modules.moduleDuType ? SIC.modules.moduleDuType(type) : null, m = d && d.saisies && d.saisies.permisPourSoi ? d : moduleDe(type);

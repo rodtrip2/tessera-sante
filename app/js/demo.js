@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'vehicules', 'groupes', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'vehicules', 'vehiculesInformation', 'groupes', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -63,6 +63,8 @@
         { code: 'equipe-jour-u1', libelle: 'Équipe de jour', services: ['U1'], membres: [{ id: 'demo-a', nom: 'Agent A (fictif)' }, { id: 'demo-c', nom: 'Agent C (fictif)' }].concat(moiG) },
         { code: 'equipe-nuit-u1', libelle: 'Équipe de nuit', services: ['U1'], membres: [{ id: 'demo-b', nom: 'Agent B (fictif)' }, { id: 'demo-d', nom: 'Agent D (fictif)' }] },
         { code: 'groupe-qualite', libelle: 'Groupe de travail qualité', services: ['U1', 'U2'], membres: [{ id: 'demo-b', nom: 'Agent B (fictif)' }].concat(moiG) }]);
+      // Information des pré-réservations remplacées : l'Unité 2 informe le cadre et le groupe qualité (sans la secrétaire)
+      cfg('vehiculesInformation', { U2: { roles: ['CADRE'], groupes: ['groupe-qualite'], agents: [] } });
       // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
       cfg('agenda', { categories: {
         '*': { activite: { prereglages: { attente: true } }, examen: { prereglages: { lieu: 'Hôpital général (fictif)' } },
