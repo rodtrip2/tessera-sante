@@ -19,6 +19,7 @@
   var TYPES_SIGNALEMENT_DEFAUT = [{ code: 'plein', libelle: 'Faire le plein' }, { code: 'voyant', libelle: 'Voyant allumé' }, { code: 'nettoyage', libelle: 'À nettoyer' },
     { code: 'entretien', libelle: 'Entretien ou contrôle à prévoir' }, { code: 'degat', libelle: 'Dégât ou anomalie constatée' }, { code: 'info', libelle: 'Information' }];
   var MODES_PRET = { pret: 'Prêt (réservé au service emprunteur)', partage: 'Mise à disposition (réservable aussi par d’autres services)' };
+  var STATUTS = { ferme: 'Réservation', pre: 'Pré-réservation' };
   var TYPES_CHAMP = { ouiNon: 'Oui ou non', texte: 'Texte court', liste: 'Liste de choix', date: 'Date', nombre: 'Nombre' };
 
   function jourISO(t) { var d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
@@ -70,9 +71,17 @@
       case 'RESERVATION':
         if (!d.id) break;
         var r = st.reservations[d.id] || { id: d.id, cree: e.at, par: e.by };
-        ['vehicule', 'debut', 'fin', 'service', 'agent', 'nom', 'motif', 'lien', 'annulee'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
+        ['vehicule', 'debut', 'fin', 'service', 'agent', 'nom', 'motif', 'lien', 'annulee', 'statut'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
         if (d.annulee) r.annulation = { par: e.by, le: e.at, motif: d.motifAnnulation || '' };
         st.reservations[d.id] = r;
+        // Réservation forcée sur une pré-réservation (décision du porteur du 8 novembre 2026) : la pré-réservation est
+        // remplacée ; son auteur, le cadre et la secrétaire de son service en sont informés
+        if (Array.isArray(d.supplante) && !d.annulee) d.supplante.forEach(function (id) {
+          var pre = st.reservations[id];
+          if (!pre || pre.statut !== 'pre' || pre.annulee || pre.supplantee || id === d.id) return;
+          pre.supplantee = { reservation: d.id, par: e.by, le: e.at, nom: r.nom || '', service: r.service };
+          st.avis.push({ id: e.id + '|' + id, pre: id, reservation: d.id, le: e.at, par: e.by });
+        });
         break;
       case 'SIGNALEMENT':
         if (!d.id) break;
@@ -86,7 +95,7 @@
     }
   }
   function reduire(evts) {
-    return N.reduire(evts, { etat: function () { return { vehicules: {}, prets: {}, reservations: {}, signalements: {} }; }, appliquer: appliquer });
+    return N.reduire(evts, { etat: function () { return { vehicules: {}, prets: {}, reservations: {}, signalements: {}, avis: [] }; }, appliquer: appliquer });
   }
 
   // ------------------------------------------------------------ Disponibilité
@@ -103,7 +112,7 @@
   function libPeriode(p) { return 'du ' + String(p.debut).split('-').reverse().join('/') + (p.fin ? ' au ' + String(p.fin).split('-').reverse().join('/') : ' (sans fin)'); }
   function reservationsActives(st, vehicule, debut, fin, exclure) {
     return Object.keys(st.reservations).map(function (k) { return st.reservations[k]; }).filter(function (r) {
-      return !r.annulee && r.vehicule === vehicule && r.id !== exclure && r.debut < fin && r.fin > debut;
+      return !r.annulee && !r.supplantee && r.vehicule === vehicule && r.id !== exclure && r.debut < fin && r.fin > debut;
     }).sort(function (a, b) { return a.debut - b.debut; });
   }
   /**
@@ -127,8 +136,25 @@
     }
     if (!droit.ok) return { ok: false, raison: droit.raison, conflits: [] };
     var conflits = reservationsActives(st, vehicule, debut, fin, exclure);
-    if (conflits.length) return { ok: false, raison: 'déjà réservé ' + conflits.map(function (r) { return 'de ' + heure(r.debut) + ' à ' + heure(r.fin) + ' (' + ls(r.service) + ')'; }).join(', '), conflits: conflits };
-    return { ok: true, raison: '', conflits: [] };
+    var fermes = conflits.filter(function (r) { return r.statut !== 'pre'; }), pres = conflits.filter(function (r) { return r.statut === 'pre'; });
+    if (fermes.length) return { ok: false, raison: 'déjà réservé ' + fermes.map(function (r) { return 'de ' + heure(r.debut) + ' à ' + heure(r.fin) + ' (' + ls(r.service) + ')'; }).join(', '), conflits: fermes, pre: pres };
+    // Pré-réservations : n'empêchent pas de réserver, après avertissement
+    return { ok: true, raison: '', conflits: [], pre: pres, avertissement: pres.length ? libPre(pres, ls) : '' };
+  }
+  function libPre(pres, ls) {
+    return 'pré-réservé ' + pres.map(function (r) { return 'par ' + (r.nom || 'un agent') + ' (' + (ls || String)(r.service) + ') de ' + heure(r.debut) + ' à ' + heure(r.fin) + (r.motif ? ' : ' + r.motif : ''); }).join(' ; ');
+  }
+  /**
+   * Informations sur les pré-réservations remplacées par une réservation forcée, pour un agent : son auteur, et le cadre
+   * et la secrétaire du service qui avait pré-réservé (`qui` : { agent, servicesInformes }). `vus` : identifiants déjà vus.
+   */
+  function avisPour(st, qui, vus, maintenant) {
+    var v = vus || [], limite = (maintenant || Date.now()) - 864e5, q = qui || {};
+    return (st.avis || []).map(function (a) { return Object.assign({ preReservation: st.reservations[a.pre], reservationForcee: st.reservations[a.reservation] }, a); }).filter(function (a) {
+      var p = a.preReservation;
+      if (!p || v.indexOf(a.id) >= 0 || p.fin < limite || a.par === q.agent) return false;
+      return p.agent === q.agent || p.par === q.agent || (q.servicesInformes || []).indexOf(p.service) >= 0;
+    }).sort(function (a, b) { return String(b.le).localeCompare(String(a.le)); });
   }
   function heure(t) { var d = new Date(t); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   /** Véhicules qui concernent les services (affectés, prêtés ou mis à disposition à un moment de [debut, fin[). */
@@ -148,7 +174,7 @@
   function reservations(st, services, debut, fin) {
     var ids = vehiculesPour(st, services, debut, fin).map(function (v) { return v.id; });
     return Object.keys(st.reservations).map(function (k) { return st.reservations[k]; })
-      .filter(function (r) { return !r.annulee && ids.indexOf(r.vehicule) >= 0 && r.debut < fin && r.fin > debut; }).sort(function (a, b) { return a.debut - b.debut; });
+      .filter(function (r) { return !r.annulee && !r.supplantee && ids.indexOf(r.vehicule) >= 0 && r.debut < fin && r.fin > debut; }).sort(function (a, b) { return a.debut - b.debut; });
   }
   /** Réservations liées à un élément de l'Agenda (et à une date, si donnée), non annulées. */
   function reservationsLiees(st, rdv, occurrence) {
@@ -158,7 +184,7 @@
   // ------------------------------------------------------------ Droits et contrat
   var ACCES = [
     { code: 'vehicules.consulter', libelle: 'Consulter les véhicules et leurs réservations', types: [] },
-    { code: 'vehicules.reserver', libelle: 'Réserver un véhicule (directement ou depuis un événement de l’agenda), annuler une réservation', types: ['RESERVATION'] },
+    { code: 'vehicules.reserver', libelle: 'Réserver ou pré-réserver un véhicule (directement ou depuis un événement de l’agenda), forcer une réservation sur une pré-réservation, annuler une réservation', types: ['RESERVATION'] },
     { code: 'vehicules.signaler', libelle: 'Signaler (plein, voyant, nettoyage…) et marquer fait', types: ['SIGNALEMENT', 'SIGNALEMENT_FAIT'] },
     { code: 'vehicules.gerer', libelle: 'Gérer le parc : véhicules, caractéristiques, prêts et mises à disposition', types: ['VEHICULE', 'PRET'] }
   ];
@@ -195,6 +221,11 @@
     var lib = function (c) { var x = svs.filter(function (y) { return y && y.code === c; })[0]; return x ? x.libelle : c; };
     var p = peutReserver(st, r.vehicule, r.service, r.debut, r.fin, r.id, lib);
     if (!p.ok) throw new Error('Véhicule indisponible : ' + p.raison + '.');
+    // Réserver sur une pré-réservation n'est possible qu'en la désignant (réservation forcée après avertissement)
+    if (r.statut !== 'pre') {
+      var nonVues = (p.pre || []).filter(function (x) { return (d.supplante || []).indexOf(x.id) < 0; });
+      if (nonVues.length) throw new Error('Véhicule ' + libPre(nonVues, lib) + '. Confirmez pour forcer la réservation.');
+    }
   }
   /** Annuler sa propre réservation est permis sans l'accès « Réserver ». */
   function permisPourSoi(type, data, compte, ctx) {
@@ -217,12 +248,13 @@
     migrations: [],
     fournitures: [
       // Lue par l'Agenda : véhicules réservables par un service sur une période, avec leur disponibilité
-      { nom: 'vehicules.disponibles', version: 1, acces: 'lecture', champs: ['id', 'libelle', 'places', 'service', 'ok', 'raison', 'signalements'],
+      { nom: 'vehicules.disponibles', version: 1, acces: 'lecture', champs: ['id', 'libelle', 'places', 'service', 'ok', 'raison', 'signalements', 'avertissement', 'pre'],
         lire: function (st, o) {
           var debut = o.debut, fin = o.fin;
           return vehiculesPour(st, [o.service], debut, fin).filter(function (v) { return v.actif !== false; }).map(function (v) {
             var p = peutReserver(st, v.id, o.service, debut, fin, o.exclure, o.libService);
-            return { id: v.id, libelle: libelleVehicule(v), places: v.places || null, service: v.service, ok: p.ok, raison: p.raison, signalements: signalementsOuverts(st, v.id).length };
+            return { id: v.id, libelle: libelleVehicule(v), places: v.places || null, service: v.service, ok: p.ok, raison: p.raison, signalements: signalementsOuverts(st, v.id).length,
+              avertissement: p.avertissement || '', pre: (p.pre || []).map(function (x) { return x.id; }) };
           });
         } },
       { nom: 'vehicules.liees', version: 1, acces: 'lecture', champs: ['id', 'vehicule', 'debut', 'fin', 'lien'],
@@ -235,5 +267,5 @@
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, options: options, valeurChamp: valeurChamp, libValeur: libValeur, TYPES_CHAMP: TYPES_CHAMP, MODES_PRET: MODES_PRET,
     TYPES_VEHICULE_DEFAUT: TYPES_VEHICULE_DEFAUT, TYPES_SIGNALEMENT_DEFAUT: TYPES_SIGNALEMENT_DEFAUT,
     libelleVehicule: libelleVehicule, pretsDe: pretsDe, peutReserver: peutReserver, vehiculesPour: vehiculesPour, signalementsOuverts: signalementsOuverts,
-    reservations: reservations, reservationsLiees: reservationsLiees, reservationsActives: reservationsActives, libPeriode: libPeriode, jourISO: jourISO, depuisISO: depuisISO };
+    reservations: reservations, reservationsLiees: reservationsLiees, reservationsActives: reservationsActives, avisPour: avisPour, STATUTS: STATUTS, libPeriode: libPeriode, jourISO: jourISO, depuisISO: depuisISO };
 });
