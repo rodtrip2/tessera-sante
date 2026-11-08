@@ -618,7 +618,8 @@
     var ms = s.modulesAccessibles();
     if (ms.length && s.detientCle && s.detientCle('patients') && SIC.modules.obtenir('patients')) res.push({ id: 'patients', libelle: 'Patients' });
     ms.forEach(function (m) { res.push({ id: m.id, libelle: m.libelle }); });
-    if (s.roles().indexOf('ADMIN') >= 0) res.push({ id: 'admin', libelle: 'Administration' });
+    // Administration : l'administrateur ; le cadre y trouve les groupes d'agents de ses services (décision du 8 novembre 2026)
+    if (s.roles().indexOf('ADMIN') >= 0 || (s.roles().indexOf('CADRE') >= 0 && SIC.groupes && !s.apercu)) res.push({ id: 'admin', libelle: 'Administration' });
     return res;
   }
   /** Onglets de l'administration (décision du 8 novembre 2026) : réglages généraux, puis un onglet par module. */
@@ -629,7 +630,10 @@
   }
   /** Onglets de la fenêtre affichée : ceux du module (son contrat), puis le journal commun. */
   function onglets() {
-    if (App.fenetre === 'admin') return [['admin', 'Réglages généraux']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['journal', 'Journal']]);
+    if (App.fenetre === 'admin') {
+      if (App.session && App.session.roles().indexOf('ADMIN') < 0) return [['groupes', 'Groupes d’agents'], ['journal', 'Journal']];
+      return [['admin', 'Réglages généraux'], ['groupes', 'Groupes d’agents']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['journal', 'Journal']]);
+    }
     var id = App.fenetre === 'patients' ? 'patients' : (App.session ? App.session.moduleAffiche() : null);
     var m = id && SIC.modules.obtenir(id);
     return (m ? m.vues.onglets : SIC.modules.onglets(null)).map(function (o) { return [o.code, o.libelle]; }).concat([['journal', 'Journal']]);
@@ -824,7 +828,7 @@
     vider(zoneContenu);
     var corps = h('div', { class: 'fenetre-corps' });
     zoneContenu.appendChild(h('section', { class: 'fenetre', 'aria-label': 'Fenêtre du module' }, titreFenetre(), nav, corps));
-    var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: function () { return vueAdmin('general'); } };
+    var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: function () { return vueAdmin('general'); }, groupes: function () { return SIC.ui.vueGroupes ? SIC.ui.vueGroupes() : h('p', { class: 'muted', text: 'Groupes indisponibles.' }); } };
     modulesAdmin().forEach(function (x) { vues['admin-' + x[0]] = function () { return vueAdmin(x[0]); }; });
     var mAff = moduleAffiche(), vuesAff = (mAff.interface && mAff.interface.vues) || {}, vuesModule = interfaceModule().vues || {};
     var mPat = SIC.modules.obtenir('patients'), vuesPat = (mPat && mPat.interface && mPat.interface.vues) || {};

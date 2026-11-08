@@ -109,3 +109,24 @@ Demande : pouvoir enregistrer les données (ou le dossier de secours) ailleurs q
 ## Agenda : échéances des certificats légaux
 
 Calcul des échéances des certificats médicaux des soins sans consentement (24 heures, 72 heures, huitième jour, mensuels…) à partir du mode d'hospitalisation, affichées dans les alertes « à voir par le médecin ». Écarté pour l'instant (décision du porteur du 7 novembre 2026 : alertes saisies par l'équipe) ; règles à valider avec la direction des affaires juridiques avant tout développement.
+
+## Module Messagerie (demande du porteur, 8 novembre 2026)
+
+Échanger des informations d'organisation avec un ou plusieurs **groupes d'agents** (équipe de nuit, groupe de travail…, voir *Administration → Groupes d'agents*) ou **services**, sans passer par la messagerie de l'établissement. **Aucune donnée clinique**, comme dans les autres modules.
+
+- **Destinataires** : un ou plusieurs services, un ou plusieurs groupes, des agents nommés ; un agent qui rejoint le groupe ou le service ensuite voit les messages encore en cours (réglage à trancher).
+- **Accusé de lecture** selon le réglage (établissement, service ou message) : **automatique** à l'ouverture du message, ou **lecture à confirmer** par l'agent (« J'ai lu »). L'auteur voit qui a lu et qui n'a pas encore lu.
+- **Message important** : il reste affiché (bandeau, pastille sur l'icône du module) et **ne sort de la liste qu'après la validation de lecture** par l'agent ; l'auteur ou le cadre voit les agents qui ne l'ont pas encore validé.
+- **Fonctionnement** : journal `modules\messagerie\` en ajout seul (un message, une lecture, une validation = une saisie datée, jamais modifiée) ; clé propre ; lecture sur le partage, comme le reste de Tessera : pas d'envoi par courriel, pas de notification hors de l'outil.
+- **À trancher avant développement** : durée de conservation des messages et des accusés ; possibilité de répondre (fil de discussion) ou information descendante seulement ; pièces jointes (liées à l'évolution « Documents ») ; rôles qui peuvent écrire à tout l'établissement ; lien avec l'information du cadre et de la secrétaire déjà faite par le module Véhicules (pré-réservation remplacée).
+
+## Module Demandes de travaux et de réparation (demande du porteur, 8 novembre 2026)
+
+Bons de travaux par service, **visibles par tous les agents du service**, pour signaler une réparation ou une intervention et suivre sa réalisation.
+
+- **Contenu d'une demande** : **type de travaux** (liste réglable : plomberie, électricité, serrurerie, menuiserie, chauffage, informatique et téléphonie, nettoyage particulier, autre…), **lieu** (liste des lieux du service et texte), **numéro de chambre** si nécessaire, **gravité** (ex. gêne, dégradation, danger) et **urgence** (ex. dans la journée, dans la semaine, à programmer), partie en **texte libre** (description, sans donnée sur un patient), auteur et date.
+- **Suivi** : à transmettre, transmise aux services techniques (référence de leur bon, facultative), en cours, réalisée ; commentaires datés ; demande en double rattachée à la première.
+- **Confirmation de la réalisation par le cadre** : la demande « réalisée » ne sort de la liste qu'après la confirmation du cadre (ou d'un rôle autorisé), qui peut la rouvrir si l'intervention n'est pas satisfaisante.
+- **Affichage** : liste par service triée par urgence et gravité, filtres (type, lieu, état), pastille sur l'icône du module pour les demandes urgentes ; une chambre concernée par une intervention en cours pourrait être signalée dans la liste des patients par chambre (à trancher).
+- **Fonctionnement** : journal `modules\travaux\` en ajout seul, clé propre, activation par service ; les services techniques n'ayant pas accès à Tessera, un export (PDF ou tableau) du bon peut leur être remis, ou la référence de leur propre outil notée dans la demande.
+- **À trancher avant développement** : listes de types, de gravités et d'urgences proposées par défaut ; rôles qui créent, transmettent et confirment ; lien éventuel avec l'outil de gestion des services techniques de l'établissement (sans connexion sortante, donc par export seulement).

@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'vehicules', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'vehicules', 'groupes', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -57,6 +57,12 @@
       // Véhicules : deux données ajoutées par l'administrateur (fictives)
       cfg('vehicules', { champs: [{ id: 'carte-carburant', libelle: 'Carte carburant à bord', type: 'ouiNon' }, { id: 'revision', libelle: 'Prochaine révision', type: 'date' },
         { id: 'equipement', libelle: 'Équipement', type: 'liste', choix: ['Rampe d’accès', 'Siège enfant', 'Galerie de toit'] }] });
+      // Groupes d'agents (équipes de jour et de nuit de l'Unité 1, groupe de travail commun aux deux unités ; fictifs)
+      var moiG = options.moi && options.moi.id ? [{ id: options.moi.id, nom: options.moi.nom || '' }] : [];
+      cfg('groupes', [
+        { code: 'equipe-jour-u1', libelle: 'Équipe de jour', services: ['U1'], membres: [{ id: 'demo-a', nom: 'Agent A (fictif)' }, { id: 'demo-c', nom: 'Agent C (fictif)' }].concat(moiG) },
+        { code: 'equipe-nuit-u1', libelle: 'Équipe de nuit', services: ['U1'], membres: [{ id: 'demo-b', nom: 'Agent B (fictif)' }, { id: 'demo-d', nom: 'Agent D (fictif)' }] },
+        { code: 'groupe-qualite', libelle: 'Groupe de travail qualité', services: ['U1', 'U2'], membres: [{ id: 'demo-b', nom: 'Agent B (fictif)' }].concat(moiG) }]);
       // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
       cfg('agenda', { categories: {
         '*': { activite: { prereglages: { attente: true } }, examen: { prereglages: { lieu: 'Hôpital général (fictif)' } },
@@ -257,11 +263,14 @@
     tache('TACHE', { titre: 'Contrôle du chariot d’urgence', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-35)), heure: '10:00', regularite: { type: 'rangPeriode', rang: -1, jour: 5, periode: 'mois' } });
     tache('TACHE', { titre: 'Inventaire du linge', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-35)), heure: '', regularite: { type: 'rangPeriode', rang: -1, jour: 'weekend', periode: 'mois' } });
     tache('TACHE', { titre: 'Audit des dossiers de soins', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-100)), heure: '', regularite: { type: 'rangPeriode', rang: 1, jour: 1, periode: 'trimestre' } });
+    tache('TACHE', { titre: 'Contrôle des issues de secours', service: U1, debut: SIC.model.dateLocaleISO(lundiDe(-14)), heure: '23:00', regularite: { type: 'semaine', jours: [0] }, pour: { roles: [], agents: [], groupes: ['equipe-nuit-u1'] } });
+    tache('TACHE_EQUIPE', { titre: 'Préparer la réunion du groupe qualité', service: U1, debut: SIC.model.dateLocaleISO(jour(2)), heure: '', regularite: { type: 'aucune' }, pour: { roles: [], agents: [], groupes: ['groupe-qualite'] } });
     tache('TACHE_EQUIPE', { titre: 'Ranger la réserve', service: U1, debut: SIC.model.dateLocaleISO(now), heure: '', regularite: { type: 'aucune' } });
     // Absence, alertes (dont une en retard)
     ajouter(avant, 'ABSENCE', { id: 'AB001', agent: 'demo-d', nom: 'Agent D (fictif)', debut: jour(1), fin: jour(3), categorie: 'conge', service: U1 });
     ajouter(avant, 'ALERTE', { id: 'AL001', type: 'medecin', libelle: '', patientId: 'P02', service: U1, avant: SIC.model.dateLocaleISO(jour(1)), heure: '12:00', pour: null, precision: '' });
     ajouter(avant, 'ALERTE', { id: 'AL002', type: 'transmission', libelle: '', patientId: 'P01', service: U1, avant: SIC.model.dateLocaleISO(jour(-1)), heure: '', pour: null, precision: 'Famille à rappeler (fictif)' });
+    ajouter(avant, 'ALERTE', { id: 'AL004', type: 'autre', libelle: 'Relire la procédure de sortie avant la réunion', patientId: null, service: U1, avant: SIC.model.dateLocaleISO(jour(3)), heure: '', pour: { groupe: 'groupe-qualite' }, precision: '' });
     ajouter(avant, 'ALERTE', { id: 'AL003', type: 'rdv', libelle: '', patientId: 'P04', service: U2, avant: '', heure: '', pour: null, precision: '' });
 
     file.sort(function (a, b) { return a.at - b.at || a.n - b.n; });

@@ -911,7 +911,7 @@
 
   /** Tâche due un jour : case « faite » (accès « Cocher »), qui et quand ; agent affecté ; « Affecter » pour qui ajuste. */
   function ligneTache(x) {
-    var t = x.tache, moi = U.App.session.compteEffectif(), pourMoi = x.affecte ? x.affecte.agent === moi.id : A.tachePour(t, moi);
+    var t = x.tache, moi = moiAvecGroupes(), pourMoi = x.affecte ? x.affecte.agent === moi.id : A.tachePour(t, moi);
     var peutAffecter = t.niveau === 'service' && peut('TACHE_AJUSTEMENT') && A.optionsTaches(U.config()).ajustables.indexOf('affectation') >= 0;
     var cb = h('input', { type: 'checkbox', checked: !!x.fait, disabled: !peut('TACHE_FAITE'), 'aria-label': 'Tâche faite : ' + t.titre, onchange: async function () {
       try { await U.App.session.enregistrer('TACHE_FAITE', { tache: t.id, occurrence: x.occurrence, annule: !cb.checked }); }
@@ -976,7 +976,7 @@
       liste.length ? h('div', { class: 'table-wrap' }, h('table', {},
         h('thead', {}, h('tr', {}, ['Tâche', 'Type', 'Service', 'Répétition', 'Heure', 'Pour', ''].map(function (t) { return h('th', { text: t }); }))),
         h('tbody', {}, liste.map(function (t) {
-          var p = t.pour || {}, pour = (p.roles || []).map(function (r) { return SIC.modules.obtenir('agenda').droits.libRole(U.config(), r); }).concat((p.agents || []).map(function (id) { return U.App.session.nomAuteur(id); }));
+          var p = t.pour || {}, pour = (p.roles || []).map(function (r) { return SIC.modules.obtenir('agenda').droits.libRole(U.config(), r); }).concat((p.agents || []).map(function (id) { return U.App.session.nomAuteur(id); })).concat((p.groupes || []).map(function (g) { return 'groupe ' + SIC.groupes.libelle(U.config(), g); }));
           var aj = Object.keys(t.affectationsJours || {}).filter(function (j) { return t.affectationsJours[j]; }).map(function (j) { return JOURS[j] + ' : ' + t.affectationsJours[j].nom; });
           if (aj.length) pour = pour.concat(['affectée (' + aj.join(', ') + ')']);
           return h('tr', {}, h('td', {}, h('b', { text: t.titre }), t.consigne ? h('div', {}, h('small', { class: 'muted', text: t.consigne })) : null),
@@ -997,6 +997,16 @@
     var rep = champsRepetition(reg, null, recurrentes ? null : ['aucune']);
     var D = SIC.modules.obtenir('agenda').droits;
     var casesRoles = D.rolesConfig(U.config()).filter(function (r) { return !r.admin; }).map(function (r) { return { code: r.code, cb: h('input', { type: 'checkbox', checked: (pour.roles || []).indexOf(r.code) >= 0 }), libelle: r.libelle }; });
+    // Groupes d'agents du service (équipe de nuit, groupe de travail…), décision du 8 novembre 2026
+    var zoneGroupes = h('div', { class: 'actions gauche' }), casesGroupes = [];
+    function dessinerGroupes() {
+      var coches = casesGroupes.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.code; }).concat(casesGroupes.length ? [] : (pour.groupes || []));
+      U.vider(zoneGroupes);
+      casesGroupes = (SIC.groupes ? SIC.groupes.pourService(U.config(), sv.value) : []).map(function (g) { return { code: g.code, cb: h('input', { type: 'checkbox', checked: coches.indexOf(g.code) >= 0 }), libelle: g.libelle }; });
+      casesGroupes.forEach(function (c) { zoneGroupes.appendChild(h('label', { class: 'case' }, c.cb, h('span', { text: 'Groupe : ' + c.libelle }))); });
+    }
+    sv.addEventListener('change', dessinerGroupes);
+    dessinerGroupes();
     var boutons = [{ texte: 'Annuler' }];
     if (t) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
       if (!confirm('Supprimer la tâche « ' + x.titre + ' » ? Les dates déjà cochées restent au journal.')) return false;
@@ -1009,7 +1019,7 @@
       var rg = rep.lire();
       if (rg.type === 'semaine' && !rg.jours.length) rg.jours = [new Date(A.depuisISO(debut.value)).getDay()];
       await U.App.session.enregistrer(type, { id: x.id || 'T' + C.hex(C.aleatoire(5)), titre: titre.value.trim(), consigne: consigne.value.trim(), service: sv.value, debut: debut.value, heure: heure.value || '', regularite: rg,
-        pour: { roles: casesRoles.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.code; }), agents: (pour.agents || []) } });
+        pour: { roles: casesRoles.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.code; }), agents: (pour.agents || []), groupes: casesGroupes.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.code; }) } });
       U.toast(t ? 'Tâche modifiée.' : 'Tâche ajoutée.');
     } });
     U.modale((t ? 'Modifier la tâche' : 'Nouvelle tâche') + (equipe ? ' de l’équipe' : ' du service'), h('div', { class: 'pile' },
@@ -1017,7 +1027,7 @@
       h('label', {}, 'Tâche', titre), h('label', {}, 'Précision', consigne),
       h('div', { class: 'grille-3' }, h('label', {}, 'Service', sv), h('label', {}, 'Première date', debut), h('label', {}, 'Heure (facultatif)', heure)),
       rep.noeuds,
-      h('div', { class: 'pile' }, h('b', { text: 'Pour (aucune case : toute l’équipe du service)' }), h('div', { class: 'actions gauche' }, casesRoles.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: c.libelle })); })))), boutons, { large: true });
+      h('div', { class: 'pile' }, h('b', { text: 'Pour (aucune case : toute l’équipe du service)' }), h('div', { class: 'actions gauche' }, casesRoles.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: c.libelle })); })), zoneGroupes)), boutons, { large: true });
   }
 
   /**
@@ -1068,11 +1078,14 @@
     return Object.keys(f).map(function (k) { return f[k]; }).filter(function (p) { return A.serviceDuPatient(p) === service || p.id === garder; })
       .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
   }
+  /** Compte de l'agent avec ses groupes d'agents (groupes.js) : tâches et alertes adressées à un groupe. */
+  function moiAvecGroupes() { var c = U.App.session.compteEffectif(); return Object.assign({}, c, { groupes: SIC.groupes ? SIC.groupes.de(U.config(), c.id) : [] }); }
   function libAvant(a) { return a.avant ? 'avant le ' + a.avant.split('-').reverse().join('/') + (a.heure ? ' ' + a.heure : '') : 'sans date limite'; }
   function libPour(a) {
     var p = a.pour || {};
     if (p.agent) return p.nom || U.App.session.nomAuteur(p.agent);
     if (p.role) return SIC.modules.obtenir('agenda').droits.libRole(U.config(), p.role);
+    if (p.groupe) return 'le groupe ' + (SIC.groupes ? SIC.groupes.libelle(U.config(), p.groupe) : p.groupe);
     return 'toute l’équipe';
   }
   /** Échéances JLD lues à la volée chez Isocont : seulement pour qui a l'accès aux envois au JLD et la clé d'Isocont. */
@@ -1189,6 +1202,7 @@
       U.vider(selPour); selPour.appendChild(h('option', { value: '', text: 'Toute l’équipe' }));
       var D = SIC.modules.obtenir('agenda').droits, p = x.pour || {};
       D.rolesConfig(U.config()).filter(function (r) { return !r.admin; }).forEach(function (r) { selPour.appendChild(h('option', { value: 'r:' + r.code, text: 'Rôle : ' + r.libelle, selected: p.role === r.code })); });
+      (SIC.groupes ? SIC.groupes.pourService(U.config(), sv.value) : []).forEach(function (g) { selPour.appendChild(h('option', { value: 'g:' + g.code, text: 'Groupe : ' + g.libelle, selected: p.groupe === g.code })); });
       (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && (!(c.services || []).length || (c.services || []).indexOf(sv.value) >= 0); })
         .sort(function (m, n) { return (m.nom || '').localeCompare(n.nom || ''); })
         .forEach(function (c) { selPour.appendChild(h('option', { value: 'a:' + c.id, text: c.nom, selected: p.agent === c.id })); });
@@ -1208,7 +1222,7 @@
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       if (selType.value === 'autre' && !libre.value.trim()) throw new Error('Indiquez l’intitulé de l’alerte.');
       var pv = selPour.value, comptes = U.App.session.comptes || [];
-      var pour = pv.indexOf('r:') === 0 ? { role: pv.slice(2) } : (pv.indexOf('a:') === 0 ? { agent: pv.slice(2), nom: (comptes.filter(function (c) { return c.id === pv.slice(2); })[0] || {}).nom || '' } : null);
+      var pour = pv.indexOf('r:') === 0 ? { role: pv.slice(2) } : pv.indexOf('g:') === 0 ? { groupe: pv.slice(2) } : (pv.indexOf('a:') === 0 ? { agent: pv.slice(2), nom: (comptes.filter(function (c) { return c.id === pv.slice(2); })[0] || {}).nom || '' } : null);
       var d = { id: x.id || 'L' + C.hex(C.aleatoire(6)), type: selType.value, libelle: selType.value === 'autre' ? libre.value.trim() : '', service: sv.value, patientId: selPatient.value || null,
         avant: avant.value || '', heure: avant.value ? heure.value || '' : '', pour: pour, precision: precision.value.trim() };
       await U.App.session.enregistrer('ALERTE', d);
@@ -1224,7 +1238,7 @@
 
   // ------------------------------------------------------------ Mon agenda (sous-étape 6.4)
   function vueMonAgenda(maintenant) {
-    var s = U.App.session, moi = s.compteEffectif(), svs = s.mesServices().map(function (x) { return x.code || x; });
+    var s = U.App.session, moi = moiAvecGroupes(), svs = s.mesServices().map(function (x) { return x.code || x; });
     var debut = lundi(vue.ref), fin = plusJours(debut, 7), m = A.monAgenda(st(), fiches(), U.config(), moi, svs, debut, fin, maintenant);
     var colonnes = [];
     for (var i = 0; i < 7; i++) {

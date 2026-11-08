@@ -217,6 +217,8 @@
     if (type !== 'RESERVATION' || !d || d.annulee) return;
     var st = ctx.etat || { vehicules: {}, prets: {}, reservations: {} }, ex = st.reservations[d.id];
     var r = Object.assign({}, ex || {}, d);
+    // Motif obligatoire, pour une réservation comme pour une pré-réservation (décision du porteur du 8 novembre 2026)
+    if (!String(r.motif || '').trim()) throw new Error('Indiquez le motif de la ' + (r.statut === 'pre' ? 'pré-réservation' : 'réservation') + '.');
     var svs = (ctx.config && Array.isArray(ctx.config.services)) ? ctx.config.services : [];
     var lib = function (c) { var x = svs.filter(function (y) { return y && y.code === c; })[0]; return x ? x.libelle : c; };
     var p = peutReserver(st, r.vehicule, r.service, r.debut, r.fin, r.id, lib);

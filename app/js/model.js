@@ -225,6 +225,7 @@
     exports: { dossier: 'exports', conservationJours: 0, cheminReseau: '' },
     agenda: {},            // module Agenda (journal du socle) : { identite: 'initiales' | 'aucune' | 'ipp' | 'nom', typesAlertes: [{ code, libelle }] } ; vide = défauts
     importPatients: {},    // module Patients : modèles d'import de la liste du DPI { modeles: { '*': modèle, U1: modèle } } (noms de colonnes et correspondances, aucune donnée de patient)
+    groupes: [],           // groupes d'agents créés par le cadre ou l'administrateur (groupes.js) : équipes de jour et de nuit, groupes de travail
     vehicules: {},         // module Véhicules : types de véhicules et de signalements, données ajoutées (module-vehicules.js, options)
     patientsChamps: [],    // module Patients : données complémentaires ajoutées par l'administrateur (module-patients.js, champsComplementaires)
     patientsListe: {},     // module Patients, liste : { joursRecents, couleursModes, vues } (liste-patients.js) ; vide = réglages proposés
@@ -2023,6 +2024,7 @@
     { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
     { code: 'affichage', libelle: 'Points de vigilance et écran de connexion (contact, consigne, logo)', cles: ['vigilance', 'affichage'] },
     { code: 'roles', libelle: 'Rôles et accès, verrouillage après inactivité', cles: ['roles', 'inactiviteMinutes'] },
+    { code: 'groupes', libelle: 'Groupes d’agents (équipes, groupes de travail)', cles: ['groupes'] },
     { code: 'legal', libelle: 'Règles légales (seuils et cycles JLD)', cles: ['parametres'], prudence: true },
     { code: 'pauses', libelle: 'Pauses et délai de bascule du mode d’hospitalisation', cles: ['pauses', 'delaiModeHospiHeures'] },
     { code: 'alertes', libelle: 'Alertes de l’établissement', cles: ['alertes'] },

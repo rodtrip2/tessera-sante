@@ -476,6 +476,7 @@
     var p = a.pour || {};
     if (p.agent) return p.agent === compte.id;
     if (p.role) return (compte.roles || []).indexOf(p.role) >= 0;
+    if (p.groupe) return (compte.groupes || []).indexOf(p.groupe) >= 0;   // groupe d'agents (compte.groupes : codes, groupes.js)
     return true;
   }
   /** Réunions des services dans les `jours` à venir (7 par défaut), à partir de maintenant. */
@@ -492,7 +493,7 @@
     var els = elements(st, fiches, services, debut, fin).filter(function (x) { return !x.externe && ((x.rdv.professionnels || []).some(function (p) { return p.id === compte.id; }) || x.accompagnateurs.inscrits.some(function (i) { return i.agent === compte.id; })); });
     var taches = tachesDues(st, services, debut, fin).filter(function (x) { return x.affecte ? x.affecte.agent === compte.id : tachePour(x.tache, compte); });
     var abs = absences(st, debut, fin).filter(function (a) { return a.agent === compte.id; });
-    var al = alertesEquipe(st, config, services, maintenant || debut).filter(function (a) { return a.pour && (a.pour.agent || a.pour.role) && alertePour(a, compte); });
+    var al = alertesEquipe(st, config, services, maintenant || debut).filter(function (a) { return a.pour && (a.pour.agent || a.pour.role || a.pour.groupe) && alertePour(a, compte); });
     return { elements: els, taches: taches, absences: abs, alertes: al };
   }
 
@@ -506,9 +507,9 @@
   // ------------------------------------------------------------ Tâches du service
   /** La tâche est-elle pour cet agent (rôles ou agents désignés ; sans désignation : toute l'équipe du service) ? */
   function tachePour(t, compte) {
-    var p = t.pour || {}, roles = p.roles || [], agents = p.agents || [];
-    if (!roles.length && !agents.length) return true;
-    return !!compte && (agents.indexOf(compte.id) >= 0 || (compte.roles || []).some(function (r) { return roles.indexOf(r) >= 0; }));
+    var p = t.pour || {}, roles = p.roles || [], agents = p.agents || [], groupes = p.groupes || [];
+    if (!roles.length && !agents.length && !groupes.length) return true;
+    return !!compte && (agents.indexOf(compte.id) >= 0 || (compte.roles || []).some(function (r) { return roles.indexOf(r) >= 0; }) || (compte.groupes || []).some(function (g) { return groupes.indexOf(g) >= 0; }));
   }
   /** Agent affecté à une date d'une tâche : affectation de la date, sinon du jour de la semaine, sinon aucun. */
   function affectation(t, occurrence) {
