@@ -43,7 +43,7 @@
       patient: ((p.nom || '') + ' ' + (p.prenom || '')).trim() || '—',
       naissance: dateNaissance(p.naissance), ipp: p.ipp || '—', service: U.libService(m.service),
       modeHospi: mode ? mode + (defMode ? ' — ' + defMode.libelle : '') : '—', protection: p.protection || 'Aucune',
-      mesure: m.type + ' - décidée le ' + U.date(m.debut), lieu: M.lieuDetaille(etat.config, m.lieu, m.csi), psychiatre: m.psychiatreDebut || '—'
+      mesure: m.type + ' - décidée le ' + U.date(m.debut), lieu: M.lieuDetaille(etat.config, m.lieu, m.csi), psychiatre: (m.psychiatreDebut && SIC.medecins ? SIC.medecins.nomActuel(etat.config, m.psychiatreDebut) : m.psychiatreDebut) || '—'
     };
     var identite = masque.identite.map(function (k) { return [LIB_IDENTITE[k].replace(/ \(.*\)$/, ''), valeurs[k]]; });
     if (masque.sections.periode) identite.push(['Période analysée', 'du ' + U.date(d.fenetreDebut) + ' au ' + U.date(d.reference) + ' (15 jours glissants avant le début de la mesure, puis la mesure)']);

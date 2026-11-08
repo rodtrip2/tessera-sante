@@ -29,7 +29,7 @@
       h('thead', {}, h('tr', {}, ['Nom', 'Fonction', 'Services', 'Statut', 'Compte Tessera', ''].map(function (x) { return h('th', { text: x }); }))),
       h('tbody', {}, liste.map(function (m) {
         var termine = !MED.enActivite(m, Date.now()), c = m.compte ? comptes.filter(function (y) { return y.id === m.compte; })[0] : null;
-        return h('tr', { class: termine ? 'ancienne' : '' }, h('td', {}, h('b', { text: m.nom })),
+        return h('tr', { class: termine ? 'ancienne' : '' }, h('td', {}, h('b', { text: m.nom }), m.anciensNoms.length ? h('div', {}, h('small', { class: 'muted', text: 'Anciens noms : ' + m.anciensNoms.join(', ') })) : null),
           h('td', { text: MED.FONCTIONS[m.fonction] }), h('td', { text: libServices(m) }),
           h('td', {}, h('span', { class: 'badge' + (m.statut === 'interimaire' ? ' warn' : ''), text: MED.STATUTS[m.statut] + (termine ? (m.actif ? ' — hors période' : ' — retiré') : '') }), libPeriode(m) ? h('div', {}, h('small', { class: 'muted', text: libPeriode(m) })) : null),
           h('td', { text: c ? c.nom : '—' }),
@@ -70,7 +70,7 @@
     var boutons = [{ texte: 'Annuler' }];
     if (m && !m.repris) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
       if (!confirm('Supprimer « ' + m.nom + ' » de la liste ? Les fiches qui le citent gardent son nom. Pour un médecin qui part, décochez plutôt « En activité » (il reste dans l’historique).')) return false;
-      await enregistrerListe(MED.liste(U.config()).filter(function (y) { return y.nom !== m.nom; }));
+      await enregistrerListe(MED.liste(U.config()).filter(function (y) { return y.id !== m.id; }));
       if (apres) apres();
     } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
@@ -79,9 +79,13 @@
       if (statut.value === 'interimaire' && !debut.value) throw new Error('Indiquez le premier jour de l’intérimaire.');
       if (fin.value && debut.value && fin.value < debut.value) throw new Error('Le dernier jour précède le premier.');
       var liste = MED.liste(U.config());
-      if (liste.some(function (y) { return y.nom.toLowerCase() === n.toLowerCase() && (!m || y.nom !== m.nom); })) throw new Error('Ce nom figure déjà dans la liste.');
-      var nouveau = { id: (m && m.id) || MED.slug(n), nom: n, fonction: fonction.value, services: choisis, statut: statut.value, debut: debut.value, fin: fin.value, compte: compte.value || null, actif: actif.checked };
-      var i = m ? liste.map(function (y) { return y.nom; }).indexOf(m.nom) : -1;
+      var autre = liste.filter(function (y) { return (!m || y.id !== m.id) && (y.nom.toLowerCase() === n.toLowerCase() || y.anciensNoms.some(function (a) { return a.toLowerCase() === n.toLowerCase(); })); })[0];
+      if (autre) throw new Error(autre.nom.toLowerCase() === n.toLowerCase() ? 'Ce nom figure déjà dans la liste.' : 'Ce nom est un ancien nom de ' + autre.nom + ' : ses saisies le suivent déjà.');
+      if (compte.value && liste.some(function (y) { return y.compte === compte.value && (!m || y.id !== m.id); })) throw new Error('Ce compte est déjà rattaché à un autre médecin.');
+      // Renommage : l'ancien nom est gardé, les saisies faites sous ce nom suivent le médecin (décision du porteur)
+      var base = m ? MED.renommer(m, n) : MED.normaliser({ nom: n });
+      var nouveau = Object.assign(base, { id: (m && m.id) || MED.slug(n), fonction: fonction.value, services: choisis, statut: statut.value, debut: debut.value, fin: fin.value, compte: compte.value || null, actif: actif.checked });
+      var i = m ? liste.map(function (y) { return y.id; }).indexOf(m.id) : -1;
       if (i >= 0) liste[i] = nouveau; else liste.push(nouveau);
       await enregistrerListe(liste);
       if (apres) apres();
@@ -91,6 +95,7 @@
       h('div', {}, h('b', { text: 'Services' }), h('div', { class: 'actions gauche' }, cases), h('small', { class: 'muted', text: 'Aucun coché : proposé dans tous les services.' })),
       h('div', { class: 'grille-2' }, h('label', {}, 'Présent du (intérimaire, vacation)', debut), h('label', {}, 'au (facultatif)', fin)),
       h('label', {}, 'Compte Tessera rattaché' + (admin ? '' : ' (administrateur)'), compte),
+      h('small', { class: 'muted', text: 'Changer le nom ou rattacher un compte ne coupe aucun lien : les saisies déjà faites (fiches patients, présences, entretiens, Isocont) suivent le médecin. Les anciens noms restent reconnus.' + (m && m.anciensNoms.length ? ' Anciens noms : ' + m.anciensNoms.join(', ') + '.' : '') }),
       h('label', { class: 'case' }, actif, h('span', { text: 'En activité (proposé dans les listes de choix)' }))), boutons, { large: true });
   }
 
