@@ -1,10 +1,14 @@
 # Journal des modifications — Tessera Santé
 
-## 0.16.0 — 8 novembre 2026
+## 0.16.1 — 8 novembre 2026
 
-- **Catégories d'accompagnateurs** (décision du porteur du 8 novembre 2026) : les accompagnateurs nécessaires d'un événement peuvent être précisés par lignes « nombre, catégorie (rôle ou toute catégorie), précision » — 1 IDE matin, 1 AS soir, éducateur spécialisé… — réglables pour une date ou pour toutes. À l'inscription (soi-même ou un collègue), la catégorie correspondant au rôle de l'agent est proposée et modifiable ; **un agent d'une autre catégorie n'est jamais bloqué** : il est inscrit et marqué « hors consigne ». L'événement montre chaque catégorie avec ses inscrits ; le badge « Accompagnateurs n/N » détaille les catégories ; les professionnels prévus pourvoient les catégories restées ouvertes.
-- Démonstration : piscine (1 IDE, 1 AS, dont une inscription hors consigne), sortie au marché (1 IDE matin, 1 éducateur spécialisé).
-- Nouveau test (235 au vert) ; écrans vérifiés dans Chrome ; architecture, fiche projet et guide utilisateur à jour.
+- **Accompagnateurs : consigne en texte libre** (décision du porteur du 8 novembre 2026) : à côté du nombre d'accompagnateurs nécessaires, une consigne facultative (« 1 IDE le matin, 1 AS l'après-midi », « un éducateur de préférence »), réglable pour une date ou pour toutes, affichée dans l'élément et au survol du badge « Accompagnateurs ». Indicative : elle n'empêche aucune inscription.
+- Les **catégories d'accompagnateurs** de la 0.16.0 (lignes nombre, rôle, précision ; « hors consigne ») sont **retirées** : trop complexes à utiliser.
+- Démonstration : consignes sur la piscine et la sortie au marché. Test remplacé (235 au vert) ; écran vérifié dans Chrome ; architecture, fiche projet et guide utilisateur à jour.
+
+## 0.16.0 — 8 novembre 2026 (remplacée par la 0.16.1)
+
+- Catégories d'accompagnateurs (lignes nombre, rôle, précision ; inscription selon la consigne, « hors consigne »), retirées dans la 0.16.1.
 
 ## 0.15.3 — 8 novembre 2026
 

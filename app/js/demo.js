@@ -197,11 +197,8 @@
     // Accompagnement avec un accompagnateur à trouver (bouton « S'inscrire »)
     rdv({ nature: 'accompagnement', titre: 'Consultation extérieure', debut: jour(1, 10), fin: jour(1, 12), lieu: 'Hôpital général (fictif)', service: U1, patients: ['P03'], accompagnateurs: 1 });
     // Activité répétée mardi et vendredi, deux accompagnateurs, un agent déjà inscrit cette semaine
-    var piscine = rdv({ nature: 'activite', titre: 'Piscine', debut: lundiDe(-6, 14), fin: lundiDe(-6, 16), lieu: 'Piscine municipale (fictive)', service: U1, patients: ['P01', 'P05'], accompagnateurs: 2, regularite: { type: 'semaine', jours: [2, 5] },
-      ciblesAccompagnateurs: [{ id: 'k1', nombre: 1, role: 'IDE', precision: '' }, { id: 'k2', nombre: 1, role: 'AS', precision: '' }] });
-    ajouter(avant, 'INSCRIPTION', { rdv: piscine, occurrence: SIC.model.dateLocaleISO(lundiDe(1, 12)), agent: 'demo-b', nom: 'Agent B (fictif)', role: 'AS', service: U1 });
-    // Inscription hors consigne (une IDE sur la place prévue pour un AS) : gardée, signalée
-    ajouter(avant, 'INSCRIPTION', { rdv: piscine, occurrence: SIC.model.dateLocaleISO(lundiDe(4, 12)), agent: 'demo-a', nom: 'Agent A (fictif)', role: 'IDE', cible: 'k2', service: U1 });
+    var piscine = rdv({ nature: 'activite', titre: 'Piscine', debut: lundiDe(-6, 14), fin: lundiDe(-6, 16), lieu: 'Piscine municipale (fictive)', service: U1, patients: ['P01', 'P05'], accompagnateurs: 2, consigneAccompagnateurs: '1 IDE et 1 AS de préférence', regularite: { type: 'semaine', jours: [2, 5] } });
+    ajouter(avant, 'INSCRIPTION', { rdv: piscine, occurrence: SIC.model.dateLocaleISO(lundiDe(1, 12)), agent: 'demo-b', nom: 'Agent B (fictif)', service: U1 });
     rdv({ nature: 'activite', titre: 'Atelier terre', debut: lundiDe(2, 10, 30), fin: lundiDe(2, 11, 30), lieu: 'Salle d’activités', service: U1, patients: ['P01', 'P02', 'P05'], professionnels: [profC], regularite: { type: 'semaine', jours: [3], intervalle: 2 } });
     // Activité sans patient inscrit pour l'instant (transparente, réglage de démonstration)
     rdv({ nature: 'activite', titre: 'Atelier cuisine', debut: jour(2, 15), fin: jour(2, 17), lieu: 'Cuisine thérapeutique', service: U1, patients: [], accompagnateurs: 1 });
@@ -241,10 +238,8 @@
     resa({ id: 'RV001', vehicule: clio, debut: jour(-2, 14), fin: jour(-2, 16), service: U1, motif: 'Achats pour l’atelier cuisine' });
     resa({ id: 'RV002', vehicule: clio, debut: jour(2, 13, 30), fin: jour(2, 15), service: U1, motif: 'Achats pour l’atelier cuisine' });
     resa({ id: 'RV003', vehicule: adapte, debut: jour(1, 9), fin: jour(1, 12), service: U2, motif: 'Rendez-vous extérieur', agent: 'demo-d', nom: 'Agent D (fictif)' });
-    var marche = rdv({ nature: 'activite', titre: 'Sortie au marché', debut: jour(1, 9), fin: jour(1, 11, 30), lieu: 'Marché du centre-ville (fictif)', service: U1, patients: ['P01', 'P05'], accompagnateurs: 2,
-      ciblesAccompagnateurs: [{ id: 'k1', nombre: 1, role: 'IDE', precision: 'matin' }, { id: 'k2', nombre: 1, role: '', precision: 'éducateur spécialisé' }],
+    var marche = rdv({ nature: 'activite', titre: 'Sortie au marché', debut: jour(1, 9), fin: jour(1, 11, 30), lieu: 'Marché du centre-ville (fictif)', service: U1, patients: ['P01', 'P05'], accompagnateurs: 1, consigneAccompagnateurs: 'Un éducateur ou un AS du matin', professionnels: [profC],
       transports: [{ id: 'tm', type: 'vehicule', nombre: 1, vehicule: minibus }] });
-    ajouter(avant, 'INSCRIPTION', { rdv: marche, occurrence: SIC.model.dateLocaleISO(jour(1)), agent: 'demo-d', nom: 'Agent D (fictif)', role: 'IDE', service: U1 });
     resa({ id: 'RV004', vehicule: minibus, debut: jour(1, 9), fin: jour(1, 11, 30), service: U1, motif: 'Agenda : Activité', lien: { rdv: marche, occurrence: SIC.model.dateLocaleISO(jour(1)), transport: 'tm' } });
     ajouter(avant, 'TRANSPORT', { rdv: marche, transport: 'tm', occurrence: SIC.model.dateLocaleISO(jour(1)), statut: 'reserve', precision: 'Minibus 9 places (fictif) (XX-002-XX)', service: U1 });
     rdv({ nature: 'accompagnement', titre: 'Démarches à la mairie', debut: jour(4, 14), fin: jour(4, 16), lieu: 'Mairie (fictif)', service: U1, patients: ['P02'], accompagnateurs: 1, transports: [{ id: 'tc', type: 'vehicule', nombre: 1, vehicule: clio }] });
