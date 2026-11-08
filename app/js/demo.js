@@ -47,7 +47,11 @@
       cfg('etablissement', 'Établissement fictif de démonstration');
       cfg('lieuxCSI', { U1: ['CSI 1', 'CSI 2'], U2: ['CSI A'] });
       // Agenda : audiences JLD et activités thérapeutiques en transparence tant qu'aucun patient n'y est prévu
-      cfg('agenda', { attenteSansPatient: ['audience', 'activite'] });
+      // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
+      cfg('agenda', { categories: {
+        '*': { activite: { prereglages: { attente: true } }, examen: { prereglages: { lieu: 'Hôpital général (fictif)' } },
+          'consultation-dentaire': { libelle: 'Consultation dentaire', base: 'examen', couleur: '#8a5a2b', prereglages: { duree: 45, lieu: 'Cabinet dentaire (fictif)', accompagnateurs: 1, transports: [{ type: 'taxi', nombre: 1 }] } } },
+        U2: { 'atelier-jardin': { libelle: 'Atelier jardin', base: 'activite', couleur: '#4f7d2e', prereglages: { duree: 90, lieu: 'Jardin thérapeutique', accompagnateurs: 1, attente: true } } } } });
       // Démonstration : information du cadre ou de l'administrateur de garde pour un patient en soins libres (Unité 1)
       cfg('alertes', SIC.model.CONFIG_DEFAUT.alertes.map(function (r) {
         return r.declencheur === 'soins-libres' ? Object.assign({}, r, { active: true, services: ['U1'], depuis: now }) : Object.assign({}, r, { depuis: r.active ? now : 0 });
@@ -175,6 +179,8 @@
     rdv({ nature: 'activite', titre: 'Atelier terre', debut: lundiDe(2, 10, 30), fin: lundiDe(2, 11, 30), lieu: 'Salle d’activités', service: U1, patients: ['P01', 'P02', 'P05'], professionnels: [profC], regularite: { type: 'semaine', jours: [3], intervalle: 2 } });
     // Activité sans patient inscrit pour l'instant (transparente, réglage de démonstration)
     rdv({ nature: 'activite', titre: 'Atelier cuisine', debut: jour(2, 15), fin: jour(2, 17), lieu: 'Cuisine thérapeutique', service: U1, patients: [], accompagnateurs: 1 });
+    rdv({ nature: 'consultation-dentaire', examen: { type: 'Soins dentaires' }, titre: '', debut: jour(1, 14), fin: jour(1, 14, 45), lieu: 'Cabinet dentaire (fictif)', service: U1, patients: ['P05'], accompagnateurs: 1, transports: [{ id: 'tx', type: 'taxi', nombre: 1 }] });
+    rdv({ nature: 'atelier-jardin', titre: '', debut: jour(3, 10), fin: jour(3, 11, 30), lieu: 'Jardin thérapeutique', service: U2, patients: [], accompagnateurs: 1 });
     // Entretiens : médical avec la famille (deux professionnels), infirmier individuel
     rdv({ nature: 'entretien', entretien: { type: 'medical', avec: 'famille' }, titre: '', debut: jour(1, 11), fin: jour(1, 12), lieu: 'Bureau médical', service: U1, patients: ['P01'], professionnels: [{ id: null, nom: 'Dr Arnaud (fictif)' }, profA] });
     rdv({ nature: 'entretien', entretien: { type: 'infirmier', avec: 'individuel' }, titre: '', debut: jour(0, 15), fin: jour(0, 15, 45), lieu: 'Bureau infirmier', service: U1, patients: ['P05'], professionnels: [profC] });

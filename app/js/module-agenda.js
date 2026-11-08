@@ -318,17 +318,84 @@
       return { id: t.id, type: TRANSPORTS[t.type] ? t.type : 'autre', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: t.precision || '', reserve: (r.reservations || {})[occurrence + '|' + t.id] || null };
     });
   }
+  // ------------------------------------------------------------ Catégories d'événements et préréglages (8 novembre 2026)
+  /**
+   * Préréglages proposés pour chaque type fourni, appliqués à la création d'un élément (décision du porteur : catégories
+   * ajoutées par l'administrateur, préréglages modifiables, pour l'établissement et par service) :
+   * duree (minutes), heure ('HH:MM' de début proposée), lieu, titre, patients (section affichée), accompagnateurs (nombre),
+   * transports [{ type, nombre, precision }], validations [{ type, libelle, delai }], checklist (code d'un modèle),
+   * attente (transparence sans patient prévu), dureeMax (heures, alerte au-delà), psychiatrie (services de psychiatrie seulement).
+   */
+  var PREREGLAGES_DEFAUT = {
+    accompagnement: { duree: 120, patients: true, accompagnateurs: 1 },
+    entretien: { duree: 45, patients: true },
+    examen: { duree: 90, patients: true, accompagnateurs: 1, transports: [{ type: 'vsl', nombre: 1 }] },
+    activite: { duree: 60, patients: true },
+    reunion: { duree: 60, patients: false },
+    audience: { duree: 150, patients: true, accompagnateurs: 1, transports: [{ type: 'vsl', nombre: 1 }], attente: true, psychiatrie: true },
+    permission: { duree: 480, patients: true, validations: [{ type: 'permission', libelle: '' }], dureeMax: 48 },
+    sortie: { duree: 30, patients: true, checklist: 'sortie' },
+    autre: { duree: 60, patients: false }
+  };
+  function nettoyerPrereglages(v) {
+    // Une valeur vide ou nulle est gardée : au niveau d'un service, elle retire le préréglage de l'établissement
+    var x = v || {}, r = {};
+    function nb(k, max) { if (x[k] !== undefined && x[k] !== null && x[k] !== '' && isFinite(+x[k]) && +x[k] >= 0) r[k] = Math.min(max, Math.round(+x[k])); }
+    nb('duree', 14 * 1440); nb('accompagnateurs', 20); nb('dureeMax', 24 * 30);
+    if (typeof x.heure === 'string' && (x.heure === '' || /^\d{2}:\d{2}$/.test(x.heure))) r.heure = x.heure;
+    ['lieu', 'titre', 'checklist'].forEach(function (k) { if (typeof x[k] === 'string') r[k] = x[k].trim().slice(0, 120); });
+    ['patients', 'attente', 'psychiatrie'].forEach(function (k) { if (typeof x[k] === 'boolean') r[k] = x[k]; });
+    if (Array.isArray(x.transports)) r.transports = x.transports.filter(function (t) { return t && TRANSPORTS[t.type]; }).map(function (t) { return { type: t.type, nombre: Math.max(1, Math.min(9, Math.round(+t.nombre || 1))), precision: String(t.precision || '').slice(0, 100) }; });
+    if (Array.isArray(x.validations)) r.validations = x.validations.filter(function (t) { return t && TYPES_VALIDATION[t.type]; }).map(function (t) { var o = { type: t.type, libelle: String(t.libelle || '').slice(0, 80) }; if (t.type !== 'permission') o.delai = Math.max(0, Math.min(336, Math.round(+t.delai || 24))); return o; });
+    return r;
+  }
+  /**
+   * Catégories d'événements d'un service, dans l'ordre : types fournis puis catégories ajoutées, avec les réglages de
+   * l'établissement (`config.agenda.categories['*']`) puis ceux du service (`categories[service]`) :
+   * { code, libelle, base (type fourni dont elle reprend le comportement), couleur, prereglages, fournie, actif }.
+   */
+  function categories(config, service) {
+    var a = (config && config.agenda) || {}, conf = a.categories || {}, couleursAnciennes = a.couleurs || {};
+    var attenteAncienne = Array.isArray(a.attenteSansPatient) ? a.attenteSansPatient : null;
+    var liste = Object.keys(NATURES).map(function (k) {
+      var pr = JSON.parse(JSON.stringify(PREREGLAGES_DEFAUT[k] || {}));
+      if (attenteAncienne) pr.attente = attenteAncienne.indexOf(k) >= 0;   // réglage de la 0.11.2
+      return { code: k, libelle: NATURES[k], base: k, couleur: /^#[0-9a-fA-F]{6}$/.test(couleursAnciennes[k] || '') ? couleursAnciennes[k].toLowerCase() : COULEURS_DEFAUT[k], prereglages: pr, fournie: true, actif: true };
+    });
+    function appliquer(niveau) {
+      var c = conf[niveau] || {};
+      Object.keys(c).forEach(function (code) {
+        var d = c[code] || {}, ex = liste.filter(function (x) { return x.code === code; })[0];
+        if (!ex) {
+          if (!/^[a-z][a-z0-9-]{1,30}$/.test(code) || !String(d.libelle || '').trim()) return;
+          var base = NATURES[d.base] ? d.base : 'autre';
+          ex = { code: code, libelle: '', base: base, couleur: COULEURS_DEFAUT[base], prereglages: JSON.parse(JSON.stringify(PREREGLAGES_DEFAUT[base] || {})), fournie: false, actif: true };
+          liste.push(ex);
+        }
+        if (String(d.libelle || '').trim()) ex.libelle = String(d.libelle).trim().slice(0, 60);
+        if (/^#[0-9a-fA-F]{6}$/.test(d.couleur || '')) ex.couleur = d.couleur.toLowerCase();
+        if (typeof d.actif === 'boolean') ex.actif = d.actif;
+        if (d.prereglages) ex.prereglages = Object.assign(ex.prereglages, nettoyerPrereglages(d.prereglages));
+      });
+    }
+    appliquer('*');
+    if (service) appliquer(service);
+    return liste;
+  }
+  /** Catégorie d'un code (inconnue : comportement « autre événement », libellé le code). */
+  function categorie(config, code, service) {
+    return categories(config, service).filter(function (c) { return c.code === code; })[0] || { code: code, libelle: NATURES[code] || code || 'Élément', base: NATURES[code] ? code : 'autre', couleur: COULEURS_DEFAUT[code] || COULEURS_DEFAUT.autre, prereglages: {}, fournie: false, actif: false };
+  }
+  function baseDe(config, code, service) { return categorie(config, code, service).base; }
+
   /**
    * Élément « en attente » : aucun patient prévu, pour un type où l'établissement l'a activé (`config.agenda.attenteSansPatient`,
    * audience JLD par défaut ; décisions du porteur du 8 novembre 2026) : affiché en transparence, sans rappel de transport
    * ni d'accompagnateur.
    */
   var ATTENTE_DEFAUT = ['audience'];
-  function typesEnAttente(config) {
-    var v = ((config && config.agenda) || {}).attenteSansPatient;
-    return Array.isArray(v) ? v.filter(function (k) { return NATURES[k]; }) : ATTENTE_DEFAUT.slice();
-  }
-  function enAttente(r, config) { return typesEnAttente(config).indexOf(r.nature) >= 0 && !(r.patients || []).length; }
+  function typesEnAttente(config, service) { return categories(config, service).filter(function (c) { return c.prereglages.attente; }).map(function (c) { return c.code; }); }
+  function enAttente(r, config) { return typesEnAttente(config, r.service).indexOf(r.nature) >= 0 && !(r.patients || []).length; }
   /** Transports à réserver pour les occurrences des `jours` prochains jours (15 par défaut) ; « proche » à moins de 24 h. */
   function transportsAReserver(st, fiches, services, maintenant, jours, config) {
     var res = [];
@@ -717,7 +784,7 @@
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
     libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
-    enAttente: enAttente, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
+    enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
     alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
     etatChecklist: etatChecklist, checklists: checklists, alertesChecklists: alertesChecklists, optionsTaches: optionsTaches, AJUSTABLES: AJUSTABLES, affectation: affectation, controler: controler, tachePour: tachePour, tachesDues: tachesDues, absences: absences, prevusAbsents: prevusAbsents, jourISO: jourISO, depuisISO: depuisISO };
