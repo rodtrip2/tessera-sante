@@ -225,6 +225,7 @@
     exports: { dossier: 'exports', conservationJours: 0, cheminReseau: '' },
     agenda: {},            // module Agenda (journal du socle) : { identite: 'initiales' | 'aucune' | 'ipp' | 'nom', typesAlertes: [{ code, libelle }] } ; vide = défauts
     importPatients: {},    // module Patients : modèles d'import de la liste du DPI { modeles: { '*': modèle, U1: modèle } } (noms de colonnes et correspondances, aucune donnée de patient)
+    patientsChamps: [],    // module Patients : données complémentaires ajoutées par l'administrateur (module-patients.js, champsComplementaires)
     patientsListe: {},     // module Patients, liste : { joursRecents, couleursModes, vues } (liste-patients.js) ; vide = réglages proposés
     fichePatient: {},      // module Patients, par service : { services: { U1: { psychiatrie, medecin1, medecin2 } } } ; vide = psychiatrie, libellés par défaut
     modulesServices: {},   // activation des modules par service (journal du socle) : { isocont: { tous: false, services: [...] } } ; vide = tous les services   // 0 = aucune purge ; cheminReseau : chemin Windows du dossier des données
@@ -2014,7 +2015,7 @@
   var FORMAT_REGLAGES = 'suivi-isocont-reglages';
   var GROUPES_REGLAGES = [
     { code: 'etablissement', libelle: 'Établissement, services et lieux d’isolement', cles: ['etablissement', 'services', 'modulesServices', 'fichePatient', 'lieuxCSI', 'lieuIsolement'] },
-    { code: 'patients', libelle: 'Module Patients : modèles d’import de la liste du DPI', cles: ['importPatients', 'patientsListe'] },
+    { code: 'patients', libelle: 'Module Patients : modèles d’import de la liste du DPI', cles: ['importPatients', 'patientsListe', 'patientsChamps'] },
     { code: 'agenda', libelle: 'Module Agenda : identité du patient affichée, types d’alertes', cles: ['agenda'] },
     { code: 'psychiatres', libelle: 'Liste des psychiatres (noms)', cles: ['psychiatres'] },
     { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
