@@ -32,7 +32,7 @@ Onglet **Mesures** → **+ Nouvelle mesure**, dès que le psychiatre a décidé 
 1. **Patient** : choisissez-le dans la liste, ou *+ Nouveau patient* (IPP, nom, prénom et **date de naissance obligatoire**).
 2. **Mode d'hospitalisation** : vérifiez-le (SDT, SDRE, SPI…).
 3. **Type de mesure** : isolement ou contention ; **date et heure de la décision** du psychiatre (et non l'heure de la saisie).
-4. **Psychiatre décisionnaire** et **lieu** (CSI ou chambre).
+4. **Psychiatre décisionnaire** (choisi dans la liste des médecins ; s'il n'y figure pas : *+ Médecin non répertorié…*, sa fiche sera confirmée par le cadre ou la secrétaire) et **lieu** (CSI ou chambre).
 5. **Enregistrer**.
 
 ![Fenêtre « Nouvelle mesure »](images/guide-ide-as/03-nouvelle-mesure.png)

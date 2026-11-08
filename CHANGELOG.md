@@ -1,5 +1,20 @@
 # Journal des modifications — Tessera Santé
 
+## 0.17.0 — 8 novembre 2026
+
+Nouveau module **Suivi médical** (maquettes validées par le porteur le 8 novembre 2026) et **liste commune des médecins**.
+
+- **Présences médicales** : par service (une ligne par médecin, matin et après-midi ; gardes et astreintes ; psychiatres présents et somaticien compté à part ; alerte quand aucun psychiatre n'est présent sur une demi-journée ouvrée) ou par médecin (sa semaine dans tous ses services) ; présence, absence avec remplaçant, garde ou astreinte ; répétition chaque semaine, toutes les deux semaines ou pour une date ; **types de garde à horaires réglables** (ex. garde de nuit 17 h 30 – 8 h 30) rattachés à un lieu ; **lieux de présence sans patient** (ex. urgences médico-psychologiques, où compte la garde de jour).
+- **Entretiens médicaux et contrats de soins** : dates seulement (aucun contenu) ; contrat de soins pour tous les patients ; **délais d'alerte selon la durée d'hospitalisation** (tranches réglables) ; **saisie en une fois** des patients vus : rien n'est coché d'office, les patients du médecin choisi sont mis en évidence (bleu : 1re ligne, orangé : 2e ligne) ; historique et annulation.
+- **Patients par médecin** : une ligne par médecin, colonnes 1re et 2e ligne avec les dates du dernier entretien et du dernier contrat ; ligne **Non attribués** (alerte pour les deux niveaux) ; **+ Ajouter un patient** depuis une case, avec confirmation du changement de responsabilité.
+- **Impression** : mise en page dédiée (A4 paysage, en-tête, mention « Document confidentiel », noms en gras, dates dépassées soulignées avec ⚠ en gras) pour tous les tableaux du module.
+- Patients écrits partout dans le module « NOM Prénom (ch. 12, J24) ».
+- **Liste commune des médecins** (fiche patient, Isolement et contention, Suivi médical) : fonction, services, statut (titulaire, vacataire, intérimaire avec période), compte rattaché ; gérée par l'administrateur et les rôles désignés (cadre et secrétaire par défaut) ; reprise automatique de l'ancienne liste des psychiatres. **Identité stable** : un renommage ou un rattachement à un compte ne coupe aucun lien (anciens noms, identifiant enregistré avec le nom). **Liste déroulante commune** dans la fiche patient et Isocont ; **médecin non répertorié** ajouté par tout agent, utilisable aussitôt, à confirmer (confirmer en corrigeant, réunir avec un médecin existant, refuser) par le cadre ou la secrétaire, informés par un bandeau ; **Noms à rattacher** pour les noms déjà saisis hors liste.
+- Intégration : colonnes « Dernier entretien médical » et « Contrat de soins réévalué le » de la liste des patients ; rubrique « À voir par le médecin » et compteur dans les alertes de l'agenda ; pastille sur l'icône du module ; *Administration → Suivi médical*.
+- Évolutions futures : module Agents (fiches des agents et des psychiatres, champs ajoutés), rôle Cadre supérieur de santé ; les trois demandes réalisées en sont retirées.
+- Démonstration : six médecins fictifs (somaticien, vacataire, intérimaire), urgences comme lieu de présence, absence remplacée, gardes, demi-journée sans psychiatre, entretiens et contrats à jour, en retard ou jamais faits, patients sans médecin.
+- Tests : 240 au vert (nouveau fichier `tests/suivi.test.js`) ; écrans vérifiés dans Chrome ; architecture (§ 7 quater), fiche projet, fiche technique, éléments RGPD (traitement 5), guides utilisateur et IDE / AS à jour.
+
 ## 0.16.1 — 8 novembre 2026
 
 - **Accompagnateurs : consigne en texte libre** (décision du porteur du 8 novembre 2026) : à côté du nombre d'accompagnateurs nécessaires, une consigne facultative (« 1 IDE le matin, 1 AS l'après-midi », « un éducateur de préférence »), réglable pour une date ou pour toutes, affichée dans l'élément et au survol du badge « Accompagnateurs ». Indicative : elle n'empêche aucune inscription.

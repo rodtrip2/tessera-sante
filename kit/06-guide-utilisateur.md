@@ -105,6 +105,17 @@ Fenêtre *Véhicules* (icône de voiture ; la pastille compte les signalements e
 - **Signalements** : *Signaler…* (faire le plein, voyant allumé, à nettoyer, entretien à prévoir, dégât, information) ; *Fait* quand c'est réglé.
 - **Cadre** : *+ Nouveau véhicule*, *Modifier* (décochez « En service » pendant une immobilisation), *Prêter ou mettre à disposition…* (prêt : seul le service emprunteur réserve pendant la période ; mise à disposition : d'autres services peuvent aussi réserver). *Administration → Véhicules* : types de véhicules, informations ajoutées (oui ou non, texte, liste, date, nombre), types de signalements.
 
+## 5 bis. Suivi médical
+
+Fenêtre *Suivi médical* (la pastille compte les patients en retard d'entretien ou de contrat et les patients sans médecin). Les patients y sont toujours écrits « NOM Prénom (ch. 12, J24) » : chambre et jour d'hospitalisation.
+
+- **Présences médicales** : *Par service* (une ligne par médecin, matin et après-midi ; lignes des gardes et astreintes, des psychiatres présents et du somaticien ; bandeau quand aucun psychiatre n'est présent sur une demi-journée) ou *Par médecin* (sa semaine dans tous ses services). *+ Présence, absence, garde* : nature, médecin, service ou lieu (les urgences, par exemple), jours, matin et après-midi, répétition (chaque semaine, toutes les deux semaines, une date), remplaçant en cas d'absence. Cliquez une case pour voir ou modifier ce qui est prévu.
+- **Entretiens et contrats de soins** : dernier entretien médical et dernière réévaluation du contrat de chaque patient, en rouge quand le délai est dépassé (le délai dépend du nombre de jours depuis l'entrée). *Cocher les patients vus…* : date, médecin et ce qui a été fait ; **rien n'est coché d'office** : les patients du médecin sont en bleu (1re ligne) ou en orangé (2e ligne) ; *Cocher ses patients* les coche en un clic. *Historique* permet d'annuler une saisie erronée. Seules les dates sont gardées.
+- **Patients par médecin** : une ligne par médecin, une colonne pour la 1re ligne et une pour la 2e, avec les dates du dernier entretien et du dernier contrat ; la ligne *Non attribués* en tête. *+ Ajouter un patient* dans une case attribue ce médecin au patient (une confirmation est demandée s'il en avait déjà un à ce niveau).
+- **Médecins** : la liste commune (fiche patient, Isolement et contention, Suivi médical). Le cadre et la secrétaire ajoutent les médecins, dont les **intérimaires** (avec leur période). Changer le nom d'un médecin ou le rattacher à un compte ne coupe aucun lien : les saisies le suivent. *Noms à rattacher* : noms écrits dans les saisies et absents de la liste (créer la fiche, rattacher à un médecin, ou laisser tels quels).
+- **Médecin non répertorié** : dans toute liste de médecins, *+ Médecin non répertorié…* l'ajoute aussitôt, « à confirmer » ; le cadre et la secrétaire voient un bandeau et le **confirment** (en corrigeant le nom au besoin), le **réunissent** avec un médecin déjà connu, ou le **refusent**.
+- **Imprimer** : chaque tableau s'imprime sur une page dédiée (A4 paysage, mention « Document confidentiel », noms en gras, dates dépassées soulignées avec ⚠).
+
 ## 6. Isolement et contention
 
 Voir le guide du module (document 12) et le guide pratique des IDE et AS (document 08).
@@ -121,6 +132,7 @@ Sur l'écran de connexion, choisissez **Mode formation** au lieu de *Données r�
 
 ## 9. Cadre de santé et administrateur
 
+- **Suivi médical** (*Administration → Suivi médical*) : délais d'alerte par tranche de durée d'hospitalisation, premier entretien attendu, délai avant l'alerte « non attribué », types de garde (horaires et lieu), lieux de présence sans patient, alerte de couverture, rôles qui gèrent la liste des médecins.
 - **Groupes d'agents** (fenêtre *Administration*, onglet *Groupes d'agents*, ouvert au cadre) : réunissez des agents en équipe de jour, équipe de nuit, groupe de travail… en plus de leur affectation aux services. Le cadre crée et modifie les groupes de ses services et peut y ajouter des agents d'autres services (liste « Agents d'autres services ») : leur cadre en est informé (bandeau de l'onglet *Groupes d'agents* et pastille sur l'icône Administration, à marquer « Vu »). Un groupe de tout l'établissement est créé par l'administrateur. Une tâche (*Pour* : groupe) ou une alerte (*Pour qui* : groupe) peut être adressée à un groupe ; ses membres la voient dans *Mon agenda*. Un agent ajouté à un groupe en est informé par un bandeau, dans toutes ses fenêtres, jusqu'à ce qu'il le marque « Vu ». Un groupe ne donne aucun droit.
 
 - **Organisation de l'administration** (fenêtre *Administration*) : onglet *Réglages généraux* (comptes et sécurité, établissement et services, sauvegardes et exports, à propos), puis **un onglet par module** (*Isolement et contention*, *Patients*, *Agenda du service*), chacun avec ses rubriques.
