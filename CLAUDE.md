@@ -34,7 +34,7 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 ## 3. Organisation et décisions fonctionnelles
 
 - Accès à un module dans un service = module **activé pour le service** + agent **affecté au service** + **rôle dans le module**. Cloisonnement entre services d'un même module par l'interface (décision du porteur). Rôle selon le service : prévu dans le modèle de données, écran plus tard.
-- **Administration unique** : onglet général pour les éléments communs, un onglet par module.
+- **Administration unique** : onglet « Réglages généraux » pour les éléments communs, puis un onglet par module avec ses rubriques (décision du 8 novembre 2026) ; un module déclare ses rubriques par `interface.admin.onglets`.
 - **Échanges entre modules** : lecture à la volée seulement ; la publication est prévue dans le contrat mais désactivée.
 - **Module Patients** : fiche commune (champs et règles : `docs/architecture.md` § 7) ; médecins de 1re et 2e ligne et référents soignants saisis dans Tessera ; libellés réglables par service (ouverture à d'autres disciplines que la psychiatrie).
 - **Import de la liste des patients du DPI** : colonnes attribuées à l'import, colonne découpable, champ non fourni → saisi dans Tessera, modèle d'import mémorisé ; export de Sillage décrit dans `docs/architecture.md` § 8.

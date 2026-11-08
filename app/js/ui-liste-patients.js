@@ -253,6 +253,6 @@
 
   SIC.modules.completerInterface('patients', {
     vues: { fiches: vueListe },
-    admin: { onglets: function () { return [['patients', 'Patients', [panneauReglages()]]]; } }
+    admin: { onglets: function () { return [['patients', 'Liste des patients', [panneauReglages()]]]; } }
   });
 })();

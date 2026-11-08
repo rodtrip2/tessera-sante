@@ -1698,10 +1698,13 @@
         h('p', { class: 'muted', text: 'Uniquement pour les établissements qui utilisaient ce classeur, outil Excel dont est issu le projet. Il reprend en plus les cycles JLD, l’information des tiers, la surveillance poste par poste et le paramétrage. Un import relancé ne crée pas de doublon.' }),
         h('button', { class: 'btn', onclick: function () { SIC.ui.actions.importer('v13'); } }, 'Importer un classeur V1.3…'))) : null;
 
+    // Administration rangée par module (décision du porteur du 8 novembre 2026) : réglages propres à Isocont dans son onglet,
+    // `services` ne garde que les réglages partagés par la plateforme (modes d'hospitalisation, accueil)
     if (formation) return {
-      services: [pLieuNom, pSurv, pTiers, pOrgJLD],
+      services: [],
       sauvegardes: [],
       onglets: [
+        ['organisation', 'Organisation du module', [pLieuNom, pSurv, pTiers, pOrgJLD]],
         ['regles', 'Règles et pauses', [pRegles, pPauses]],
         ['alertes', 'Alertes', [SIC.ui.alertes.panneauAdmin()]],
         ['cas', 'Cas particuliers', [SIC.ui.cas.panneauAdmin()]],
@@ -1710,13 +1713,14 @@
       ]
     };
     return {
-      services: [pLieuNom, SIC.ui.listes.panneauModes(), pSurv, SIC.ui.listes.panneauListes(), pTiers, pOrgJLD, SIC.ui.listes.panneauVigilance(), SIC.ui.listes.panneauAccueil()],
-      sauvegardes: [SIC.ui.qualite.panneauArchive()],
+      services: [SIC.ui.listes.panneauModes(), SIC.ui.listes.panneauAccueil()],
+      sauvegardes: [],
       onglets: [
+        ['organisation', 'Organisation du module', [pLieuNom, pSurv, SIC.ui.listes.panneauListes(), pTiers, pOrgJLD, SIC.ui.listes.panneauVigilance()]],
         ['regles', 'Règles et pauses', [pRegles, pPauses]],
         ['alertes', 'Alertes', [SIC.ui.alertes.panneauAdmin()]],
         ['cas', 'Cas particuliers', [SIC.ui.cas.panneauAdmin()]],
-        ['registre', 'Registre et statistiques', [pDocs, pColsP, SIC.ui.methode.panneauAdmin(), SIC.ui.qualite.panneauAdmin()]],
+        ['registre', 'Registre et statistiques', [pDocs, pColsP, SIC.ui.methode.panneauAdmin(), SIC.ui.qualite.panneauAdmin(), SIC.ui.qualite.panneauArchive()]],
         ['decompte', 'Décompte JLD', [pMasques]],
         ['reprise', 'Reprise des données', [pImport]]
       ]

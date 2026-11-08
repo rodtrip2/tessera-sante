@@ -175,3 +175,23 @@ test('Transparence sans patient prévu (0.11.2) : audience par défaut, activabl
   assert.ok(A.enAttente(act, config) && !A.enAttente(aud, config));
   assert.ok(!A.enAttente({ nature: 'activite', patients: ['P1'] }, config));
 });
+
+test('Catégories d’événements (0.12.0) : types fournis, catégorie ajoutée, préréglages de l’établissement et du service', () => {
+  const config = { agenda: { categories: {
+    '*': { examen: { prereglages: { duree: 120, lieu: 'Plateau technique (fictif)' } }, 'consult-dentaire': { libelle: 'Consultation dentaire', base: 'examen', couleur: '#123456', prereglages: { duree: 30, transports: [] } } },
+    U2: { audience: { actif: false }, examen: { prereglages: { accompagnateurs: 2 } }, 'atelier-jardin': { libelle: 'Atelier jardin', base: 'activite', prereglages: { attente: true } } } } } };
+  const glob = A.categories(config), u2 = A.categories(config, 'U2');
+  const ex = glob.find((c) => c.code === 'examen');
+  assert.equal(ex.prereglages.duree, 120); assert.equal(ex.prereglages.lieu, 'Plateau technique (fictif)'); assert.equal(ex.prereglages.accompagnateurs, 1);
+  const cd = glob.find((c) => c.code === 'consult-dentaire');
+  assert.deepEqual([cd.base, cd.couleur, cd.prereglages.duree, cd.prereglages.transports.length, cd.fournie], ['examen', '#123456', 30, 0, false]);
+  assert.equal(u2.find((c) => c.code === 'examen').prereglages.accompagnateurs, 2);
+  assert.equal(u2.find((c) => c.code === 'examen').prereglages.duree, 120, 'le réglage de l’établissement reste');
+  assert.ok(!u2.find((c) => c.code === 'audience').actif && glob.find((c) => c.code === 'audience').actif);
+  assert.ok(!glob.some((c) => c.code === 'atelier-jardin') && u2.some((c) => c.code === 'atelier-jardin'));
+  assert.equal(A.baseDe(config, 'atelier-jardin', 'U2'), 'activite');
+  assert.ok(A.enAttente({ nature: 'atelier-jardin', service: 'U2', patients: [] }, config));
+  // Réglage de transparence de la 0.11.2 repris
+  assert.deepEqual(A.typesEnAttente({ agenda: { attenteSansPatient: ['activite'] } }), ['activite']);
+  assert.equal(A.categorie(config, 'permission').prereglages.dureeMax, 48);
+});

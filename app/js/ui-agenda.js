@@ -28,18 +28,26 @@
   // Affichages retenus par le porteur le 7 novembre 2026 : semaine « A » (ligne « sans heure » par jour au-dessus d'une
   // grille horaire), jour « B » (une colonne par type d'élément, avec sa ligne « sans heure »).
   var PX_HEURE = 44;
-  var CATEGORIES_JOUR = [['accompagnement', 'Accompagnements'], ['entretien', 'Entretiens'], ['activite', 'Activités'], ['reunion', 'Réunions'],
+  var CATEGORIES_JOUR = [['accompagnement', 'Accompagnements'], ['entretien', 'Entretiens'], ['examen', 'Examens'], ['activite', 'Activités'], ['reunion', 'Réunions'], ['audience', 'Audiences JLD'],
     ['sorties', 'Sorties et permissions'], ['tache', 'Tâches'], ['autre', 'Autres']];
-  function categorieJour(nature) { return nature === 'sortie' || nature === 'permission' ? 'sorties' : (A.NATURES[nature] ? nature : 'autre'); }
+  // Catégories d'événements (types fournis et catégories ajoutées par l'établissement ou le service, 8 novembre 2026)
+  function cat(code, service) { return A.categorie(U.config(), code, service); }
+  function libNature(code, service) { return cat(code, service).libelle; }
+  function couleurNature(code, service) { return cat(code, service).couleur || couleurs().autre; }
+  function baseNature(code, service) { return cat(code, service).base; }
+  function serviceVue() { return U.App.service !== '*' ? U.App.service : (U.services()[0] || {}).code; }
+  function categorieJour(nature, service) { var b = baseNature(nature, service); return b === 'sortie' || b === 'permission' ? 'sorties' : (b === 'tache' ? 'tache' : b); }
   function couleurs() { return opts().couleurs; }
   function teinter(el, couleur) { if (couleur) el.style.setProperty('--c', couleur); return el; }   // CSSOM (CSP sans style en ligne)
   /** Libellé d'un élément : son intitulé, sinon son type (« Entretien infirmier avec la famille », « Permission validée »). */
   function libelleElement(r) {
     if (r.titre) return r.titre;
-    if (r.nature === 'entretien') { var e = r.entretien || {}; return 'Entretien' + (A.ENTRETIENS[e.type] ? ' ' + A.ENTRETIENS[e.type] : '') + (e.avec === 'famille' ? ' avec la famille' : ''); }
-    if (r.nature === 'permission') return A.STATUTS_PERMISSION[statutAffiche(r) === 'validee' ? 'validee' : 'demande'];
-    if (r.nature === 'examen') return 'Examen' + (r.examen && r.examen.type ? ' : ' + r.examen.type : '');
-    return A.NATURES[r.nature] || 'Élément';
+    var b = baseNature(r.nature, r.service), propre = A.NATURES[r.nature] ? null : libNature(r.nature, r.service);
+    if (propre) return propre + (b === 'examen' && r.examen && r.examen.type ? ' : ' + r.examen.type : '');
+    if (b === 'entretien') { var e = r.entretien || {}; return 'Entretien' + (A.ENTRETIENS[e.type] ? ' ' + A.ENTRETIENS[e.type] : '') + (e.avec === 'famille' ? ' avec la famille' : ''); }
+    if (b === 'permission') return A.STATUTS_PERMISSION[statutAffiche(r) === 'validee' ? 'validee' : 'demande'];
+    if (b === 'examen') return 'Examen' + (r.examen && r.examen.type ? ' : ' + r.examen.type : '');
+    return libNature(r.nature, r.service) || 'Élément';
   }
   var occurrenceCourante = null;   // occurrence du bloc en cours de dessin (statut de la permission de cette date)
   function statutAffiche(r) { return A.statutPermission(r, occurrenceCourante || ''); }
@@ -76,10 +84,10 @@
   /** Bloc d'un élément dans la grille horaire. */
   function blocElement(x, jour) {
     occurrenceCourante = x.occurrence;
-    var r = x.rdv, sp = r.nature === 'permission' ? A.statutPermission(r, x.occurrence) : null, plage = (x.debut < jour ? '…' : hm(x.debut)) + (x.fin ? '–' + (x.fin >= plusJours(jour, 1) ? '…' : hm(x.fin)) : '');
+    var r = x.rdv, sp = baseNature(r.nature, r.service) === 'permission' ? A.statutPermission(r, x.occurrence) : null, plage = (x.debut < jour ? '…' : hm(x.debut)) + (x.fin ? '–' + (x.fin >= plusJours(jour, 1) ? '…' : hm(x.fin)) : '');
     var cl = x.checklist.items.length ? A.etatChecklist(r, x.occurrence, Date.now()) : null;
     var el = h('article', { class: 'ag-bloc nature-' + (r.nature || 'autre') + (x.externe ? ' externe' : '') + (sp && sp !== 'validee' ? ' demande' : '') + (x.annulee ? ' annulee' : '') + (A.enAttente(r, U.config()) ? ' en-attente' : ''), tabindex: 0, role: 'button',
-      'aria-label': (A.NATURES[r.nature] || '') + ' ' + libelleElement(r) + ' ' + plage, onclick: function () { ouvrirElement(x); }, onkeydown: function (ev) { if (ev.key === 'Enter') ouvrirElement(x); } },
+      'aria-label': libNature(r.nature, r.service) + ' ' + libelleElement(r) + ' ' + plage, onclick: function () { ouvrirElement(x); }, onkeydown: function (ev) { if (ev.key === 'Enter') ouvrirElement(x); } },
       h('div', { class: 'ag-bloc-tete' }, h('b', { text: plage + ' ' + libelleElement(r) })),
       x.patients.length ? h('div', { class: 'ag-ligne', text: nomsPatients(x.patients).join(', ') }) : null,
       r.lieu ? h('div', { class: 'ag-ligne muted', text: r.lieu }) : null,
@@ -97,7 +105,7 @@
         cl ? h('span', { class: 'badge ' + (cl.alertes ? 'bad' : (cl.reste ? 'warn' : 'ok')), text: 'Check-list ' + (cl.items.length - cl.reste) + '/' + cl.items.length }) : null,
         x.absents.length ? h('span', { class: 'badge bad', text: 'Absent(e) : ' + x.absents.map(function (p) { return p.nom; }).join(', ') }) : null,
         A.regularite(r.regularite).type !== 'aucune' ? h('span', { class: 'ag-repete', title: A.libelleRepetition(r.regularite), text: '↻' }) : null));
-    return teinter(el, couleurs()[r.nature] || couleurs().autre);
+    return teinter(el, couleurNature(r.nature, r.service));
   }
   /** Bloc d'une tâche à heure fixe dans la grille. */
   function blocTache(x) { return teinter(h('div', { class: 'ag-bloc ag-bloc-tache' }, ligneTache(x)), couleurs().tache); }
@@ -157,7 +165,7 @@
   }
   function puceElementLong(x, j0) {
     var r = x.rdv, lib = (x.debut < j0 ? '… ' : hm(x.debut) + ' ') + libelleElement(r) + (x.patients.length ? ' — ' + nomsPatients(x.patients).join(', ') : '') + (x.fin && x.fin > plusJours(j0, 1) ? ' …' : (x.fin ? ' → ' + hm(x.fin) : ''));
-    return puce('element', lib, function () { ouvrirElement(x); }, couleurs()[r.nature] || couleurs().autre);
+    return puce('element', lib, function () { ouvrirElement(x); }, couleurNature(r.nature, r.service));
   }
   function puceTache(t) { return teinter(h('div', { class: 'ag-puce ag-tache-bande' }, ligneTache(t)), couleurs().tache); }
   /** Repères de la période (alertes, échéances JLD, permissions à valider, check-lists en retard), par jour. */
@@ -224,7 +232,7 @@
     return h('div', { class: 'pile' }, h('div', { class: 'barre' }, h('b', { text: 'Agenda du patient (60 prochains jours)' }), h('div', { class: 'espace' }),
       peut('RDV') ? h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { fermerPuis(function () { modaleAjout(null, { patients: [p.id], service: sv && U.services().some(function (v) { return v.code === sv; }) ? sv : undefined }); }); } }, '+ Événement pour ce patient') : null),
       els.length ? h('ul', { class: 'liste-simple' }, els.map(function (x) {
-        return h('li', {}, teinter(h('span', { class: 'ag-cle' }, h('i')), couleurs()[x.rdv.nature] || couleurs().autre), ' ',
+        return h('li', {}, teinter(h('span', { class: 'ag-cle' }, h('i')), couleurNature(x.rdv.nature, x.rdv.service)), ' ',
           h('button', { class: 'btn lien', type: 'button', onclick: function () { fermerPuis(function () { ouvrirElement(x); }); } }, libelleElement(x.rdv)),
           h('span', { text: ' — ' + libJour(x.debut) + ' ' + hm(x.debut) + (x.externe ? ' (' + U.libService(x.rdv.service) + ')' : '') }));
       })) : h('small', { class: 'muted', text: 'Rien de prévu.' }));
@@ -237,7 +245,7 @@
     var abs = A.absences(st(), debut, fin).filter(function (a) { return !a.service || svs.indexOf(a.service) >= 0; });
     var reperes = reperesParJour(debut, n, maintenant);
     var selNature = h('select', { 'aria-label': 'Type d’élément', onchange: function () { vue.nature = selNature.value; U.rendreContenu(); } },
-      [h('option', { value: '', text: 'Tous les éléments' })].concat(Object.keys(A.NATURES).map(function (k) { return h('option', { value: k, text: A.NATURES[k], selected: vue.nature === k }); }), [h('option', { value: 'tache', text: 'Tâches', selected: vue.nature === 'tache' })]));
+      [h('option', { value: '', text: 'Tous les éléments' })].concat(A.categories(U.config(), U.App.service !== '*' ? U.App.service : null).filter(function (c) { return c.actif; }).map(function (c) { return h('option', { value: c.code, text: c.libelle, selected: vue.nature === c.code }); }), [h('option', { value: 'tache', text: 'Tâches', selected: vue.nature === 'tache' })]));
     function mode(m, lib) { return h('button', { class: 'btn petit' + (vue.mode === m ? ' primaire' : ''), type: 'button', 'aria-pressed': String(vue.mode === m), onclick: function () { vue.mode = m; try { localStorage.setItem('sic-agenda-mode', m); } catch (e) { /* */ } U.rendreContenu(); } }, lib); }
     var pas = semaine ? 7 : 1;
     var titre = semaine ? 'Semaine du ' + libJour(debut) + ' au ' + libJour(plusJours(debut, 6)) + ' ' + new Date(debut).getFullYear() : libJour(debut) + ' ' + new Date(debut).getFullYear();
@@ -256,12 +264,12 @@
       var rj = itemsDuJour(els, dues, debut), isoJ = A.jourISO(debut);
       tous = rj.heures;
       CATEGORIES_JOUR.forEach(function (c) {
-        var hs = rj.heures.filter(function (it) { return it.t ? c[0] === 'tache' : categorieJour(it.x.rdv.nature) === c[0]; });
-        var bs = rj.bande.filter(function (x) { return x.tache ? c[0] === 'tache' : categorieJour(x.rdv.nature) === c[0]; });
+        var hs = rj.heures.filter(function (it) { return it.t ? c[0] === 'tache' : categorieJour(it.x.rdv.nature, it.x.rdv.service) === c[0]; });
+        var bs = rj.bande.filter(function (x) { return x.tache ? c[0] === 'tache' : categorieJour(x.rdv.nature, x.rdv.service) === c[0]; });
         if (c[0] === 'autre' && !hs.length && !bs.length) return;
         if (vue.nature && !hs.length && !bs.length) return;
         var cle = c[0] === 'sorties' ? 'permission' : c[0];
-        colonnes.push({ jour: debut, titre: teinter(h('span', { class: 'ag-titre-cat', text: c[1] }), couleurs()[cle] || couleurs().autre), aujourdhui: debut === minuit(maintenant), classe: 'categorie',
+        colonnes.push({ jour: debut, titre: teinter(h('span', { class: 'ag-titre-cat', text: c[1] }), cle === 'tache' ? couleurs().tache : couleurNature(cle, serviceVue())), aujourdhui: debut === minuit(maintenant), classe: 'categorie',
           bande: bs.map(function (x) { return x.tache ? puceTache(x) : puceElementLong(x, debut); }),
           items: hs.map(function (it) { return { debut: it.debut, fin: it.fin, noeud: noeudItem(it, debut) }; }) });
       });
@@ -288,18 +296,23 @@
   }
   function legende() {
     var c = couleurs();
-    return h('div', { class: 'ag-legende' }, Object.keys(A.NATURES).map(function (k) { return teinter(h('span', { class: 'ag-cle' + (k === 'permission' ? ' demande' : '') }, h('i'), A.NATURES[k]), c[k]); }),
+    return h('div', { class: 'ag-legende' }, A.categories(U.config(), U.App.service !== '*' ? U.App.service : null).filter(function (k) { return k.actif; }).map(function (k) { return teinter(h('span', { class: 'ag-cle' + (k.base === 'permission' ? ' demande' : '') }, h('i'), k.libelle), k.couleur); }),
       teinter(h('span', { class: 'ag-cle' }, h('i'), 'Tâche'), c.tache), teinter(h('span', { class: 'ag-cle' }, h('i'), 'Alerte'), c.alerte));
   }
 
+
   /** Le service est-il un service de psychiatrie (audience JLD proposée) ? */
   function servicePsy(code) { return SIC.patients.optionsFiche(U.config(), code).psychiatrie; }
-  function naturesPour(service) { return Object.keys(A.NATURES).filter(function (k) { return k !== 'audience' || (service ? servicePsy(service) : U.services().some(function (v) { return servicePsy(v.code); })); }); }
+  /** Catégories proposées à la création dans un service : actives, et réservées à la psychiatrie seulement dans ces services. */
+  function naturesPour(service) {
+    var sv = service || serviceVue();
+    return A.categories(U.config(), sv).filter(function (c) { return c.actif && (!c.prereglages.psychiatrie || servicePsy(sv)); }).map(function (c) { return c.code; });
+  }
 
   /** « + Nouveau » : un seul point d'entrée pour les événements et les tâches. `init` : { patients, service } (fiche patient). */
   function modaleAjout(jour, init) {
     var choix = [];
-    if (peut('RDV')) naturesPour(init && init.service).forEach(function (k) { choix.push({ lib: A.NATURES[k], couleur: couleurs()[k], action: function () { modaleElement(null, jour, false, null, false, null, Object.assign({ nature: k }, init || {})); } }); });
+    if (peut('RDV')) naturesPour(init && init.service).forEach(function (k) { choix.push({ lib: libNature(k, (init && init.service) || serviceVue()), couleur: couleurNature(k, (init && init.service) || serviceVue()), action: function () { modaleElement(null, jour, false, null, false, null, Object.assign({ nature: k }, init || {})); } }); });
     if (!init && peut('TACHE_EQUIPE')) choix.push({ lib: 'Tâche de l’équipe', couleur: couleurs().tache, action: function () { modaleTache(null, 'TACHE_EQUIPE', jour); } });
     if (!init && peut('TACHE')) choix.push({ lib: 'Tâche du service (récurrente)', couleur: couleurs().tache, action: function () { modaleTache(null, 'TACHE', jour); } });
     var grilleChoix = h('div', { class: 'ag-choix' }, choix.map(function (c) {
@@ -356,11 +369,11 @@
     var plage = (x.debut < jour ? '…' : hm(x.debut)) + (x.fin ? ' – ' + (x.fin >= plusJours(jour, 1) ? '…' : hm(x.fin)) : '');
     var modifiable = peut('RDV') && (!x.externe || opts().modifAutresServices);
     return h('article', { class: 'agenda-element nature-' + (r.nature || 'autre') + (x.externe ? ' externe' : ''), tabindex: 0, role: 'button',
-      'aria-label': (A.NATURES[r.nature] || '') + ' ' + (r.titre || '') + ' ' + plage,
+      'aria-label': libNature(r.nature, r.service) + ' ' + (r.titre || '') + ' ' + plage,
       onclick: function () { modaleElement(r, null, !modifiable, x.externe ? x.patients : null, x.externe, x.occurrence); },
       onkeydown: function (ev) { if (ev.key === 'Enter') modaleElement(r, null, !modifiable, x.externe ? x.patients : null, x.externe, x.occurrence); } },
       h('div', { class: 'agenda-plage', text: plage }),
-      h('div', {}, h('span', { class: 'badge', text: A.NATURES[r.nature] || 'Élément' }), x.externe ? h('span', { class: 'badge warn', text: U.libService(r.service) }) : (avecService ? h('span', { class: 'badge', text: U.libService(r.service) }) : null)),
+      h('div', {}, teinter(h('span', { class: 'badge mode-hospi', text: libNature(r.nature, r.service) }), couleurNature(r.nature, r.service)), x.externe ? h('span', { class: 'badge warn', text: U.libService(r.service) }) : (avecService ? h('span', { class: 'badge', text: U.libService(r.service) }) : null)),
       h('b', { text: r.titre || '' }),
       r.lieu ? h('div', {}, h('small', { text: r.lieu })) : null,
       x.patients.length ? h('div', {}, h('small', { text: (x.patients.length > 1 ? 'Patients : ' : 'Patient : ') + nomsPatients(x.patients).join(', ') })) : null,
@@ -396,8 +409,9 @@
     var disCommun = parDate ? { disabled: true, title: 'Commun à toutes les dates : choisissez « toutes les dates » pour le changer' } : dis;
     var sv = h('select', disCommun, (lecture ? U.tousServices() : U.services()).map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === serviceInitial }); }));
     var natureInitiale = x.nature || ini.nature || 'accompagnement';
-    var nature = h('select', disCommun, Object.keys(A.NATURES).filter(function (k) { return k !== 'audience' || k === natureInitiale || U.services().some(function (v) { return servicePsy(v.code); }); })
-      .map(function (k) { return h('option', { value: k, text: A.NATURES[k], selected: natureInitiale === k }); }));
+    var codesNature = naturesPour(serviceInitial || null); if (codesNature.indexOf(natureInitiale) < 0) codesNature.push(natureInitiale);
+    var nature = h('select', disCommun, codesNature.map(function (k) { return h('option', { value: k, text: libNature(k, serviceInitial), selected: natureInitiale === k }); }));
+    function baseCat() { return baseNature(nature.value, sv.value); }
     var titre = h('input', Object.assign({ type: 'text', maxlength: 120, value: x.titre || '' }, dis));
     // Entretien : médical ou infirmier, individuel ou avec la famille
     var ent = x.entretien || {};
@@ -413,6 +427,9 @@
     var zoneAudience = h('p', { class: 'muted', text: 'Audience devant le juge des libertés et de la détention (JLD) : patients convoqués, VSL à réserver et soignants à prévoir ci-dessous.' });
     var base = x.debut || (jour || minuit(Date.now())) + 10 * 3600e3;
     var date = h('input', Object.assign({ type: 'date', value: jourISO(base) }, dis));
+    // Jour de fin (décision du 8 novembre 2026) : un élément peut durer plusieurs jours (ex. permission de 48 h)
+    var dateFin = h('input', Object.assign({ type: 'date', value: jourISO(x.fin || base) }, dis));
+    date.addEventListener('change', function () { if (!dateFin.value || dateFin.value < date.value) dateFin.value = date.value; });
     var hDebut = h('input', Object.assign({ type: 'time', value: hm(base) }, dis)), hFin = h('input', Object.assign({ type: 'time', value: x.fin ? hm(x.fin) : hm(base + 3600e3) }, dis));
     var lieu = h('input', Object.assign({ type: 'text', maxlength: 80, value: x.lieu || '', placeholder: 'ex. Salle d’activités, extérieur' }, dis));
     var patients = (x.patients || ini.patients || []).slice(), profs = (x.professionnels || []).map(function (p) { return { id: p.id || null, nom: p.nom }; });
@@ -420,15 +437,29 @@
     var validations = A.validationsDe(x).map(function (v) { return Object.assign({}, v); });
     var nbAcc = Math.max(0, Math.round(+x.accompagnateurs || 0));
     // Préréglages d'une création selon le type (Audience : un VSL et un soignant ; permission : validation de la permission)
+    // Préréglages de la catégorie à la création (durée, heure, lieu, intitulé, accompagnateurs, transports, validations, check-list)
     function prereglerNature(n) {
       if (!nouveau) return;
-      if (n === 'audience' && !transports.length) transports.push({ id: 'v' + C.hex(C.aleatoire(3)), type: 'vsl', nombre: 1 });
-      if (n === 'audience' && !nbAcc) nbAcc = 1;
-      if (n === 'accompagnement' && !nbAcc) nbAcc = 1;
-      if (n === 'permission' && !validations.some(function (v) { return v.type === 'permission'; })) validations.push({ id: 'p' + C.hex(C.aleatoire(3)), type: 'permission' });
+      var pr = cat(n, sv ? sv.value : serviceInitial).prereglages || {};
+      if (pr.heure && hDebut && !ini.heureFixee) hDebut.value = pr.heure;
+      if (pr.duree && hDebut && hDebut.value && date && date.value) {
+        var t0 = new Date(date.value + 'T' + hDebut.value).getTime(), t1 = t0 + pr.duree * 6e4;
+        hFin.value = hm(t1); dateFin.value = jourISO(t1);
+      }
+      if (pr.lieu && lieu && !lieu.value.trim()) lieu.value = pr.lieu;
+      if (pr.titre && titre && !titre.value.trim()) titre.value = pr.titre;
+      nbAcc = pr.accompagnateurs || 0;
+      transports = (pr.transports || []).map(function (t) { return { id: 't' + C.hex(C.aleatoire(3)), type: t.type, nombre: t.nombre, precision: t.precision || '' }; });
+      validations = (pr.validations || []).map(function (v) { return Object.assign({ id: (v.type === 'permission' ? 'p' : 'v') + C.hex(C.aleatoire(3)) }, v); });
+      if (pr.checklist && checklist && !checklist.length) {
+        var m = A.checklists(U.config()).filter(function (c) { return c.code === pr.checklist; })[0];
+        if (m) m.items.forEach(function (it) { checklist.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: it.libelle, delai: it.delai }); });
+      }
+      if (visibles) { visibles.patients = pr.patients !== false; visibles.transports = transports.length > 0; visibles.accompagnateurs = nbAcc > 0; visibles.validations = validations.length > 0; }
     }
-    prereglerNature(natureInitiale);
-    var visibles = { patients: !!patients.length || ['reunion', 'autre'].indexOf(natureInitiale) < 0, transports: !!transports.length, accompagnateurs: nbAcc > 0, validations: !!validations.length };
+    var visibles = null;
+    if (nouveau) prereglerNature(natureInitiale);
+    visibles = { patients: !!patients.length || (nouveau ? cat(natureInitiale, serviceInitial).prereglages.patients !== false : ['reunion', 'autre'].indexOf(baseNature(natureInitiale, serviceInitial)) < 0), transports: !!transports.length, accompagnateurs: nbAcc > 0, validations: !!validations.length };
 
     // -- Patients
     var zonePat = h('div', { class: 'pile' }), recherche = '';
@@ -634,14 +665,14 @@
       dessinerTransports(); majVisibles();
     });
     cbAccomp.addEventListener('change', function () { nbAcc = cbAccomp.checked ? Math.max(1, nbAcc) : 0; visibles.accompagnateurs = nbAcc > 0; dessinerAccompagnateurs(); majVisibles(); });
-    function majNature() {
-      var n = nature.value;
-      zoneEnt.hidden = n !== 'entretien'; zoneExamen.hidden = n !== 'examen'; zoneAudience.hidden = n !== 'audience';
-      titre.placeholder = ['entretien', 'permission', 'examen', 'audience'].indexOf(n) >= 0 ? 'Facultatif' : 'ex. Rendez-vous extérieur, atelier, synthèse';
-      if (nouveau) { prereglerNature(n); if (['reunion', 'autre'].indexOf(n) < 0) visibles.patients = true; if (transports.length) visibles.transports = true; if (nbAcc) visibles.accompagnateurs = true; if (validations.length) visibles.validations = true; }
-      dessinerTransports(); dessinerAccompagnateurs(); dessinerValidations(); majVisibles();
+    function majNature(changement) {
+      var b = baseCat();
+      zoneEnt.hidden = b !== 'entretien'; zoneExamen.hidden = b !== 'examen'; zoneAudience.hidden = b !== 'audience';
+      titre.placeholder = ['entretien', 'permission', 'examen', 'audience'].indexOf(b) >= 0 || !A.NATURES[nature.value] ? 'Facultatif' : 'ex. Rendez-vous extérieur, atelier, synthèse';
+      if (nouveau && changement) prereglerNature(nature.value);
+      dessinerTransports(); dessinerAccompagnateurs(); dessinerValidations(); dessinerChecklist(); majVisibles();
     }
-    nature.addEventListener('change', majNature);
+    nature.addEventListener('change', function () { majNature(true); });
     sv.addEventListener('change', function () { dessinerPatients(); dessinerPros(); });
     [date, hDebut].forEach(function (c) { c.addEventListener('change', dessinerValidations); });
     if (!nouveau) dessinerCommentaires();
@@ -654,7 +685,7 @@
       U.toast('Date rétablie.');
     } });
     else if (!lecture && parDate) boutons.push({ texte: 'Annuler cette date…', action: async function () {
-      var motif = prompt('Annuler le ' + occurrence.split('-').reverse().join('/') + ' (la date reste affichée, barrée). Motif (facultatif) :', x.nature === 'audience' ? 'Aucun patient convoqué' : '');
+      var motif = prompt('Annuler le ' + occurrence.split('-').reverse().join('/') + ' (la date reste affichée, barrée). Motif (facultatif) :', baseNature(x.nature, x.service) === 'audience' ? 'Aucun patient convoqué' : '');
       if (motif === null) return false;
       await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, annulee: true, motifAnnulation: motif.trim(), service: x.service });
       U.toast('Date annulée.');
@@ -682,12 +713,15 @@
     } });
     if (!lecture) boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       var nv = nature.value;
-      if (!titre.value.trim() && ['entretien', 'permission', 'examen', 'audience'].indexOf(nv) < 0) throw new Error('Indiquez un intitulé.');
-      if (nv === 'audience' && !servicePsy(sv.value)) throw new Error('L’audience JLD est réservée aux services de psychiatrie (Administration → Établissement et services).');
-      if (nv === 'examen' && !typeExamen.value.trim()) throw new Error('Indiquez le type d’examen.');
+      var bv = baseCat(), cv = cat(nv, sv.value);
+      if (!titre.value.trim() && ['entretien', 'permission', 'examen', 'audience'].indexOf(bv) < 0 && A.NATURES[nv]) throw new Error('Indiquez un intitulé.');
+      if (cv.prereglages.psychiatrie && !servicePsy(sv.value)) throw new Error('« ' + cv.libelle + ' » est réservé aux services de psychiatrie (Administration → Patients → Fiche patient par service).');
+      if (bv === 'examen' && !typeExamen.value.trim()) throw new Error('Indiquez le type d’examen.');
       if (!date.value || !hDebut.value) throw new Error('Indiquez la date et l’heure de début.');
-      var d0 = new Date(date.value + 'T' + hDebut.value).getTime(), d1 = hFin.value ? new Date(date.value + 'T' + hFin.value).getTime() : null;
-      if (d1 !== null && d1 <= d0) throw new Error('L’heure de fin doit suivre l’heure de début.');
+      var d0 = new Date(date.value + 'T' + hDebut.value).getTime(), d1 = hFin.value ? new Date((dateFin.value || date.value) + 'T' + hFin.value).getTime() : null;
+      if (d1 !== null && d1 <= d0) throw new Error('La fin doit suivre le début (vérifiez le jour et l’heure de fin).');
+      if (d1 !== null && d1 - d0 > 14 * 864e5) throw new Error('Un élément ne dure pas plus de 14 jours.');
+      if (d1 !== null && cv.prereglages.dureeMax && d1 - d0 > cv.prereglages.dureeMax * 36e5 && !confirm('Durée de ' + Math.round((d1 - d0) / 36e5) + ' h, au-delà des ' + cv.prereglages.dureeMax + ' h prévues pour « ' + cv.libelle + ' ». Enregistrer quand même ?')) return false;
       var rg = rep.lire();
       if (rg.jusquAu && rg.jusquAu < date.value) throw new Error('La date de fin de répétition précède la première date.');
       if (parDate) rg = A.regularite(r.regularite);
@@ -698,8 +732,8 @@
         accompagnateurs: visibles.accompagnateurs ? nbAcc : 0,
         transports: visibles.transports ? transports.map(function (t) { return { id: t.id, type: t.type || 'vsl', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: String(t.precision || '').trim() }; }) : [],
         validations: visibles.validations ? validations.map(function (v) { var o = { id: v.id, type: v.type, libelle: String(v.libelle || '').trim() }; if (v.type !== 'permission') o.delai = v.delai === undefined ? 24 : v.delai; return o; }) : [] };
-      if (nv === 'entretien') d.entretien = { type: selEnt.value, avec: selAvec.value };
-      if (nv === 'examen') d.examen = { type: typeExamen.value.trim() };
+      if (bv === 'entretien') d.entretien = { type: selEnt.value, avec: selAvec.value };
+      if (bv === 'examen') d.examen = { type: typeExamen.value.trim() };
       if (parDate) {
         // Cette date seulement : champs modifiés par rapport à cette date, rangés comme réglages propres à la date
         var od = { rdv: x.id, occurrence: occurrence, service: r.service }, n0 = 0;
@@ -732,7 +766,7 @@
       h('div', { class: 'grille-2' }, h('label', {}, 'Type', nature), h('label', {}, 'Service', sv)),
       zoneEnt, zoneExamen, zoneAudience,
       h('label', {}, 'Intitulé', titre),
-      h('div', { class: 'grille-3' }, h('label', {}, 'Date', date), h('label', {}, 'Début', hDebut), h('label', {}, 'Fin', hFin)),
+      h('div', { class: 'grille-4' }, h('label', {}, 'Jour de début', date), h('label', {}, 'Heure de début', hDebut), h('label', {}, 'Jour de fin', dateFin), h('label', {}, 'Heure de fin', hFin)),
       h('label', {}, 'Lieu', lieu),
       parDate ? null : rep.noeuds,
 
@@ -1114,8 +1148,8 @@
     var casesAj = Object.keys(A.AJUSTABLES).map(function (k) { return { k: k, cb: h('input', { type: 'checkbox', checked: ot.ajustables.indexOf(k) >= 0 }) }; });
     var cbEqRec = h('input', { type: 'checkbox', checked: ot.equipeRecurrentes });
     // Couleurs par type (décision du porteur du 7 novembre 2026 : personnalisables)
-    var LIB_COULEURS = Object.assign({}, A.NATURES, { tache: 'Tâche', alerte: 'Alerte' });
-    var champsCouleurs = Object.keys(A.COULEURS_DEFAUT).map(function (k) { return { k: k, c: h('input', { type: 'color', value: o.couleurs[k], 'aria-label': 'Couleur : ' + LIB_COULEURS[k] }) }; });
+    var LIB_COULEURS = { tache: 'Tâche', alerte: 'Alerte' };
+    var champsCouleurs = Object.keys(LIB_COULEURS).map(function (k) { return { k: k, c: h('input', { type: 'color', value: o.couleurs[k], 'aria-label': 'Couleur : ' + LIB_COULEURS[k] }) }; });
     // Délais de validation médicale des permissions, par mode d'hospitalisation
     var modes = (U.config().modesHospitalisation || []).map(function (m) { return m.code; });
     Object.keys(o.delaisPermission).forEach(function (k) { if (modes.indexOf(k) < 0) modes.push(k); });
@@ -1164,12 +1198,10 @@
       h('label', {}, 'Patient désigné dans l’agenda par', selId),
       h('small', { class: 'muted', text: 'Initiales par défaut. Le nom complet est le plus exposant : à réserver aux services qui en ont besoin (écran visible de l’équipe).' }),
       h('label', { class: 'case' }, cbModif, h('span', { text: 'Permettre de modifier un élément d’un autre service qui concerne un patient du service (sinon : consultation et commentaires seulement)' })),
-      h('h3', { text: 'Couleurs des éléments' }),
+      h('h3', { text: 'Couleurs des tâches et des alertes' }),
+      h('p', { class: 'muted', text: 'La couleur de chaque catégorie d’événement se règle dans « Catégories d’événements ».' }),
       h('div', { class: 'ag-couleurs' }, champsCouleurs.map(function (x) { return h('label', { class: 'en-ligne' }, x.c, h('span', { text: LIB_COULEURS[x.k] })); })),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { champsCouleurs.forEach(function (x) { x.c.value = A.COULEURS_DEFAUT[x.k]; }); } }, 'Couleurs proposées'),
-      h('h3', { text: 'Éléments sans patient prévu' }),
-      h('p', { class: 'muted', text: 'Types affichés en transparence tant qu’aucun patient n’y est prévu (ex. audience JLD hebdomadaire complétée chaque semaine), sans rappel de transport ni d’accompagnateur :' }),
-      h('div', { class: 'actions gauche' }, casesAttente.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: A.NATURES[c.k] })); })),
       h('h3', { text: 'Permissions de sortie : validation médicale' }),
       h('p', { class: 'muted', text: 'Délai, en heures avant le début de la permission, avant lequel la validation (signature du médecin) est attendue, selon le mode d’hospitalisation du patient. Une alerte s’affiche dans l’agenda jusqu’à la validation ; 0 : jusqu’au dernier moment.' }),
       h('div', { class: 'ag-couleurs' }, champsDelais.map(function (x) { return h('label', { class: 'en-ligne' }, h('span', { text: x.m }), x.c, h('span', { text: 'h' })); })),
@@ -1204,8 +1236,131 @@
         if (Object.keys(cs).length) valeur.couleurs = cs;
         var ds = {}; champsDelais.forEach(function (x) { var v = Math.max(0, Math.min(168, Math.round(+x.c.value || 0))); if (v !== A.DELAIS_PERMISSION_DEFAUT[x.m] && !(A.DELAIS_PERMISSION_DEFAUT[x.m] === undefined && v === A.delaiPermission({ modesHospitalisation: U.config().modesHospitalisation }, x.m))) ds[x.m] = v; });
         if (Object.keys(ds).length) valeur.delaisPermission = ds;
-        var at = casesAttente.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.k; });
-        if (JSON.stringify(at) !== JSON.stringify(A.ATTENTE_DEFAUT)) valeur.attenteSansPatient = at;
+        // Catégories (onglet voisin) et anciens réglages qu'elles reprennent : conservés tels quels
+        var ancien = U.config().agenda || {};
+        if (ancien.categories) valeur.categories = ancien.categories;
+        if (ancien.attenteSansPatient) valeur.attenteSansPatient = ancien.attenteSansPatient;
+        Object.keys(ancien.couleurs || {}).forEach(function (k) { if (A.NATURES[k]) (valeur.couleurs = valeur.couleurs || {})[k] = ancien.couleurs[k]; });
+        await U.enregistrerConfig([['agenda', valeur]]);
+      }));
+  }
+
+  // ------------------------------------------------------------ Catégories d'événements (Administration → Agenda)
+  /**
+   * Catégories et préréglages (décision du porteur du 8 novembre 2026) : types fournis et catégories ajoutées, pour
+   * l'établissement ou pour un service (un service hérite de l'établissement et peut s'en écarter, masquer une catégorie
+   * ou en ajouter). Seuls les écarts avec le niveau au-dessus sont enregistrés (`config.agenda.categories[niveau]`).
+   */
+  var niveauCategories = '*';
+  function panneauCategories() {
+    var cfg = U.config(), ag = cfg.agenda || {};
+    var selNiveau = h('select', { 'aria-label': 'Niveau des réglages', onchange: function () { niveauCategories = selNiveau.value; U.rendreContenu(); } },
+      [h('option', { value: '*', text: 'Établissement (tous les services)', selected: niveauCategories === '*' })].concat(U.tousServices().map(function (v) { return h('option', { value: v.code, text: 'Service ' + v.libelle, selected: niveauCategories === v.code }); })));
+    // Niveau au-dessus : types fournis pour l'établissement, réglages de l'établissement pour un service
+    var cfgParent = niveauCategories === '*' ? { agenda: { couleurs: {} } } : { agenda: Object.assign({}, ag, { categories: { '*': (ag.categories || {})['*'] || {} } }) };
+    var parent = A.categories(cfgParent, niveauCategories === '*' ? null : niveauCategories);
+    var liste = JSON.parse(JSON.stringify(A.categories(cfg, niveauCategories === '*' ? null : niveauCategories)));
+    var modeles = A.checklists(cfg);
+    var zone = h('div', { class: 'pile' });
+    function dessiner() {
+      U.vider(zone);
+      liste.forEach(function (c, i) {
+        var pr = c.prereglages;
+        var lib = h('input', { type: 'text', maxlength: 60, value: c.libelle, 'aria-label': 'Nom de la catégorie', oninput: function () { c.libelle = lib.value; } });
+        var coul = h('input', { type: 'color', value: c.couleur, 'aria-label': 'Couleur', oninput: function () { c.couleur = coul.value; } });
+        var actif = h('input', { type: 'checkbox', checked: c.actif, onchange: function () { c.actif = actif.checked; } });
+        function nombre(k, max, aria) { var n = h('input', { type: 'number', min: 0, max: max, class: 'champ-court', value: pr[k] || '', 'aria-label': aria, oninput: function () { pr[k] = n.value === '' ? undefined : Math.max(0, Math.min(max, Math.round(+n.value))); } }); return n; }
+        function texte(k, ph) { var t = h('input', { type: 'text', maxlength: 120, value: pr[k] || '', placeholder: ph, oninput: function () { pr[k] = t.value; } }); return t; }
+        function coche(k, lib2) { var cb = h('input', { type: 'checkbox', checked: !!pr[k], onchange: function () { pr[k] = cb.checked; } }); return h('label', { class: 'case' }, cb, h('span', { text: lib2 })); }
+        var duree = h('input', { type: 'number', min: 0, max: 20160, step: 5, class: 'champ-court', value: pr.duree || '', 'aria-label': 'Durée en minutes', oninput: function () { pr.duree = +duree.value || undefined; } });
+        var heure = h('input', { type: 'time', value: pr.heure || '', 'aria-label': 'Heure de début proposée', oninput: function () { pr.heure = heure.value || undefined; } });
+        var selCL = h('select', { 'aria-label': 'Check-list proposée', onchange: function () { pr.checklist = selCL.value || undefined; } }, [h('option', { value: '', text: 'Aucune' })].concat(modeles.map(function (m) { return h('option', { value: m.code, text: m.libelle, selected: pr.checklist === m.code }); })));
+        var zTr = h('div', { class: 'actions gauche' });
+        function dessinerTr() {
+          U.vider(zTr);
+          (pr.transports = pr.transports || []).forEach(function (t, k) {
+            var st0 = h('select', { 'aria-label': 'Transport', onchange: function () { t.type = st0.value; } }, Object.keys(A.TRANSPORTS).map(function (x) { return h('option', { value: x, text: A.TRANSPORTS[x], selected: t.type === x }); }));
+            var nb = h('input', { type: 'number', min: 1, max: 9, value: t.nombre || 1, class: 'champ-court', 'aria-label': 'Nombre', oninput: function () { t.nombre = +nb.value || 1; } });
+            zTr.appendChild(h('span', { class: 'en-ligne' }, st0, nb, h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Retirer le transport', onclick: function () { pr.transports.splice(k, 1); dessinerTr(); } }, '×')));
+          });
+          zTr.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { pr.transports.push({ type: 'vsl', nombre: 1 }); dessinerTr(); } }, '+ Transport'));
+        }
+        dessinerTr();
+        var zVal = h('div', { class: 'actions gauche' });
+        function dessinerVal() {
+          U.vider(zVal);
+          (pr.validations = pr.validations || []).forEach(function (v, k) {
+            var sv0 = h('select', { 'aria-label': 'Validation', onchange: function () { v.type = sv0.value; dessinerVal(); } }, Object.keys(A.TYPES_VALIDATION).map(function (x) { return h('option', { value: x, text: A.TYPES_VALIDATION[x], selected: v.type === x }); }));
+            var lv = h('input', { type: 'text', maxlength: 80, value: v.libelle || '', placeholder: 'Intitulé', 'aria-label': 'Intitulé de la validation', oninput: function () { v.libelle = lv.value; } });
+            var dv = v.type === 'permission' ? null : h('input', { type: 'number', min: 0, max: 336, value: v.delai === undefined ? 24 : v.delai, class: 'champ-court', 'aria-label': 'Délai en heures', oninput: function () { v.delai = +dv.value; } });
+            zVal.appendChild(h('span', { class: 'en-ligne' }, sv0, lv, dv, dv ? h('small', { text: 'h avant' }) : null, h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Retirer la validation', onclick: function () { pr.validations.splice(k, 1); dessinerVal(); } }, '×')));
+          });
+          zVal.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { pr.validations.push({ type: 'medicale', libelle: '', delai: 24 }); dessinerVal(); } }, '+ Validation'));
+        }
+        dessinerVal();
+        var selBase = c.fournie ? null : h('select', { 'aria-label': 'Comportement repris', onchange: function () { c.base = selBase.value; } }, Object.keys(A.NATURES).map(function (k) { return h('option', { value: k, text: A.NATURES[k], selected: c.base === k }); }));
+        zone.appendChild(teinter(h('details', { class: 'ag-categorie' + (c.actif ? '' : ' inactive') },
+          h('summary', {}, h('span', { class: 'ag-cle' }, h('i'), c.libelle || 'Nouvelle catégorie'), c.fournie ? h('small', { class: 'muted', text: ' (fournie)' }) : h('small', { class: 'muted', text: ' (ajoutée, comme « ' + A.NATURES[c.base] + ' »)' }), c.actif ? null : h('span', { class: 'badge', text: 'masquée' })),
+          h('div', { class: 'pile' },
+            h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Nom', lib), h('label', { class: 'en-ligne' }, 'Couleur', coul), h('label', { class: 'case' }, actif, h('span', { text: 'Proposée' })),
+              selBase ? h('label', { class: 'en-ligne' }, 'Comportement de', selBase) : null),
+            h('b', { text: 'Préréglages à la création' }),
+            h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Durée', duree, h('small', { text: 'min' })), h('label', { class: 'en-ligne' }, 'Début proposé', heure),
+              h('label', { class: 'en-ligne' }, 'Durée maximale', nombre('dureeMax', 720, 'Durée maximale en heures'), h('small', { text: 'h (alerte au-delà)' }))),
+            h('div', { class: 'grille-2' }, h('label', {}, 'Lieu', texte('lieu', 'ex. Salle d’audience')), h('label', {}, 'Intitulé', texte('titre', 'ex. Audience du mercredi'))),
+            h('div', { class: 'actions gauche' }, coche('patients', 'Section Patients affichée'), h('label', { class: 'en-ligne' }, 'Accompagnateurs à trouver', nombre('accompagnateurs', 20, 'Accompagnateurs')),
+              coche('attente', 'Transparente sans patient prévu'), coche('psychiatrie', 'Services de psychiatrie seulement')),
+            h('div', {}, h('small', { class: 'muted', text: 'Transports' }), zTr),
+            h('div', {}, h('small', { class: 'muted', text: 'Permission et validations' }), zVal),
+            h('label', { class: 'en-ligne' }, 'Check-list', selCL),
+            h('div', { class: 'actions gauche' },
+              h('button', { class: 'btn petit', type: 'button', disabled: i === 0, onclick: function () { liste.splice(i - 1, 0, liste.splice(i, 1)[0]); dessiner(); } }, '▲ Monter'),
+              c.fournie || parent.some(function (p) { return p.code === c.code; }) ? h('button', { class: 'btn petit', type: 'button', onclick: function () {
+                var p = parent.filter(function (y) { return y.code === c.code; })[0]; if (p) { liste[i] = JSON.parse(JSON.stringify(p)); dessiner(); }
+              } }, niveauCategories === '*' ? 'Préréglages fournis' : 'Reprendre les réglages de l’établissement') :
+                h('button', { class: 'btn petit danger', type: 'button', onclick: function () { if (confirm('Retirer la catégorie « ' + c.libelle + ' » ? Les éléments déjà créés gardent leur catégorie (affichés comme « autre événement »). Pour seulement ne plus la proposer, décochez « Proposée ».')) { liste.splice(i, 1); dessiner(); } } }, 'Retirer')))), c.couleur));
+      });
+    }
+    dessiner();
+    var nomNouv = h('input', { type: 'text', maxlength: 60, placeholder: 'ex. Consultation dentaire, atelier jardin' });
+    var baseNouv = h('select', { 'aria-label': 'Comportement repris' }, Object.keys(A.NATURES).map(function (k) { return h('option', { value: k, text: 'comme « ' + A.NATURES[k] + ' »', selected: k === 'autre' }); }));
+    return h('section', { class: 'panneau' }, h('h2', { text: 'Catégories d’événements' }),
+      h('p', { class: 'muted', text: 'Catégories proposées par « + Nouveau » dans l’agenda, leur couleur et leurs préréglages (appliqués à la création, modifiables ensuite sur l’élément). Réglez d’abord l’établissement ; un service hérite de ces réglages et peut s’en écarter, masquer une catégorie ou en ajouter une.' }),
+      h('label', { class: 'en-ligne' }, 'Réglages pour', selNiveau),
+      zone,
+      h('div', { class: 'actions gauche ag-ajouter' }, h('span', { class: 'muted', text: 'Ajouter une catégorie :' }), nomNouv, baseNouv,
+        h('button', { class: 'btn petit', type: 'button', onclick: function () {
+          var n = nomNouv.value.trim(); if (!n) return nomNouv.focus();
+          var code = (n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'categorie');
+          if (!/^[a-z]/.test(code)) code = 'c-' + code;
+          while (liste.some(function (c) { return c.code === code; }) || A.NATURES[code]) code = code.slice(0, 26) + '-' + C.hex(C.aleatoire(1));
+          var p0 = JSON.parse(JSON.stringify(A.PREREGLAGES_DEFAUT[baseNouv.value] || {}));
+          liste.push({ code: code, libelle: n, base: baseNouv.value, couleur: A.COULEURS_DEFAUT[baseNouv.value], prereglages: p0, fournie: false, actif: true });
+          nomNouv.value = ''; dessiner();
+        } }, 'Ajouter')),
+      U.boutonEnregistrer(async function () {
+        // Écarts avec le niveau au-dessus seulement
+        var ecarts = {};
+        liste.forEach(function (c) {
+          if (!String(c.libelle || '').trim()) throw new Error('Chaque catégorie doit avoir un nom.');
+          var p = parent.filter(function (y) { return y.code === c.code; })[0], e = {}, pr = A.nettoyerPrereglages(c.prereglages);
+          if (!p) { e = { libelle: c.libelle.trim(), base: c.base, couleur: c.couleur, actif: c.actif, prereglages: pr }; }
+          else {
+            if (c.libelle.trim() !== p.libelle) e.libelle = c.libelle.trim();
+            if (c.couleur !== p.couleur) e.couleur = c.couleur;
+            if (c.actif !== p.actif) e.actif = c.actif;
+            var pp = A.nettoyerPrereglages(p.prereglages), diff = {};
+            Object.keys(pr).concat(Object.keys(pp)).forEach(function (k) { if (JSON.stringify(pr[k]) !== JSON.stringify(pp[k])) diff[k] = pr[k] === undefined ? (Array.isArray(pp[k]) ? [] : (typeof pp[k] === 'boolean' ? false : (typeof pp[k] === 'number' ? 0 : ''))) : pr[k]; });
+            if (Object.keys(diff).length) e.prereglages = diff;
+          }
+          if (Object.keys(e).length) ecarts[c.code] = e;
+        });
+        var valeur = JSON.parse(JSON.stringify(ag)), cats = valeur.categories || {};
+        if (Object.keys(ecarts).length) cats[niveauCategories] = ecarts; else delete cats[niveauCategories];
+        valeur.categories = cats;
+        if (Object.keys(cats).length === 0) delete valeur.categories;
+        // Couleurs et transparence par type des versions précédentes : désormais portées par les catégories
+        if (niveauCategories === '*') { delete valeur.attenteSansPatient; Object.keys(valeur.couleurs || {}).forEach(function (k) { if (A.NATURES[k]) delete valeur.couleurs[k]; }); }
         await U.enregistrerConfig([['agenda', valeur]]);
       }));
   }
@@ -1218,7 +1373,7 @@
       case 'RDV':
         if (d.supprime) return 'Élément supprimé de l’agenda (' + U.libService(d.service) + ')';
         if (d.statut === 'validee' && !d.nature) return 'Permission de sortie validée' + (d.validation && d.validation.par ? ' (signée par ' + d.validation.par + ')' : '');
-        return (A.NATURES[d.nature] || 'Élément modifié') + (d.entretien ? ' ' + (A.ENTRETIENS[d.entretien.type] || '') + (d.entretien.avec === 'famille' ? ' avec la famille' : '') : '') + (d.nature === 'permission' ? ' (' + (d.statut === 'validee' ? 'validée' : 'demande') + ')' : '') + (d.titre ? ' « ' + d.titre + ' »' : '') + (d.debut ? ' le ' + U.date(d.debut) : '') + (d.service ? ' — ' + U.libService(d.service) : '') + ((d.patients || []).length ? ', ' + d.patients.length + ' patient(s)' : '');
+        return (d.nature ? libNature(d.nature, d.service) : 'Élément modifié') + (d.entretien ? ' ' + (A.ENTRETIENS[d.entretien.type] || '') + (d.entretien.avec === 'famille' ? ' avec la famille' : '') : '') + (d.nature === 'permission' ? ' (' + (d.statut === 'validee' ? 'validée' : 'demande') + ')' : '') + (d.titre ? ' « ' + d.titre + ' »' : '') + (d.debut ? ' le ' + U.date(d.debut) : '') + (d.service ? ' — ' + U.libService(d.service) : '') + ((d.patients || []).length ? ', ' + d.patients.length + ' patient(s)' : '');
       case 'OCCURRENCE': var roc = st().rdv[d.rdv], jo = String(d.occurrence || '').split('-').reverse().join('/');
         if (d.reset) return '« ' + (roc ? libelleElement(roc) : 'élément') + ' » du ' + jo + ' : retour aux réglages de toutes les dates';
         if (d.annulee === true) return '« ' + (roc ? libelleElement(roc) : 'élément') + ' » du ' + jo + ' annulé' + (d.motifAnnulation ? ' (' + d.motifAnnulation + ')' : '');
@@ -1248,7 +1403,7 @@
   SIC.modules.completerInterface('agenda', {
     vues: { agenda: vueAgenda, taches: vueTaches, alertes: vueAlertes, 'mon-agenda': vueMonAgenda },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'L’élément de l’agenda revient à son état précédent.'; } },
-    admin: { onglets: function () { return [['agenda', 'Agenda', [panneauReglages()]]]; } },
+    admin: { onglets: function () { return [['agenda-categories', 'Catégories d’événements', [panneauCategories()]], ['agenda', 'Réglages de l’agenda', [panneauReglages()]]]; } },
     // Pastille de la barre des modules : informations reçues non vues
     pastille: function () { try { return mesAvis().length; } catch (e) { return 0; } }
   });

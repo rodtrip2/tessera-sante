@@ -1,5 +1,16 @@
 # Journal des modifications — Tessera Santé
 
+## 0.12.0 — 8 novembre 2026
+
+Décisions du porteur du 8 novembre 2026.
+
+- **Jour de fin** distinct du jour de début : un élément peut durer plusieurs jours (ex. permission de 48 h), jusqu'à 14 jours ; alerte au-delà de la durée maximale de la catégorie (48 h pour la permission de sortie).
+- **Catégories d'événements** (*Administration → Agenda du service → Catégories d'événements*) : les types fournis et des **catégories ajoutées** (nom, couleur, « comportement de » l'un des types fournis), proposées ou masquées, avec leurs **préréglages** appliqués à la création : durée, heure de début, durée maximale, lieu, intitulé, section Patients, accompagnateurs, transports, permission et validations, check-list, transparence sans patient prévu, services de psychiatrie seulement. **Réglages de l'établissement puis par service** : un service hérite, s'écarte, masque ou ajoute ses catégories ; seuls les écarts sont enregistrés. Libellés, couleurs, légende, filtres, vue du jour et journal suivent les catégories. Couleurs et transparence par type des versions précédentes reprises.
+- **Administration rangée par module** : onglet *Réglages généraux* (comptes et sécurité, établissement et services, sauvegardes et exports, à propos), puis un onglet par module — *Isolement et contention* (nouvelle rubrique *Organisation du module* : lieux, surveillance, listes, tiers, envois au JLD, vigilance ; archive annuelle rangée avec le registre), *Patients* (fiche patient par service, liste des patients), *Agenda du service* (catégories, réglages).
+- Vue du jour : colonnes Examens et Audiences JLD.
+- Démonstration : catégorie « Consultation dentaire » (comme un examen, taxi et accompagnateur préréglés), catégorie « Atelier jardin » propre à l'Unité 2, activités transparentes sans patient.
+- Nouveau test (catégories, préréglages de l'établissement et du service ; 223 au vert) ; écrans vérifiés dans Chrome ; architecture, `CLAUDE.md`, guides 06 et 12 à jour.
+
 ## 0.11.2 — 8 novembre 2026
 
 Décisions du porteur du 8 novembre 2026.

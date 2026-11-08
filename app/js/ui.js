@@ -579,7 +579,7 @@
     setTimeout(function () { SIC.ui.sauvegarde.controler(); }, 1500);   // contrôle d'intégrité à la connexion, puis toutes les 15 min
     App.minuteurs.push(setInterval(function () { if (App.session && App.session.cle) SIC.ui.sauvegarde.controler(); }, 15 * 60000));
     App.minuteurs.push(setInterval(function () {   // heures relatives (« dans 3 h ») et échéances qui changent de couleur
-      if (App.session && App.session.cle && document.visibilityState === 'visible' && !saisieEnCours() && App.onglet !== 'admin') rendreContenu();
+      if (App.session && App.session.cle && document.visibilityState === 'visible' && !saisieEnCours() && !estOngletAdmin(App.onglet)) rendreContenu();
     }, 60000));
     App.minuteurs.push(setInterval(function () {
       var limite = (config().inactiviteMinutes || 10) * 60000;
@@ -620,9 +620,15 @@
     if (s.roles().indexOf('ADMIN') >= 0) res.push({ id: 'admin', libelle: 'Administration' });
     return res;
   }
+  /** Onglets de l'administration (décision du 8 novembre 2026) : réglages généraux, puis un onglet par module. */
+  function estOngletAdmin(o) { return o === 'admin' || /^admin-/.test(String(o || '')); }
+  function modulesAdmin() {
+    return [['isocont', 'Isolement et contention'], ['patients', 'Patients'], ['agenda', 'Agenda du service']].filter(function (x) { return SIC.modules.obtenir(x[0]); })
+      .concat(SIC.modules.liste().filter(function (m) { return ['isocont', 'patients', 'agenda'].indexOf(m.id) < 0 && m.interface && m.interface.admin && m.interface.admin.onglets; }).map(function (m) { return [m.id, m.libelle]; }));
+  }
   /** Onglets de la fenêtre affichée : ceux du module (son contrat), puis le journal commun. */
   function onglets() {
-    if (App.fenetre === 'admin') return [['admin', 'Administration'], ['journal', 'Journal']];
+    if (App.fenetre === 'admin') return [['admin', 'Réglages généraux']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['journal', 'Journal']]);
     var id = App.fenetre === 'patients' ? 'patients' : (App.session ? App.session.moduleAffiche() : null);
     var m = id && SIC.modules.obtenir(id);
     return (m ? m.vues.onglets : SIC.modules.onglets(null)).map(function (o) { return [o.code, o.libelle]; }).concat([['journal', 'Journal']]);
@@ -691,7 +697,7 @@
   /** Après une synchronisation ou une saisie : n'actualise que ce qui doit l'être, sans ramener la page en haut. */
   function apresNotification(info) {
     if (info && info.source === 'synchro' && !info.nouveaux) { majStatutSynchro(); return; }
-    if (info && info.source === 'synchro' && (App.onglet === 'admin' || saisieEnCours())) {
+    if (info && info.source === 'synchro' && (estOngletAdmin(App.onglet) || saisieEnCours())) {
       // Saisies arrivées d'un autre poste pendant une saisie ou un paramétrage : on ne touche pas au formulaire.
       App.miseAJourEnAttente = true; signalerAttente(); majStatutSynchro(); return;
     }
@@ -703,18 +709,18 @@
   }
   document.addEventListener('focusout', function () {
     // Fin de la saisie : appliquer les nouveautés en attente (sauf en administration, où l'agent choisit).
-    setTimeout(function () { if (App.miseAJourEnAttente && App.onglet !== 'admin' && !saisieEnCours() && App.session && App.session.cle) rendreContenu(); }, 300);
+    setTimeout(function () { if (App.miseAJourEnAttente && !estOngletAdmin(App.onglet) && !saisieEnCours() && App.session && App.session.cle) rendreContenu(); }, 300);
   });
 
   var vueAffichee = null;
   function rendreContenu() {
     if (!zoneContenu || !document.body.contains(zoneContenu)) return;
     // Même onglet : on garde la position de défilement de la page et des tableaux
-    var cleVue = App.onglet + '|' + App.service + (App.onglet === 'admin' ? '|' + App.sousOngletAdmin : '');
+    var cleVue = App.onglet + '|' + App.service + (estOngletAdmin(App.onglet) ? '|' + App.sousOngletAdmin : '');
     var memeVue = vueAffichee === cleVue;
     var pos = memeVue ? { x: window.scrollX, y: window.scrollY, h: zoneContenu.offsetHeight, zones: Array.prototype.map.call(zoneContenu.querySelectorAll('.table-wrap, .apercu-document, .apercu-registre'), function (z) { return [z.scrollLeft, z.scrollTop]; }) } : null;
     rendreContenuBrut();
-    vueAffichee = App.onglet + '|' + App.service + (App.onglet === 'admin' ? '|' + App.sousOngletAdmin : '');
+    vueAffichee = App.onglet + '|' + App.service + (estOngletAdmin(App.onglet) ? '|' + App.sousOngletAdmin : '');
     App.miseAJourEnAttente = false; signalerAttente();
     if (pos) {
       zoneContenu.querySelectorAll('.table-wrap, .apercu-document, .apercu-registre').forEach(function (z, i) { if (pos.zones[i]) { z.scrollLeft = pos.zones[i][0]; z.scrollTop = pos.zones[i][1]; } });
@@ -742,12 +748,12 @@
     var estAdmin = s.roles().indexOf('ADMIN') >= 0;
     // Fenêtre affichée : retenue sur le poste ; l'administration ouverte depuis un lien ouvre sa fenêtre
     var fs = fenetres();
-    if (App.onglet === 'admin' && estAdmin) App.fenetre = 'admin';
+    if (estOngletAdmin(App.onglet) && estAdmin) App.fenetre = 'admin';
     if (!App.fenetre) { try { App.fenetre = localStorage.getItem('sic-fenetre') || ''; } catch (e) { App.fenetre = ''; } }
     if (App.fenetre === 'patients' || App.fenetre === 'admin') { if (!fs.some(function (f) { return f.id === App.fenetre; })) App.fenetre = ''; }
     else if (App.fenetre !== s.moduleAffiche()) App.fenetre = '';
     if (!App.fenetre) App.fenetre = s.moduleAffiche();
-    if (App.onglet === 'admin' && App.fenetre !== 'admin') App.onglet = '';
+    if (estOngletAdmin(App.onglet) && App.fenetre !== 'admin') App.onglet = '';
     var nivJournal = droits().niveauJournal(s.roles(), config());
     // Rôle « registre seulement » : un seul onglet, le registre tel qu'il s'affiche habituellement
     var anonyme = droits().registreSeul(s.roles(), config());
@@ -756,7 +762,7 @@
     var droitOnglet = {};
     SIC.modules.onglets(s.moduleAffiche()).forEach(function (o) { if (o.droit) droitOnglet[o.code] = o.droit; });
     function affichable(o) {
-      if (o === 'admin') return estAdmin;
+      if (estOngletAdmin(o)) return estAdmin;
       if (droitOnglet[o] && !estAdmin && ![].concat(droitOnglet[o]).some(function (t) { return s.peut(t); })) return false;
       if (o === 'journal') return nivJournal !== 'aucun' && !anonyme;
       if (anonyme) return o === 'registre';
@@ -794,7 +800,7 @@
     zoneEntete.appendChild(h('div', { id: 'actualisation-attente', class: 'actualisation-attente', hidden: !App.miseAJourEnAttente },
       'Nouvelles saisies depuis un autre poste. ',
       h('button', { class: 'btn petit primaire', onclick: function () { rendreContenu(); } }, 'Actualiser'),
-      App.onglet === 'admin' ? h('small', { text: ' (les modifications non enregistrées de cette page seront perdues)' }) : null));
+      estOngletAdmin(App.onglet) ? h('small', { text: ' (les modifications non enregistrées de cette page seront perdues)' }) : null));
     if (s.apercu) zoneEntete.appendChild(h('div', { class: 'bandeau-apercu', role: 'status' },
       h('span', { text: 'Aperçu de l’affichage du rôle « ' + s.apercu.libelle + ' », sur tous les services : aucune saisie n’est enregistrée. Choisissez un service dans la liste pour voir ce qu’un agent de ce service voit.' }),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { s.definirApercu(null); rendreContenu(); } }, 'Revenir à mon affichage')));
@@ -817,11 +823,12 @@
     vider(zoneContenu);
     var corps = h('div', { class: 'fenetre-corps' });
     zoneContenu.appendChild(h('section', { class: 'fenetre', 'aria-label': 'Fenêtre du module' }, titreFenetre(), nav, corps));
-    var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: vueAdmin };
+    var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: function () { return vueAdmin('general'); } };
+    modulesAdmin().forEach(function (x) { vues['admin-' + x[0]] = function () { return vueAdmin(x[0]); }; });
     var mAff = moduleAffiche(), vuesAff = (mAff.interface && mAff.interface.vues) || {}, vuesModule = interfaceModule().vues || {};
     var mPat = SIC.modules.obtenir('patients'), vuesPat = (mPat && mPat.interface && mPat.interface.vues) || {};
     var vue = vues[App.onglet] || (App.fenetre === 'patients' ? vuesPat[App.onglet] : null) || vuesAff[App.onglet] || vuesModule[App.onglet] || vuesAff[(mAff.vues.onglets[0] || {}).code] || vues.aucun;
-    if (App.fenetre !== 'patients' && mAff === moduleActif() && !s.accesModule() && ['journal', 'admin'].indexOf(App.onglet) < 0) {
+    if (App.fenetre !== 'patients' && mAff === moduleActif() && !s.accesModule() && App.onglet !== 'journal' && !estOngletAdmin(App.onglet)) {
       corps.appendChild(h('div', { class: 'panneau vide', text: 'Les données du module « ' + moduleActif().libelle + ' » ne vous sont pas remises : vous n’y avez pas de rôle, ou il n’est activé pour aucun de vos services. Demandez à l’administrateur si vous devez y avoir accès.' }));
       return;
     }
@@ -975,7 +982,8 @@
     return { code: x[0], libelle: x[1], debut: x[2], fin: x[3] };
   }
 
-  function vueAdmin() {
+  function vueAdmin(groupe) {
+    groupe = groupe || 'general';
     var s = App.session, cfg = config();
     // -- Migration vers le trousseau de clés (coffre version 1, étape 4)
     var pTrousseau = null;
@@ -1216,8 +1224,8 @@
     // Panneaux du module (onglets propres et contributions aux onglets communs) : ui-isocont.js
     var pModule = interfaceModule().admin.panneaux(!!s.formation);
     // Sous-onglets d'administration des autres modules affichés (Agenda…) : un onglet par module
-    var ongletsAutres = SIC.modules.liste().filter(function (m) { return m !== moduleActif() && m.interface && m.interface.admin && m.interface.admin.onglets; })
-      .reduce(function (r, m) { return r.concat(m.interface.admin.onglets(!!s.formation)); }, []);
+    // Onglets d'administration des autres modules (Patients, Agenda…), rangés par module
+    function ongletsDe(id) { var m = SIC.modules.obtenir(id); return m && m.interface && m.interface.admin && m.interface.admin.onglets ? m.interface.admin.onglets(!!s.formation) : []; }
 
     var demo = App.dossier.mode === 'demo' ? h('section', { class: 'panneau' }, h('h2', { text: 'Démonstration' }),
       h('p', { class: 'muted', text: 'Efface toutes les données de démonstration de ce navigateur et revient à l’accueil.' }),
@@ -1235,25 +1243,26 @@
         h('div', { text: 'Adresse : ' + location.protocol + '//' + (location.host || '(fichier local)') }),
         h('div', { text: 'Licence : EUPL-1.2 — code source : github.com/rodtrip2/tessera-sante' })));
 
-    if (s.formation) {
-      // Les comptes et les clés sont ceux des données réelles : ils ne se gèrent pas depuis le jeu de formation.
-      var note = h('section', { class: 'panneau' }, h('h2', { text: 'Administration en mode formation' }),
-        h('p', { text: 'Le paramétrage ci-dessous ne concerne que le jeu de formation. Les comptes, les clés de sécurité et l’import se gèrent depuis les données réelles.' }));
-      return sousOngletsAdmin([].concat(
-        [['services', 'Établissement et services', [note, pServices, pModulesServices, pFiche].concat(pModule.services)]],
-        pModule.onglets.map(function (o) { return [o[0], o[1], [note].concat(o[2])]; }), ongletsAutres.map(function (o) { return [o[0], o[1], [note].concat(o[2])]; }),
-        [['sauvegardes', 'Sauvegardes et exports', [note, pExports].concat(pModule.sauvegardes)],
-          ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos]]]));
-    }
-    return sousOngletsAdmin([].concat(
-      [['comptes', 'Comptes et sécurité', [pAttestation, pTrousseau, pIncomplets, comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
-        ['services', 'Établissement et services', [pServices, pModulesServices, pFiche].concat(pModule.services)]],
-      pModule.onglets, ongletsAutres,
-      [['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
-        ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos, SIC.ui.version.panneau(), demo]]]));
+    var note = s.formation ? h('section', { class: 'panneau' }, h('h2', { text: 'Administration en mode formation' }),
+      h('p', { text: 'Le paramétrage ci-dessous ne concerne que le jeu de formation. Les comptes, les clés de sécurité et l’import se gèrent depuis les données réelles.' })) : null;
+    function avecNote(liste) { return note ? liste.map(function (o) { return [o[0], o[1], [note].concat(o[2])]; }) : liste; }
+    var groupes = {
+      general: s.formation ? [['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)], ['sauvegardes', 'Sauvegardes et exports', [pExports].concat(pModule.sauvegardes)], ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos]]]
+        : [['comptes', 'Comptes et sécurité', [pAttestation, pTrousseau, pIncomplets, comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
+          ['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)],
+          ['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
+          ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos, SIC.ui.version.panneau(), demo]]],
+      isocont: pModule.onglets,
+      patients: [['fiche', 'Fiche patient par service', [pFiche]]].concat(ongletsDe('patients'))
+    };
+    modulesAdmin().forEach(function (x) { if (!groupes[x[0]]) groupes[x[0]] = ongletsDe(x[0]); });
+    var titres = { general: 'Réglages généraux' };
+    modulesAdmin().forEach(function (x) { titres[x[0]] = 'Administration — ' + x[1]; });
+    return sousOngletsAdmin(avecNote(groupes[groupe] || []), titres[groupe] || 'Administration');
 
     /** Sous-onglets de l'administration : seul le contenu du sous-onglet choisi est affiché. */
-    function sousOngletsAdmin(liste) {
+    function sousOngletsAdmin(liste, titre) {
+      if (!liste.length) return h('div', { class: 'panneau vide', text: 'Aucun réglage pour ce module.' });
       if (!liste.some(function (x) { return x[0] === App.sousOngletAdmin; })) App.sousOngletAdmin = liste[0][0];
       var actif = liste.filter(function (x) { return x[0] === App.sousOngletAdmin; })[0];
       var nav = h('nav', { class: 'sous-onglets', 'aria-label': 'Rubriques de l’administration' }, liste.map(function (x) {
@@ -1263,7 +1272,7 @@
           rendreContenu();
         } }, x[1]);
       }));
-      return h('div', {}, h('h1', { text: 'Administration' }), nav, h('div', { class: 'contenu-sous-onglet' }, actif[2]));
+      return h('div', {}, h('h1', { text: titre }), liste.length > 1 ? nav : null, h('div', { class: 'contenu-sous-onglet' }, actif[2]));
     }
   }
 
