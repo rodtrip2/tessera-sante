@@ -840,6 +840,8 @@
     var affectes = (s.compteEffectif().services || []).filter(function (c) { return tousServices().some(function (x) { return x.code === c; }); });
     if (!mesSv.length && !estAdmin && affectes.length) { corps.appendChild(h('div', { class: 'panneau vide', text: 'Le module « ' + mAff.libelle + ' » n’est activé pour aucun de vos services. Demandez à l’administrateur de vérifier son activation (Administration → Établissement et services).' })); return; }
     if (!mesSv.length && !estAdmin) { corps.appendChild(h('div', { class: 'panneau vide', text: 'Aucun service ne vous est affecté. Demandez à l’administrateur de vous en attribuer un.' })); return; }
+    // Agent ajouté à un groupe d'agents : information affichée dans toutes les fenêtres jusqu'à « Vu »
+    try { var bg = SIC.ui.bandeauAjoutsGroupes ? SIC.ui.bandeauAjoutsGroupes() : null; if (bg) corps.appendChild(bg); } catch (e) { /* sans effet sur la vue */ }
     try { corps.appendChild(vue(maintenant)); }
     catch (e) { corps.appendChild(h('div', { class: 'erreur', text: 'Erreur d’affichage : ' + e.message })); console.error(e); }
   }
