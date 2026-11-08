@@ -174,7 +174,7 @@
   }
   // Réglages propres à une date d'un élément répété (décision du porteur du 8 novembre 2026 : patients, accompagnateurs,
   // transports, check-list… peuvent changer à chaque date ; une date peut être décalée ou annulée)
-  var CHAMPS_OCCURRENCE = ['debut', 'fin', 'lieu', 'titre', 'patients', 'professionnels', 'accompagnateurs', 'ciblesAccompagnateurs', 'transports', 'validations', 'checklist', 'annulee', 'motifAnnulation'];
+  var CHAMPS_OCCURRENCE = ['debut', 'fin', 'lieu', 'titre', 'patients', 'professionnels', 'accompagnateurs', 'consigneAccompagnateurs', 'transports', 'validations', 'checklist', 'annulee', 'motifAnnulation'];
   /**
    * Élément tel qu'il est à une date : réglages de toutes les dates, remplacés par ceux propres à cette date
    * (`surcharges[occurrence]`). `surchargee` : liste des champs propres à la date (vide : aucun).
@@ -239,49 +239,12 @@
    * Accompagnateurs d'une occurrence : nombre nécessaire (sans les nommer), professionnels déjà prévus, agents inscrits
    * eux-mêmes. { requis, prevus, inscrits: [{ agent, nom, le }], total, manque }.
    */
-  /**
-   * Cibles des accompagnateurs (décision du porteur du 8 novembre 2026) : « 1 IDE matin, 1 AS soir, éducateur
-   * spécialisé… ». [{ id, nombre, role (code de rôle ou ''), precision }] ; validées à la lecture.
-   */
-  function ciblesAccompagnateurs(r) {
-    return (Array.isArray(r && r.ciblesAccompagnateurs) ? r.ciblesAccompagnateurs : []).filter(function (c) { return c && c.id; }).map(function (c) {
-      return { id: String(c.id), nombre: Math.max(1, Math.min(20, Math.round(+c.nombre || 1))), role: typeof c.role === 'string' ? c.role : '', precision: String(c.precision || '').slice(0, 60) };
-    });
-  }
-  /**
-   * Accompagnateurs d'une occurrence : nombre nécessaire (sans les nommer), professionnels déjà prévus, agents inscrits
-   * eux-mêmes. { requis, prevus, inscrits: [{ agent, nom, le, cible, role, horsConsigne }], total, manque, cibles }.
-   * Avec des cibles, le nombre nécessaire est leur somme ; chaque inscrit pourvoit la cible qu'il a choisie, sinon la
-   * première cible de son rôle encore ouverte, puis une cible sans rôle, puis une cible ouverte quelconque. Un agent
-   * d'une autre catégorie n'est jamais bloqué : il pourvoit la cible, marqué « hors consigne ».
-   */
   function accompagnateurs(r, occurrence) {
-    var cibles = ciblesAccompagnateurs(r).map(function (c) { return Object.assign({ pourvus: [] }, c); });
-    var requis = cibles.length ? cibles.reduce(function (n, c) { return n + c.nombre; }, 0) : Math.max(0, Math.round(+r.accompagnateurs || 0));
-    var inscrits = ((r.inscriptions || {})[occurrence] || []).map(function (i) { return Object.assign({}, i, { horsConsigne: false }); });
+    var requis = Math.max(0, Math.round(+r.accompagnateurs || 0)), inscrits = ((r.inscriptions || {})[occurrence] || []).slice();
     var prevus = (r.professionnels || []).filter(function (p) { return !p.id || !inscrits.some(function (i) { return i.agent === p.id; }); }).length;
-    var ouverte = function (c) { return c.pourvus.length < c.nombre; };
-    var placer = function (i, c) { c.pourvus.push(i); i.cibleAttribuee = c.id; i.horsConsigne = !!(c.role && i.role && c.role !== i.role); };
-    if (cibles.length) {
-      inscrits.filter(function (i) { return i.cible; }).forEach(function (i) { var c = cibles.filter(function (y) { return y.id === i.cible; })[0]; if (c && ouverte(c)) placer(i, c); });
-      inscrits.filter(function (i) { return !i.cibleAttribuee; }).forEach(function (i) {
-        var c = cibles.filter(function (y) { return ouverte(y) && y.role && y.role === i.role; })[0] || cibles.filter(function (y) { return ouverte(y) && !y.role; })[0] || cibles.filter(ouverte)[0];
-        if (c) placer(i, c);
-      });
-      // Professionnels prévus (désignés) : pourvoient les cibles restées ouvertes (sans rôle d'abord ; leur rôle n'est pas connu ici)
-      (r.professionnels || []).filter(function (p) { return !p.id || !inscrits.some(function (i) { return i.agent === p.id; }); }).forEach(function (p) {
-        var c = cibles.filter(function (y) { return ouverte(y) && !y.role; })[0] || cibles.filter(ouverte)[0];
-        if (c) c.pourvus.push({ agent: p.id || null, nom: p.nom || '', prevu: true, horsConsigne: false });
-      });
-    }
     var total = prevus + inscrits.length;
-    return { requis: requis, prevus: prevus, inscrits: inscrits, total: total, manque: Math.max(0, requis - total),
-      cibles: cibles.map(function (c) { return Object.assign(c, { manque: Math.max(0, c.nombre - c.pourvus.length) }); }) };
-  }
-  /** Cible proposée à un agent qui s'inscrit : la première ouverte de son rôle, puis sans rôle, puis la première ouverte. */
-  function ciblePour(acc, role) {
-    var o = (acc.cibles || []).filter(function (c) { return c.manque > 0; });
-    return (o.filter(function (c) { return c.role && c.role === role; })[0] || o.filter(function (c) { return !c.role; })[0] || o[0] || null);
+    // Consigne en texte libre (ex. « 1 IDE le matin, 1 AS l'après-midi ») : indicative, sans effet sur l'inscription (décision du 8 novembre 2026)
+    return { requis: requis, prevus: prevus, inscrits: inscrits, total: total, manque: Math.max(0, requis - total), consigne: String(r.consigneAccompagnateurs || '').trim() };
   }
 
   // ------------------------------------------------------------ Permissions de sortie (décision du 7 novembre 2026)
@@ -651,7 +614,7 @@
         if (!d.id) break;
         var r = st.rdv[d.id] || { id: d.id, cree: e.at, par: e.by, evts: [] };
         ['nature', 'titre', 'debut', 'fin', 'lieu', 'service', 'patients', 'professionnels', 'motif', 'supprime', 'regularite', 'exceptions', 'checklist',
-          'entretien', 'accompagnateurs', 'ciblesAccompagnateurs', 'statut', 'validation', 'examen', 'transports', 'validations'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
+          'entretien', 'accompagnateurs', 'consigneAccompagnateurs', 'statut', 'validation', 'examen', 'transports', 'validations'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
         r.evts.push(e.id);
         st.rdv[d.id] = r;
         break;
@@ -680,7 +643,7 @@
         if (!ri || !d.agent || !d.occurrence) break;
         ri.inscriptions = ri.inscriptions || {};
         var liste = (ri.inscriptions[d.occurrence] || []).filter(function (x) { return x.agent !== d.agent; });
-        if (!d.retrait) liste.push({ agent: d.agent, nom: d.nom || '', le: e.at, evt: e.id, par: e.by, cible: d.cible || null, role: d.role || '' });
+        if (!d.retrait) liste.push({ agent: d.agent, nom: d.nom || '', le: e.at, evt: e.id, par: e.by });
         ri.inscriptions[d.occurrence] = liste;
         // Inscription ou désinscription par un collègue : l'agent en est informé dans sa session (décision du 8 novembre 2026)
         if (e.by && e.by !== d.agent) st.avis.push({ id: e.id, agent: d.agent, par: e.by, le: e.at, rdv: d.rdv, occurrence: d.occurrence, retrait: !!d.retrait });
@@ -822,7 +785,7 @@
   return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
-    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, ciblesAccompagnateurs: ciblesAccompagnateurs, ciblePour: ciblePour, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
+    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
     enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
     alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,

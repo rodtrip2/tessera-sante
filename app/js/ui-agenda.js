@@ -67,25 +67,15 @@
     return h('button', { class: 'btn ' + (petit ? 'petit ag-inscrire' : 'petit') + (inscrit ? '' : ' primaire'), type: 'button', onclick: async function (ev) {
       ev.stopPropagation();
       try {
-        var role = roleAgent(moi), cb = inscrit ? null : A.ciblePour(acc, role);
-        await U.App.session.enregistrer('INSCRIPTION', { rdv: x.rdv.id, occurrence: x.occurrence, agent: moi.id, nom: moi.nom, role: role, cible: cb ? cb.id : undefined, retrait: inscrit ? true : undefined, service: x.rdv.service });
+        await U.App.session.enregistrer('INSCRIPTION', { rdv: x.rdv.id, occurrence: x.occurrence, agent: moi.id, nom: moi.nom, retrait: inscrit ? true : undefined, service: x.rdv.service });
         U.toast(inscrit ? 'Vous n’êtes plus inscrit(e).' : 'Vous êtes inscrit(e) comme accompagnateur.');
       } catch (e) { alert(e.message); }
     } }, inscrit ? 'Me désinscrire' : 'S’inscrire');
   }
-  /** Rôle d'un agent pour les cibles d'accompagnateurs : son premier rôle hors administrateur. */
-  function roleAgent(c) { return ((c && c.roles) || []).filter(function (x) { return x !== 'ADMIN'; })[0] || ''; }
-  /** Libellé d'une cible : « IDE matin », « 2 AS », « éducateur spécialisé ». */
-  function libCible(c) {
-    var role = c.role ? SIC.modules.obtenir('agenda').droits.libRole(U.config(), c.role) : '';
-    return (c.nombre > 1 ? c.nombre + ' ' : '') + ([role, c.precision].filter(Boolean).join(' ') || 'accompagnateur');
-  }
   function badgeAccompagnateurs(x) {
     var acc = x.accompagnateurs;
     if (!acc || !acc.requis) return null;
-    var detail = (acc.cibles || []).length ? acc.cibles.map(function (c) { return libCible(c) + ' : ' + c.pourvus.length + '/' + c.nombre + (c.pourvus.length ? ' (' + c.pourvus.map(function (p) { return p.nom + (p.horsConsigne ? ', hors consigne' : ''); }).join(', ') + ')' : ''); }).join(' ; ')
-      : (acc.inscrits.length ? 'Inscrits : ' + acc.inscrits.map(function (i) { return i.nom; }).join(', ') : 'Aucun inscrit');
-    return h('span', { class: 'badge ' + (acc.manque ? 'warn' : 'ok'), title: detail, text: 'Accompagnateurs ' + acc.total + '/' + acc.requis });
+    return h('span', { class: 'badge ' + (acc.manque ? 'warn' : 'ok'), title: (acc.consigne ? 'Consigne : ' + acc.consigne + '\n' : '') + (acc.inscrits.length ? 'Inscrits : ' + acc.inscrits.map(function (i) { return i.nom; }).join(', ') : 'Aucun inscrit'), text: 'Accompagnateurs ' + acc.total + '/' + acc.requis });
   }
   function ouvrirElement(x) {
     var modifiable = peut('RDV') && (!x.externe || opts().modifAutresServices);
@@ -505,9 +495,7 @@
     var patients = (x.patients || ini.patients || []).slice(), profs = (x.professionnels || []).map(function (p) { return { id: p.id || null, nom: p.nom }; });
     var transports = (Array.isArray(x.transports) ? x.transports : []).map(function (t) { return Object.assign({}, t); });
     var validations = A.validationsDe(x).map(function (v) { return Object.assign({}, v); });
-    var nbAcc = Math.max(0, Math.round(+x.accompagnateurs || 0));
-    // Cibles des accompagnateurs (décision du 8 novembre 2026) : « 1 IDE matin, 1 AS soir, éducateur spécialisé »
-    var ciblesAcc = A.ciblesAccompagnateurs(x).map(function (c) { return Object.assign({}, c); });
+    var nbAcc = Math.max(0, Math.round(+x.accompagnateurs || 0)), consigneAcc = String(x.consigneAccompagnateurs || '');
     // Préréglages d'une création selon le type (Audience : un VSL et un soignant ; permission : validation de la permission)
     // Préréglages de la catégorie à la création (durée, heure, lieu, intitulé, accompagnateurs, transports, validations, check-list)
     function prereglerNature(n) {
@@ -578,76 +566,35 @@
     var zoneAcc = h('div', { class: 'pile' });
     function dessinerAccompagnateurs() {
       U.vider(zoneAcc);
-      var rolesAcc = SIC.modules.obtenir('agenda').droits.rolesConfig(U.config()).filter(function (y) { return !y.admin; });
-      if (!ciblesAcc.length) {
-        var champ = h('input', Object.assign({ type: 'number', min: 0, max: 20, step: 1, value: nbAcc, class: 'champ-court', 'aria-label': 'Accompagnateurs à trouver', oninput: function () { nbAcc = Math.max(0, Math.min(20, Math.round(+champ.value || 0))); } }, dis));
-        zoneAcc.appendChild(h('label', { class: 'en-ligne' }, 'Accompagnateurs nécessaires', champ, h('small', { class: 'muted', text: 'sans les nommer : les agents s’inscrivent ; les professionnels prévus comptent' })));
-        if (!lecture) zoneAcc.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () {
-          ciblesAcc.push({ id: 'k' + C.hex(C.aleatoire(3)), nombre: Math.max(1, nbAcc), role: '', precision: '' }); dessinerAccompagnateurs();
-        } }, 'Préciser la catégorie (ex. 1 IDE matin, 1 AS soir)…')));
-      } else {
-        // Une ligne par cible : nombre, catégorie (rôle, ou toute catégorie), précision (matin, soir, éducateur spécialisé…)
-        zoneAcc.appendChild(h('b', { text: 'Accompagnateurs nécessaires' }));
-        ciblesAcc.forEach(function (c, i) {
-          var nb = h('input', Object.assign({ type: 'number', min: 1, max: 20, value: c.nombre, class: 'champ-court', 'aria-label': 'Nombre', oninput: function () { c.nombre = Math.max(1, Math.min(20, Math.round(+nb.value || 1))); } }, dis));
-          var role = h('select', Object.assign({ 'aria-label': 'Catégorie', onchange: function () { c.role = role.value; } }, dis), [h('option', { value: '', text: 'Toute catégorie' })].concat(rolesAcc.map(function (y) { return h('option', { value: y.code, text: y.libelle, selected: c.role === y.code }); })));
-          var prec = h('input', Object.assign({ type: 'text', maxlength: 60, value: c.precision, placeholder: 'Précision : matin, soir, éducateur spécialisé…', oninput: function () { c.precision = prec.value; } }, dis));
-          zoneAcc.appendChild(h('div', { class: 'ag-ligne-cible' }, nb, role, prec,
-            lecture ? null : h('button', { class: 'btn petit danger', type: 'button', onclick: function () { ciblesAcc.splice(i, 1); nbAcc = ciblesAcc.reduce(function (n, y) { return n + y.nombre; }, 0); dessinerAccompagnateurs(); } }, 'Retirer')));
-        });
-        if (!lecture) zoneAcc.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { ciblesAcc.push({ id: 'k' + C.hex(C.aleatoire(3)), nombre: 1, role: '', precision: '' }); dessinerAccompagnateurs(); } }, '+ Autre catégorie')));
-        zoneAcc.appendChild(h('small', { class: 'muted', text: 'Consigne pour l’inscription : un agent d’une autre catégorie peut quand même s’inscrire (il apparaît « hors consigne »). Les professionnels prévus comptent.' }));
-      }
+      var champ = h('input', Object.assign({ type: 'number', min: 0, max: 20, step: 1, value: nbAcc, class: 'champ-court', 'aria-label': 'Accompagnateurs à trouver', oninput: function () { nbAcc = Math.max(0, Math.min(20, Math.round(+champ.value || 0))); } }, dis));
+      zoneAcc.appendChild(h('label', { class: 'en-ligne' }, 'Accompagnateurs nécessaires', champ, h('small', { class: 'muted', text: 'sans les nommer : les agents s’inscrivent ; les professionnels prévus comptent' })));
+      // Consigne en texte libre (décision du porteur du 8 novembre 2026) : indicative, n'empêche aucune inscription
+      var consigne = h('input', Object.assign({ type: 'text', maxlength: 120, value: consigneAcc, placeholder: 'Consigne (facultatif) : ex. 1 IDE le matin, 1 AS l’après-midi, un éducateur', 'aria-label': 'Consigne pour les accompagnateurs', oninput: function () { consigneAcc = consigne.value; } }, dis));
+      zoneAcc.appendChild(lecture ? (consigneAcc ? h('p', { text: 'Consigne : ' + consigneAcc }) : h('span')) : h('label', {}, 'Consigne pour les accompagnateurs', consigne));
       if (nouveau || !occurrence) return;
       var etatR = courant(), acc = A.accompagnateurs(etatR, occurrence), peutAutres = peut('INSCRIPTION') && !s.apercu && !externe;
       zoneAcc.appendChild(h('div', {}, h('b', { text: 'Le ' + occurrence.split('-').reverse().join('/') + ' : ' }), badgeAccompagnateurs({ accompagnateurs: acc })));
-      function ligneInscrit(i) {
+      acc.inscrits.forEach(function (i) {
         var lui = i.agent === moi.id;
-        return h('div', { class: 'barre' }, h('span', { text: i.nom + (i.prevu ? ' (professionnel prévu)' : '') + (i.par && i.par !== i.agent ? ' (inscrit(e) par ' + s.nomAuteur(i.par) + ')' : '') }),
-          i.horsConsigne ? h('span', { class: 'badge warn', title: 'Agent d’une autre catégorie que celle prévue : inscription gardée', text: 'hors consigne' }) : null,
-          !i.prevu && (lui || peutAutres) ? h('button', { class: 'btn petit', type: 'button', onclick: function () { inscrire(i.agent, i.nom, true); } }, lui ? 'Me désinscrire' : 'Désinscrire') : null);
-      }
-      if ((acc.cibles || []).length) {
-        acc.cibles.forEach(function (c) {
-          zoneAcc.appendChild(h('div', { class: 'ag-cible' }, h('span', { class: 'badge ' + (c.manque ? 'warn' : 'ok'), text: libCible(c) + ' ' + c.pourvus.length + '/' + c.nombre }), c.pourvus.map(ligneInscrit)));
-        });
-        acc.inscrits.filter(function (i) { return !i.cibleAttribuee; }).forEach(function (i) { zoneAcc.appendChild(h('div', {}, h('small', { class: 'muted', text: 'En plus des catégories prévues :' }), ligneInscrit(i))); });
-      } else acc.inscrits.forEach(function (i) { zoneAcc.appendChild(ligneInscrit(i)); });
+        zoneAcc.appendChild(h('div', { class: 'barre' }, h('span', { text: i.nom + (i.par && i.par !== i.agent ? ' (inscrit(e) par ' + s.nomAuteur(i.par) + ')' : '') }),
+          lui || peutAutres ? h('button', { class: 'btn petit', type: 'button', onclick: function () { inscrire(i.agent, i.nom, true); } }, lui ? 'Me désinscrire' : 'Désinscrire') : null));
+      });
       var dejaMoi = acc.inscrits.some(function (i) { return i.agent === moi.id; }) || (etatR.professionnels || []).some(function (p) { return p.id === moi.id; });
       var actions = h('div', { class: 'actions gauche' });
-      // Catégorie pourvue par l'inscription : proposée selon le rôle de l'agent, modifiable (jamais bloquante)
-      var selCible = null;
-      function majCible(role) {
-        if (!selCible) return;
-        var p = A.ciblePour(acc, role);
-        if (p) selCible.value = p.id;
-      }
-      if ((acc.cibles || []).length && (!dejaMoi || peutAutres)) {
-        selCible = h('select', { 'aria-label': 'Catégorie pourvue' }, acc.cibles.map(function (c) { return h('option', { value: c.id, text: 'Pour : ' + libCible(c) + ' (' + c.pourvus.length + '/' + c.nombre + ')' }); }));
-        actions.appendChild(selCible);
-        majCible(roleAgent(moi));
-      }
-      function cibleChoisie(role) {
-        if (!selCible) return undefined;
-        var c = acc.cibles.filter(function (y) { return y.id === selCible.value; })[0];
-        if (c && c.role && role && c.role !== role) U.toast('Inscription hors consigne : « ' + libCible(c) + ' » était prévu.');
-        return selCible.value || undefined;
-      }
-      if (!dejaMoi && !externe && !s.apercu) actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { var r0 = roleAgent(moi); inscrire(moi.id, moi.nom, false, cibleChoisie(r0), r0); } }, 'M’inscrire'));
+      if (!dejaMoi && !externe && !s.apercu) actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { inscrire(moi.id, moi.nom, false); } }, 'M’inscrire'));
       if (peutAutres) {
         var choix = (s.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && c.id !== moi.id && !acc.inscrits.some(function (i) { return i.agent === c.id; }) && (!(c.services || []).length || (c.services || []).indexOf(etatR.service) >= 0); })
           .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
-        var selCol = h('select', { 'aria-label': 'Collègue à inscrire', onchange: function () { var c = choix.filter(function (y) { return y.id === selCol.value; })[0]; if (c) majCible(roleAgent(c)); } },
-          [h('option', { value: '', text: 'Inscrire un collègue…' })].concat(choix.map(function (c) { var rl = roleAgent(c); return h('option', { value: c.id, text: c.nom + (rl ? ' (' + SIC.modules.obtenir('agenda').droits.libRole(U.config(), rl) + ')' : '') }); })));
+        var selCol = h('select', { 'aria-label': 'Collègue à inscrire' }, [h('option', { value: '', text: 'Inscrire un collègue…' })].concat(choix.map(function (c) { return h('option', { value: c.id, text: c.nom }); })));
         actions.appendChild(selCol);
-        actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { var c = choix.filter(function (y) { return y.id === selCol.value; })[0]; if (c) { var r0 = roleAgent(c); inscrire(c.id, c.nom, false, cibleChoisie(r0), r0); } } }, 'Inscrire'));
+        actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { var c = choix.filter(function (y) { return y.id === selCol.value; })[0]; if (c) inscrire(c.id, c.nom, false); } }, 'Inscrire'));
       }
       zoneAcc.appendChild(actions);
       if (peutAutres) zoneAcc.appendChild(h('small', { class: 'muted', text: 'Le collègue inscrit ou désinscrit en est informé dans sa session (Agenda et Mon agenda).' }));
     }
-    async function inscrire(agent, nom, retrait, cible, role) {
+    async function inscrire(agent, nom, retrait) {
       try {
-        await s.enregistrer('INSCRIPTION', { rdv: x.id, occurrence: occurrence, agent: agent, nom: nom, role: role || undefined, cible: cible || undefined, retrait: retrait ? true : undefined, service: x.service });
+        await s.enregistrer('INSCRIPTION', { rdv: x.id, occurrence: occurrence, agent: agent, nom: nom, retrait: retrait ? true : undefined, service: x.service });
         U.toast(retrait ? 'Désinscription enregistrée.' : 'Inscription enregistrée.');
         dessinerAccompagnateurs();
       } catch (e) { alert(e.message); }
@@ -887,8 +834,8 @@
       if (validations.some(function (v) { return v.type !== 'permission' && !String(v.libelle || '').trim(); })) throw new Error('Précisez l’intitulé de chaque validation médicale ou autre (ex. avis du psychiatre).');
       var d = { id: x.id || 'R' + C.hex(C.aleatoire(6)), nature: nv, titre: titre.value.trim(), debut: d0, fin: d1, lieu: lieu.value.trim(), service: sv.value,
         patients: visibles.patients ? patients : [], professionnels: profs, regularite: rg, checklist: checklist,
-        accompagnateurs: visibles.accompagnateurs ? (ciblesAcc.length ? ciblesAcc.reduce(function (n, y) { return n + y.nombre; }, 0) : nbAcc) : 0,
-        ciblesAccompagnateurs: visibles.accompagnateurs ? ciblesAcc.map(function (c) { return { id: c.id, nombre: c.nombre, role: c.role || '', precision: String(c.precision || '').trim() }; }) : [],
+        accompagnateurs: visibles.accompagnateurs ? nbAcc : 0,
+        consigneAccompagnateurs: visibles.accompagnateurs ? consigneAcc.trim() : '',
         transports: visibles.transports ? transports.map(function (t) { var o = { id: t.id, type: t.type || 'vsl', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: String(t.precision || '').trim() }; if (o.type === 'vehicule' && t.vehicule) o.vehicule = t.vehicule; return o; }) : [],
         validations: visibles.validations ? validations.map(function (v) { var o = { id: v.id, type: v.type, libelle: String(v.libelle || '').trim() }; if (v.type !== 'permission') o.delai = v.delai === undefined ? 24 : v.delai; return o; }) : [] };
       // Véhicule du service : disponibilité vérifiée avant d'enregistrer (une date : élément simple ou « cette date seulement »)
@@ -910,7 +857,7 @@
       if (parDate) {
         // Cette date seulement : champs modifiés par rapport à cette date, rangés comme réglages propres à la date
         var od = { rdv: x.id, occurrence: occurrence, service: r.service }, n0 = 0;
-        ['titre', 'lieu', 'patients', 'professionnels', 'accompagnateurs', 'ciblesAccompagnateurs', 'transports', 'validations', 'checklist'].forEach(function (k) {
+        ['titre', 'lieu', 'patients', 'professionnels', 'accompagnateurs', 'consigneAccompagnateurs', 'transports', 'validations', 'checklist'].forEach(function (k) {
           var av = x[k] === undefined ? (Array.isArray(d[k]) ? [] : (k === 'accompagnateurs' ? 0 : '')) : x[k];
           if (JSON.stringify(d[k]) !== JSON.stringify(av)) { od[k] = d[k]; n0++; }
         });
@@ -923,8 +870,8 @@
       }
       if (!nouveau) Object.keys(d).forEach(function (k) { if (k !== 'id' && k !== 'service' && JSON.stringify(d[k]) === JSON.stringify(x[k])) delete d[k]; });
       if (!nouveau && Array.isArray(d.validations) && !Array.isArray(x.validations) && !d.validations.length && !A.validationsDe(x).length) delete d.validations;
-      if (!nouveau && Array.isArray(d.ciblesAccompagnateurs) && !d.ciblesAccompagnateurs.length && !A.ciblesAccompagnateurs(x).length) delete d.ciblesAccompagnateurs;
-      if (nouveau) ['accompagnateurs', 'ciblesAccompagnateurs', 'transports', 'validations'].forEach(function (k) { if (!d[k] || (Array.isArray(d[k]) && !d[k].length)) delete d[k]; });
+      if (!nouveau && !d.consigneAccompagnateurs && !x.consigneAccompagnateurs) delete d.consigneAccompagnateurs;
+      if (nouveau) ['accompagnateurs', 'consigneAccompagnateurs', 'transports', 'validations'].forEach(function (k) { if (!d[k] || (Array.isArray(d[k]) && !d[k].length)) delete d[k]; });
       if (!nouveau && Object.keys(d).length <= 2 && d.service === x.service) return true;
       await s.enregistrer('RDV', d);
       U.toast(nouveau ? 'Ajouté à l’agenda.' : 'Élément modifié.');
@@ -955,7 +902,7 @@
   }
 
   function libRepetition(v) { return A.libelleRepetition(v); }
-  var LIB_CHAMPS = { debut: 'horaires', lieu: 'lieu', titre: 'intitulé', patients: 'patients', professionnels: 'professionnels prévus', accompagnateurs: 'accompagnateurs', ciblesAccompagnateurs: 'catégories d’accompagnateurs', transports: 'transports', validations: 'validations', checklist: 'check-list' };
+  var LIB_CHAMPS = { debut: 'horaires', lieu: 'lieu', titre: 'intitulé', patients: 'patients', professionnels: 'professionnels prévus', accompagnateurs: 'accompagnateurs', consigneAccompagnateurs: 'consigne des accompagnateurs', transports: 'transports', validations: 'validations', checklist: 'check-list' };
   function fermerPuisAgenda(fn) { var dlg = document.querySelector('dialog[open]'); if (dlg) dlg.dispatchEvent(new Event('cancel')); setTimeout(fn, 0); }
 
   // Délai d'alerte d'un point de check-list (jours avant l'événement)
