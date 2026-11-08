@@ -658,7 +658,7 @@
     if (fs.length < 2) return null;
     return h('nav', { class: 'barre-modules', 'aria-label': 'Modules' }, fs.map(function (f) {
       var actif = f.id === App.fenetre;
-      var m = SIC.modules.obtenir(f.id), n = m && m.interface && m.interface.pastille ? m.interface.pastille() : 0;
+      var m = SIC.modules.obtenir(f.id), n = m && m.interface && m.interface.pastille ? m.interface.pastille() : (f.id === 'admin' && SIC.ui.pastilleGroupes ? SIC.ui.pastilleGroupes() : 0);
       return h('button', { type: 'button', class: 'bouton-module' + (actif ? ' actif' : ''), 'aria-current': actif ? 'page' : null, title: f.libelle + (n ? ' — ' + n + ' information(s) pour vous' : ''), onclick: function () { ouvrirFenetre(f.id); } },
         icone(f.id), h('span', { text: f.libelle }), n ? h('span', { class: 'pastille', text: String(n) }) : null);
     }));

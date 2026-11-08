@@ -103,7 +103,7 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 
 ## 5 ter. Groupes d'agents
 
-En plus de leur affectation aux services, les agents peuvent être réunis par le cadre en groupes (équipe de jour, équipe de nuit, groupe de travail) ; une tâche ou une alerte de l'agenda peut être adressée à un groupe.
+En plus de leur affectation aux services, les agents peuvent être réunis par le cadre en groupes (équipe de jour, équipe de nuit, groupe de travail), y compris avec des agents d'autres services, dont le cadre est alors informé ; une tâche ou une alerte de l'agenda peut être adressée à un groupe.
 
 ## 6. Organisation et rôles
 

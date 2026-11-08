@@ -26,3 +26,24 @@ test('Groupes d’agents : le cadre ne modifie que les groupes de ses services, 
   assert.ok(G.controler([nuit, etab], [], admin));
   assert.equal(G.modifiable(nuit, ide), false);
 });
+
+test('Groupes d’agents : agent d’un autre service ajouté par le cadre, son cadre est informé', () => {
+  const comptes = [
+    { id: 'c1', nom: 'Cadre U1 (fictif)', roles: ['CADRE'], services: ['U1'] },
+    { id: 'c2', nom: 'Cadre U2 (fictif)', roles: ['CADRE'], services: ['U2'] },
+    { id: 'i2', nom: 'IDE U2 (fictif)', roles: ['IDE'], services: ['U2'] },
+    { id: 'i1', nom: 'IDE U1 (fictif)', roles: ['IDE'], services: ['U1'] }
+  ];
+  const g = { code: 'qualite-u1', libelle: 'Qualité (fictif)', services: ['U1'], membres: [
+    { id: 'i1', nom: 'IDE U1 (fictif)', ajoute: { par: 'c1', le: '2026-11-08T03:00:00Z' } },
+    { id: 'i2', nom: 'IDE U2 (fictif)', ajoute: { par: 'c1', le: '2026-11-08T03:01:00Z' } }] };
+  const cfg = { groupes: [g] };
+  // Le cadre de l'Unité 1 peut l'enregistrer (le groupe reste de ses services)
+  assert.ok(G.controler([], [g], comptes[0]));
+  const av = G.avisMembresExterieurs(cfg, comptes, comptes[1], []);
+  assert.deepEqual(av.map((a) => a.membre.id), ['i2']);
+  assert.equal(G.avisMembresExterieurs(cfg, comptes, comptes[0], []).length, 0);   // auteur de l'ajout
+  assert.equal(G.avisMembresExterieurs(cfg, comptes, comptes[2], []).length, 0);   // pas cadre
+  assert.equal(G.avisMembresExterieurs(cfg, comptes, comptes[1], [av[0].id]).length, 0);
+  assert.equal(G.liste(cfg)[0].membres[1].ajoute.par, 'c1');
+});
