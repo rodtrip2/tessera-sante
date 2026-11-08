@@ -2,11 +2,22 @@
 
 Évolutions étudiées avec le porteur du projet et gardées pour plus tard. Elles ne font pas partie du périmètre soumis à validation (fiche projet) ; chacune reste à retravailler et à valider avant tout développement.
 
-| Évolution | Origine | Niveau |
-| --- | --- | --- |
-| Documents et outils de bureautique | Tessera Santé, 6 novembre 2026 | Idée à retravailler |
-| Connexion avec la session Windows | Suivi-mesures-isocont, 2 novembre 2026 | Étude technique faite, à adapter au socle |
-| Stockage sur un partage autre que SMB | Suivi-mesures-isocont, 2 novembre 2026 | Demande, à étudier |
+| Évolution | Origine | Niveau | Ampleur du développement |
+| --- | --- | --- | --- |
+| Documents et outils de bureautique | Tessera Santé, 6 novembre 2026 | Idée à retravailler | Grande |
+| Connexion avec la session Windows | Suivi-mesures-isocont, 2 novembre 2026 | Étude technique faite, à adapter au socle | Moyenne (dépend du service informatique) |
+| Stockage sur un partage autre que SMB | Suivi-mesures-isocont, 2 novembre 2026 | Demande, à étudier | Moyenne à grande |
+| Agenda : échéances des certificats légaux | Tessera Santé, 7 novembre 2026 | Écartée pour l'instant | Petite à moyenne (règles juridiques à valider) |
+| Module Messagerie | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
+| Module Demandes de travaux et de réparation | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
+| Planning d'occupation des bureaux | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Petite à moyenne |
+| Planning des présences médicales | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
+| Suivi des entretiens médicaux et des contrats de soins | Tessera Santé, 8 novembre 2026 | Demande ; **données cliniques** (décision préalable) | Petite à moyenne |
+| Patients suivis par médecin | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Petite |
+| Feuille de staff pluridisciplinaire | Tessera Santé, 8 novembre 2026 | Demande ; **données cliniques** (décision préalable) | Grande |
+| Notes par patient | Tessera Santé, 8 novembre 2026 | Demande ; **données cliniques** (décision préalable) | Moyenne |
+
+**Règle « aucune donnée clinique ».** Trois demandes du 8 novembre 2026 (suivi des entretiens médicaux et des contrats de soins, feuille de staff avec codes CIM et projet thérapeutique, notes par patient) portent sur des **données cliniques**, que Tessera exclut aujourd'hui (le dossier patient informatisé, DPI, reste la référence clinique). Avant tout développement, il faudra : une décision explicite du porteur de lever cette règle pour ces modules ; l'avis du délégué à la protection des données (DPO, référent RGPD), avec une analyse d'impact (AIPD) mise à jour ; l'avis du responsable de la sécurité informatique (RSSI) et du service informatique (DSI ou direction du numérique, selon l'établissement), y compris sur l'hébergement (partage du réseau de l'hôpital) et sur la sauvegarde ; l'accord de la direction des soins et de la commission médicale d'établissement (CME) sur le partage avec le DPI (risque de double saisie et de divergence). Le chiffrement par module et la clé remise aux seuls agents habilités s'appliqueraient comme ailleurs.
 
 ## Documents et outils de bureautique (étudiés le 6 novembre 2026)
 
@@ -130,3 +141,58 @@ Bons de travaux par service, **visibles par tous les agents du service**, pour s
 - **Affichage** (précisions du porteur du 8 novembre 2026) : liste par service, **de la demande la plus récente à la plus ancienne** ; les demandes **déjà traitées** restent affichées, **indiquées comme telles et en grisé**, pendant un **délai d'affichage réglable (30 jours par défaut)**, puis sortent de la liste (elles restent au journal et dans un historique consultable) ; urgence et gravité marquées par un badge ; filtres (type, lieu, état) ; pastille sur l'icône du module pour les demandes urgentes ; une chambre concernée par une intervention en cours pourrait être signalée dans la liste des patients par chambre (à trancher).
 - **Fonctionnement** : journal `modules\travaux\` en ajout seul, clé propre, activation par service ; les services techniques n'ayant pas accès à Tessera, un export (PDF ou tableau) du bon peut leur être remis, ou la référence de leur propre outil notée dans la demande.
 - **À trancher avant développement** : listes de types, de gravités et d'urgences proposées par défaut ; délai d'affichage des demandes traitées réglé par l'établissement ou par service ; rôles qui créent, transmettent et confirment ; lien éventuel avec l'outil de gestion des services techniques de l'établissement (sans connexion sortante, donc par export seulement).
+
+## Planning d'occupation des bureaux (demande du porteur, 8 novembre 2026)
+
+Réserver les bureaux et salles du service (bureau d'entretien, salle de réunion, bureau du médecin, salle des familles…) comme les véhicules.
+
+- **Contenu** : liste des bureaux par service (nom, capacité, équipement), planning par jour et par semaine, réservation ponctuelle ou répétée (consultation hebdomadaire d'un médecin), prêt à un autre service.
+- **Lien avec l'Agenda** : un entretien ou une réunion pourrait réserver son bureau, avec vérification de la disponibilité, comme le véhicule d'un événement.
+- **Réutilisation** : le module Véhicules fournit déjà le modèle (parc, prêts, réservations, pré-réservations, contrôle de disponibilité) ; une base commune « ressources réservables » est envisageable.
+- **À trancher** : module distinct ou ressources génériques (véhicules, bureaux, matériel) ; qui gère la liste des bureaux.
+
+## Planning des présences médicales (demande du porteur, 8 novembre 2026)
+
+Savoir quel médecin est présent, dans quel service, à quel moment, quand les médecins interviennent dans plusieurs services.
+
+- **Contenu** : présences par médecin (demi-journées, jours de la semaine, répétitions, absences et remplacements), astreintes et gardes éventuellement ; **affichage par service** (qui est présent aujourd'hui et cette semaine dans l'Unité 1) et par médecin (sa semaine dans tous ses services).
+- **Lien** : médecins de 1re et 2e ligne de la fiche patient (savoir si le médecin du patient est là), agenda (entretiens médicaux), patients suivis par médecin.
+- **À trancher** : qui saisit (secrétariat médical, médecins, cadre) ; lien éventuel avec l'outil de gestion du temps médical de l'établissement (sans connexion sortante : import de fichier seulement).
+
+## Suivi des entretiens médicaux et des contrats de soins (demande du porteur, 8 novembre 2026)
+
+*Données cliniques : voir la règle en tête de document.*
+
+Par patient : date du **dernier entretien médical** et date de la **dernière réévaluation du contrat de soins**, avec alerte quand un délai réglable est dépassé.
+
+- **Saisie rapide** : cocher **en une fois l'ensemble des patients vus le même jour** (liste des patients du service, cases à cocher, date et médecin), plutôt qu'une saisie patient par patient.
+- **Affichage** : colonnes de la liste des patients (dernier entretien, jours écoulés, contrat réévalué le…), alertes « à voir par le médecin ».
+- **À trancher** : délais par défaut ; qui coche (médecin, IDE, secrétariat) ; ce que contient « contrat de soins » selon les services (seule la date serait gardée, sans contenu).
+
+## Patients suivis par médecin (demande du porteur, 8 novembre 2026)
+
+Tableau des patients présents regroupés par médecin référent (1re et 2e ligne, déjà saisis dans la fiche patient), avec **alerte sur les patients non attribués**.
+
+- **Contenu** : un bloc par médecin (nombre de patients, chambres, mode d'hospitalisation, date d'entrée), un bloc « Non attribué » mis en évidence, filtre par service ; vue imprimable.
+- **Réutilisation** : la liste des patients configurable (regroupement par médecin) et les alertes existent déjà ; développement léger.
+- **À trancher** : alerte pour la 1re ligne seulement ou aussi la 2e ; délai après l'entrée avant l'alerte.
+
+## Feuille de staff pluridisciplinaire (demande du porteur, 8 novembre 2026)
+
+*Données cliniques : voir la règle en tête de document. Aujourd'hui faite dans un classeur Excel, moins sécurisé (pas de chiffrement, pas de traçabilité, copies possibles).*
+
+Feuille récapitulative du staff : un **instantané à un jour donné, conservé** (on retrouve la feuille du staff de telle date telle qu'elle était).
+
+- **Contenu par patient** : chambre, mode d'hospitalisation, médecins et référents, **codes CIM** (classification internationale des maladies), **projet thérapeutique**, **fenêtre de sortie envisagée** (ex. semaine prochaine, date) et colonnes propres au service.
+- **Colonnes modifiables** (comme les données complémentaires de la fiche patient : ajout, masquage, ordre, par service) ; en tête, les **places disponibles** du service (lits, chambres libres, sorties prévues).
+- **Instantané** : la feuille du jour est préparée à partir des données de Tessera puis complétée pendant le staff ; « Clore la feuille » la fige et l'enregistre au journal (une saisie, jamais modifiée) ; la feuille suivante reprend les valeurs de la précédente. Export PDF ou impression.
+- **À trancher** : codes CIM saisis à la main ou liste de référence (à embarquer dans l'application, sans connexion sortante) ; qui voit la feuille (rôles) ; durée de conservation des feuilles closes ; place par rapport au DPI.
+
+## Notes par patient (demande du porteur, 8 novembre 2026)
+
+*Données cliniques possibles : voir la règle en tête de document.*
+
+Notes datées attachées au patient, organisées en **rubriques (items)** que l'établissement ou le service peut **ajouter ou masquer** (ex. « Projet de sortie », « Démarches sociales », « Famille », « Points de vigilance »).
+
+- **Fonctionnement** : chaque note est une saisie datée et signée (journal en ajout seul ; une correction est une nouvelle note) ; rubriques réglables par service et par rôle (qui écrit, qui lit), comme les données complémentaires de la fiche patient.
+- **À trancher** : frontière avec les transmissions du DPI (éviter un second dossier de soins) ; durée de conservation ; export dans le cadre du droit d'accès du patient.
