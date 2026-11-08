@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'vehicules', 'vehiculesInformation', 'groupes', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'vehicules', 'vehiculesInformation', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -76,6 +76,19 @@
       }));
     }
     cfg('psychiatres', ['Dr Arnaud (fictif)', 'Dr Benoît (fictif)', 'Dr Chen (fictif)', 'Dr Diallo (fictif)']);
+    // Liste commune des médecins et module Suivi médical (0.17.0) : somaticien, vacataire, intérimaire ; urgences
+    // médico-psychologiques comme lieu de présence sans patient, où compte la garde de jour (fictifs)
+    var lundiISO = function (n) { var d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7 + n); return SIC.model.dateLocaleISO(d.getTime()); };
+    if (!(reel && reel.medecins)) cfg('medecins', { liste: [
+      { id: 'm-arnaud', nom: 'Dr Arnaud (fictif)', fonction: 'psychiatre', services: [U1], statut: 'titulaire' },
+      { id: 'm-benoit', nom: 'Dr Benoît (fictif)', fonction: 'psychiatre', services: [U1, U2], statut: 'titulaire' },
+      { id: 'm-chen', nom: 'Dr Chen (fictif)', fonction: 'psychiatre', services: [U1], statut: 'vacataire' },
+      { id: 'm-diallo', nom: 'Dr Diallo (fictif)', fonction: 'psychiatre', services: [U2], statut: 'titulaire' },
+      { id: 'm-esposito', nom: 'Dr Esposito (fictif)', fonction: 'somaticien', services: [U1, U2], statut: 'titulaire' },
+      { id: 'm-fontaine', nom: 'Dr Fontaine (fictif)', fonction: 'psychiatre', services: [U1], statut: 'interimaire', debut: lundiISO(-7), fin: lundiISO(11) }] });
+    if (!(reel && reel.suiviMedical)) cfg('suiviMedical', { lieux: [{ code: 'UMP', libelle: 'Urgences médico-psychologiques (fictif)' }],
+      gardes: [{ code: 'nuit', libelle: 'Garde de nuit', debut: '17:30', fin: '08:30', lieu: '' }, { code: 'jour', libelle: 'Garde de jour', debut: '08:30', fin: '17:30', lieu: 'UMP' },
+        { code: 'astreinte', libelle: 'Astreinte', debut: '18:30', fin: '08:30', lieu: '' }] });
 
     var patients = [
       ['P01', '900101', 'ALPHA', 'Camille', 'SDT', U1, 41],
@@ -96,16 +109,17 @@
     // référents ; deux patients sortis (récemment, et il y a trois semaines) pour la liste des patients
     var jISO = function (h) { return SIC.model.dateLocaleISO(t(h)); };
     var complements = {
-      P01: { chambre: '12', lit: 'P', entree: -24 * 40, psychologue: 'Mme Psy (fictif)', suiviAS: { suivi: true, nom: 'M. Social (fictif)' }, referents: [{ id: null, nom: 'Agent A (fictif)' }], medecin1: 'Dr Arnaud (fictif)' },
-      P02: { chambre: '14', lit: '', entree: -24 * 35, psychologue: 'Mme Psy (fictif)', referents: [{ id: null, nom: 'Agent C (fictif)' }], medecin1: 'Dr Benoît (fictif)' },
+      // Médecins de 1re et 2e ligne (Suivi médical, 0.17.0) : un patient sans médecin de 1re ligne par unité, plusieurs sans 2e ligne
+      P01: { chambre: '12', lit: 'P', entree: -24 * 40, psychologue: 'Mme Psy (fictif)', suiviAS: { suivi: true, nom: 'M. Social (fictif)' }, referents: [{ id: null, nom: 'Agent A (fictif)' }], medecin1: 'Dr Arnaud (fictif)', medecin2: 'Dr Benoît (fictif)' },
+      P02: { chambre: '14', lit: '', entree: -24 * 35, psychologue: 'Mme Psy (fictif)', referents: [{ id: null, nom: 'Agent C (fictif)' }], medecin1: 'Dr Benoît (fictif)', medecin2: 'Dr Arnaud (fictif)' },
       P03: { chambre: '8', lit: 'F', entree: -24 * 60, suiviAS: { suivi: false, nom: '' }, medecin1: 'Dr Chen (fictif)' },
-      P04: { chambre: 'A3', lit: '', entree: -24 * 20, psychologue: 'M. Psy (fictif)', suiviAS: { suivi: true, nom: '' }, medecin1: 'Dr Diallo (fictif)' },
-      P05: { chambre: '10', lit: 'P', entree: -24 * 8, referents: [{ id: null, nom: 'Agent E (fictif)' }], medecin1: 'Dr Chen (fictif)' },
-      P06: { chambre: 'A5', lit: '', entree: -24 * 12, medecin1: 'Dr Diallo (fictif)' }
+      P04: { chambre: 'A3', lit: '', entree: -24 * 20, psychologue: 'M. Psy (fictif)', suiviAS: { suivi: true, nom: '' }, medecin1: 'Dr Diallo (fictif)', medecin2: 'Dr Benoît (fictif)' },
+      P05: { chambre: '10', lit: 'P', entree: -24 * 8, referents: [{ id: null, nom: 'Agent E (fictif)' }], medecin1: '', medecin2: 'Dr Fontaine (fictif)' },
+      P06: { chambre: 'A5', lit: '', entree: -24 * 12, medecin1: '' }
     };
     patients.forEach(function (p) {
       var c = complements[p[0]];
-      ajouter(t(-24 * 279), 'PATIENT', { patientId: p[0], medecin1: c.medecin1, referents: c.referents || [], psychologue: c.psychologue || '', suiviAS: c.suiviAS || null });
+      ajouter(t(-24 * 279), 'PATIENT', { patientId: p[0], medecin1: c.medecin1, medecin2: c.medecin2 || '', referents: c.referents || [], psychologue: c.psychologue || '', suiviAS: c.suiviAS || null });
       ajouter(t(c.entree), 'SEJOUR', { patientId: p[0], sejourId: 'S' + p[0], iep: '7' + p[1], entree: jISO(c.entree), service: p[5], chambre: c.chambre, lit: c.lit });
     });
     [['P07', '900107', 'GOLF', 'Ilan', 'SL', U1, 52, -24 * 15, -24 * 3, '6'], ['P08', '900108', 'HOTEL', 'Maé', 'SDT', U1, 29, -24 * 50, -24 * 21, '3']].forEach(function (p) {
@@ -252,6 +266,32 @@
     ajouter(t(-30), 'SIGNALEMENT', { id: 'SG002', vehicule: minibus, type: 'voyant', texte: 'Voyant orange de pression des pneus' });
     ajouter(t(-24 * 4), 'SIGNALEMENT', { id: 'SG003', vehicule: minibus, type: 'nettoyage', texte: 'Sièges arrière' });
     ajouter(t(-24 * 3), 'SIGNALEMENT_FAIT', { signalement: 'SG003' });
+    // Suivi médical (0.17.0) : présences habituelles et ponctuelles, absence remplacée, gardes (dont garde de jour aux
+    // urgences), une demi-journée sans psychiatre en Unité 1 (mercredi après-midi) ; entretiens et contrats de soins
+    // à jour, en retard, jamais faits
+    var pm = 0, presence = function (d) { ajouter(t(-24 * 20), 'PRESENCE', Object.assign({ id: 'PM' + String(++pm).padStart(3, '0'), repetition: 'semaine', debut: lundiISO(-21), moments: ['matin', 'apresmidi'], precision: '' }, d)); };
+    presence({ medecin: 'Dr Arnaud (fictif)', service: U1, nature: 'presence', jours: [1, 2, 5] });
+    presence({ medecin: 'Dr Arnaud (fictif)', service: U1, nature: 'presence', jours: [3], moments: ['matin'] });
+    presence({ medecin: 'Dr Benoît (fictif)', service: U1, nature: 'presence', jours: [2], moments: ['apresmidi'] });
+    presence({ medecin: 'Dr Benoît (fictif)', service: U1, nature: 'presence', jours: [4] });
+    presence({ medecin: 'Dr Benoît (fictif)', service: U2, nature: 'presence', jours: [1, 3], moments: ['matin'] });
+    presence({ medecin: 'Dr Chen (fictif)', service: U1, nature: 'presence', jours: [3], moments: ['matin'], precision: 'Vacation' });
+    presence({ medecin: 'Dr Diallo (fictif)', service: U2, nature: 'presence', jours: [1, 2, 3, 4, 5], moments: ['matin'] });
+    presence({ medecin: 'Dr Diallo (fictif)', service: U2, nature: 'presence', jours: [1, 4], moments: ['apresmidi'] });
+    presence({ medecin: 'Dr Esposito (fictif)', service: U1, nature: 'presence', jours: [1, 4, 5], moments: ['matin'] });
+    presence({ medecin: 'Dr Esposito (fictif)', service: U2, nature: 'presence', jours: [2], moments: ['matin'] });
+    presence({ medecin: 'Dr Chen (fictif)', service: U1, nature: 'presence', repetition: 'date', debut: lundiISO(4), jours: [], moments: ['apresmidi'], precision: 'Staff' });
+    presence({ medecin: 'Dr Arnaud (fictif)', nature: 'absence', repetition: 'date', debut: lundiISO(4), jours: [], service: U1, precision: 'Formation', remplacant: 'Dr Fontaine (fictif)' });
+    presence({ medecin: 'Dr Chen (fictif)', nature: 'garde', garde: 'jour', jours: [1], moments: [], service: U1 });
+    presence({ medecin: 'Dr Benoît (fictif)', nature: 'garde', garde: 'nuit', repetition: 'date', debut: lundiISO(1), jours: [], moments: [], service: U1 });
+    presence({ medecin: 'Dr Diallo (fictif)', nature: 'garde', garde: 'astreinte', jours: [3], moments: [], service: U2 });
+    var sv0 = 0, suivi = function (p, n, medecin, quoi, svc) { ajouter(t(-24 * n + 2), 'SUIVI', { id: 'SV' + String(++sv0).padStart(3, '0'), patient: p, service: svc || U1, date: SIC.model.dateLocaleISO(t(-24 * n)), medecin: medecin, quoi: quoi }); };
+    suivi('P01', 20, 'Dr Arnaud (fictif)', 'contrat'); suivi('P01', 3, 'Dr Arnaud (fictif)', 'entretien');
+    suivi('P02', 16, 'Dr Benoît (fictif)', 'entretien'); suivi('P02', 10, 'Dr Benoît (fictif)', 'contrat');
+    suivi('P03', 40, 'Dr Chen (fictif)', 'contrat'); suivi('P03', 5, 'Dr Chen (fictif)', 'entretien');
+    suivi('P05', 2, 'Dr Arnaud (fictif)', 'entretien');
+    suivi('P04', 1, 'Dr Diallo (fictif)', 'lesdeux', U2);
+
     // Sortie du patient avec sa check-list (un point déjà fait)
     var sortie = rdv({ nature: 'sortie', titre: 'Sortie', debut: jour(3, 11), fin: jour(3, 11, 30), service: U1, patients: ['P03'], validations: [{ id: 'va', type: 'medicale', libelle: 'Avis du psychiatre pour la sortie', delai: 48 }],
       checklist: SIC.agenda && SIC.agenda.CHECKLISTS_DEFAUT ? SIC.agenda.CHECKLISTS_DEFAUT[0].items.map(function (it, i) { return { id: 'c' + i, libelle: it.libelle, delai: it.delai }; }) : [] });

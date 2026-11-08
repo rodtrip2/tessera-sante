@@ -630,3 +630,47 @@ table.liste-patients .btn.tri { color: inherit; text-decoration: none; font-weig
 .agenda-point.signalement.fait { opacity: .7; }
 .resa-vehicule.pre { background: repeating-linear-gradient(135deg, color-mix(in srgb, #b7791f 22%, transparent) 0 6px, transparent 6px 12px); border-color: color-mix(in srgb, #b7791f 60%, transparent); }
 .alerte.avertissement { border-color: #b7791f; }
+
+/* ---------- Module Suivi médical (maquettes validées le 8 novembre 2026) ---------- */
+.grille-presences { min-width: 820px; }
+.grille-presences th.medecin { text-align: left; min-width: 170px; }
+.grille-presences th.sous { font-weight: 400; font-size: .8em; color: var(--ink-2); }
+.grille-presences .aujourdhui { background: var(--accent-soft); }
+.case-presence { cursor: pointer; vertical-align: top; min-width: 84px; }
+.case-presence:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ligne-gardes th, .ligne-couverture th { text-align: left; background: var(--surface-2); }
+.ligne-couverture td { text-align: center; font-weight: 600; }
+.alerte-couverture { background: var(--warn-soft); color: var(--warn); }
+.choix-nature { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; }
+.choix-nature.choisi { border: 2px solid var(--accent); background: var(--accent-soft); font-weight: 600; }
+.case-patient { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; align-items: center; }
+.case-patient.ligne1, .legende.ligne1::before { background: var(--done-soft); border: 2px solid var(--done); }
+.case-patient.ligne2, .legende.ligne2::before { background: var(--warn-soft); border: 2px solid var(--warn); }
+.case-patient.coche { box-shadow: 0 0 0 3px var(--accent); }
+.badge.ligne1 { background: var(--done); color: #fff; }
+.badge.ligne2 { background: var(--warn); color: #fff; }
+.legende { display: inline-flex; align-items: center; gap: 6px; font-size: .85em; color: var(--ink-2); }
+.legende::before { content: ""; width: 14px; height: 14px; border-radius: 4px; }
+.tableau-medecins { table-layout: fixed; min-width: 860px; }
+.tableau-medecins th:first-child { width: 210px; text-align: left; vertical-align: top; }
+.tableau-medecins td { vertical-align: top; }
+.tableau-medecins .ligne-non-attribues th { color: var(--bad); background: var(--bad-soft); }
+.tableau-medecins td.non-attribue { outline: 2px solid var(--bad); outline-offset: -2px; background: var(--bad-soft); }
+.patient-medecin { padding: 5px 0; border-bottom: 1px dashed var(--line); }
+.ajout-case { margin-top: 6px; border: 1px dashed var(--accent); border-radius: var(--radius); padding: 3px 8px; }
+/* Mise en page imprimée du module (A4 paysage) */
+@page suivi { size: A4 landscape; margin: 12mm; }
+.doc-suivi { page: suivi; color: #000; font-size: 10.5pt; }
+.doc-suivi header { display: flex; align-items: flex-end; gap: 12px; border-bottom: 2px solid #000; padding-bottom: 4px; }
+.doc-suivi header > div { flex: 1; }
+.doc-suivi h1 { font-size: 17pt; margin: 0; }
+.doc-suivi header p { margin: 0; }
+.doc-suivi .droite { text-align: right; font-size: 9.5pt; white-space: pre-line; }
+.doc-suivi .confidentiel { font-weight: 700; font-size: 9pt; letter-spacing: .03em; margin: 6px 0; }
+.doc-suivi table { width: 100%; border-collapse: collapse; }
+.doc-suivi th, .doc-suivi td { border: 1px solid #777; padding: 4px 6px; vertical-align: top; text-align: left; background: none; color: #000; }
+.doc-suivi thead th { background: #e6e6e6; }
+.doc-suivi u { text-decoration-thickness: 2px; }
+.doc-suivi tr { break-inside: avoid; }
+.doc-suivi footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #000; margin-top: 8px; padding-top: 3px; font-size: 9pt; }
+.barre select.select-barre { width: auto; max-width: 280px; }

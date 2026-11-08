@@ -36,7 +36,9 @@
     { code: 'detenu', libelle: 'Patient détenu' },
     { code: 'mesuresEnCours', libelle: 'Isolement / contention en cours', isocont: true },
     { code: 'cumuls', libelle: 'Cumuls isolement et contention sur 15 jours', isocont: true },
-    { code: 'vigilance', libelle: 'Vigilance (isolement et contention)', isocont: true }
+    { code: 'vigilance', libelle: 'Vigilance (isolement et contention)', isocont: true },
+    { code: 'dernierEntretien', libelle: 'Dernier entretien médical', suivi: true },
+    { code: 'contratReevalue', libelle: 'Contrat de soins réévalué le', suivi: true }
   ];
   var CODES = COLONNES.map(function (c) { return c.code; });
   var TRIS = ['patient', 'ipp', 'naissance', 'service', 'chambre', 'entree', 'sortie', 'mode', 'medecin1', 'psychologue'];

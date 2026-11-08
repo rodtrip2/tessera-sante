@@ -255,7 +255,8 @@
     var services = U.services();
     var sv = h('select', dis, services.map(function (x) { return h('option', { value: x.code, text: x.libelle, selected: x.code === (f.service || U.App.service) }); }));
     var listeMed = 'medecins-' + Date.now();
-    var datalist = h('datalist', { id: listeMed }, (U.config().psychiatres || []).map(function (n) { return h('option', { value: n }); }));
+    // Liste commune des médecins (décision du 8 novembre 2026) : médecins en activité du service
+    var datalist = h('datalist', { id: listeMed }, (SIC.medecins ? SIC.medecins.noms(U.config(), { service: f.service || (U.App.service !== '*' ? U.App.service : '') }) : (U.config().psychiatres || [])).map(function (n) { return h('option', { value: n }); }));
     var medecin1 = champ(f.medecin1, { list: listeMed }), medecin2 = champ(f.medecin2, { list: listeMed });
     // Psychologue référent et suivi par l'assistant(e) social(e) du service (décision du porteur du 7 novembre 2026)
     var listeAgents = 'ag-' + C.hex(C.aleatoire(3));

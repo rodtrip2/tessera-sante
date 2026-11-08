@@ -225,6 +225,8 @@
     exports: { dossier: 'exports', conservationJours: 0, cheminReseau: '' },
     agenda: {},            // module Agenda (journal du socle) : { identite: 'initiales' | 'aucune' | 'ipp' | 'nom', typesAlertes: [{ code, libelle }] } ; vide = défauts
     importPatients: {},    // module Patients : modèles d'import de la liste du DPI { modeles: { '*': modèle, U1: modèle } } (noms de colonnes et correspondances, aucune donnée de patient)
+    medecins: {},          // liste commune des médecins (medecins.js) : { liste, gestion } ; reprend l'ancienne liste « psychiatres »
+    suiviMedical: {},      // module Suivi médical : délais selon la durée d'hospitalisation, gardes, lieux de présence (module-suivi.js, options)
     groupes: [],           // groupes d'agents créés par le cadre ou l'administrateur (groupes.js) : équipes de jour et de nuit, groupes de travail
     vehiculesInformation: {}, // module Véhicules : destinataires de l'information d'une pré-réservation remplacée, par service (réglés par le cadre)
     vehicules: {},         // module Véhicules : types de véhicules et de signalements, données ajoutées (module-vehicules.js, options)
@@ -2021,7 +2023,8 @@
     { code: 'patients', libelle: 'Module Patients : modèles d’import de la liste du DPI', cles: ['importPatients', 'patientsListe', 'patientsChamps'] },
     { code: 'vehicules', libelle: 'Module Véhicules : types de véhicules et de signalements, données ajoutées', cles: ['vehicules', 'vehiculesInformation'] },
     { code: 'agenda', libelle: 'Module Agenda : identité du patient affichée, types d’alertes', cles: ['agenda'] },
-    { code: 'psychiatres', libelle: 'Liste des psychiatres (noms)', cles: ['psychiatres'] },
+    { code: 'psychiatres', libelle: 'Liste des médecins (noms) et ancienne liste des psychiatres', cles: ['psychiatres', 'medecins'] },
+    { code: 'suiviMedical', libelle: 'Module Suivi médical : délais d’alerte, gardes et astreintes, lieux de présence', cles: ['suiviMedical'] },
     { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
     { code: 'affichage', libelle: 'Points de vigilance et écran de connexion (contact, consigne, logo)', cles: ['vigilance', 'affichage'] },
     { code: 'roles', libelle: 'Rôles et accès, verrouillage après inactivité', cles: ['roles', 'inactiviteMinutes'] },

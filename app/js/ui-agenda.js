@@ -1100,6 +1100,14 @@
     var etat = s.etatModule('isocont');
     return etat ? SIC.modules.lire('isocont.echeancesJLD', etat, { maintenant: maintenant, services: services }) || [] : null;
   }
+  /** Alertes du module Suivi médical (retards d'entretien et de contrat, patients non attribués), lues à la volée. */
+  function alertesSuivi(maintenant, services) {
+    var s = U.App.session;
+    if (!s.detientCle || !s.detientCle('suivi')) return [];
+    var etat = s.etatModule('suivi');
+    return etat ? SIC.modules.lire('suivi.alertes', etat, { config: U.config(), fiches: fiches(), services: services, maintenant: maintenant }) || [] : [];
+  }
+  function allerAuSuivi() { if (U.ouvrirFenetre) U.ouvrirFenetre('suivi'); }
   function allerAuxAlertes() { U.App.onglet = 'alertes'; U.rendreContenu(); }
 
   /** Ligne de résumé en tête de l'agenda : alertes de l'équipe, échéances JLD, points de check-list en retard. */
@@ -1113,6 +1121,8 @@
     if (pv.length) parts.push(pv.length + (pv.length > 1 ? ' validations à obtenir' : ' validation à obtenir') + (pv.some(function (p) { return p.niveau === 'retard'; }) ? ' (dont en retard)' : ''));
     if (tr.length) parts.push(tr.length + (tr.length > 1 ? ' transports à réserver' : ' transport à réserver'));
     if (am.length) parts.push(am.length + (am.length > 1 ? ' éléments sans tous leurs accompagnateurs' : ' élément sans tous ses accompagnateurs'));
+    var sm = alertesSuivi(maintenant, svs);
+    if (sm.length) parts.push(sm.length + (sm.length > 1 ? ' points de suivi médical à voir' : ' point de suivi médical à voir'));
     if (!parts.length) return null;
     var grave = jld.some(function (j) { return j.statut === 'depasse' || j.statut === 'proche'; }) || al.some(function (a) { return a.depassee; }) || cl.length || pv.some(function (p) { return p.niveau !== 'attente'; }) || tr.some(function (t) { return t.niveau === 'proche'; });
     return h('div', { class: 'agenda-resume-alertes' + (grave ? ' grave' : '') }, h('span', { text: parts.join(' · ') }),
@@ -1184,6 +1194,15 @@
           return h('li', {}, h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleElement(c.rdv, null, !peut('RDV'), null, false, c.occurrence); } }, c.rdv.titre || 'Élément'),
             h('span', { text: ' (' + libJour(c.debut) + ' ' + hm(c.debut) + ') : ' + c.item.libelle + ' — attendu ' + (c.item.delai ? 'le ' + libJour(c.item.echeance) : 'le jour même') }));
         })) : h('p', { class: 'muted', text: 'Aucun point en retard.' })),
+      (function () {
+        var sm = alertesSuivi(maintenant, svs);
+        if (!U.App.session.detientCle || !U.App.session.detientCle('suivi')) return null;
+        var lib = { entretien: 'entretien médical en retard', contrat: 'contrat de soins à réévaluer', nonAttribue: 'sans médecin' };
+        return h('section', { class: 'panneau' }, h('div', { class: 'barre' }, h('h2', { text: 'À voir par le médecin (Suivi médical)' }), h('div', { class: 'espace' }), h('button', { class: 'btn petit', type: 'button', onclick: allerAuSuivi }, 'Ouvrir le Suivi médical')),
+          sm.length ? h('ul', { class: 'liste-simple' }, sm.map(function (x) {
+            return h('li', {}, h('b', { text: SIC.suivi.identite(x.suivi.patient, maintenant) }), h('span', { text: ' — ' + lib[x.type] + (x.niveau ? ' de ' + (x.niveau === 1 ? '1re' : '2e') + ' ligne' : '') + (plusieurs ? ' (' + U.libService(x.service) + ')' : '') }));
+          })) : h('p', { class: 'muted', text: 'Rien en retard.' }));
+      })(),
       h('section', { class: 'panneau' }, h('h2', { text: 'Réunions des 7 prochains jours' }),
         reu.length ? h('ul', { class: 'liste-simple' }, reu.map(function (x) {
           return h('li', {}, h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleElement(x.rdv, null, !peut('RDV'), null, false, x.occurrence); } }, x.rdv.titre || 'Réunion'),
