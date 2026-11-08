@@ -393,6 +393,60 @@
    * { nature, patients, service } pour une création. Éléments ajoutables à tout événement (décision du porteur du
    * 8 novembre 2026) : patients, transports, accompagnateurs (désignés ou non), permission à faire valider, validation.
    */
+  // ------------------------------------------------------------ Véhicules du service (module Véhicules, décision du 8 novembre 2026)
+  // Disponibilités lues à la volée (fourniture « vehicules.disponibles ») ; réservation liée à l'élément, à la date et au transport.
+  var HORIZON_VEHICULES = 28;   // jours : dates d'un élément répété réservées d'office ; au-delà, « Réserver le véhicule » à la date
+  function etatVehicules() { var s = U.App.session; try { return s && s.detientCle && s.detientCle('vehicules') ? s.etatModule('vehicules') : null; } catch (e) { return null; } }
+  function vehiculesDispo(service, debut, fin, exclure) { var e = etatVehicules(); return e ? (SIC.modules.lire('vehicules.disponibles', e, { service: service, debut: debut, fin: fin, exclure: exclure, libService: U.libService }) || []) : null; }
+  function vehiculesLies(rdv, occurrence) { var e = etatVehicules(); return e ? (SIC.modules.lire('vehicules.liees', e, { rdv: rdv, occurrence: occurrence }) || []) : []; }
+  function peutReserverVehicule() { try { return !!etatVehicules() && U.App.session.peut('RESERVATION'); } catch (e) { return false; } }
+  function finVehicule(debut, fin) { return fin && fin > debut ? fin : debut + 2 * 36e5; }
+  /** Accorde les réservations liées à un élément avec ses dates et ses transports « Véhicule du service ». Rend les dates en échec. */
+  async function suivreVehicules(rdvId, options) {
+    var o = options || {}, s = U.App.session, moi = s.compteEffectif(), echecs = [];
+    if (!etatVehicules()) return echecs;
+    var r0 = st().rdv[rdvId], lies = vehiculesLies(rdvId), maintenant = Date.now();
+    var voulu = {};   // occurrence|transport → { vehicule, debut, fin, occurrence, transport, nouveau }
+    if (r0 && !r0.supprime) {
+      var finPlage = plusJours(maintenant, HORIZON_VEHICULES);
+      lies.forEach(function (x) { if (x.fin > finPlage) finPlage = x.fin + 864e5; });
+      A.occurrences(r0, maintenant - 864e5, finPlage).forEach(function (oc) {
+        if (oc.annulee) return;
+        var ro = A.rdvOccurrence(r0, oc.occurrence), d1 = finVehicule(oc.debut, oc.fin);
+        if (d1 < maintenant) return;
+        (ro.transports || []).forEach(function (t) {
+          if (t.type !== 'vehicule' || !t.vehicule) return;
+          if (o.seulement && (o.seulement.occurrence !== oc.occurrence || (o.seulement.transport && o.seulement.transport !== t.id))) return;
+          voulu[oc.occurrence + '|' + t.id] = { vehicule: t.vehicule, debut: oc.debut, fin: d1, occurrence: oc.occurrence, transport: t.id, auto: o.seulement || oc.debut < plusJours(maintenant, HORIZON_VEHICULES) || (o.dates || []).indexOf(oc.occurrence) >= 0 };
+        });
+      });
+    }
+    // Réservations liées devenues inutiles ou différentes : annulées (passées : gardées)
+    for (var i = 0; i < lies.length; i++) {
+      var x = lies[i], cle = x.lien.occurrence + '|' + x.lien.transport, v = voulu[cle];
+      if (o.seulement && (x.lien.occurrence !== o.seulement.occurrence || (o.seulement.transport && x.lien.transport !== o.seulement.transport))) continue;
+      if (v && v.vehicule === x.vehicule && v.debut === x.debut && v.fin === x.fin) { delete voulu[cle]; continue; }
+      if (x.fin < maintenant) continue;
+      try {
+        await s.enregistrer('RESERVATION', { id: x.id, annulee: true, motifAnnulation: r0 && !r0.supprime ? 'Élément de l’agenda modifié' : 'Élément de l’agenda supprimé', service: x.service });
+        if (v) await s.enregistrer('TRANSPORT', { rdv: rdvId, transport: x.lien.transport, occurrence: x.lien.occurrence, statut: 'a-reserver', precision: '', service: r0.service });
+      } catch (e) { echecs.push(x.lien.occurrence.split('-').reverse().join('/') + ' : ' + e.message); }
+    }
+    // Réservations à inscrire (disponibilité vérifiée par le module Véhicules à l'enregistrement)
+    var aFaire = Object.keys(voulu).map(function (k) { return voulu[k]; }).filter(function (v) { return v.auto; });
+    if (aFaire.length && !peutReserverVehicule()) return echecs.concat(['vous n’avez pas le droit de réserver les véhicules : transport resté « à réserver »']);
+    for (var j = 0; j < aFaire.length; j++) {
+      var w = aFaire[j], ev = etatVehicules(), vh = ev && ev.vehicules[w.vehicule];
+      try {
+        await s.enregistrer('RESERVATION', { id: 'RV' + C.hex(C.aleatoire(5)), vehicule: w.vehicule, debut: w.debut, fin: w.fin, service: r0.service, agent: moi.id, nom: moi.nom,
+          motif: 'Agenda : ' + libNature(r0.nature, r0.service), lien: { rdv: rdvId, occurrence: w.occurrence, transport: w.transport } });
+        await s.enregistrer('TRANSPORT', { rdv: rdvId, transport: w.transport, occurrence: w.occurrence, statut: 'reserve', precision: SIC.vehicules.libelleVehicule(vh), service: r0.service });
+      } catch (e) { echecs.push(w.occurrence.split('-').reverse().join('/') + ' : ' + e.message.replace(/^Véhicule indisponible : /, '')); }
+    }
+    return echecs;
+  }
+  function signalerEchecs(echecs) { if (echecs.length) alert('Réservation du véhicule non faite :\n' + echecs.join('\n') + '\n\nLe transport reste « à réserver » à ces dates.'); }
+
   function modaleElement(r, jour, lecture, patientsVisibles, externe, occurrence, init) {
     // Toujours l'élément enregistré (réglages de toutes les dates), même ouvert depuis une date qui a ses propres réglages
     if (r && r.id && st().rdv[r.id]) r = st().rdv[r.id];
@@ -542,17 +596,53 @@
       U.vider(zoneTr);
       var etatR = courant(), reserves = occurrence && !nouveau ? A.etatTransports(etatR, occurrence) : [];
       transports.forEach(function (t, i) {
-        var selT = h('select', Object.assign({ 'aria-label': 'Transport', onchange: function () { t.type = selT.value; } }, dis), Object.keys(A.TRANSPORTS).map(function (k) { return h('option', { value: k, text: A.TRANSPORTS[k], selected: (t.type || 'vsl') === k }); }));
+        var selT = h('select', Object.assign({ 'aria-label': 'Transport', onchange: function () { t.type = selT.value; if (t.type === 'vehicule' || t.vehicule) dessinerTransports(); } }, dis), Object.keys(A.TRANSPORTS).map(function (k) { return h('option', { value: k, text: A.TRANSPORTS[k], selected: (t.type || 'vsl') === k }); }));
         var nb = h('input', Object.assign({ type: 'number', min: 1, max: 9, value: t.nombre || 1, class: 'champ-court', 'aria-label': 'Nombre', oninput: function () { t.nombre = Math.max(1, Math.min(9, Math.round(+nb.value || 1))); } }, dis));
         var prec = h('input', Object.assign({ type: 'text', maxlength: 100, value: t.precision || '', placeholder: 'Précision (aller-retour, horaire de prise en charge…)', oninput: function () { t.precision = prec.value; } }, dis));
         var e = reserves.filter(function (y) { return y.id === t.id; })[0];
-        zoneTr.appendChild(h('div', { class: 'agenda-point' }, selT, nb, prec,
+        var estVh = (t.type || 'vsl') === 'vehicule', zoneVh = estVh ? choixVehicule(t) : null;
+        if (estVh) { nb.hidden = true; t.nombre = 1; }
+        zoneTr.appendChild(h('div', { class: 'agenda-point' }, selT, nb, zoneVh, prec,
           e ? (e.reserve ? h('span', { class: 'badge ok', title: 'Par ' + s.nomAuteur(e.reserve.par) + ', ' + U.date(Date.parse(e.reserve.le)), text: 'Réservé' + (e.reserve.precision ? ' : ' + e.reserve.precision : '') }) : h('span', { class: 'badge warn', text: 'À réserver' })) : null,
-          e && peut('TRANSPORT') && !externe ? h('button', { class: 'btn petit', type: 'button', onclick: function () { reserver(t.id, !e.reserve); } }, e.reserve ? 'Remettre à réserver' : 'Marquer réservé…') : null,
+          e && estVh && !externe && (t.vehicule === e.vehicule) && t.vehicule && peutReserverVehicule() ? h('button', { class: 'btn petit', type: 'button', onclick: function () { reserverVehicule(t.id, !e.reserve); } }, e.reserve ? 'Annuler la réservation du véhicule' : 'Réserver le véhicule') : null,
+          e && !estVh && peut('TRANSPORT') && !externe ? h('button', { class: 'btn petit', type: 'button', onclick: function () { reserver(t.id, !e.reserve); } }, e.reserve ? 'Remettre à réserver' : 'Marquer réservé…') : null,
           lecture ? null : h('button', { class: 'btn petit danger', type: 'button', onclick: function () { transports.splice(i, 1); if (!transports.length) visibles.transports = false; majVisibles(); dessinerTransports(); } }, 'Retirer')));
       });
       if (!lecture) zoneTr.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { transports.push({ id: 't' + C.hex(C.aleatoire(3)), type: 'vsl', nombre: 1 }); dessinerTransports(); } }, '+ Autre transport')));
       if (!nouveau && occurrence && transports.length) zoneTr.appendChild(h('small', { class: 'muted', text: 'Réservation pour le ' + occurrence.split('-').reverse().join('/') + '. Un transport ajouté ou modifié se réserve après l’enregistrement.' }));
+    }
+    // Véhicule du service : choix parmi les véhicules du service (ou prêtés, mis à disposition), disponibilité sur les horaires saisis
+    function periodeSaisie() {
+      var d0 = new Date(date.value + 'T' + hDebut.value).getTime(), d1 = hFin.value ? new Date((dateFin.value || date.value) + 'T' + hFin.value).getTime() : null;
+      return [d0, finVehicule(d0, d1)];
+    }
+    function choixVehicule(t) {
+      if (lecture || externe) {
+        var ev = etatVehicules(), vv = ev && t.vehicule ? ev.vehicules[t.vehicule] : null;
+        return h('span', { class: 'badge', text: vv ? SIC.vehicules.libelleVehicule(vv) : (t.vehicule ? 'Véhicule choisi' : 'Véhicule à choisir') });
+      }
+      var p = periodeSaisie(), lie = vehiculesLies(x.id, occurrence || jourISO(p[0])).filter(function (y) { return y.lien.transport === t.id; })[0];
+      var liste = vehiculesDispo(sv.value, p[0], p[1], lie && lie.id);
+      if (liste === null) return h('small', { class: 'muted', text: 'Module Véhicules non accessible : le transport reste à réserver auprès du service qui gère le véhicule.' });
+      if (t.vehicule && !liste.some(function (y) { return y.id === t.vehicule; })) liste.push({ id: t.vehicule, libelle: 'Véhicule choisi (hors de ceux du service)', ok: false, raison: 'plus réservable par ce service' });
+      var sel = h('select', { 'aria-label': 'Véhicule', onchange: function () { t.vehicule = sel.value || null; dessinerTransports(); } },
+        [h('option', { value: '', text: liste.length ? '— Choisir le véhicule —' : 'Aucun véhicule pour ce service' })].concat(liste.map(function (y) {
+          return h('option', { value: y.id, text: y.libelle + (y.places ? ' — ' + y.places + ' pl.' : '') + (y.ok ? '' : ' — indisponible'), selected: y.id === t.vehicule });
+        })));
+      var y = liste.filter(function (z) { return z.id === t.vehicule; })[0];
+      return h('span', { class: 'en-ligne' }, sel, y ? h('span', { class: 'badge ' + (y.ok ? 'ok' : 'bad'), title: y.ok ? (y.signalements ? y.signalements + ' signalement(s) en cours (onglet Véhicules)' : '') : y.raison, text: y.ok ? (repete && !parDate ? 'Libre ce jour' : 'Disponible') + (y.signalements ? ' · ' + y.signalements + ' signalement(s)' : '') : 'Indisponible : ' + y.raison }) : null);
+    }
+    async function reserverVehicule(id, oui) {
+      try {
+        if (oui) signalerEchecs(await suivreVehicules(x.id, { seulement: { occurrence: occurrence, transport: id } }));
+        else {
+          var lies = vehiculesLies(x.id, occurrence).filter(function (y) { return y.lien.transport === id; });
+          for (var i = 0; i < lies.length; i++) await s.enregistrer('RESERVATION', { id: lies[i].id, annulee: true, motifAnnulation: 'Annulée depuis l’agenda', service: lies[i].service });
+          await s.enregistrer('TRANSPORT', { rdv: x.id, transport: id, occurrence: occurrence, statut: 'a-reserver', precision: '', service: x.service });
+          U.toast('Réservation du véhicule annulée.');
+        }
+        dessinerTransports();
+      } catch (e) { alert(e.message); }
     }
     async function reserver(id, oui) {
       var prec = oui ? prompt('Réservation (facultatif : société, numéro de réservation, horaire) :', '') : '';
@@ -675,6 +765,7 @@
     nature.addEventListener('change', function () { majNature(true); });
     sv.addEventListener('change', function () { dessinerPatients(); dessinerPros(); });
     [date, hDebut].forEach(function (c) { c.addEventListener('change', dessinerValidations); });
+    [date, hDebut, dateFin, hFin, sv].forEach(function (c) { c.addEventListener('change', function () { if (transports.some(function (t) { return t.type === 'vehicule'; })) dessinerTransports(); }); });
     if (!nouveau) dessinerCommentaires();
     dessinerPatients(); dessinerPros(); dessinerChecklist();
 
@@ -683,12 +774,14 @@
     if (!lecture && parDate && x.annulee) boutons.push({ texte: 'Rétablir cette date', action: async function () {
       await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, annulee: false, service: x.service });
       U.toast('Date rétablie.');
+      signalerEchecs(await suivreVehicules(x.id, { seulement: { occurrence: occurrence } }));
     } });
     else if (!lecture && parDate) boutons.push({ texte: 'Annuler cette date…', action: async function () {
       var motif = prompt('Annuler le ' + occurrence.split('-').reverse().join('/') + ' (la date reste affichée, barrée). Motif (facultatif) :', baseNature(x.nature, x.service) === 'audience' ? 'Aucun patient convoqué' : '');
       if (motif === null) return false;
       await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, annulee: true, motifAnnulation: motif.trim(), service: x.service });
       U.toast('Date annulée.');
+      signalerEchecs(await suivreVehicules(x.id, { seulement: { occurrence: occurrence } }));
     } });
     if (!lecture && parDate && propres.length) boutons.push({ texte: 'Reprendre les réglages communs', action: async function () {
       if (!confirm('Le ' + occurrence.split('-').reverse().join('/') + ' reprend les réglages de toutes les dates (' + propres.join(', ') + ' propres à cette date seront oubliés) ?')) return false;
@@ -699,17 +792,20 @@
       if (!confirm('Retirer définitivement l’occurrence du ' + occurrence.split('-').reverse().join('/') + ' ? Les autres dates sont gardées.')) return false;
       await s.enregistrer('RDV', { id: x.id, exceptions: (r.exceptions || []).concat([occurrence]), service: x.service });
       U.toast('Date retirée.');
+      signalerEchecs(await suivreVehicules(x.id, { seulement: { occurrence: occurrence } }));
     } });
     if (!lecture && !nouveau && repete && !parDate && occurrence > A.jourISO(r.debut)) boutons.push({ texte: 'Arrêter à cette date', action: async function () {
       if (!confirm('Arrêter la répétition : retirer le ' + occurrence.split('-').reverse().join('/') + ' et toutes les dates suivantes ? Les dates précédentes sont gardées.')) return false;
       var rg = A.regularite(r.regularite); rg.jusquAu = A.jourISO(plusJours(A.depuisISO(occurrence), -1));
       await s.enregistrer('RDV', { id: x.id, regularite: rg, service: x.service });
       U.toast('Dates retirées à partir du ' + occurrence.split('-').reverse().join('/') + '.');
+      signalerEchecs(await suivreVehicules(x.id));
     } });
     if (!lecture && !nouveau && !parDate) boutons.push({ texte: repete ? 'Supprimer toutes les dates' : 'Supprimer', classe: 'danger', action: async function () {
       if (!confirm('Supprimer « ' + libelleElement(x) + ' »' + (repete ? ' et toutes ses dates' : '') + ' de l’agenda ?')) return false;
       await s.enregistrer('RDV', { id: x.id, supprime: true, service: x.service });
       U.toast('Élément supprimé.');
+      signalerEchecs(await suivreVehicules(x.id));
     } });
     if (!lecture) boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       var nv = nature.value;
@@ -730,8 +826,17 @@
       var d = { id: x.id || 'R' + C.hex(C.aleatoire(6)), nature: nv, titre: titre.value.trim(), debut: d0, fin: d1, lieu: lieu.value.trim(), service: sv.value,
         patients: visibles.patients ? patients : [], professionnels: profs, regularite: rg, checklist: checklist,
         accompagnateurs: visibles.accompagnateurs ? nbAcc : 0,
-        transports: visibles.transports ? transports.map(function (t) { return { id: t.id, type: t.type || 'vsl', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: String(t.precision || '').trim() }; }) : [],
+        transports: visibles.transports ? transports.map(function (t) { var o = { id: t.id, type: t.type || 'vsl', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: String(t.precision || '').trim() }; if (o.type === 'vehicule' && t.vehicule) o.vehicule = t.vehicule; return o; }) : [],
         validations: visibles.validations ? validations.map(function (v) { var o = { id: v.id, type: v.type, libelle: String(v.libelle || '').trim() }; if (v.type !== 'permission') o.delai = v.delai === undefined ? 24 : v.delai; return o; }) : [] };
+      // Véhicule du service : disponibilité vérifiée avant d'enregistrer (une date : élément simple ou « cette date seulement »)
+      if (parDate || rg.type === 'aucune') {
+        var occV = parDate ? occurrence : jourISO(d0);
+        d.transports.filter(function (t) { return t.type === 'vehicule' && t.vehicule; }).forEach(function (t) {
+          var lie = vehiculesLies(x.id, occV).filter(function (y) { return y.lien.transport === t.id; })[0], dispo = vehiculesDispo(sv.value, d0, finVehicule(d0, d1), lie && lie.id);
+          var y = dispo && dispo.filter(function (z) { return z.id === t.vehicule; })[0];
+          if (dispo && (!y || !y.ok) && !confirm('Véhicule indisponible' + (y ? ' : ' + y.raison : '') + '.\nEnregistrer quand même (le transport restera « à réserver ») ?')) throw new Error('Choisissez un autre véhicule ou d’autres horaires.');
+        });
+      }
       if (bv === 'entretien') d.entretien = { type: selEnt.value, avec: selAvec.value };
       if (bv === 'examen') d.examen = { type: typeExamen.value.trim() };
       if (parDate) {
@@ -745,6 +850,7 @@
         if (!n0) return true;
         await s.enregistrer('OCCURRENCE', od);
         U.toast('Modifié pour le ' + occurrence.split('-').reverse().join('/') + ' seulement.');
+        signalerEchecs(await suivreVehicules(x.id, { seulement: { occurrence: occurrence } }));
         return;
       }
       if (!nouveau) Object.keys(d).forEach(function (k) { if (k !== 'id' && k !== 'service' && JSON.stringify(d[k]) === JSON.stringify(x[k])) delete d[k]; });
@@ -753,6 +859,7 @@
       if (!nouveau && Object.keys(d).length <= 2 && d.service === x.service) return true;
       await s.enregistrer('RDV', d);
       U.toast(nouveau ? 'Ajouté à l’agenda.' : 'Élément modifié.');
+      signalerEchecs(await suivreVehicules(d.id, { dates: rg.type === 'aucune' ? [jourISO(d0)] : [] }));
     } });
     U.modale(nouveau ? 'Nouvel élément de l’agenda' : (lecture ? libelleElement(x) + (externe ? ' — ' + U.libService(x.service) : '') : (parDate ? 'Modifier le ' + occurrence.split('-').reverse().join('/') : 'Modifier l’élément')), h('div', { class: 'pile' },
       externe ? h('p', { class: 'muted', text: 'Élément de l’agenda du service ' + U.libService(x.service) + ', qui concerne un patient hospitalisé dans votre service' + (lecture ? ' : consultation et commentaires.' : '.') }) : null,
@@ -1407,5 +1514,5 @@
     // Pastille de la barre des modules : informations reçues non vues
     pastille: function () { try { return mesAvis().length; } catch (e) { return 0; } }
   });
-  U.agenda = { modaleElement: modaleElement, modaleAjout: modaleAjout, sectionPatient: sectionPatient, aVenirPour: aVenirPour };
+  U.agenda = { modaleElement: modaleElement, modaleAjout: modaleAjout, sectionPatient: sectionPatient, aVenirPour: aVenirPour, suivreVehicules: suivreVehicules };
 })();

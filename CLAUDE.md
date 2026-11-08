@@ -4,7 +4,7 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 
 ## 1. Le projet
 
-- **Tessera Santé** : plateforme de suivi et d'organisation d'un service de soins, faite d'un **socle commun** (connexion unique, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et de **modules** activés par service : **Patients** (fiche commune), **Isolement et contention (Isocont)**, **Agenda du service** (besoins : `docs/architecture.md` § 7 bis).
+- **Tessera Santé** : plateforme de suivi et d'organisation d'un service de soins, faite d'un **socle commun** (connexion unique, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et de **modules** activés par service : **Patients** (fiche commune), **Isolement et contention (Isocont)**, **Agenda du service** (besoins : `docs/architecture.md` § 7 bis), **Véhicules de l'établissement** (§ 7 ter).
 - Porteur : Roddy Ricart, faisant fonction cadre de santé (CHHA, pôle santé mentale, UHP). Projet réalisé sur son temps libre, **open source sous licence EUPL-1.2** (`LICENSE`).
 - Le module Isocont reprend l'application **Suivi-mesures-isocont** (dépôt public `rodtrip2/Suivi-mesures-isocont`, version 1.67), source du code de départ. Ses règles métier, validées une à une par le porteur, s'appliquent au module sans changement : **`docs/consignes-isocont.md`** (copie des consignes de ce dépôt au 7 novembre 2026).
 - Le DPI reste la référence clinique. Tessera se limite à ce que le DPI ne fait pas ou fait mal ; **aucune donnée clinique** dans aucun module.
@@ -74,5 +74,6 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 - Accord de la direction des soins (fiche projet), avis du service informatique, du responsable de la sécurité informatique et du délégué à la protection des données (fiche technique), y compris pour l'usage de GitHub Pages pendant le pilote.
 - Ajout de l'IPP à l'export de Sillage.
 - Agenda : identité du patient affichée par défaut pour les accompagnements et activités (proposé : initiales), catégories d'absence ; délais de validation des permissions pour SDT, SDTU et SPI (proposé : 24 h).
+- Véhicules : base légale et durée de conservation des réservations (traitement 4 du kit RGPD) ; horizon de réservation d'office des événements répétés (proposé : 28 jours) ; rôles qui réservent et signalent par défaut (proposé : IDE, AS, secrétaires, cadres).
 - Devenir du dépôt `Suivi-mesures-isocont` une fois Tessera en service.
 - Points propres au module Isocont : `docs/consignes-isocont.md` § 13.

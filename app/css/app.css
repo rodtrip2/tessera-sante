@@ -613,3 +613,18 @@ table.liste-patients .btn.tri { color: inherit; text-decoration: none; font-weig
 .ag-categorie.inactive { opacity: .7; }
 .ag-categorie[open] > .pile { margin-top: 8px; }
 .colonnes-affichage { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 2px 16px; margin-top: 6px; }
+
+/* ---------- Module Véhicules (0.14.0) ---------- */
+.grille-vehicules { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.carte-vehicule .recap { display: grid; gap: 2px; margin: 6px 0; }
+.carte-vehicule.hors-service { opacity: .75; }
+.carte-vehicule .badge { margin: 2px 4px 2px 0; }
+.planning-vehicules { table-layout: fixed; min-width: 860px; }
+.planning-vehicules th.vehicule { width: 170px; text-align: left; vertical-align: top; }
+.planning-vehicules td.cellule-vehicule { vertical-align: top; padding: 4px; }
+.planning-vehicules .aujourdhui { background: color-mix(in srgb, var(--accent, #2b6cb0) 8%, transparent); }
+.resa-vehicule { display: block; width: 100%; text-align: left; font: inherit; font-size: .82em; margin: 0 0 3px; padding: 2px 5px; border-radius: 5px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--accent, #2b6cb0) 50%, transparent); background: color-mix(in srgb, var(--accent, #2b6cb0) 16%, transparent); color: inherit; }
+.resa-vehicule.liee { border-style: dashed; }
+.pret-vehicule { font-size: .75em; margin-bottom: 3px; padding: 1px 4px; border-radius: 4px; background: color-mix(in srgb, #b7791f 18%, transparent); }
+.agenda-point.signalement.fait { opacity: .7; }

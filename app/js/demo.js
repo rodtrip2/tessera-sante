@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'vehicules', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -54,6 +54,9 @@
         { id: 'educateur', libelle: 'Éducateur référent', type: 'professionnel', services: [], saisie: [], lecture: ['IDE', 'CADRE', 'SECRETAIRE'] },
         { id: 'repas', libelle: 'Repas favori', type: 'liste', choix: ['Pâtes', 'Couscous', 'Poisson', 'Végétarien'], services: [], saisie: ['IDE', 'AS', 'CADRE'], lecture: [] },
         { id: 'activite-preferee', libelle: 'Activité préférée', type: 'texte', services: [], saisie: [], lecture: [], actif: false }]);
+      // Véhicules : deux données ajoutées par l'administrateur (fictives)
+      cfg('vehicules', { champs: [{ id: 'carte-carburant', libelle: 'Carte carburant à bord', type: 'ouiNon' }, { id: 'revision', libelle: 'Prochaine révision', type: 'date' },
+        { id: 'equipement', libelle: 'Équipement', type: 'liste', choix: ['Rampe d’accès', 'Siège enfant', 'Galerie de toit'] }] });
       // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
       cfg('agenda', { categories: {
         '*': { activite: { prereglages: { attente: true } }, examen: { prereglages: { lieu: 'Hôpital général (fictif)' } },
@@ -214,6 +217,28 @@
     if (options.moi && options.moi.id) ajouter(avant, 'INSCRIPTION', { rdv: audience, occurrence: occ1, agent: options.moi.id, nom: options.moi.nom || '', service: U1 });
     ajouter(avant, 'OCCURRENCE', { rdv: audience, occurrence: occ2, annulee: true, motifAnnulation: 'Aucun patient convoqué', service: U1 });
     ajouter(avant, 'OCCURRENCE', { rdv: audience, occurrence: occ3, debut: mercredi(3) + 864e5 + 14 * 36e5, fin: mercredi(3) + 864e5 + 16 * 36e5, patients: ['P04'], transports: [{ id: 'tb', type: 'vsl', nombre: 1 }], service: U1 });
+    // Véhicules de l'établissement (0.14.0) : trois véhicules fictifs, un prêt, une mise à disposition, réservations directes
+    // et depuis l'agenda (une réservée, une à réserver), signalements en cours et fait
+    var vh = function (d) { ajouter(t(-24 * 60), 'VEHICULE', d); return d.id; };
+    var clio = vh({ id: 'VH001', nom: 'Citadine blanche (fictif)', type: 'automobile', immatriculation: 'XX-001-XX', places: 5, parking: 'Parking P2, place 14 (fictif)', service: U1, actif: true,
+      precision: 'Clés au bureau infirmier', complements: { 'carte-carburant': true, revision: SIC.model.dateLocaleISO(jour(40)) } });
+    var minibus = vh({ id: 'VH002', nom: 'Minibus 9 places (fictif)', type: 'minibus', immatriculation: 'XX-002-XX', places: 9, parking: 'Parking du pôle (fictif)', service: U1, actif: true, complements: { 'carte-carburant': true, equipement: 'Galerie de toit' } });
+    var adapte = vh({ id: 'VH003', nom: 'Ludospace adapté (fictif)', type: 'adapte', immatriculation: 'XX-003-XX', places: 4, parking: 'Parking P1 (fictif)', service: U2, actif: true, complements: { equipement: 'Rampe d’accès' } });
+    ajouter(t(-24 * 2), 'PRET', { id: 'PR001', vehicule: adapte, mode: 'partage', services: [U1], debut: SIC.model.dateLocaleISO(jour(0)), fin: SIC.model.dateLocaleISO(jour(14)), motif: 'Pendant les travaux du parking (fictif)' });
+    ajouter(t(-24 * 2), 'PRET', { id: 'PR002', vehicule: minibus, mode: 'pret', services: [U2], debut: SIC.model.dateLocaleISO(jour(5)), fin: SIC.model.dateLocaleISO(jour(6)), motif: 'Séjour thérapeutique de l’Unité 2 (fictif)' });
+    var resa = function (d) { ajouter(avant, 'RESERVATION', Object.assign({ agent: 'demo-b', nom: 'Agent B (fictif)' }, d)); };
+    resa({ id: 'RV001', vehicule: clio, debut: jour(-2, 14), fin: jour(-2, 16), service: U1, motif: 'Achats pour l’atelier cuisine' });
+    resa({ id: 'RV002', vehicule: clio, debut: jour(2, 13, 30), fin: jour(2, 15), service: U1, motif: 'Achats pour l’atelier cuisine' });
+    resa({ id: 'RV003', vehicule: adapte, debut: jour(1, 9), fin: jour(1, 12), service: U2, motif: 'Rendez-vous extérieur', agent: 'demo-d', nom: 'Agent D (fictif)' });
+    var marche = rdv({ nature: 'activite', titre: 'Sortie au marché', debut: jour(1, 9), fin: jour(1, 11, 30), lieu: 'Marché du centre-ville (fictif)', service: U1, patients: ['P01', 'P05'], accompagnateurs: 1, professionnels: [profC],
+      transports: [{ id: 'tm', type: 'vehicule', nombre: 1, vehicule: minibus }] });
+    resa({ id: 'RV004', vehicule: minibus, debut: jour(1, 9), fin: jour(1, 11, 30), service: U1, motif: 'Agenda : Activité', lien: { rdv: marche, occurrence: SIC.model.dateLocaleISO(jour(1)), transport: 'tm' } });
+    ajouter(avant, 'TRANSPORT', { rdv: marche, transport: 'tm', occurrence: SIC.model.dateLocaleISO(jour(1)), statut: 'reserve', precision: 'Minibus 9 places (fictif) (XX-002-XX)', service: U1 });
+    rdv({ nature: 'accompagnement', titre: 'Démarches à la mairie', debut: jour(4, 14), fin: jour(4, 16), lieu: 'Mairie (fictif)', service: U1, patients: ['P02'], accompagnateurs: 1, transports: [{ id: 'tc', type: 'vehicule', nombre: 1, vehicule: clio }] });
+    ajouter(t(-20), 'SIGNALEMENT', { id: 'SG001', vehicule: clio, type: 'plein', texte: 'Reste un quart du réservoir' });
+    ajouter(t(-30), 'SIGNALEMENT', { id: 'SG002', vehicule: minibus, type: 'voyant', texte: 'Voyant orange de pression des pneus' });
+    ajouter(t(-24 * 4), 'SIGNALEMENT', { id: 'SG003', vehicule: minibus, type: 'nettoyage', texte: 'Sièges arrière' });
+    ajouter(t(-24 * 3), 'SIGNALEMENT_FAIT', { signalement: 'SG003' });
     // Sortie du patient avec sa check-list (un point déjà fait)
     var sortie = rdv({ nature: 'sortie', titre: 'Sortie', debut: jour(3, 11), fin: jour(3, 11, 30), service: U1, patients: ['P03'], validations: [{ id: 'va', type: 'medicale', libelle: 'Avis du psychiatre pour la sortie', delai: 48 }],
       checklist: SIC.agenda && SIC.agenda.CHECKLISTS_DEFAUT ? SIC.agenda.CHECKLISTS_DEFAUT[0].items.map(function (it, i) { return { id: 'c' + i, libelle: it.libelle, delai: it.delai }; }) : [] });

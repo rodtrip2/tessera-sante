@@ -315,7 +315,7 @@
   /** Transports d'une occurrence : [{ id, type, nombre, precision, reserve: { par, le } | null }]. */
   function etatTransports(r, occurrence) {
     return (Array.isArray(r.transports) ? r.transports : []).filter(function (t) { return t && t.id; }).map(function (t) {
-      return { id: t.id, type: TRANSPORTS[t.type] ? t.type : 'autre', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: t.precision || '', reserve: (r.reservations || {})[occurrence + '|' + t.id] || null };
+      return { id: t.id, type: TRANSPORTS[t.type] ? t.type : 'autre', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: t.precision || '', vehicule: t.vehicule || null, reserve: (r.reservations || {})[occurrence + '|' + t.id] || null };
     });
   }
   // ------------------------------------------------------------ Catégories d'événements et préréglages (8 novembre 2026)

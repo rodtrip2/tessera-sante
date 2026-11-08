@@ -6,7 +6,7 @@ Tessera Santé est une plateforme : un **socle commun** (comptes, droits, chiffr
 
 ## 1. Fiches du registre des traitements (propositions)
 
-### Rubriques communes aux trois traitements
+### Rubriques communes aux traitements
 
 | Rubrique | Contenu proposé |
 | --- | --- |
@@ -53,6 +53,18 @@ Tessera Santé est une plateforme : un **socle commun** (comptes, droits, chiffr
 | Lecture d'autres modules | Échéances JLD calculées à la volée par le module Isocont, affichées aux seuls agents qui ont l'accès aux envois au JLD ; aucune copie |
 | Destinataires | Agents habilités des services concernés ; un élément d'un autre service qui concerne un patient hospitalisé dans le service y est visible, limité à ce patient. « Mon agenda » : vue personnelle dans l'outil, sans export ni synchronisation vers un autre agenda |
 
+### Traitement 4 — Véhicules de l'établissement (module Véhicules)
+
+| Rubrique | Contenu proposé |
+| --- | --- |
+| Nom du traitement | Gestion et réservation des véhicules de service |
+| Finalités | Connaître le parc des véhicules et leur service d'affectation, organiser leur prêt entre services, les réserver (directement ou pour un événement de l'agenda), suivre les tâches qui les concernent (plein, nettoyage, voyant, entretien) |
+| Base légale (à valider) | Article 6.1.e du RGPD (mission d'intérêt public) ou 6.1.b (gestion du personnel et des moyens), à valider |
+| Personnes concernées | Professionnels (auteur d'une réservation ou d'un signalement). **Aucun patient** : une réservation faite depuis l'agenda porte la catégorie de l'événement (ex. « Activité »), jamais l'identité du patient |
+| Données | Véhicules (caractéristiques, immatriculation, stationnement, informations ajoutées par l'administrateur) ; réservations (véhicule, horaires, service, agent, motif court) ; signalements (type, précision, auteur, date, « fait ») |
+| Lecture d'autres modules | L'agenda lit à la volée la disponibilité des véhicules du service ; aucune copie |
+| Destinataires | Agents habilités des services où le module est activé ; un service emprunteur voit le véhicule prêté ou mis à disposition |
+
 ## 2. Analyse d'impact (AIPD)
 
 La liste de la CNIL des traitements pour lesquels une analyse d'impact est requise comprend les « traitements de données de santé mis en œuvre par les établissements de santé […] pour la prise en charge des personnes ». Le traitement 2 porte en outre sur des personnes vulnérables, souvent hospitalisées sans leur consentement. **Une analyse d'impact paraît donc requise**, au moins pour les traitements 1 et 2 ; elle peut couvrir la plateforme entière, avec une partie par module. Elle peut être conduite avec l'outil PIA de la CNIL ; les éléments ci-dessous en préparent la partie « risques ».
@@ -71,6 +83,7 @@ La liste de la CNIL des traitements pour lesquels une analyse d'impact est requi
 
 - Le contrôle des droits est fait par l'application sur le poste, sans serveur. Le chiffrement par module en donne la garantie entre modules (pas de clé, pas de lecture) ; à l'intérieur d'un module, le cloisonnement entre services repose sur l'interface : un agent du module disposant de compétences techniques pourrait lire les données d'un autre service du même module, sans pouvoir effacer la trace de ses saisies.
 - La perte simultanée de tous les moyens de déverrouillage rend les données irrécupérables : c'est la contrepartie d'un chiffrement effectif.
+- **Véhicules** : la consigne « motif court, aucune donnée clinique » figure sur l'écran de réservation ; l'historique des réservations rattache un agent à un déplacement (à prendre en compte pour la durée de conservation).
 - **Agenda** : le réglage de la désignation des patients (initiales par défaut) est un choix de minimisation à valider, en tenant compte des écrans visibles par l'équipe. Les alertes et commentaires sont des informations d'organisation ; la consigne de n'y écrire aucune donnée clinique figure sur chaque écran de saisie.
 - **Registre légal** (traitement 2) : il désigne le patient par son IPP et son âge, comme l'exige l'article L. 3222-5-1, et n'est présenté qu'aux instances prévues par la loi. Pour une demande de communication (CADA), l'outil produit une version occultée, choix les plus protecteurs présélectionnés (Conseil d'État, 8 février 2023, n° 455887), édition tracée.
 - **Import de la liste du DPI** : le fichier exporté est lu sur le poste ; il reste à la charge de l'agent de le supprimer de son poste après l'import (consigne à inscrire dans la procédure).

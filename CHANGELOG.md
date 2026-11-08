@@ -1,5 +1,18 @@
 # Journal des modifications — Tessera Santé
 
+## 0.14.0 — 8 novembre 2026
+
+Nouveau module demandé par le porteur (8 novembre 2026) : **Véhicules de l'établissement** (journal `modules\vehicules\`, clé et droits propres, activation par service, icône dans la barre des modules).
+
+- **Parc** : véhicules (automobile, minibus, utilitaire, véhicule adapté : types réglables), service d'affectation, immatriculation, nombre de places, lieu de stationnement, précision, en service ou non, et **données ajoutées par l'administrateur** (oui ou non, texte, liste de choix, date, nombre), comme les données complémentaires de la fiche patient.
+- **Prêt** à un autre service pendant une période (seul le service emprunteur réserve) ou **mise à disposition** (réservable aussi par les services désignés, ou par tous).
+- **Réservations** directes avec vérification de la disponibilité à l'écran puis par le module avant l'enregistrement (chevauchement, hors service, prêts) ; annulation par qui a l'accès « Réserver » ou par l'agent pour sa propre réservation ; planning sur 7 jours par véhicule.
+- **Lien avec l'Agenda** : transport « Véhicule du service » avec choix du véhicule et disponibilité sur les horaires saisis (fourniture `vehicules.disponibles`) ; à l'enregistrement, la réservation s'inscrit pour le véhicule et le transport passe « réservé » (avertissement avant d'enregistrer si le véhicule est pris) ; la réservation suit l'événement (horaires ou véhicule changés, date annulée ou retirée, répétition arrêtée, suppression) ; élément répété : 28 prochains jours réservés d'office, puis *Réserver le véhicule* à la date. La réservation ne porte que la catégorie de l'événement, jamais le patient.
+- **Signalements** : faire le plein, voyant allumé, à nettoyer, entretien à prévoir, dégât, information (types réglables) ; « Fait » daté ; pastille sur l'icône du module.
+- *Administration → Véhicules* : types de véhicules, données ajoutées (tableau), types de signalements (réglage `vehicules`, journal et export des réglages).
+- Démonstration : trois véhicules fictifs, un prêt, une mise à disposition, réservations directes et depuis l'agenda (une réservée, une à réserver), signalements en cours et fait.
+- Documentation : architecture (§ 7 ter, décisions, état du plan), fiche projet, fiche technique, éléments RGPD (traitement 4), guide utilisateur. Trois nouveaux tests (227 au vert) ; écrans vérifiés dans Chrome.
+
 ## 0.13.0 — 8 novembre 2026
 
 Évolution reprise à la demande du porteur (8 novembre 2026) : **données complémentaires de la fiche patient**.

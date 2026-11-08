@@ -91,21 +91,32 @@ Onglet *Alertes* :
 
 Votre semaine, tous vos services réunis : éléments où vous êtes prévu(e) ou inscrit(e) comme accompagnateur, tâches qui vous sont affectées ou qui reviennent à votre rôle, vos absences, et les alertes qui vous sont adressées. Cette vue reste dans Tessera : rien n'est copié dans un autre agenda.
 
-## 5. Isolement et contention
+## 5. Véhicules de l'établissement
+
+Fenêtre *Véhicules* (icône de voiture ; la pastille compte les signalements en cours).
+
+- **Véhicules** : une carte par véhicule du service (et des véhicules prêtés ou mis à disposition par un autre service) : immatriculation, places, parking, informations ajoutées par l'établissement, signalements en cours, prêts, prochaines réservations.
+- **Réserver** : choisissez le service, le véhicule, le départ et le retour ; l'écran indique aussitôt si le véhicule est **disponible** (ou pourquoi il ne l'est pas : déjà réservé, prêté, hors service). Motif court, sans donnée clinique. Vous pouvez annuler votre propre réservation.
+- **Depuis l'agenda** : dans un événement, *+ Transport* puis « Véhicule du service » et choix du véhicule (disponibilité affichée selon les horaires). À l'enregistrement, le véhicule est réservé et le transport passe « réservé » ; si le véhicule est déjà pris, vous êtes averti(e) avant d'enregistrer. La réservation suit l'événement : horaires ou véhicule changés, date annulée, événement supprimé. Pour un événement répété, les dates des 4 prochaines semaines sont réservées d'office, les suivantes avec *Réserver le véhicule* à la date.
+- **Réservations** : planning sur 7 jours, une ligne par véhicule ; réservation en pointillé = faite depuis l'agenda ; « + » réserve le véhicule ce jour-là.
+- **Signalements** : *Signaler…* (faire le plein, voyant allumé, à nettoyer, entretien à prévoir, dégât, information) ; *Fait* quand c'est réglé.
+- **Cadre** : *+ Nouveau véhicule*, *Modifier* (décochez « En service » pendant une immobilisation), *Prêter ou mettre à disposition…* (prêt : seul le service emprunteur réserve pendant la période ; mise à disposition : d'autres services peuvent aussi réserver). *Administration → Véhicules* : types de véhicules, informations ajoutées (oui ou non, texte, liste, date, nombre), types de signalements.
+
+## 6. Isolement et contention
 
 Voir le guide du module (document 12) et le guide pratique des IDE et AS (document 08).
 
-## 6. Journal, corrections et annulations
+## 7. Journal, corrections et annulations
 
 - Onglet *Journal* : chaque saisie, avec son auteur, son heure, le patient et l'élément concernés, l'ancienne et la nouvelle valeur. Selon votre rôle : journal complet, saisies de vos services, ou vos propres saisies seulement.
 - Rien n'est jamais effacé : une correction ou une annulation est elle-même une saisie. *Annuler* sur une ligne (rôles autorisés : cadre pour les saisies de soin et d'organisation, administrateur pour les réglages et les imports) demande un motif ; *Rétablir* défait une annulation faite par erreur.
 - *Saisies en conflit à arbitrer* : deux agents ont modifié la même donnée au même moment ; un cadre choisit celle à garder.
 
-## 7. Mode formation
+## 8. Mode formation
 
 Sur l'écran de connexion, choisissez **Mode formation** au lieu de *Données réelles* : vous retrouvez votre compte, vos rôles et vos services avec un jeu de données **entièrement fictif**, pour vous entraîner. Un **bandeau violet** reste affiché : n'y saisissez jamais de donnée réelle. Pour revenir : *Passer aux données réelles*.
 
-## 8. Cadre de santé et administrateur
+## 9. Cadre de santé et administrateur
 
 - **Organisation de l'administration** (fenêtre *Administration*) : onglet *Réglages généraux* (comptes et sécurité, établissement et services, sauvegardes et exports, à propos), puis **un onglet par module** (*Isolement et contention*, *Patients*, *Agenda du service*), chacun avec ses rubriques.
 - **Rôles et accès** (*Administration → Réglages généraux → Comptes et sécurité*) : les accès sont groupés par module, en langage courant. Droits proposés par défaut :
@@ -126,7 +137,7 @@ Sur l'écran de connexion, choisissez **Mode formation** au lieu de *Données r�
 - **Intégrité du coffre** (*Administration → Comptes et sécurité*, administrateur) : « Coffre attesté » en temps normal ; conduite à tenir en cas d'alerte ou de compromission : procédures de secours (document 04).
 - **Sauvegardes et exports**, dossier de secours, travail hors réseau, exports, export et import des réglages : guide d'installation (03), procédures de secours (04), documents 09 et 10.
 
-## 9. En cas de problème
+## 10. En cas de problème
 
 - *Dossier inaccessible* ou application indisponible : procédure dégradée papier (document 04), puis ressaisie avec les heures réelles.
 - *Mot de passe oublié* : demandez une réinitialisation à l'administrateur ; il vous remettra un mot de passe provisoire.
