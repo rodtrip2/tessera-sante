@@ -98,7 +98,7 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 - **Prêt** à un autre service pendant une période (seul le service emprunteur le réserve) ou **mise à disposition** (réservable aussi par d'autres services).
 - **Réservation** directe ou depuis un événement de l'agenda : la disponibilité est vérifiée et la réservation suit l'événement (modification, annulation). Planning des véhicules sur 7 jours.
 - **Motif** obligatoire pour toute réservation.
-- **Pré-réservation** : on sait qui a pré-réservé le véhicule et pourquoi ; une autre personne peut quand même réserver après avertissement, et l'auteur de la pré-réservation, le cadre et la secrétaire en sont informés.
+- **Pré-réservation** : on sait qui a pré-réservé le véhicule et pourquoi ; une autre personne peut quand même réserver après avertissement, et l'auteur de la pré-réservation en est informé, ainsi que les personnes désignées par le cadre (par défaut le cadre et la secrétaire).
 - **Signalements** : faire le plein, voyant allumé, à nettoyer, entretien à prévoir… marqués « faits » par l'équipe.
 
 ## 5 ter. Groupes d'agents

@@ -441,7 +441,7 @@
         // Véhicule pré-réservé : réservation forcée après avertissement (déjà donné à l'enregistrement d'une seule date)
         var pv = SIC.vehicules.peutReserver(ev, w.vehicule, r0.service, w.debut, w.fin, null, U.libService), supplante;
         if (pv.ok && pv.pre && pv.pre.length) {
-          if (!o.forcer && !confirm(w.occurrence.split('-').reverse().join('/') + ' : véhicule ' + pv.avertissement + '.\n\nForcer la réservation ? L’auteur de la pré-réservation, le cadre et la secrétaire de son service en seront informés.')) { echecs.push(w.occurrence.split('-').reverse().join('/') + ' : ' + pv.avertissement); continue; }
+          if (!o.forcer && !confirm(w.occurrence.split('-').reverse().join('/') + ' : véhicule ' + pv.avertissement + '.\n\nForcer la réservation ? L’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.')) { echecs.push(w.occurrence.split('-').reverse().join('/') + ' : ' + pv.avertissement); continue; }
           supplante = pv.pre.map(function (z) { return z.id; });
         }
         await s.enregistrer('RESERVATION', { id: 'RV' + C.hex(C.aleatoire(5)), vehicule: w.vehicule, debut: w.debut, fin: w.fin, service: r0.service, agent: moi.id, nom: moi.nom, statut: 'ferme', supplante: supplante,
@@ -843,7 +843,7 @@
           var y = dispo && dispo.filter(function (z) { return z.id === t.vehicule; })[0];
           if (dispo && (!y || !y.ok) && !confirm('Véhicule indisponible' + (y ? ' : ' + y.raison : '') + '.\nEnregistrer quand même (le transport restera « à réserver ») ?')) throw new Error('Choisissez un autre véhicule ou d’autres horaires.');
           if (y && y.ok && y.avertissement) {
-            if (!confirm('Véhicule ' + y.avertissement + '.\n\nForcer la réservation ? L’auteur de la pré-réservation, le cadre et la secrétaire de son service en seront informés.\n(Annuler : revenir à l’événement.)')) throw new Error('Choisissez un autre véhicule ou d’autres horaires, ou forcez la réservation.');
+            if (!confirm('Véhicule ' + y.avertissement + '.\n\nForcer la réservation ? L’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.\n(Annuler : revenir à l’événement.)')) throw new Error('Choisissez un autre véhicule ou d’autres horaires, ou forcez la réservation.');
             forcerVehicules = true;
           }
         });

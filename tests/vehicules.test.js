@@ -85,7 +85,7 @@ test('Message de conflit avec le libellé du service ; jeu de démonstration du 
   assert.equal(Object.keys(d.prets).length, 2);
   assert.equal(V.signalementsOuverts(d).length, 2);
   assert.ok(d.reservations.RV006.supplantee && d.reservations.RV005.statut === 'pre');
-  assert.equal(V.avisPour(d, { agent: 'cadre', servicesInformes: ['U1'] }, [], Date.now()).length, 1);
+  assert.equal(V.avisPour(d, { agent: 'cadre', roles: ['CADRE'], services: ['U1'] }, [], Date.now()).length, 1);
 });
 
 test('Pré-réservation : avertit sans bloquer, réservation forcée en la désignant, auteur, cadre et secrétaire informés', () => {
@@ -111,10 +111,25 @@ test('Pré-réservation : avertit sans bloquer, réservation forcée en la dési
   assert.throws(() => V.contrat.saisies.controler('RESERVATION', { motif: 'Test (fictif)', id: 'P3', statut: 'pre', vehicule: 'V1', service: 'U1', debut: j('2026-11-12', 11), fin: j('2026-11-12', 13) }, { etat: st }), /indisponible/);
   // Informés : l'auteur de la pré-réservation, le cadre et la secrétaire du service ; pas l'auteur de la réservation forcée
   const now = j('2026-11-10', 8);
-  assert.equal(V.avisPour(st, { agent: 'a1', servicesInformes: [] }, [], now).length, 1);
-  assert.equal(V.avisPour(st, { agent: 'cadre', servicesInformes: ['U1'] }, [], now).length, 1);
-  assert.equal(V.avisPour(st, { agent: 'cadre', servicesInformes: ['U2'] }, [], now).length, 0);
-  assert.equal(V.avisPour(st, { agent: 'b1', servicesInformes: ['U1'] }, [], now).length, 0);
+  assert.equal(V.avisPour(st, { agent: 'a1' }, [], now).length, 1);
+  assert.equal(V.avisPour(st, { agent: 'cadre', roles: ['CADRE'], services: ['U1'] }, [], now).length, 1);
+  assert.equal(V.avisPour(st, { agent: 'sec', roles: ['SECRETAIRE'], services: ['U1'] }, [], now).length, 1);
+  assert.equal(V.avisPour(st, { agent: 'adm', roles: ['ADMIN'], services: ['U1'] }, [], now).length, 0);
+  assert.equal(V.avisPour(st, { agent: 'cadre', roles: ['CADRE'], services: ['U2'] }, [], now).length, 0);
+  assert.equal(V.avisPour(st, { agent: 'b1', roles: ['CADRE'], services: ['U1'] }, [], now).length, 0);
+  // Destinataires réglés par le cadre pour son service : groupe et agent nommé à la place de la secrétaire ; l'auteur reste informé
+  const cfg = { vehiculesInformation: { U1: { roles: ['CADRE'], groupes: ['nuit'], agents: [{ id: 'z1', nom: 'Agent Z (fictif)' }] } } };
+  assert.equal(V.avisPour(st, { agent: 'sec', roles: ['SECRETAIRE'], services: ['U1'] }, [], now, cfg).length, 0);
+  assert.equal(V.avisPour(st, { agent: 'n1', roles: ['IDE'], groupes: ['nuit'], services: ['U1'] }, [], now, cfg).length, 1);
+  assert.equal(V.avisPour(st, { agent: 'z1', roles: ['AS'], services: ['U2'] }, [], now, cfg).length, 1);
+  assert.equal(V.avisPour(st, { agent: 'a1' }, [], now, { vehiculesInformation: { U1: { roles: [], groupes: [], agents: [] } } }).length, 1);
+  // Le cadre règle ses services seulement
+  const cadre = { roles: ['CADRE'], services: ['U1'] };
+  assert.ok(V.controlerInformation({}, cfg.vehiculesInformation, cadre));
+  assert.throws(() => V.controlerInformation({}, { U2: { roles: [] } }, cadre), /cadre de ce service/);
+  assert.throws(() => V.controlerInformation({}, cfg.vehiculesInformation, { roles: ['IDE'], services: ['U1'] }), /Seuls/);
+  assert.ok(V.controlerInformation({}, { U2: { roles: [] } }, { roles: ['ADMIN'] }));
+  assert.equal(V.contrat.reglages.cadre.vehiculesInformation, V.controlerInformation);
   const vu = V.avisPour(st, { agent: 'a1' }, [], now)[0].id;
   assert.equal(V.avisPour(st, { agent: 'a1' }, [vu], now).length, 0);
 });
