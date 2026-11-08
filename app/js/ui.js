@@ -843,6 +843,8 @@
     if (!mesSv.length && !estAdmin) { corps.appendChild(h('div', { class: 'panneau vide', text: 'Aucun service ne vous est affecté. Demandez à l’administrateur de vous en attribuer un.' })); return; }
     // Agent ajouté à un groupe d'agents : information affichée dans toutes les fenêtres jusqu'à « Vu »
     try { var bg = SIC.ui.bandeauAjoutsGroupes ? SIC.ui.bandeauAjoutsGroupes() : null; if (bg) corps.appendChild(bg); } catch (e) { /* sans effet sur la vue */ }
+    // Médecins non répertoriés à confirmer : information des gestionnaires de la liste (cadre et secrétaire par défaut)
+    try { var bm = SIC.ui.medecins && SIC.ui.medecins.bandeauAConfirmer ? SIC.ui.medecins.bandeauAConfirmer() : null; if (bm) corps.appendChild(bm); } catch (e) { /* sans effet sur la vue */ }
     try { corps.appendChild(vue(maintenant)); }
     catch (e) { corps.appendChild(h('div', { class: 'erreur', text: 'Erreur d’affichage : ' + e.message })); console.error(e); }
   }

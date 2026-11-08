@@ -90,7 +90,7 @@
     var quand = h('input', { type: 'datetime-local', value: U.versSaisie(Date.now()) });
     var lieu = h('input', { type: 'text', placeholder: 'Ex. : urgences, service de médecine, imagerie…' });
     var mesures = casesMesures(m);
-    var psy = o.somatique === 'arret' ? U.selectPsychiatre(m.psychiatreDebut) : null;
+    var psy = o.somatique === 'arret' ? U.selectPsychiatre(SIC.medecins ? SIC.medecins.resoudre(U.config(), m.psychiatreDebut, m.psychiatreDebutId) : m.psychiatreDebut, m.service) : null;
     var explication = {
       'poursuite-service': 'Règle de l’établissement : la mesure continue pendant le passage en soins somatiques ; cette période reste comptée au registre du service, avec le lieu indiqué (isolement en B, contention en D).',
       'poursuite-registre': 'Règle de l’établissement : la mesure continue ; cette période est comptée au registre « ' + U.libService(o.serviceSomatique) + ' ». Les délais JLD continuent de courir.',
@@ -108,7 +108,7 @@
         if (!lieu.value.trim()) { lieu.focus(); throw new Error('Indiquez le lieu (urgences, service…).'); }
         verifierDate(t, liste);
         for (var i = 0; i < liste.length; i++) {
-          if (o.somatique === 'arret') await U.App.session.enregistrer('MESURE_FIN', { mesureId: liste[i].id, fin: t, psychiatre: psy.valeur(), motif: 'Passage en soins somatiques ou aux urgences' + ' (' + lieu.value.trim() + ')' }, liste[i].version);
+          if (o.somatique === 'arret') await U.App.session.enregistrer('MESURE_FIN', { mesureId: liste[i].id, fin: t, psychiatre: psy.valeur(), psychiatreId: psy.medecinId(), motif: 'Passage en soins somatiques ou aux urgences' + ' (' + lieu.value.trim() + ')' }, liste[i].version);
           else await U.App.session.enregistrer('SOMATIQUE', { mesureId: liste[i].id, date: t, lieu: lieu.value.trim(), mode: o.somatique, serviceRegistre: o.somatique === 'poursuite-registre' ? o.serviceSomatique : '' }, liste[i].version);
         }
         U.toast(o.somatique === 'arret' ? 'Fin de mesure enregistrée.' : 'Départ enregistré. Saisissez le retour dans le service avec le bouton « Retour ».');

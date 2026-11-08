@@ -243,7 +243,7 @@
   }
   function suivisAffiches(maintenant) {
     var ls = S.suivis(st(), cfg(), fiches(), servicesAffiches(), maintenant);
-    if (vue.filtreMedecin) ls = ls.filter(function (x) { return nomMed(x.patient.medecin1) === vue.filtreMedecin || nomMed(x.patient.medecin2) === vue.filtreMedecin; });
+    if (vue.filtreMedecin) ls = ls.filter(function (x) { return nomMed(x.patient.medecin1, x.patient.medecin1Id) === vue.filtreMedecin || nomMed(x.patient.medecin2, x.patient.medecin2Id) === vue.filtreMedecin; });
     if (vue.enRetard) ls.sort(function (a, b) { return ((b.entretien.retard ? 2 : 0) + (b.contrat.retard ? 1 : 0)) - ((a.entretien.retard ? 2 : 0) + (a.contrat.retard ? 1 : 0)); });
     return ls;
   }
@@ -269,7 +269,7 @@
           var p = x.patient;
           return h('tr', {}, h('td', {}, nomPatient(p), servicesAffiches().length > 1 ? h('div', {}, h('small', { class: 'muted', text: U.libService(S.serviceDe(p)) })) : null),
             h('td', {}, modeDe(p) ? h('span', { class: 'badge', text: modeDe(p) }) : '—'),
-            h('td', { text: (nomMed(p.medecin1) || 'non attribué') + ' / ' + (nomMed(p.medecin2) || 'non attribué') }),
+            h('td', { text: (nomMed(p.medecin1, p.medecin1Id) || 'non attribué') + ' / ' + (nomMed(p.medecin2, p.medecin2Id) || 'non attribué') }),
             h('td', {}, h('small', { text: x.delais.entretien + ' j / ' + x.delais.contrat + ' j' })),
             h('td', {}, badgeDate(x.entretien), x.entretien.medecin ? h('div', {}, h('small', { class: 'muted', text: x.entretien.medecin })) : null),
             h('td', {}, badgeDate(x.contrat)),
@@ -295,12 +295,11 @@
   function modaleCocher() {
     var sv = serviceCourant(), patients = S.hospitalises(fiches(), servicesAffiches()), coches = {};
     var date = h('input', { type: 'date', value: S.jourISO(Date.now()), max: S.jourISO(Date.now()) });
-    var meds = MED.proposes(cfg(), { service: U.App.service !== '*' ? sv : '' });
-    var selMed = h('select', { 'aria-label': 'Médecin' }, [h('option', { value: '', text: '— Choisir le médecin —' })].concat(meds.map(function (m) { return h('option', { value: m.nom, text: m.nom }); })));
+    var champMed = U.medecins.champ({ service: U.App.service !== '*' ? sv : '', vide: '— Choisir le médecin —' }), selMed = champMed.select;
     var quoi = h('select', { 'aria-label': 'Ce qui a été fait' }, Object.keys(S.QUOI).map(function (k) { return h('option', { value: k, text: S.QUOI[k] }); }));
     var recherche = h('input', { type: 'search', placeholder: 'Rechercher un patient', 'aria-label': 'Rechercher un patient' });
     var grille = h('div', { class: 'grille-2' }), compte = h('span', { class: 'muted' });
-    function niveau(p) { return selMed.value && nomMed(p.medecin1) === selMed.value ? 1 : selMed.value && nomMed(p.medecin2) === selMed.value ? 2 : 0; }
+    function niveau(p) { return selMed.value && nomMed(p.medecin1, p.medecin1Id) === selMed.value ? 1 : selMed.value && nomMed(p.medecin2, p.medecin2Id) === selMed.value ? 2 : 0; }
     function dessiner() {
       U.vider(grille);
       var q = recherche.value.trim().toLowerCase();
@@ -308,7 +307,7 @@
         var n = niveau(p), d = S.derniers(st(), p.id).entretien;
         var cb = h('input', { type: 'checkbox', checked: !!coches[p.id], onchange: function () { coches[p.id] = cb.checked; dessiner(); } });
         grille.appendChild(h('label', { class: 'case case-patient' + (n === 1 ? ' ligne1' : n === 2 ? ' ligne2' : '') + (coches[p.id] ? ' coche' : '') }, cb,
-          h('span', { class: 'espace' }, nomPatient(p), h('br'), h('small', { class: 'muted', text: (nomMed(p.medecin1) || 'non attribué') + (d ? ' · vu le ' + dateFr(d.date) : ' · pas d’entretien') })),
+          h('span', { class: 'espace' }, nomPatient(p), h('br'), h('small', { class: 'muted', text: (nomMed(p.medecin1, p.medecin1Id) || 'non attribué') + (d ? ' · vu le ' + dateFr(d.date) : ' · pas d’entretien') })),
           n ? h('span', { class: 'badge ' + (n === 1 ? 'ligne1' : 'ligne2'), text: n === 1 ? '1re ligne' : '2e ligne' }) : null));
       });
       var nb = Object.keys(coches).filter(function (k) { return coches[k]; }).length;
@@ -318,7 +317,7 @@
     recherche.addEventListener('input', dessiner);
     dessiner();
     U.modale('Cocher les patients vus', h('div', { class: 'pile' },
-      h('div', { class: 'grille-3' }, h('label', {}, 'Date', date), h('label', {}, 'Médecin', selMed), h('label', {}, 'Ce qui a été fait', quoi)),
+      h('div', { class: 'grille-3' }, h('label', {}, 'Date', date), h('label', {}, 'Médecin', champMed), h('label', {}, 'Ce qui a été fait', quoi)),
       h('div', { class: 'actions gauche' },
         bouton('Tout cocher', function () { patients.forEach(function (p) { coches[p.id] = true; }); dessiner(); }, 'petit'),
         bouton('Cocher ses patients', function () { patients.forEach(function (p) { if (niveau(p)) coches[p.id] = true; }); dessiner(); }, 'petit'),
@@ -330,10 +329,10 @@
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         var ids = Object.keys(coches).filter(function (k) { return coches[k]; });
         if (!ids.length) throw new Error('Cochez au moins un patient.');
-        if (!selMed.value) throw new Error('Choisissez le médecin.');
+        if (!champMed.nom()) throw new Error('Choisissez le médecin.');
         for (var i = 0; i < ids.length; i++) {
           var p = fiches()[ids[i]];
-          await U.App.session.enregistrer('SUIVI', { id: 'SV' + C.hex(C.aleatoire(5)), patient: ids[i], service: S.serviceDe(p), date: date.value, medecin: selMed.value, medecinId: idMed(selMed.value), quoi: quoi.value });
+          await U.App.session.enregistrer('SUIVI', { id: 'SV' + C.hex(C.aleatoire(5)), patient: ids[i], service: S.serviceDe(p), date: date.value, medecin: champMed.nom(), medecinId: champMed.medecinId(), quoi: quoi.value });
         }
         U.toast(ids.length + (ids.length > 1 ? ' patients enregistrés.' : ' patient enregistré.'));
       } }], { large: true });
@@ -343,7 +342,7 @@
     var corps = h('table', {}, h('thead', {}, h('tr', {}, ['Patient', 'Mode', 'Médecins (1re / 2e ligne)', 'Dernier entretien médical', 'Contrat de soins réévalué le'].map(function (x) { return h('th', { text: x }); }))),
       h('tbody', {}, ls.map(function (x) {
         var p = x.patient;
-        return h('tr', {}, h('td', {}, nomPatient(p)), h('td', { text: modeDe(p) || '—' }), h('td', { text: (nomMed(p.medecin1) || 'non attribué') + ' / ' + (nomMed(p.medecin2) || 'non attribué') }),
+        return h('tr', {}, h('td', {}, nomPatient(p)), h('td', { text: modeDe(p) || '—' }), h('td', { text: (nomMed(p.medecin1, p.medecin1Id) || 'non attribué') + ' / ' + (nomMed(p.medecin2, p.medecin2Id) || 'non attribué') }),
           h('td', {}, dateImprimee('', x.entretien), x.entretien.medecin ? ' (' + x.entretien.medecin + ')' : ''), h('td', {}, dateImprimee('', x.contrat)));
       })));
     U.imprimer(documentImprime('Entretiens médicaux et contrats de soins', servicesAffiches().map(U.libService).join(', '), corps, legendeRetard()));
@@ -392,14 +391,14 @@
   /** Ajout depuis une case : patients sans médecin à ce niveau d'abord ; changement de responsabilité confirmé. */
   function modaleAjout(nom, niveau, sv) {
     var champ = niveau === 1 ? 'medecin1' : 'medecin2', lib = niveau === 1 ? '1re ligne' : '2e ligne';
-    var patients = S.hospitalises(fiches(), [sv]).filter(function (p) { return nomMed(p[champ]) !== nom; }).sort(function (a, b) { return (a[champ] ? 1 : 0) - (b[champ] ? 1 : 0); });
+    var patients = S.hospitalises(fiches(), [sv]).filter(function (p) { return nomMed(p[champ], p[champ + 'Id']) !== nom; }).sort(function (a, b) { return (a[champ] ? 1 : 0) - (b[champ] ? 1 : 0); });
     var choix = null, recherche = h('input', { type: 'search', placeholder: 'Rechercher un patient du service', 'aria-label': 'Rechercher un patient' }), liste = h('div', { class: 'pile' });
     function dessiner() {
       U.vider(liste);
       var q = recherche.value.trim().toLowerCase();
       patients.filter(function (p) { return !q || identite(p).toLowerCase().indexOf(q) >= 0; }).forEach(function (p) {
         var r = h('input', { type: 'radio', name: 'ajout-patient', checked: choix === p.id, onchange: function () { choix = p.id; } });
-        liste.appendChild(h('label', { class: 'case case-patient' }, r, h('span', {}, nomPatient(p), h('br'), h('small', { class: 'muted', text: '1re ligne : ' + (nomMed(p.medecin1) || 'non attribué') + ' · 2e ligne : ' + (nomMed(p.medecin2) || 'non attribué') }))));
+        liste.appendChild(h('label', { class: 'case case-patient' }, r, h('span', {}, nomPatient(p), h('br'), h('small', { class: 'muted', text: '1re ligne : ' + (nomMed(p.medecin1, p.medecin1Id) || 'non attribué') + ' · 2e ligne : ' + (nomMed(p.medecin2, p.medecin2Id) || 'non attribué') }))));
       });
       if (!liste.childNodes.length) liste.appendChild(h('p', { class: 'muted', text: 'Aucun patient.' }));
     }
@@ -410,8 +409,8 @@
       { texte: 'Ajouter', classe: 'primaire', action: async function () {
         if (!choix) throw new Error('Choisissez un patient.');
         var p = fiches()[choix];
-        if (p[champ] && nomMed(p[champ]) !== nom && !confirm('Changer de responsabilité de ' + lib + ' ?\n\n' + identite(p) + ' a déjà ' + nomMed(p[champ]) + ' comme médecin de ' + lib + '.\nLe remplacer par ' + nom + ' ?\n\n(Le changement est daté et inscrit au journal ; il apparaît dans la fiche patient.)')) return false;
-        var d = { patientId: p.id }; d[champ] = nom;
+        if (p[champ] && nomMed(p[champ], p[champ + 'Id']) !== nom && !confirm('Changer de responsabilité de ' + lib + ' ?\n\n' + identite(p) + ' a déjà ' + nomMed(p[champ], p[champ + 'Id']) + ' comme médecin de ' + lib + '.\nLe remplacer par ' + nom + ' ?\n\n(Le changement est daté et inscrit au journal ; il apparaît dans la fiche patient.)')) return false;
+        var d = { patientId: p.id }; d[champ] = nom; d[champ + 'Id'] = idMed(nom) || '';
         await U.App.session.enregistrer('PATIENT', d);
         U.toast(nom + ' : médecin de ' + lib + ' de ' + identite(p) + '.');
       } }], { large: true });

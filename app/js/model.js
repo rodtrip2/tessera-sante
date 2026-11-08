@@ -335,7 +335,7 @@
           debut: d.debut, fin: null, lieu: d.lieu || '', csi: !!d.csi, exception: !!d.exception,
           // Mesure débutée avant l'arrivée dans le service : début de la décision initiale et lieu d'origine
           debutInitial: typeof d.debutInitial === 'number' && d.debutInitial < d.debut ? d.debutInitial : null, lieuInitial: d.lieuInitial || '',
-          psychiatreDebut: d.psychiatre || '', psychiatreFin: '', modeHospi: d.modeHospi || '',
+          psychiatreDebut: d.psychiatre || '', psychiatreDebutId: d.psychiatreId || null, psychiatreFin: '', modeHospi: d.modeHospi || '',
           cycle: 1, jld: {}, leveeJLD: false, tiers: [], pauses: [], creePar: e.by, creeLe: e.at,
           origine: d.origine || '', numeroOrigine: d.numeroOrigine || '', correctionImport: d.correctionImport || '', suite: d.suiteDe || '',
           // Import d'un registre : entrées d'origine (numéro, catégorie, période, soignants) et soignants cités
@@ -362,12 +362,12 @@
     var d = e.data;
     switch (e.type) {
       case 'MESURE_FIN':
-        m.fin = d.fin; m.psychiatreFin = d.psychiatre || ''; m.motifFin = d.motif || '';
+        m.fin = d.fin; m.psychiatreFin = d.psychiatre || ''; m.psychiatreFinId = d.psychiatreId || null; m.motifFin = d.motif || '';
         break;
       case 'PAUSE':
         if (typeof m.fin === 'number') break;
         m.pauses.forEach(function (x) { if (x.reprise == null) x.reprise = d.debut; });   // une nouvelle pause clôt la précédente
-        m.pauses.push({ debut: d.debut, reprisePrevue: d.reprisePrevue, reprise: null, psychiatre: d.psychiatre || '', motif: d.motif || '', evt: e.id, by: e.by });
+        m.pauses.push({ debut: d.debut, reprisePrevue: d.reprisePrevue, reprise: null, psychiatre: d.psychiatre || '', psychiatreId: d.psychiatreId || null, motif: d.motif || '', evt: e.id, by: e.by });
         break;
       case 'REPRISE':
         var ouverte = m.pauses.filter(function (x) { return x.reprise == null && (!d.pause || x.evt === d.pause); }).pop();
@@ -1303,7 +1303,7 @@
         dureeReelleHeures: (finRef - x.debut) / H,
         pauses: pausesSur(x.mesure, x.debut, finRef, maintenant, st.config).map(function (q) { return [q.debut, q.fin]; }),
         type: x.mesure.type, lieu: x.mesure.lieu,
-        psychiatre: nomMedecin(st.config, x.mesure.psychiatreDebut), modeHospi: mode.mode, basculeMode: mode.bascule,
+        psychiatre: nomMedecin(st.config, x.mesure.psychiatreDebut, x.mesure.psychiatreDebutId), modeHospi: mode.mode, basculeMode: mode.bascule,
         professionnelsDetail: (x._pd = professionnelsEntree(st, service, x, finRef)),
         professionnels: x._pd.map(function (p) { return p.nom + (p.fonction ? ' (' + p.fonction + ')' : ''); }),
         ipp: (st.patients[x.mesure.patientId] || {}).ipp || '', age: ageAu(st, x.mesure.patientId, x.debut),
@@ -1400,9 +1400,9 @@
    * Par défaut, les options les plus protectrices (CE, 8 février 2023, n° 455887).
    */
   /** Nom actuel d'un psychiatre de la liste commune des médecins (un ancien nom suit le médecin ; medecins.js). */
-  function nomMedecin(config, n) {
-    if (!n) return n;
-    try { var MED = (typeof self !== 'undefined' && self.SIC && self.SIC.medecins) || require('./medecins.js'); return MED.nomActuel(config, n); } catch (e) { return n; }
+  function nomMedecin(config, n, id) {
+    if (!n && !id) return n;
+    try { var MED = (typeof self !== 'undefined' && self.SIC && self.SIC.medecins) || require('./medecins.js'); return MED.resoudre(config, n, id); } catch (e) { return n; }
   }
   var OCCULTATION_DEFAUT = { patient: 'masquer', age: 'mineur', dates: 'jour', psychiatre: 'masquer', professionnels: 'masquer', lieu: 'masquer', mode: 'afficher', pauses: 'afficher' };
   var OCCULTATION_CHOIX = {

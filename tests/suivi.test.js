@@ -36,7 +36,8 @@ test('Liste commune des médecins : reprise de l’ancienne liste, intérimaires
   assert.ok(!MED.noms(config, { service: 'U2' }).includes('Dr ALPHA (fictif)'));
   assert.deepEqual(MED.psychiatres(l), ['Dr ALPHA (fictif)', 'Dr BRAVO (fictif)', 'Dr ECHO (fictif)', 'Dr ANCIEN (fictif)']);
   assert.ok(MED.controler(config, 'medecins', config.medecins, { roles: ['SECRETAIRE'] }));
-  assert.throws(() => MED.controler(config, 'medecins', config.medecins, { roles: ['IDE'] }), /gérée par/);
+  assert.throws(() => MED.controler(config, 'medecins', { liste: config.medecins.liste.slice(1) }, { roles: ['IDE'] }), /non répertorié/);
+  assert.throws(() => MED.controler(config, 'psychiatres', [], { roles: ['IDE'] }), /gérée par/);
   assert.throws(() => MED.controler(config, 'medecins', Object.assign({}, config.medecins, { gestion: ['IDE'] }), { roles: ['CADRE'] }), /administrateur/);
   assert.ok(MED.controler(config, 'medecins', Object.assign({}, config.medecins, { gestion: ['IDE'] }), { roles: ['ADMIN'] }));
 });
@@ -138,4 +139,34 @@ test('Renommage d’un médecin ou rattachement à un compte : les anciennes sai
   const L = require('../app/js/liste-patients.js');
   const ls = L.lignes(fiches, { perimetre: 'hospitalises', filtres: { medecin: 'Dr ALPHA-NOUVEAU (fictif)', modes: [] } }, { maintenant: t('2026-11-08', 12), nomMedecin: (n) => MED.nomActuel(apres, n) });
   assert.equal(ls.length, 1);
+});
+
+test('Médecin non répertorié : ajouté par tout agent, à confirmer ; confirmé, réuni ou refusé par le cadre ou la secrétaire', () => {
+  const base = { medecins: { liste: [{ id: 'm-alpha', nom: 'Dr ALPHA (fictif)', fonction: 'psychiatre', services: ['U1'] }] } };
+  const ide = { id: 'ide1', roles: ['IDE'] };
+  const propose = { id: 'm-zulu-1a', nom: 'Dr ZULU (fictif)', fonction: 'psychiatre', services: ['U1'], aConfirmer: true, propose: { par: 'ide1', nom: 'IDE (fictif)', le: '2026-11-08T10:00:00Z', service: 'U1' } };
+  const avecPropose = { medecins: { liste: base.medecins.liste.concat([propose]) } };
+  assert.ok(MED.controler(base, 'medecins', avecPropose.medecins, ide));
+  assert.throws(() => MED.controler(base, 'medecins', { liste: base.medecins.liste.concat([Object.assign({}, propose, { aConfirmer: false })]) }, ide), /non répertorié/);   // pas de fiche confirmée
+  assert.throws(() => MED.controler(base, 'medecins', { liste: base.medecins.liste.concat([Object.assign({}, propose, { propose: Object.assign({}, propose.propose, { par: 'autre' }) })]) }, ide), /non répertorié/);
+  assert.throws(() => MED.controler(base, 'medecins', { liste: [Object.assign({}, base.medecins.liste[0], { nom: 'Dr X' }), propose] }, ide), /non répertorié/);   // modifier un médecin existant
+  // Utilisable aussitôt, marqué à confirmer ; pas dans l'ancienne liste des psychiatres
+  assert.ok(MED.noms(avecPropose, { service: 'U1' }).includes('Dr ZULU (fictif)'));
+  assert.deepEqual(MED.aConfirmer(avecPropose).map((m) => m.nom), ['Dr ZULU (fictif)']);
+  assert.deepEqual(MED.psychiatres(MED.liste(avecPropose)), ['Dr ALPHA (fictif)']);
+  // Réunir avec un médecin existant : le nom saisi devient un ancien nom, les saisies suivent
+  const reunie = { medecins: { liste: MED.reunir(MED.liste(avecPropose), 'Dr ZULU (fictif)', 'm-alpha') } };
+  assert.deepEqual(MED.liste(reunie).map((m) => m.nom), ['Dr ALPHA (fictif)']);
+  assert.equal(MED.nomActuel(reunie, 'Dr ZULU (fictif)'), 'Dr ALPHA (fictif)');
+  // Noms à rattacher : noms saisis hors liste, sauf ceux laissés tels quels
+  const noms = [{ nom: 'Dr ALPHA (fictif)', source: 'fiches patients' }, { nom: 'Dr YANKEE (fictif)', source: 'fiches patients' }, { nom: 'Dr YANKEE (fictif)', source: 'isolement et contention' }, { nom: 'Dr XRAY (fictif)', source: 'présences' }];
+  assert.deepEqual(MED.nonRattaches(base, noms).map((x) => [x.nom, Object.keys(x.sources).length]), [['Dr XRAY (fictif)', 1], ['Dr YANKEE (fictif)', 2]]);
+  const refus = { medecins: { liste: base.medecins.liste, refuses: ['Dr XRAY (fictif)'] } };
+  assert.ok(MED.estRefuse(refus, 'dr xray (fictif)'));
+  assert.deepEqual(MED.nonRattaches(refus, noms).map((x) => x.nom), ['Dr YANKEE (fictif)']);
+  assert.throws(() => MED.controler(base, 'medecins', { liste: base.medecins.liste, refuses: ['Dr Y'] }, ide), /non répertorié/);
+  // Patients par médecin : l'identifiant enregistré dans la fiche prime sur le nom
+  const fiches = { A: { id: 'A', nom: 'A (fictif)', prenom: 'X', medecin1: 'nom ancien quelconque', medecin1Id: 'm-alpha', sejours: [{ id: 's', entree: '2026-11-01', service: 'U1' }] } };
+  const pm = S.parMedecin(S.reduire([]), base, fiches, 'U1', t('2026-11-08', 12));
+  assert.deepEqual(pm.lignes.find((l) => l.medecin.id === 'm-alpha').l1.map((x) => x.patient.id), ['A']);
 });

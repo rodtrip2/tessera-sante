@@ -236,7 +236,7 @@
     ls.forEach(function (x) {
       var p = x.patient;
       [['medecin1', 'l1'], ['medecin2', 'l2']].forEach(function (k) {
-        var nom = MED.nomActuel(config, p[k[0]]);   // un ancien nom de la fiche suit le médecin
+        var nom = MED.resoudre(config, p[k[0]], p[k[0] + 'Id']);   // identifiant, ou nom actuel ou ancien : la fiche suit le médecin
         if (nom) ligne(nom)[k[1]].push(x);
         else if (x.jour === null || x.jour >= o.nonAttribueApres) na[k[1]].push(x);
       });
