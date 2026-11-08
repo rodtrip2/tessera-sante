@@ -23,7 +23,7 @@
         services: Array.isArray(x.services) ? x.services.filter(function (s) { return typeof s === 'string'; }) : [],
         membres: Array.isArray(x.membres) ? x.membres.filter(function (m) { return m && typeof m.id === 'string'; }).map(function (m) {
           var o = { id: m.id, nom: String(m.nom || '') };
-          if (m.ajoute && typeof m.ajoute.par === 'string' && typeof m.ajoute.le === 'string') o.ajoute = { par: m.ajoute.par, le: m.ajoute.le };
+          if (m.ajoute && typeof m.ajoute.par === 'string' && typeof m.ajoute.le === 'string') o.ajoute = { par: m.ajoute.par, nom: String(m.ajoute.nom || ''), le: m.ajoute.le };
           return o;
         }) : [],
         actif: x.actif !== false
@@ -87,5 +87,20 @@
     return res.sort(function (a, b) { return String(b.membre.ajoute.le).localeCompare(String(a.membre.ajoute.le)); });
   }
 
-  return { liste: liste, avisMembresExterieurs: avisMembresExterieurs, de: de, pourService: pourService, libelle: libelle, modifiable: modifiable, controler: controler };
+  /** Ajouts de l'agent à un groupe par un autre que lui (décision du porteur du 8 novembre 2026 : l'agent est informé). */
+  function avisAjouts(config, moi, vus) {
+    var v = vus || [], res = [];
+    if (!moi) return res;
+    liste(config).forEach(function (g) {
+      if (!g.actif) return;
+      g.membres.forEach(function (m) {
+        if (m.id !== moi.id || !m.ajoute || m.ajoute.par === moi.id) return;
+        var id = 'moi|' + g.code + '|' + m.ajoute.le;
+        if (v.indexOf(id) < 0) res.push({ id: id, groupe: g, membre: m });
+      });
+    });
+    return res;
+  }
+
+  return { liste: liste, avisMembresExterieurs: avisMembresExterieurs, avisAjouts: avisAjouts, de: de, pourService: pourService, libelle: libelle, modifiable: modifiable, controler: controler };
 });

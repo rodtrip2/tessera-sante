@@ -16,6 +16,18 @@
   // ------------------------------------------------------------ Information du cadre d'un agent ajouté à un groupe d'un autre service
   function avisVus() { var p = U.App.session.preferences || {}; return Array.isArray(p.avisGroupesVus) ? p.avisGroupesVus : []; }
   function mesAvis() { try { return G.avisMembresExterieurs(U.config(), U.App.session.comptes || [], moi(), avisVus()); } catch (e) { return []; } }
+  function mesAjouts() { try { return G.avisAjouts(U.config(), U.App.session.compteEffectif(), avisVus()); } catch (e) { return []; } }
+  /** Bandeau affiché dans toutes les fenêtres : l'agent a été ajouté à un groupe d'agents. */
+  function bandeauAjouts() {
+    var av = mesAjouts();
+    if (!av.length || U.App.session.apercu) return null;
+    return h('section', { class: 'panneau ag-avis', role: 'status' },
+      h('div', { class: 'barre' }, h('h2', { text: av.length > 1 ? 'Vous avez été ajouté(e) à ' + av.length + ' groupes d’agents' : 'Vous avez été ajouté(e) à un groupe d’agents' }), h('div', { class: 'espace' }),
+        h('button', { class: 'btn petit', type: 'button', onclick: function () { marquerVus(av.map(function (a) { return a.id; })); } }, 'Vu')),
+      h('ul', { class: 'liste-simple' }, av.map(function (a) {
+        return h('li', { text: '« ' + a.groupe.libelle + ' »' + (a.groupe.services.length ? ' (' + a.groupe.services.map(U.libService).join(', ') + ')' : ' (tout l’établissement)') + ', par ' + (a.membre.ajoute.nom || U.App.session.nomAuteur(a.membre.ajoute.par)) + ', le ' + U.date(Date.parse(a.membre.ajoute.le)) + '. Les tâches et alertes adressées à ce groupe apparaissent dans « Mon agenda ».' });
+      })));
+  }
   async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisGroupesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
   function bandeauAvis() {
     var av = mesAvis();
@@ -24,7 +36,7 @@
       h('div', { class: 'barre' }, h('h2', { text: av.length > 1 ? av.length + ' agents de vos services ajoutés à un groupe' : 'Un agent de vos services ajouté à un groupe' }), h('div', { class: 'espace' }),
         h('button', { class: 'btn petit', type: 'button', onclick: function () { marquerVus(av.map(function (a) { return a.id; })); } }, 'Tout marquer vu')),
       h('ul', { class: 'liste-simple' }, av.map(function (a) {
-        return h('li', {}, h('span', { text: (a.membre.nom || U.App.session.nomAuteur(a.membre.id)) + ' (' + a.servicesAgent.map(U.libService).join(', ') + ') a été ajouté(e) au groupe « ' + a.groupe.libelle + ' » (' + a.groupe.services.map(U.libService).join(', ') + ') par ' + U.App.session.nomAuteur(a.membre.ajoute.par) + ', le ' + U.date(Date.parse(a.membre.ajoute.le)) + '. ' }),
+        return h('li', {}, h('span', { text: (a.membre.nom || U.App.session.nomAuteur(a.membre.id)) + ' (' + a.servicesAgent.map(U.libService).join(', ') + ') a été ajouté(e) au groupe « ' + a.groupe.libelle + ' » (' + a.groupe.services.map(U.libService).join(', ') + ') par ' + (a.membre.ajoute.nom || U.App.session.nomAuteur(a.membre.ajoute.par)) + ', le ' + U.date(Date.parse(a.membre.ajoute.le)) + '. ' }),
           h('button', { class: 'btn petit', type: 'button', onclick: function () { marquerVus([a.id]); } }, 'Vu'));
       })));
   }
@@ -69,7 +81,7 @@
       function cases(l) {
         return h('div', { class: 'grille-3' }, l.map(function (c) {
           var cb = h('input', { type: 'checkbox', checked: membres.some(function (m) { return m.id === c.id; }), onchange: function () {
-            membres = cb.checked ? membres.concat([{ id: c.id, nom: c.nom || '', ajoute: { par: mien.id, le: new Date().toISOString() } }]) : membres.filter(function (m) { return m.id !== c.id; });
+            membres = cb.checked ? membres.concat([{ id: c.id, nom: c.nom || '', ajoute: { par: mien.id, nom: mien.nom || '', le: new Date().toISOString() } }]) : membres.filter(function (m) { return m.id !== c.id; });
           } });
           return h('label', { class: 'case' }, cb, h('span', { text: c.nom + (duGroupe(c) || !c.services.length ? '' : ' (' + c.services.map(U.libService).join(', ') + ')') }));
         }));
@@ -109,4 +121,5 @@
 
   U.vueGroupes = vueGroupes;
   U.pastilleGroupes = function () { return mesAvis().length; };
+  U.bandeauAjoutsGroupes = bandeauAjouts;
 })();

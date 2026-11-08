@@ -47,3 +47,13 @@ test('Groupes d’agents : agent d’un autre service ajouté par le cadre, son 
   assert.equal(G.avisMembresExterieurs(cfg, comptes, comptes[1], [av[0].id]).length, 0);
   assert.equal(G.liste(cfg)[0].membres[1].ajoute.par, 'c1');
 });
+
+test('Groupes d’agents : l’agent ajouté par un autre est informé', () => {
+  const cfg = { groupes: [{ code: 'nuit', libelle: 'Équipe de nuit (fictif)', services: ['U1'], membres: [
+    { id: 'i1', nom: 'IDE (fictif)', ajoute: { par: 'c1', le: '2026-11-08T03:00:00Z' } },
+    { id: 'c1', nom: 'Cadre (fictif)', ajoute: { par: 'c1', le: '2026-11-08T03:00:00Z' } }] }] };
+  const av = G.avisAjouts(cfg, { id: 'i1' }, []);
+  assert.equal(av.length, 1);
+  assert.equal(G.avisAjouts(cfg, { id: 'c1' }, []).length, 0);   // s'ajoute lui-même
+  assert.equal(G.avisAjouts(cfg, { id: 'i1' }, [av[0].id]).length, 0);
+});

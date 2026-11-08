@@ -1,5 +1,10 @@
 # Journal des modifications — Tessera Santé
 
+## 0.15.3 — 8 novembre 2026
+
+- **Groupes d'agents — information de l'agent ajouté** (décision du porteur du 8 novembre 2026) : un agent ajouté à un groupe par un autre que lui voit un bandeau dans toutes ses fenêtres (groupe, services, auteur et date de l'ajout ; tâches et alertes du groupe dans « Mon agenda ») jusqu'à « Vu ». Le nom de l'auteur de l'ajout est gardé avec l'ajout.
+- Nouveau test (234 au vert) ; écran vérifié dans Chrome ; architecture et guide utilisateur à jour.
+
 ## 0.15.2 — 8 novembre 2026
 
 - **Groupes d'agents — agents d'autres services** (décision du porteur du 8 novembre 2026) : le cadre peut ajouter à un groupe de ses services des agents qui n'y sont pas affectés (liste « Agents d'autres services » dans la fenêtre du groupe) ; l'ajout est daté et **le cadre des services de l'agent en est informé** : bandeau dans l'onglet *Groupes d'agents*, pastille sur l'icône Administration, « Vu ».
