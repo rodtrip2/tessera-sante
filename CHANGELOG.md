@@ -1,5 +1,11 @@
 # Journal des modifications — Tessera Santé
 
+## 0.16.0 — 8 novembre 2026
+
+- **Catégories d'accompagnateurs** (décision du porteur du 8 novembre 2026) : les accompagnateurs nécessaires d'un événement peuvent être précisés par lignes « nombre, catégorie (rôle ou toute catégorie), précision » — 1 IDE matin, 1 AS soir, éducateur spécialisé… — réglables pour une date ou pour toutes. À l'inscription (soi-même ou un collègue), la catégorie correspondant au rôle de l'agent est proposée et modifiable ; **un agent d'une autre catégorie n'est jamais bloqué** : il est inscrit et marqué « hors consigne ». L'événement montre chaque catégorie avec ses inscrits ; le badge « Accompagnateurs n/N » détaille les catégories ; les professionnels prévus pourvoient les catégories restées ouvertes.
+- Démonstration : piscine (1 IDE, 1 AS, dont une inscription hors consigne), sortie au marché (1 IDE matin, 1 éducateur spécialisé).
+- Nouveau test (235 au vert) ; écrans vérifiés dans Chrome ; architecture, fiche projet et guide utilisateur à jour.
+
 ## 0.15.3 — 8 novembre 2026
 
 - **Groupes d'agents — information de l'agent ajouté** (décision du porteur du 8 novembre 2026) : un agent ajouté à un groupe par un autre que lui voit un bandeau dans toutes ses fenêtres (groupe, services, auteur et date de l'ajout ; tâches et alertes du groupe dans « Mon agenda ») jusqu'à « Vu ». Le nom de l'auteur de l'ajout est gardé avec l'ajout.
