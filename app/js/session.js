@@ -126,6 +126,13 @@
       if (!jv) throw new Error(def && CH().cleDe(def) && !(s.coffre && s.coffre.cles && s.coffre.cles[nomJ]) ? 'La clé propre de « ' + def.libelle + ' » n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.' : 'Vous n’avez pas la clé de « ' + (def ? def.libelle : 'cette donnée') + ' » : saisie impossible.');
       return jv;
     }
+    // Part d'un instantané de la Vue d'ensemble (0.19.5) : rangée dans le journal des colonnes qu'elle porte (Patients,
+    // Suivi médical, clé propre d'une donnée…), chiffrée par sa clé : chacun ne revoit que ce qu'il pouvait voir
+    if (type === 'INSTANTANE_PART' && data && typeof data.journal === 'string') {
+      var jp = js.filter(function (x) { return x.nom === data.journal; })[0];
+      if (!jp) throw new Error('Clé du journal « ' + data.journal + ' » absente : part de l’instantané impossible à enregistrer.');
+      return jp;
+    }
     var m = SIC.modules && SIC.modules.moduleDuType ? SIC.modules.moduleDuType(type) : null;
     // Clé du module pas encore créée (coffre d'avant ce module, en attente de l'administrateur) : module affiché, comme avant
     if (m && v2(s) && s.coffre && !s.coffre.cles[m.id]) m = null;

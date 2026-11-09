@@ -34,6 +34,7 @@ const P = require('../app/js/module-patients.js');
 require('../app/js/module-isocont.js');
 globalThis.SIC.medecins = require('../app/js/medecins.js');
 require('../app/js/module-suivi.js');
+require('../app/js/module-vue.js');
 globalThis.SIC.comptes = require('../app/js/comptes.js');
 globalThis.SIC.trousseau = require('../app/js/trousseau.js');
 require('../app/js/store.js');
@@ -204,4 +205,26 @@ test('Capacité d’accueil (0.18.2) : lits ouverts, fermetures et réservations
   const cadre = { roles: ['CADRE'], services: ['U1'] };
   assert.ok(K.controlerCadre(cfg.capacites, { services: Object.assign({}, cfg.capacites.services, { U1: { lits: 22 } }) }, cadre));
   assert.ok(!K.controlerCadre(cfg.capacites, { services: Object.assign({}, cfg.capacites.services, { U2: { lits: 10 } }) }, cadre));
+});
+
+test('Instantané de la Vue d’ensemble : parts rangées dans le journal de chaque donnée, clôture selon les rôles réglés pour la vue', async () => {
+  const racine = new Repertoire('TesseraSante');
+  const admin = new Session(new Dossier(racine, 'reseau'));
+  await admin.initialiser({ nom: 'Admin (fictif)', login: 'admin', motDePasse: 'mot de passe solide' });
+  await admin.enregistrer('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1 (fictif)' }] });
+  await admin.enregistrer('CONFIG', { cle: 'vuesEnsemble', valeur: { vues: [{ id: 'staff', nom: 'Staff (fictif)', services: ['U1'], colonnes: ['patient'] }, { id: 'ouverte', nom: 'Ouverte (fictif)', services: ['U1'], colonnes: ['patient'], instantane: { roles: ['IDE'] } }] } });
+  await admin.creerComptes([{ nom: 'IDE (fictif)', login: 'ide.a', motDePasse: 'mot de passe ide a', roles: ['IDE'], services: ['U1'] }]);
+  const a2 = await connecter(racine, 'admin', 'mot de passe solide');
+  assert.ok(a2.coffre.cles.vue, 'clé du module Vue d’ensemble créée');
+  await a2.enregistrer('INSTANTANE_PART', { instantane: 'I1', vue: 'staff', journal: 'patients', colonnes: [{ code: 'patient', libelle: 'Patient' }], valeurs: {}, identites: {} });
+  await a2.enregistrer('INSTANTANE_PART', { instantane: 'I1', vue: 'staff', journal: 'suivi', colonnes: [], valeurs: {} });
+  await a2.enregistrer('INSTANTANE', { id: 'I1', vue: 'staff', nom: 'Staff (fictif)', groupes: [], ordre: ['patient'] });
+  assert.equal(saisiesDe(racine, ['modules', 'patients']).length, 1);
+  assert.equal(saisiesDe(racine, ['modules', 'suivi']).length, 1);
+  assert.equal(saisiesDe(racine, ['modules', 'vue']).length, 1);
+  const ide = await connecter(racine, 'ide.a', 'mot de passe ide a');
+  await assert.rejects(ide.enregistrer('INSTANTANE', { id: 'I2', vue: 'staff', nom: 'Staff', groupes: [], ordre: [] }), /rôle/, 'clôture : cadre par défaut');
+  await ide.enregistrer('INSTANTANE', { id: 'I3', vue: 'ouverte', nom: 'Ouverte', groupes: [], ordre: [] });
+  await ide.synchroniser();
+  assert.deepEqual(Object.keys(ide.etatModule('vue').instantanes).sort(), ['I1', 'I3']);
 });

@@ -726,9 +726,31 @@ input.court { width: 5em; }
   body.impression-nb { filter: grayscale(1); }
   body.impression-nb [data-symbole]::before { content: attr(data-symbole) ' '; }
   body.impression-nb .marque-couleur:not(.pastille-couleur) { display: inline; }
-  body.impression-nb .pastille-couleur { display: none; }
+  body.impression-nb .pastille-couleur { display: inline; width: auto; height: auto; background: none !important; border-radius: 0; margin-right: 3px; }
   body.impression-nb .echantillon { border-color: #000; }
 }
 .notes .actions, .checklist-bloc .actions { flex-wrap: nowrap; align-items: center; }
 .notes .actions input[type=text], .checklist-bloc .actions input[type=text] { flex: 1 1 auto; width: auto; }
 .notes .actions select { flex: 0 0 auto; width: auto; }
+/* ---- Vue d'ensemble (0.19) ---- */
+.barre-vue h2 { margin: 0 8px 0 0; font-size: 1.15rem; }
+.barre-vue .espace { flex: 1 1 auto; }
+.synthese-vue { display: flex; flex-wrap: wrap; gap: 8px; }
+.synthese-vue .indicateur { display: grid; gap: 2px; padding: 6px 12px; min-width: 150px; }
+.table-vue td.case-vue { vertical-align: top; }
+.table-vue td.modifiable { cursor: pointer; }
+.table-vue td.modifiable:hover, .table-vue td.modifiable:focus { outline: 2px solid var(--accent, #2f6f5e); outline-offset: -2px; }
+.table-vue tr.titre-groupe th { background: var(--surface-2); text-align: left; font-size: .9rem; padding: 6px 10px; }
+.table-vue th .reglage-donnee { font-size: .8rem; margin-left: 4px; opacity: .6; }
+.table-vue th .reglage-donnee:hover { opacity: 1; }
+.edition-case { display: flex; gap: 4px; align-items: center; min-width: 180px; }
+.edition-case select, .edition-case input { min-width: 0; flex: 1 1 auto; }
+.notes-case { display: grid; gap: 2px; }
+.note-case { font-size: .85rem; border-left: 3px solid var(--line); padding-left: 4px; }
+.note-case.imp-important { border-left-color: #e07b1a; }
+.note-case.imp-urgent { border-left-color: #d0352b; font-weight: 600; }
+.aide-formule { font-size: .88rem; }
+.liste-fonctions { max-height: 220px; overflow: auto; margin: 4px 0; padding-left: 18px; }
+.apercu-formule { font-size: .85rem; padding: 4px 8px; border-radius: 4px; background: var(--surface-2); }
+.doc-vue table { font-size: 9pt; }
+@media print { .table-vue td.modifiable { cursor: default; outline: none; } .table-vue th .reglage-donnee { display: none; } }
