@@ -11,10 +11,12 @@
 | Module Messagerie | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
 | Module Demandes de travaux et de réparation | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
 | Planning d'occupation des bureaux | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Petite à moyenne |
-| Feuille de staff pluridisciplinaire | Tessera Santé, 8 novembre 2026 | Demande ; **données cliniques** (décision préalable) | Grande |
-| Notes par patient | Tessera Santé, 8 novembre 2026 | Demande ; **données cliniques** (décision préalable) | Moyenne |
+| Feuille de staff : codes CIM et projet thérapeutique | Tessera Santé, 8 novembre 2026 | Feuille de staff réalisée en 0.19.0 sans ces colonnes ; **données cliniques** (décision préalable ; option « donnée clinique » par donnée disponible) | Petite (liste CIM à embarquer) |
+| Notes par patient : notes cliniques | Tessera Santé, 8 novembre 2026 | Notes organisationnelles réalisées en 0.19.0 ; **données cliniques** (décision préalable) | Petite |
 | Module Agents (fiches des agents et des psychiatres) | Tessera Santé, 8 novembre 2026 | Demande, à préciser ; **données du personnel** (avis préalable) | Moyenne à grande |
 | Rôle Cadre supérieur de santé | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
+
+*Réalisés dans la 0.19.0 (module Vue d'ensemble, `docs/architecture.md` § 7 quinquies) : la **feuille de staff** sans données cliniques (vue partagée, colonnes réglables, places disponibles, sorties prévues, feuille préparée, complétée puis close en instantané conservé) et des **notes datées par patient** comme donnée ajoutée (rubriques réglables par service et par rôle, notes courtes et organisationnelles). Restent ci-dessous les codes CIM et le projet thérapeutique (données cliniques).*
 
 *Réalisés dans la 0.17.0 (module Suivi médical, `docs/architecture.md` § 7 quater) : planning des présences médicales, suivi des entretiens médicaux et des contrats de soins (dates seulement), patients suivis par médecin.*
 
@@ -152,7 +154,9 @@ Réserver les bureaux et salles du service (bureau d'entretien, salle de réunio
 - **Réutilisation** : le module Véhicules fournit déjà le modèle (parc, prêts, réservations, pré-réservations, contrôle de disponibilité) ; une base commune « ressources réservables » est envisageable.
 - **À trancher** : module distinct ou ressources génériques (véhicules, bureaux, matériel) ; qui gère la liste des bureaux.
 
-## Feuille de staff pluridisciplinaire (demande du porteur, 8 novembre 2026)
+## Feuille de staff pluridisciplinaire (demande du porteur, 8 novembre 2026) — réalisée en 0.19.0 sans données cliniques
+
+*Réalisée dans le module Vue d'ensemble (0.19.0) : vue partagée, colonnes réglables, places disponibles, sorties prévues, préparation, clôture en instantané. Restent les codes CIM et le projet thérapeutique, données cliniques : l'option « donnée clinique » (administrateur, après avertissement, clé propre) permettrait de les ajouter donnée par donnée après les avis prévus.*
 
 *Données cliniques : voir la règle en tête de document. Aujourd'hui faite dans un classeur Excel, moins sécurisé (pas de chiffrement, pas de traçabilité, copies possibles).*
 
@@ -163,7 +167,9 @@ Feuille récapitulative du staff : un **instantané à un jour donné, conservé
 - **Instantané** : la feuille du jour est préparée à partir des données de Tessera puis complétée pendant le staff ; « Clore la feuille » la fige et l'enregistre au journal (une saisie, jamais modifiée) ; la feuille suivante reprend les valeurs de la précédente. Export PDF ou impression.
 - **À trancher** : codes CIM saisis à la main ou liste de référence (à embarquer dans l'application, sans connexion sortante) ; qui voit la feuille (rôles) ; durée de conservation des feuilles closes ; place par rapport au DPI.
 
-## Notes par patient (demande du porteur, 8 novembre 2026)
+## Notes par patient (demande du porteur, 8 novembre 2026) — réalisées en 0.19.0 pour les notes organisationnelles
+
+*Type « liste de notes » des données ajoutées (0.19.0) : rubriques ajoutées ou masquées par l'établissement ou le cadre, rôles qui lisent et écrivent, importance, retrait par l'auteur ou le cadre (la note reste dans l'historique), droit d'accès. Les notes cliniques restent soumises à la règle ci-dessus.*
 
 *Données cliniques possibles : voir la règle en tête de document.*
 

@@ -269,7 +269,7 @@
       h('div', { class: 'code-secours', text: code }),
       h('p', { class: 'muted', text: 'Imprimez-le ou recopiez-le, puis conservez-le sous enveloppe scellée au coffre. Sans lui, une perte de tous les moyens de déblocage rendrait les données définitivement illisibles.' }),
       h('label', { class: 'case' }, ok, h('span', { text: 'J’ai noté le code de secours et je le conserve en lieu sûr.' })),
-      h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: function () { window.print(); } }, 'Imprimer'), suite))));
+      h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: function () { imprimerPage(); } }, 'Imprimer'), suite))));
   }
 
   // ---------------------------------------------------------------- Connexion
@@ -603,6 +603,7 @@
     agenda: ['M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z', 'M3 10h18', 'M8 3v4', 'M16 3v4', 'M7 14h3v3H7z'],
     admin: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'],
     suivi: ['M9 3h6v4H9z', 'M6 5H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-1', 'M12 11v6', 'M9 14h6'],
+    vue: ['M3 4h18v16H3z', 'M3 9h18', 'M3 14h18', 'M9 4v16', 'M15 4v16'],
     vehicules: ['M5 17h14v-5l-2-5H7l-2 5z', 'M3 12h18', 'M7 17v2', 'M17 17v2', 'M7.5 14.5h1', 'M15.5 14.5h1'],
     module: ['M4 4h7v7H4z', 'M13 4h7v7h-7z', 'M4 13h7v7H4z', 'M13 13h7v7h-7z']
   };
@@ -777,7 +778,7 @@
     if (!affichable(App.onglet)) App.onglet = (onglets().filter(function (o) { return affichable(o[0]); })[0] || ['aucun'])[0];
     var conflits = nivJournal === 'aucun' ? 0 : conflitsVisibles().length;
     // Pages de tableaux : toute la largeur de l'écran (les pages de réglage gardent une largeur de lecture)
-    zoneContenu.classList.toggle('large', ['tableau', 'mesures', 'patients', 'fiches', 'agenda', 'mon-agenda', 'jld', 'surveillance', 'registre', 'journal', 'stats'].indexOf(App.onglet) >= 0);
+    zoneContenu.classList.toggle('large', ['tableau', 'mesures', 'patients', 'fiches', 'agenda', 'mon-agenda', 'jld', 'surveillance', 'registre', 'journal', 'stats', 'instantanes', 'vues'].indexOf(App.onglet) >= 0 || /^v:/.test(String(App.onglet || '')));
     if (!s.utilisateur.actif) return verrouiller('Votre compte a été désactivé.');
     var mesSv = services();
     if (App.service !== '*' && !mesSv.some(function (x) { return x.code === App.service; })) App.service = '*';
@@ -1518,20 +1519,50 @@
 
   // ================================================================ Impression
   /** Imprime un document construit à part (décompte, rapport), sans l'interface autour. */
-  function imprimer(noeud) {
+  // ---------------------------------------------------------------- Impression en couleur ou en noir et blanc (0.18.1)
+  /*
+   * Décision du porteur du 9 novembre 2026 : partout où Tessera imprime, l'agent choisit couleur ou noir et blanc ; le
+   * choix est retenu dans ses préférences (`impression`), couleur par défaut, et vaut aussi pour les PDF. En noir et
+   * blanc, chaque couleur des réglages des données a son symbole (● ▲ ◆ ■…), et la page est imprimée en nuances de gris.
+   */
+  function impressionNB() { var p = (App.session && App.session.preferences) || {}; return p.impression === 'nb'; }
+  function choisirImpression() {
+    return new Promise(function (resoudre) {
+      var nb = impressionNB(), retenir = h('input', { type: 'checkbox', checked: true });
+      var fini = false;
+      function choix(v) { return async function () { fini = true; if (retenir.checked && v !== nb && App.session && App.session.enregistrerPreference) { try { await App.session.enregistrerPreference('impression', v ? 'nb' : 'couleur'); } catch (e) { /* préférence non retenue : sans conséquence */ } } resoudre(v); }; }
+      modale('Imprimer', h('div', { class: 'pile' }, h('p', { text: 'Impression en couleur ou en noir et blanc ? En noir et blanc, chaque couleur est remplacée par une nuance de gris et un symbole repris dans la légende.' }),
+        h('label', { class: 'case' }, retenir, h('span', { text: 'Retenir mon choix pour mes prochaines impressions et mes PDF' }))), [
+        { texte: 'Annuler' },
+        { texte: 'Noir et blanc', classe: nb ? 'primaire' : '', action: choix(true) },
+        { texte: 'Couleur', classe: nb ? '' : 'primaire', action: choix(false) }]).then(function () { if (!fini) resoudre(null); });
+    });
+  }
+  function lancerImpression(nb, apres) {
+    document.body.classList.toggle('impression-nb', !!nb);
+    var fin = function () { document.body.classList.remove('impression-nb'); if (apres) apres(); window.removeEventListener('afterprint', fin); };
+    window.addEventListener('afterprint', fin);
+    setTimeout(function () { window.print(); }, 60);
+  }
+  async function imprimer(noeud) {
+    var nb = await choisirImpression();
+    if (nb === null) return;
     var zone = document.getElementById('zone-impression') || document.body.appendChild(h('div', { id: 'zone-impression' }));
     vider(zone).appendChild(noeud);
     document.body.classList.add('mode-impression');
-    var fin = function () { document.body.classList.remove('mode-impression'); vider(zone); window.removeEventListener('afterprint', fin); };
-    window.addEventListener('afterprint', fin);
-    window.print();
+    lancerImpression(nb, function () { document.body.classList.remove('mode-impression'); vider(zone); });
+  }
+  /** Impression de la page affichée (aperçus du registre, des statistiques…), après le choix couleur / noir et blanc. */
+  async function imprimerPage() {
+    var nb = await choisirImpression();
+    if (nb !== null) lancerImpression(nb);
   }
 
   // ================================================================ Partage avec les autres modules
   SIC.ui = {
     vues: (SIC.ui && SIC.ui.vues) || {}, actions: (SIC.ui && SIC.ui.actions) || {},
     h: h, vider: vider, date: date, court: court, duree: duree, relatif: relatif, versSaisie: versSaisie, depuisSaisie: depuisSaisie,
-    ouvrirFenetre: ouvrirFenetre, toast: toast, modale: modale, imprimer: imprimer, erreurDans: erreurDans, fmtJour: fmtJour,
+    ouvrirFenetre: ouvrirFenetre, toast: toast, modale: modale, imprimer: imprimer, imprimerPage: imprimerPage, impressionNB: impressionNB, erreurDans: erreurDans, fmtJour: fmtJour,
     App: App, st: st, config: config, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, lignesDe: lignesDe, zoneTexte: zoneTexte, periodeDepuis: periodeDepuis, changerDossier: function () { return changerDossier(); },

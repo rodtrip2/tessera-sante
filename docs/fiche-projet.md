@@ -109,6 +109,15 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 - **Liste commune des médecins** (fiche patient, Isolement et contention, Suivi médical), intérimaires compris ; un médecin non répertorié peut être ajouté par l'équipe et confirmé par le cadre ou la secrétaire ; un changement de nom ne coupe aucun lien.
 - Tableaux imprimables avec une mise en page dédiée (mention de confidentialité).
 
+## 5 quinquies. Vue d'ensemble
+
+- **Tableaux partagés** du service, un onglet par vue : une ligne par patient, par médecin ou par agent ; colonnes choisies par le cadre (médecin référent, éventuellement en initiales, psychologue, suivi social, dernier entretien médical, contrat de soins, mode d'hospitalisation, date d'entrée et nombre de jours, sortie prévisionnelle…).
+- **Modification sur place**, sans ouvrir la fiche ni changer de fenêtre ; chaque information reste enregistrée dans son module, avec son auteur et sa date.
+- **Colonnes ajoutées par le cadre** : date, liste de choix, case à cocher, téléphone, période, notes datées (importance en couleur), check-list, calcul (formules prêtes ou libres, avec aide) ; chaque colonne a ses rôles qui la voient et qui la modifient, et peut être protégée par une clé propre.
+- **Codes couleur** réglés une fois pour une donnée et repris partout (ex. vert, jaune, orange, rouge selon un délai ; une couleur par psychiatre) ; **groupes de lignes** (ex. entrés depuis telle date, présents depuis plus de 90 jours) ; **bandeau de synthèse** (places disponibles, sorties prévues, âge moyen…).
+- **Feuille du staff** : préparée, complétée pendant le staff puis close ; l'**instantané** est conservé tel qu'il était, chacun n'en revoyant que ce qu'il pouvait voir.
+- **Impression** en couleur ou en noir et blanc, partout dans Tessera.
+
 ## 5 ter. Groupes d'agents
 
 En plus de leur affectation aux services, les agents peuvent être réunis par le cadre en groupes (équipe de jour, équipe de nuit, groupe de travail), y compris avec des agents d'autres services, dont le cadre est alors informé ; une tâche ou une alerte de l'agenda peut être adressée à un groupe.
@@ -152,7 +161,7 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 
 ## 9. État d'avancement
 
-- **Socle commun, modules Patients, Isolement et contention et Agenda** : développés et vérifiés par des tests automatiques (version 0.13.0), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
+- **Socle commun, modules Patients, Isolement et contention, Agenda, Véhicules, Suivi médical et Vue d'ensemble** : développés et vérifiés par des tests automatiques (version 0.19.0), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
 - **Kit de déploiement** : guide d'installation, procédures de secours, éléments RGPD (un traitement par module), guides utilisateur et guide pratique illustré, imports (dossier `kit/` du dépôt).
 
 ## 10. Démarche

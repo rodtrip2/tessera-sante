@@ -230,6 +230,10 @@
     groupes: [],           // groupes d'agents créés par le cadre ou l'administrateur (groupes.js) : équipes de jour et de nuit, groupes de travail
     vehiculesInformation: {}, // module Véhicules : destinataires de l'information d'une pré-réservation remplacée, par service (réglés par le cadre)
     vehicules: {},         // module Véhicules : types de véhicules et de signalements, données ajoutées (module-vehicules.js, options)
+    champsAjoutes: null,   // champs ajoutés (champs.js, 0.18.0) : patients et médecins, tous modules ; null = reprise de patientsChamps
+    reglagesDonnees: {},   // réglages attachés aux données (couleurs.js, 0.18.0) : { code: { '*': { regles, delai }, U1: {...} } }
+    capacites: {},         // capacité d'accueil par service (capacites.js, 0.18.2) : lits, fermetures et réservations datées
+    vuesEnsemble: {},      // module Vue d'ensemble (0.19.0) : vues de l'établissement et des services
     patientsChamps: [],    // module Patients : données complémentaires ajoutées par l'administrateur (module-patients.js, champsComplementaires)
     patientsListe: {},     // module Patients, liste : { joursRecents, couleursModes, vues } (liste-patients.js) ; vide = réglages proposés
     fichePatient: {},      // module Patients, par service : { services: { U1: { psychiatrie, medecin1, medecin2 } } } ; vide = psychiatrie, libellés par défaut
@@ -2026,6 +2030,9 @@
   var GROUPES_REGLAGES = [
     { code: 'etablissement', libelle: 'Établissement, services et lieux d’isolement', cles: ['etablissement', 'services', 'modulesServices', 'fichePatient', 'lieuxCSI', 'lieuIsolement'] },
     { code: 'patients', libelle: 'Module Patients : modèles d’import de la liste du DPI', cles: ['importPatients', 'patientsListe', 'patientsChamps'] },
+    { code: 'champs', libelle: 'Données ajoutées (patients, médecins) et réglages des données (couleurs, délais)', cles: ['champsAjoutes', 'reglagesDonnees'] },
+    { code: 'capacites', libelle: 'Capacité d’accueil des services (lits, fermetures, lits réservés)', cles: ['capacites'] },
+    { code: 'vuesEnsemble', libelle: 'Module Vue d’ensemble : vues, colonnes, groupes, synthèse', cles: ['vuesEnsemble'] },
     { code: 'vehicules', libelle: 'Module Véhicules : types de véhicules et de signalements, données ajoutées', cles: ['vehicules', 'vehiculesInformation'] },
     { code: 'agenda', libelle: 'Module Agenda : identité du patient affichée, types d’alertes', cles: ['agenda'] },
     { code: 'psychiatres', libelle: 'Liste des médecins (noms) et ancienne liste des psychiatres', cles: ['psychiatres', 'medecins'] },

@@ -89,7 +89,7 @@ Au retour du patient : **Reprise** → heure réelle de reprise → **Enregistre
 Bouton **Décompte** sur la ligne de la mesure. L'aperçu reprend l'identité, la période analysée (15 jours glissants), chaque mesure, les pauses et le cumul, à la date et l'heure de référence (en général : maintenant).
 
 - **Enregistrer en PDF** : le fichier est créé et **rangé automatiquement dans le dossier des exports** de l'outil, sur le réseau de l'établissement (un message indique son nom). Joignez-le ensuite à la communication au juge selon la procédure du service, en le prenant dans ce dossier ;
-- **Imprimer** : si un envoi papier est nécessaire.
+- **Imprimer** : si un envoi papier est nécessaire. Tessera demande *Couleur* ou *Noir et blanc* ; votre choix est retenu pour vos prochaines impressions et vos PDF.
 
 ![Fenêtre « Décompte JLD »](images/guide-ide-as/09-decompte.png)
 
