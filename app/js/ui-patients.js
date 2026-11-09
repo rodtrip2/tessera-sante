@@ -274,8 +274,10 @@
       // Données ajoutées des patients (0.13.0, mécanisme commun 0.18.0) : fiche (COMPLEMENT) et autres modules (VALEUR),
       // selon le service, le rôle et les clés détenues ; notes et check-lists enregistrées aussitôt
       var champs = SIC.champs.definitions(U.config(), { entite: 'patient', service: sv.value }).filter(function (c) { return c.type !== 'formule' && U.champs.lisible(c); });
-      if (!champs.length) return;
-      zoneComp.appendChild(h('b', { text: 'Données ajoutées' }));
+      // « Gérer les données ajoutées… » (0.20.0) : cadre pour ses services, administrateur, sans quitter la fiche
+      var gerer = U.champs.boutonGerer('patient', dessinerComplements);
+      if (!champs.length) { if (gerer) zoneComp.appendChild(h('div', { class: 'actions gauche' }, h('b', { text: 'Données ajoutées' }), gerer)); return; }
+      zoneComp.appendChild(h('div', { class: 'actions gauche' }, h('b', { text: 'Données ajoutées' }), gerer));
       var grille = h('div', { class: 'grille-3' }), cumul = h('div', { class: 'pile' });
       champs.forEach(function (c) {
         var fiche = (!nouveau && U.App.session.etat.patients && U.App.session.etat.patients[f.id]) || f;

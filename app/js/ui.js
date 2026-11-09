@@ -1062,6 +1062,7 @@
             resume ? celluleCles(c) : null,
             h('td', { class: 'actions-ligne' },
               h('button', { class: 'btn petit', onclick: function () { modaleCompte(c); } }, 'Modifier'), ' ',
+              SIC.ui.champs && c.id !== 'secours' ? h('button', { class: 'btn petit', title: 'Fiche de l’agent : données ajoutées (données du personnel)', onclick: function () { SIC.ui.champs.ficheAgent(c); } }, 'Fiche') : null, ' ',
               h('button', { class: 'btn petit', onclick: function () { modaleReinit(c); } }, c.actif ? 'Réinitialiser le mot de passe' : 'Réactiver avec un mot de passe')));
         })))),
       (function () {

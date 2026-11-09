@@ -250,3 +250,14 @@ test('Liste commune des psychologues (0.20.0) : liste séparée, mêmes réglage
   assert.throws(() => PS.controler(cfg, 'psychologues', { liste: [] }, ide), /psychologue non répertorié/);
   assert.ok(PS.controler(cfg, 'psychologues', { liste: [] }, { roles: ['SECRETAIRE'] }), 'gestion : cadre et secrétaire');
 });
+
+test('Données d’un agent (0.20.0) : clé propre obligatoire, cadre seul par défaut', () => {
+  const c = CH.normaliser({ id: 'afgsu', libelle: 'AFGSU', type: 'date', entite: 'agent', protection: 'interface' });
+  assert.equal(c.protection, 'cle');
+  assert.equal(CH.cleDe(c), 'd-afgsu');
+  assert.deepEqual([c.lecture, c.saisie], [['CADRE'], ['CADRE']]);
+  assert.equal(CH.typeSaisie(c), 'VALEUR');
+  assert.ok(CH.aDroitCle(c, ['CADRE']) && !CH.aDroitCle(c, ['IDE']));
+  const r = CH.reduireValeurs([{ id: 'e1', at: '2026-11-09T10:00:00Z', by: 'u', type: 'VALEUR', data: { entite: 'agent', id: 'u-ide', champ: 'afgsu', valeur: '2027-01-01' } }]);
+  assert.equal(r.agent['u-ide'].afgsu, '2027-01-01');
+});

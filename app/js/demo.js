@@ -71,6 +71,9 @@
         { id: 'projet-sortie', libelle: 'Projet de sortie', type: 'texte', entite: 'patient', module: 'suivi', services: [], saisie: ['IDE', 'CADRE'], lecture: [] },
         { id: 'vigilance-orga', libelle: 'Vigilance organisationnelle', type: 'notes', entite: 'patient', module: 'patients', protection: 'cle', services: [], saisie: ['IDE', 'CADRE'], lecture: ['IDE', 'CADRE'] },
         { id: 'jours-avant-sortie', libelle: 'Jours avant la sortie', type: 'formule', formule: 'SIERREUR(-JOURS([Sortie prévisionnelle]); "")', entite: 'patient', module: 'patients', services: ['U1'], saisie: [], lecture: [], par: { role: 'CADRE', services: ['U1'] } },
+        // Données des agents (0.20.0) : données du personnel, clé propre, cadre seul par défaut (fictives)
+        { id: 'afgsu', libelle: 'Formation aux gestes d’urgence (AFGSU) valable jusqu’au', type: 'date', entite: 'agent', services: [], saisie: ['CADRE'], lecture: ['CADRE'] },
+        { id: 'habilitations', libelle: 'Habilitations', type: 'choixMultiple', choix: ['Conduite d’un véhicule', 'Accompagnement des sorties', 'Référent hygiène', 'Tuteur de stage'], entite: 'agent', services: [], saisie: ['CADRE'], lecture: ['CADRE'] },
         { id: 'tel-pro', libelle: 'Téléphone professionnel', type: 'telephone', entite: 'medecin', module: 'suivi', services: [], saisie: ['CADRE', 'SECRETAIRE'], lecture: [] },
         { id: 'jours-presence', libelle: 'Jours de présence habituels', type: 'choixMultiple', choix: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'], entite: 'medecin', module: 'suivi', services: [], saisie: ['CADRE', 'SECRETAIRE'], lecture: [] }]);
       // Réglages des données (0.18.0) : une couleur par psychiatre de 1re ligne, sortie prévisionnelle proche, check-list
@@ -84,6 +87,7 @@
           U2: { regles: [{ si: { op: 'egal', valeur: 'm-diallo' }, couleur: 'brun', rendu: 'pastille', libelle: 'Dr Diallo (fictif)' }, { si: { op: 'vide' }, couleur: 'rouge', rendu: 'fond', libelle: 'Sans médecin de 1re ligne' }] } },
         'patients.sortiePrevue': { '*': { regles: [{ si: { op: 'depuisPlusDe', n: 0 }, couleur: 'rouge', rendu: 'fond', libelle: 'Date de sortie passée' }, { si: { op: 'dansMoinsDe', n: 2 }, couleur: 'orange', rendu: 'fond', libelle: 'Sortie dans 2 jours ou moins' }, { si: { op: 'dansMoinsDe', n: 7 }, couleur: 'jaune', rendu: 'fond', libelle: 'Sortie dans la semaine' }] } },
         'c:accueil': { '*': { regles: [{ si: { op: 'complete' }, couleur: 'vert', rendu: 'fond', libelle: 'Check-list complète' }, { si: { op: 'avancementMoins', n: 50 }, couleur: 'orange', rendu: 'fond', libelle: 'Moins de la moitié faite' }] } },
+        'c:afgsu': { '*': { regles: [{ si: { op: 'depuisPlusDe', n: 0 }, couleur: 'rouge', rendu: 'fond', libelle: 'Formation à renouveler' }, { si: { op: 'dansMoinsDe', n: 60 }, couleur: 'orange', rendu: 'fond', libelle: 'À renouveler dans les 2 mois' }] } },
         'c:demarches': { '*': { regles: [{ si: { op: 'importance', valeur: 'urgent' }, couleur: 'rouge', rendu: 'texte', libelle: 'Note urgente' }, { si: { op: 'importance', valeur: 'important' }, couleur: 'orange', rendu: 'texte', libelle: 'Note importante' }] } }
       });
       // Capacité d'accueil (0.18.2, fictive) : deux lits fermés pour travaux dans l'Unité 1, un lit réservé dans l'Unité 2
@@ -106,7 +110,7 @@
             { id: 'longs', titre: 'Présents depuis plus de 30 jours', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'depuisPlusDe', n: 30 }] }],
           autres: { titre: 'Autres patients' }, synthese: ['effectif', 'places', 'sorties', 'parMode', 'parMedecin', 'ageMoyen'], instantane: { roles: ['CADRE'] } },
         { id: 'medecins', nom: 'Médecins', lignes: 'medecins', services: [], roles: [], colonnes: [{ code: 'nom' }, { code: 'initiales' }, { code: 'fonction' }, { code: 'statut' }, { code: 'presence' }, { code: 'c:tel-pro' }, { code: 'c:jours-presence' }, { code: 'patients1' }, { code: 'patients2' }, { code: 'retards' }], groupes: [], synthese: [] },
-        { id: 'equipe', nom: 'Équipe', lignes: 'agents', services: [], roles: ['CADRE'], colonnes: [{ code: 'nom' }, { code: 'roles' }, { code: 'groupes' }, { code: 'referent' }, { code: 'absence' }, { code: 'taches' }], groupes: [], synthese: [] }] });
+        { id: 'equipe', nom: 'Équipe', lignes: 'agents', services: [], roles: ['CADRE'], colonnes: [{ code: 'nom' }, { code: 'roles' }, { code: 'groupes' }, { code: 'referent' }, { code: 'absence' }, { code: 'taches' }, { code: 'c:afgsu' }, { code: 'c:habilitations' }], groupes: [], synthese: [] }] });
       // Véhicules : deux données ajoutées par l'administrateur (fictives)
       cfg('vehicules', { champs: [{ id: 'carte-carburant', libelle: 'Carte carburant à bord', type: 'ouiNon' }, { id: 'revision', libelle: 'Prochaine révision', type: 'date' },
         { id: 'equipement', libelle: 'Équipement', type: 'liste', choix: ['Rampe d’accès', 'Siège enfant', 'Galerie de toit'] }] });
@@ -406,5 +410,20 @@
     // L'agent qui crée la démonstration est inscrit par les « données fictives » à une audience : information reçue
     var u = session.utilisateur || {};
     await session.enregistrerLot(SIC.donneesFictives({ moi: { id: u.id, nom: u.nom } }), { libelle: 'Données fictives de démonstration', by: 'demo', sansControle: true });
+    // Données sous clé propre (0.20.0) : la clé de chaque donnée est créée d'abord, puis ses valeurs fictives sont écrites
+    // dans son journal (vigilance organisationnelle, données des agents)
+    if (session.creerClesManquantes && !session.formation) {
+      try {
+        await session.creerClesManquantes();
+        var now = Date.now(), J = 864e5, at = function (h) { return new Date(now + h * 36e5).toISOString(); }, jC = function (n) { return SIC.model.dateLocaleISO(now + n * J); };
+        var v = [
+          { at: at(-30), by: 'demo', type: 'VALEUR', data: { entite: 'patient', id: 'P01', champ: 'vigilance-orga', op: { ajout: { id: 'nv1', texte: 'Ne pas programmer de sortie le jeudi, jour de visite (fictif)', importance: 'important' } } } },
+          { at: at(-40), by: 'demo', type: 'VALEUR', data: { entite: 'agent', id: 'demo-a', champ: 'afgsu', valeur: jC(120) } },
+          { at: at(-40), by: 'demo', type: 'VALEUR', data: { entite: 'agent', id: 'demo-b', champ: 'afgsu', valeur: jC(-10) } },
+          { at: at(-40), by: 'demo', type: 'VALEUR', data: { entite: 'agent', id: 'demo-a', champ: 'habilitations', valeur: ['Conduite d’un véhicule', 'Tuteur de stage'] } },
+          { at: at(-40), by: 'demo', type: 'VALEUR', data: { entite: 'agent', id: 'demo-c', champ: 'habilitations', valeur: ['Accompagnement des sorties'] } }];
+        await session.enregistrerLot(v, { libelle: 'Données fictives sous clé propre', by: 'demo', sansControle: true });
+      } catch (e) { /* démonstration sans ces valeurs */ }
+    }
   };
 })(typeof self !== 'undefined' ? self : this);

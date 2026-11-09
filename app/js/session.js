@@ -322,6 +322,8 @@
     await s.synchroniser();
     await s.tracer('CLE_MODULE', { cles: manquantes, libelle: 'clé créée pour ' + manquantes.map(function (n) { var m = SIC.modules && SIC.modules.obtenir(n), d = /^d-/.test(n) && CH() ? CH().definition(config(s), n.slice(2)) : null; return m ? m.libelle : d ? 'la donnée « ' + d.libelle + ' »' : n; }).join(', ') });
   }
+  /** Crée les clés manquantes (modules déclarés, clés propres des données) : connexion d'un administrateur, démonstration. */
+  Session.prototype.creerClesManquantes = function () { return apresSynchro(this); };
   function nouvelId() { return 'k' + id8(); }
   /** Première génération produite par la clé maîtresse en vigueur, pour chaque clé de droit (copie sous scellé). */
   function basesDe(coffre) {
@@ -1156,7 +1158,7 @@
   /** Valeurs des données ajoutées portées par les saisies `VALEUR` (champs.js, reduireValeurs), recalculées au besoin. */
   Session.prototype.valeurs = function () {
     if (!this._valeurs || this._valeurs.n !== this.evts.length || this._valeurs.etat !== this.etat) {
-      this._valeurs = { n: this.evts.length, etat: this.etat, v: CH() ? CH().reduireValeurs(this.evts, this.etat && this.etat.annules) : { patient: {}, medecin: {}, historique: { patient: {}, medecin: {} } } };
+      this._valeurs = { n: this.evts.length, etat: this.etat, v: CH() ? CH().reduireValeurs(this.evts, this.etat && this.etat.annules) : { patient: {}, medecin: {}, agent: {}, historique: { patient: {}, medecin: {}, agent: {} } } };
     }
     return this._valeurs.v;
   };

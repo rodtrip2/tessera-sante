@@ -246,13 +246,13 @@
       }
     }
     // Données ajoutées (patients, médecins) et colonnes calculées
-    var ent = entite === 'patients' ? 'patient' : entite === 'medecins' ? 'medecin' : null;
+    var ent = entite === 'patients' ? 'patient' : entite === 'medecins' ? 'medecin' : entite === 'agents' ? 'agent' : null;
     if (ent) CH.definitions(ctx.config, { entite: ent }).forEach(function (c) {
       if (ctx.lisible && !ctx.lisible(c)) return;
       col({ code: 'c:' + c.id, libelle: c.libelle, type: c.type, champ: c, journal: c.type === 'formule' ? null : CH.journalDe(c), reglage: 'c:' + c.id, edition: c.type === 'formule' ? null : { type: 'champ' },
         lire: function (l) {
           if (c.type === 'formule') return { v: null, lib: '', brute: null, formule: true };
-          var id = ent === 'patient' ? l.p.id : l.m.id;
+          var id = ent === 'patient' ? l.p.id : ent === 'medecin' ? l.m.id : l.a.id;
           var v = CH.typeSaisie(c) === 'COMPLEMENT' ? ((l.p && l.p.complements) || {})[c.id] : (((ctx.valeurs || {})[ent] || {})[id] || {})[c.id];
           var k = c.type === 'checklist' ? CH.checklist(c, v) : null;
           // Check-list : avancement affiché même sans case cochée (0/4), d'après le modèle

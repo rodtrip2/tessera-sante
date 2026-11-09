@@ -198,8 +198,18 @@
       var typ = h('select', { disabled: !!existant }, Object.keys(CH.TYPES).map(function (k) { return h('option', { value: k, text: CH.TYPES[k], selected: x.type === k }); }));
       var ent = h('select', { disabled: !!existant }, Object.keys(CH.ENTITES).map(function (k) { return h('option', { value: k, text: CH.ENTITES[k], selected: (x.entite || 'patient') === k }); }));
       var mod = h('select', { disabled: !!existant });
-      function remplirModules() { U.vider(mod); modulesRattachables(ent.value).forEach(function (m) { mod.appendChild(h('option', { value: m.code, text: m.libelle, selected: (x.module || (ent.value === 'medecin' ? 'suivi' : 'patients')) === m.code })); }); }
-      ent.addEventListener('change', remplirModules); remplirModules();
+      function remplirModules() { U.vider(mod); if (ent.value === 'agent') { mod.appendChild(h('option', { value: 'vue', text: 'Données du personnel (clé propre)' })); return; } modulesRattachables(ent.value).forEach(function (m) { mod.appendChild(h('option', { value: m.code, text: m.libelle, selected: (x.module || (ent.value === 'medecin' ? 'suivi' : 'patients')) === m.code })); }); }
+      // Donnée d'un agent (0.20.0) : clé propre obligatoire, cadre seul par défaut, avertissement « données du personnel »
+      var avertAgent = h('div', { class: 'alerte', text: CH.AVERTISSEMENT_AGENT });
+      function selonEntite() {
+        var ag = ent.value === 'agent';
+        avertAgent.hidden = !ag; mod.disabled = !!existant || ag;
+        if (ligneTiers) ligneTiers.hidden = ag;
+        if (ligneClin) ligneClin.hidden = ag;
+        if (ag) { prot.value = 'cle'; prot.disabled = true; if (!x.lecture.length) x.lecture.push('CADRE'); if (!x.saisie.length) x.saisie.push('CADRE'); }
+        else if (!existant && !clin.checked) prot.disabled = false;
+      }
+      ent.addEventListener('change', function () { remplirModules(); selonEntite(); }); remplirModules();
       var prot = h('select', { disabled: !!existant || x.clinique }, Object.keys(CH.PROTECTIONS).map(function (k) { return h('option', { value: k, text: CH.PROTECTIONS[k], selected: (x.protection || 'interface') === k }); }));
       var tiers = h('input', { type: 'checkbox', checked: !!x.tiers });
       var clin = h('input', { type: 'checkbox', checked: !!x.clinique, disabled: !admin || (existant && x.clinique) });
@@ -207,6 +217,9 @@
         if (clin.checked && !confirm('Option « donnée clinique ».\n\nTessera ne doit contenir aucune donnée clinique : elle relève du dossier patient informatisé. Activer cette option engage l’établissement : avis du délégué à la protection des données (DPO, référent RGPD), inscription au registre des traitements, durée de conservation. La donnée aura une clé propre, remise aux seuls rôles réglés, et l’activation est tracée au journal.\n\nActiver ?')) { clin.checked = false; return; }
         if (clin.checked) { prot.value = 'cle'; prot.disabled = true; } else if (!existant) prot.disabled = false;
       });
+      var ligneTiers = h('label', { class: 'case' }, tiers, h('span', { text: 'Information concernant un tiers : exclue des exports remis au patient (droit d’accès)' }));
+      var ligneClin = admin ? h('label', { class: 'case' }, clin, h('span', { text: 'Donnée clinique (option réservée à l’administrateur, après avertissement)' })) : null;
+      selonEntite();
       var zoneType = h('div', { class: 'pile' });
       var choix, modele, libre, tri, formule;
       function dessinerType() {
@@ -228,7 +241,7 @@
       typ.addEventListener('change', dessinerType); dessinerType();
       var svOptions = U.tousServices().filter(function (s) { return !mesServices || mesServices.indexOf(s.code) >= 0; }).map(function (s) { return { code: s.code, libelle: s.libelle }; });
       if (cadre && !x.services.length) x.services = mesServices.slice();
-      var corps = h('div', { class: 'pile' },
+      var corps = h('div', { class: 'pile' }, avertAgent,
         h('div', { class: 'grille-2' }, h('label', {}, 'Nom de la donnée', lib), h('label', {}, 'Type de valeur', typ)),
         h('div', { class: 'grille-2' }, h('label', {}, 'Donnée d’un', ent), h('label', {}, 'Rattachée au module (ses valeurs y sont rangées, chiffrées par sa clé)', mod)),
         zoneType,
@@ -238,12 +251,12 @@
           h('label', {}, 'Visible par', multi(x.lecture, rs.map(function (r) { return { code: r.code, libelle: r.libelle }; }), 'Tous', 'Visible par'))),
         h('label', {}, 'Protection', prot),
         h('small', { class: 'muted', text: 'Clé propre : seuls les rôles cochés (« Visible par », « Modifiée par ») reçoivent la clé qui déchiffre la donnée ; indiquez-les. La protection ne change plus une fois la donnée enregistrée.' }),
-        h('label', { class: 'case' }, tiers, h('span', { text: 'Information concernant un tiers : exclue des exports remis au patient (droit d’accès)' })),
-        admin ? h('label', { class: 'case' }, clin, h('span', { text: 'Donnée clinique (option réservée à l’administrateur, après avertissement)' })) : null,
+        ligneTiers, ligneClin,
         h('div', { class: 'alerte', text: 'Aucune donnée clinique par défaut : ni traitement, ni diagnostic, ni symptôme, ni antécédent. Chaque donnée ajoutée est à inscrire au registre des traitements (délégué à la protection des données).' }));
       U.modale(existant ? 'Modifier la donnée' : 'Nouvelle donnée', corps, [{ texte: 'Annuler' }, { texte: 'Valider', classe: 'primaire', action: async function () {
         var n = lib.value.trim();
         if (!n) throw new Error('Indiquez le nom de la donnée.');
+        if (ent.value === 'agent' && !existant && !confirm('Donnée d’un agent.\n\n' + CH.AVERTISSEMENT_AGENT + '\n\nCréer cette donnée ?')) return false;
         var mots = CH.libelleClinique(n);
         if (mots.length && !clin.checked && !confirm('« ' + n + ' » évoque une donnée clinique (' + mots.join(', ') + '), qui relève du dossier patient informatisé. Continuer ?')) return false;
         var o = { id: x.id, libelle: n, type: typ.value, entite: ent.value, module: mod.value, services: x.services, saisie: x.saisie, lecture: x.lecture };
@@ -440,6 +453,96 @@
       }));
   }
 
+  // ------------------------------------------------------------ Données ajoutées depuis les fiches (0.20.0)
+  function peutRegler() { var r = roles(); return !session().apercu && (r.indexOf('ADMIN') >= 0 || r.indexOf('CADRE') >= 0); }
+  /** Fenêtre superposée qui garde la fenêtre d'origine ouverte (fiche, réglage d'une vue). */
+  function fenetre(titre, contenu, apres) {
+    var d = h('dialog', { class: 'large', 'aria-label': titre });
+    function fermer() { d.close(); d.remove(); if (apres) apres(); }
+    d.appendChild(h('div', { class: 'tete' }, h('h2', { text: titre }), h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Fermer', onclick: fermer }, '×')));
+    d.appendChild(h('div', { class: 'corps' }, contenu));
+    d.appendChild(h('div', { class: 'pied' }, h('button', { class: 'btn primaire', type: 'button', onclick: fermer }, 'Fermer')));
+    d.addEventListener('cancel', function (ev) { ev.preventDefault(); fermer(); });
+    document.body.appendChild(d); d.showModal();
+    return d;
+  }
+  /** Gérer les données ajoutées d'une entité (patient, médecin, agent) : cadre pour ses services, administrateur. */
+  function modaleDefinitions(o) {
+    o = o || {};
+    var zc = h('div', {});
+    function dessiner() { U.vider(zc).appendChild(panneauDefinitions({ cadre: roles().indexOf('ADMIN') < 0, entite: o.entite, titre: 'Données ajoutées — ' + (CH.ENTITES[o.entite] || 'toutes') + 's', apres: function () { setTimeout(dessiner, 50); } })); }
+    dessiner();
+    return fenetre('Données ajoutées', zc, o.apres);
+  }
+  function boutonGerer(entite, apres) {
+    return peutRegler() ? h('button', { class: 'btn petit', type: 'button', title: 'Ajouter, modifier ou masquer les données ajoutées', onclick: function () { modaleDefinitions({ entite: entite, apres: apres }); } }, 'Gérer les données ajoutées…') : null;
+  }
+  /**
+   * Valeurs des données ajoutées d'une entité (médecin, agent ; la fiche patient a les siennes) : valeurs simples
+   * enregistrées par « Enregistrer les données », notes et check-lists aussitôt. options : { service }.
+   */
+  function blocValeurs(entite, id, options) {
+    var o = options || {}, zone = h('div', { class: 'pile bloc-valeurs' });
+    function dessiner() {
+      U.vider(zone);
+      var defs = CH.definitions(U.config(), { entite: entite, service: o.service }).filter(function (c) { return c.type !== 'formule' && lisible(c); });
+      zone.appendChild(h('div', { class: 'actions gauche' }, h('b', { text: 'Données ajoutées' }), boutonGerer(entite, dessiner)));
+      if (entite === 'agent') zone.appendChild(h('small', { class: 'muted', text: 'Données du personnel, protégées par une clé propre : ni donnée de santé, ni évaluation.' }));
+      if (!defs.length) { zone.appendChild(h('p', { class: 'muted', text: 'Aucune donnée ajoutée' + (peutRegler() ? ' : « Gérer les données ajoutées… » pour en créer.' : '.') })); return; }
+      var grille = h('div', { class: 'grille-3' }), cumul = h('div', { class: 'pile' }), saisies = [];
+      defs.forEach(function (c) {
+        var v = valeurDe(c, entite, id), ok = modifiable(c);
+        if (CH.CUMULATIFS[c.type]) {
+          var opts = { peut: ok, enregistrerOp: function (op) { return enregistrer(c, entite, id, { op: op }); }, apres: dessiner };
+          cumul.appendChild(h('div', { class: 'pile' }, h('b', { text: c.libelle }), c.type === 'notes' ? notes(c, v, opts) : checklist(c, v, opts)));
+          return;
+        }
+        var w = saisie(c, v, { disabled: !ok });
+        if (ok) saisies.push({ c: c, w: w, avant: v });
+        grille.appendChild(h('label', { title: ok ? null : 'Votre rôle ne modifie pas cette donnée' }, c.libelle, w.el));
+      });
+      zone.appendChild(grille); zone.appendChild(cumul);
+      if (saisies.length) zone.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit primaire', type: 'button', onclick: async function () {
+        try {
+          var n = 0;
+          for (var i = 0; i < saisies.length; i++) {
+            var x = saisies[i], val = x.w.lire(), norm = val === '' || val === null || (Array.isArray(val) && !val.length) ? null : CH.valeur(x.c, val);
+            if (JSON.stringify(norm === null ? undefined : norm) !== JSON.stringify(x.avant)) { await enregistrer(x.c, entite, id, { valeur: norm }); n++; }
+          }
+          U.toast(n ? n + ' donnée(s) enregistrée(s).' : 'Aucun changement.'); dessiner();
+        } catch (e) { alert(e.message); }
+      } }, 'Enregistrer les données')));
+    }
+    dessiner();
+    return zone;
+  }
+  /** Fiche d'un agent (0.20.0) : identité, rôles, services, groupes, et données ajoutées (cadre seul par défaut). */
+  function ficheAgent(a) {
+    var cfg = U.config(), libR = {};
+    rolesConfig().forEach(function (r) { libR[r.code] = r.libelle; });
+    var gs = (cfg.groupes || []).filter(function (g) { return g && g.actif !== false && (g.membres || []).some(function (m) { return m.id === a.id; }); }).map(function (g) { return g.libelle; });
+    var compte = (session().comptes || []).filter(function (c) { return c.id === a.id; })[0];
+    return fenetre('Fiche de ' + a.nom, h('div', { class: 'pile' },
+      h('div', { class: 'grille-3' },
+        h('div', {}, h('small', { class: 'muted', text: 'Rôles' }), h('div', { text: (a.roles || []).map(function (r) { return libR[r] || r; }).join(', ') || '—' })),
+        h('div', {}, h('small', { class: 'muted', text: 'Services' }), h('div', { text: (a.services || []).map(U.libService).join(', ') || '—' })),
+        h('div', {}, h('small', { class: 'muted', text: 'Groupes d’agents' }), h('div', { text: gs.join(', ') || '—' }))),
+      compte ? null : h('small', { class: 'muted', text: 'Membre d’un groupe d’agents sans compte Tessera : ses données le suivront quand son compte sera créé avec le même identifiant.' }),
+      blocValeurs('agent', a.id)));
+  }
+  /** Fiche d'un médecin depuis la Vue d'ensemble : fiche de la liste (gestionnaires) et données ajoutées. */
+  function ficheMedecin(m) {
+    var MED = SIC.medecins;
+    return fenetre(m.nom, h('div', { class: 'pile' },
+      h('div', { class: 'grille-3' },
+        h('div', {}, h('small', { class: 'muted', text: 'Fonction' }), h('div', { text: MED.FONCTIONS[m.fonction] || '' })),
+        h('div', {}, h('small', { class: 'muted', text: 'Statut' }), h('div', { text: MED.STATUTS[m.statut] || '' })),
+        h('div', {}, h('small', { class: 'muted', text: 'Services' }), h('div', { text: m.services.length ? m.services.map(U.libService).join(', ') : 'Tous' }))),
+      U.medecins && U.medecins.peutGerer() ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { U.medecins.modaleMedecin(m); } }, 'Modifier la fiche du médecin…')) : null,
+      blocValeurs('medecin', m.id)));
+  }
+
   U.champs = { valeurDe: valeurDe, lisible: lisible, raisonIndisponible: raisonIndisponible, modifiable: modifiable, enregistrer: enregistrer, saisie: saisie, notes: notes, checklist: checklist,
-    classeCouleur: classeCouleur, marque: marque, legende: legende, multi: multi, panneauDefinitions: panneauDefinitions, modaleDefinition: modaleDefinition, modaleReglages: modaleReglages, definitionsBrutes: definitionsBrutes, panneauCapacites: panneauCapacites };
+    classeCouleur: classeCouleur, marque: marque, legende: legende, multi: multi, panneauDefinitions: panneauDefinitions, modaleDefinition: modaleDefinition, modaleReglages: modaleReglages, definitionsBrutes: definitionsBrutes, panneauCapacites: panneauCapacites,
+    modaleDefinitions: modaleDefinitions, boutonGerer: boutonGerer, blocValeurs: blocValeurs, ficheAgent: ficheAgent, ficheMedecin: ficheMedecin, fenetre: fenetre };
 })();
