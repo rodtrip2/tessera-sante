@@ -40,16 +40,10 @@
       .map(function (c) { return { id: c.id, libelle: String(c.libelle).trim().slice(0, 60), type: c.type, choix: c.type === 'liste' && Array.isArray(c.choix) ? c.choix.map(String).filter(Boolean) : [], actif: c.actif !== false }; });
     return { types: liste(v.types, TYPES_VEHICULE_DEFAUT), signalements: liste(v.signalements, TYPES_SIGNALEMENT_DEFAUT), champs: champs };
   }
-  function valeurChamp(c, v) {
-    if (v === null || v === undefined || v === '') return null;
-    if (c.type === 'ouiNon') { if (v === true || v === 'oui') return true; if (v === false || v === 'non') return false; }
-    else if (c.type === 'texte') return String(v).trim().slice(0, 200) || null;
-    else if (c.type === 'liste') { if (c.choix.indexOf(String(v)) >= 0) return String(v); }
-    else if (c.type === 'date') { if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v; }
-    else if (c.type === 'nombre') { if (isFinite(+v)) return +v; }
-    throw new Error('« ' + c.libelle + ' » : valeur attendue — ' + TYPES_CHAMP[c.type].toLowerCase() + '.');
-  }
-  function libValeur(c, v) { return v === null || v === undefined ? '' : c.type === 'ouiNon' ? (v ? 'Oui' : 'Non') : c.type === 'date' ? String(v).split('-').reverse().join('/') : String(v); }
+  // Contrôle et affichage des valeurs : mécanisme commun des champs ajoutés (champs.js, 0.18.0), types d'origine
+  function CH() { return (typeof self !== 'undefined' && self.SIC && self.SIC.champs) || require('./champs.js'); }
+  function valeurChamp(c, v) { return CH().valeur(c, v); }
+  function libValeur(c, v) { return CH().lib(c, v); }
 
   // ------------------------------------------------------------ Reconstitution de l'état
   function appliquer(st, e) {

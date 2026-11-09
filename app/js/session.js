@@ -70,7 +70,12 @@
   var SOCLE = 'socle';
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
-  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1 };
+  var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
+    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1 };
+  /** Champs ajoutés (0.18.0) : définitions, droits réglés pour chaque donnée, clés propres (`d-<id>`). */
+  function CH() { return socle('champs', './champs.js'); }
+  /** Clés propres à une donnée détenues par la session (journaux `modules\d-<id>\`). */
+  function clesPropresDetenues(s) { return Object.keys(s.trousseau || {}).filter(function (n) { return /^d-/.test(n) && aCle(s, n); }).sort(); }
 
   function nouveauJournal(nom, dossier, cle) { return { nom: nom, dossier: dossier, cle: cle, evts: [], connus: new Set(), rejetes: [], reperesLus: {} }; }
   /** Journaux du jeu de données actif. */
@@ -81,7 +86,8 @@
   function journaux(s) {
     if (!s.journauxActifs) {
       s.journauxActifs = s.formation ? [nouveauJournal('formation', s.donnees, s.cleDonnees)]
-        : [nouveauJournal(SOCLE, null, s.cle)].concat(modulesOrdre().filter(function (m) { return aCle(s, m.id); }).map(function (m) { return nouveauJournal(m.id, null, s.trousseau[m.id]); }));
+        : [nouveauJournal(SOCLE, null, s.cle)].concat(modulesOrdre().filter(function (m) { return aCle(s, m.id); }).map(function (m) { return nouveauJournal(m.id, null, s.trousseau[m.id]); }))
+          .concat(clesPropresDetenues(s).map(function (n) { return nouveauJournal(n, null, s.trousseau[n]); }));
     }
     return s.journauxActifs;
   }
@@ -93,7 +99,7 @@
     if (!v2(s) || j.v1) return true;
     return !!j.maitresse || Object.keys(j.octets).length > 0;
   }
-  function signatureCles(s) { return modulesOrdre().map(function (m) { return aCle(s, m.id) ? m.id : ''; }).join('|'); }
+  function signatureCles(s) { return modulesOrdre().map(function (m) { return aCle(s, m.id) ? m.id : ''; }).concat(clesPropresDetenues(s)).join('|'); }
   /** Dossier d'un journal (créé à la première saisie) ; null s'il n'existe pas encore et `creer` est faux. */
   async function dossierJournal(s, j, creer) {
     if (!j.dossier) j.dossier = await s.dossier.journal(j.nom, creer);
@@ -112,6 +118,14 @@
       if (vise) return vise;
     }
     if (TYPES_SOCLE[type] || (type === 'CONFIG' && data && REGLAGES_SOCLE[data.cle])) return js[0];
+    // Valeur d'une donnée ajoutée (0.18.0) : journal de sa clé propre, sinon du module de rattachement
+    if (type === 'VALEUR' && CH()) {
+      // Définition connue, sinon journal indiqué dans la saisie (lot qui crée la donnée et ses valeurs : démonstration, import)
+      var def = CH().definition(config(s), data && data.champ), nomJ = def ? CH().journalDe(def) : (data && typeof data.journal === 'string' ? data.journal : null);
+      var jv = nomJ && js.filter(function (x) { return x.nom === nomJ; })[0];
+      if (!jv) throw new Error(def && CH().cleDe(def) && !(s.coffre && s.coffre.cles && s.coffre.cles[nomJ]) ? 'La clé propre de « ' + def.libelle + ' » n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.' : 'Vous n’avez pas la clé de « ' + (def ? def.libelle : 'cette donnée') + ' » : saisie impossible.');
+      return jv;
+    }
     var m = SIC.modules && SIC.modules.moduleDuType ? SIC.modules.moduleDuType(type) : null;
     // Clé du module pas encore créée (coffre d'avant ce module, en attente de l'administrateur) : module affiché, comme avant
     if (m && v2(s) && s.coffre && !s.coffre.cles[m.id]) m = null;
@@ -144,6 +158,8 @@
   function v2(s) { return !!(s.coffre && s.coffre.version === 2); }
   function idModule() { return moduleActif().id || 'isocont'; }
   function modulesDeclares() { return SIC.modules ? SIC.modules.liste().map(function (m) { return m.id; }) : [idModule()]; }
+  /** Clés à créer par l'administrateur : modules déclarés et clés propres des données protégées (0.18.0). */
+  function clesDeclarees(s) { return modulesDeclares().concat(CH() && s.etat ? CH().clesPropres(config(s)).map(function (x) { return x.nom; }) : []); }
   /** Trousseau ouvert : `cle` = jeu de la plateforme (comptes, journal du socle, préférences, traces). */
   function installerTrousseau(s, trousseau, privee8, cleV1) {
     s.trousseau = trousseau; s.privee8 = privee8 || null; s.cleV1 = cleV1 || null;
@@ -288,7 +304,7 @@
    */
   async function apresSynchro(s) {
     if (!v2(s) || s.formation || !attestateur(s) || bloquantes(s.controle).length) return;
-    var manquantes = modulesDeclares().filter(function (n) { return !s.coffre.cles[n]; });
+    var manquantes = clesDeclarees(s).filter(function (n) { return !s.coffre.cles[n]; });
     if (!manquantes.length) return;
     await s.modifierCoffre(async function (cf, comptes) {
       var t = travail(s);
@@ -297,7 +313,7 @@
     });
     oublierJournaux(s);
     await s.synchroniser();
-    await s.tracer('CLE_MODULE', { cles: manquantes, libelle: 'clé créée pour ' + manquantes.map(function (n) { var m = SIC.modules && SIC.modules.obtenir(n); return m ? m.libelle : n; }).join(', ') });
+    await s.tracer('CLE_MODULE', { cles: manquantes, libelle: 'clé créée pour ' + manquantes.map(function (n) { var m = SIC.modules && SIC.modules.obtenir(n), d = /^d-/.test(n) && CH() ? CH().definition(config(s), n.slice(2)) : null; return m ? m.libelle : d ? 'la donnée « ' + d.libelle + ' »' : n; }).join(', ') });
   }
   function nouvelId() { return 'k' + id8(); }
   /** Première génération produite par la clé maîtresse en vigueur, pour chaque clé de droit (copie sous scellé). */
@@ -345,6 +361,8 @@
     return function (nom, compte) {
       if (nom === T.PLATEFORME || (compte.roles || []).indexOf('ADMIN') >= 0) return true;
       if (regles[nom]) return regles[nom](compte);
+      // Clé propre d'une donnée (0.18.0) : remise aux seuls rôles qui la voient ou la saisissent (administrateur toujours)
+      if (/^d-/.test(nom)) { var dc = CH() && CH().definition(cfg, nom.slice(2)); return !!(dc && dc.protection === 'cle' && dc.actif && CH().aDroitCle(dc, compte.roles)); }
       // Module de référence (Patients) : sa clé suit les droits aux modules qui en dépendent
       var m = SIC.modules && SIC.modules.obtenir(nom);
       if (m && m.reference) return SIC.modules.dependants(nom).some(function (x) { return regles[x.id] && regles[x.id](compte); });
@@ -1095,6 +1113,31 @@
     return !!(m.saisies && m.saisies.permisPourSoi && m.saisies.permisPourSoi(type, data, s.utilisateur, { config: config(s), etat: etatDe(s, m), peut: function (t) { return s.peut(t); } }));
   }
 
+  /**
+   * Valeur d'une donnée ajoutée (`VALEUR`, 0.18.0) : permise selon les rôles réglés pour la donnée ; sans rôles de saisie
+   * précisés, aux rôles qui écrivent déjà dans le module de rattachement. Lève une erreur explicite.
+   */
+  function ecritDans(s, idModule) {
+    var m = SIC.modules && SIC.modules.obtenir(idModule);
+    if (!m) return false;
+    if (idModule === 'patients') return s.peut('PATIENT');
+    return m.saisies.types.some(function (t) { try { return m.droits && m.droits.peut(s.roles(), t, config(s)); } catch (e) { return false; } });
+  }
+  function controlerValeur(s, data) {
+    var c = CH().controlerSaisie('VALEUR', data || {}, s.roles(), { config: config(s), peutModule: function (c) { return ecritDans(s, c.module); } });
+    // Valeur enregistrée sous sa forme contrôlée (ex. numéro de téléphone groupé par deux)
+    if (data.op) data.op = CH().operation(c, data.op); else data.valeur = CH().valeur(c, data.valeur);
+    data.journal = CH().journalDe(c);
+  }
+  /** Valeurs des données ajoutées portées par les saisies `VALEUR` (champs.js, reduireValeurs), recalculées au besoin. */
+  Session.prototype.valeurs = function () {
+    if (!this._valeurs || this._valeurs.n !== this.evts.length || this._valeurs.etat !== this.etat) {
+      this._valeurs = { n: this.evts.length, etat: this.etat, v: CH() ? CH().reduireValeurs(this.evts, this.etat && this.etat.annules) : { patient: {}, medecin: {}, historique: { patient: {}, medecin: {} } } };
+    }
+    return this._valeurs.v;
+  };
+  Session.prototype.ecritDans = function (idModule) { return ecritDans(this, idModule); };
+
   Session.prototype.nomAuteur = function (userId) {
     var c = this.comptes.filter(function (x) { return x.id === userId; })[0];
     return c ? c.nom : (userId === 'secours' ? 'Compte de secours' : userId === 'demo' ? 'Données fictives' : userId);
@@ -1114,8 +1157,11 @@
     }
     // Aperçu d'un rôle : rien n'est enregistré (seules les traces techniques des opérations réellement faites passent)
     if (this.apercu && type !== 'COMPTE') throw new Error('Aperçu de l’affichage du rôle « ' + this.apercu.libelle + ' » : aucune saisie n’est enregistrée. Revenez à votre affichage (liste « Affichage » en haut de l’écran) pour saisir.');
-    if (!(options && options.sansControle) && !this.peut(type) && !permisPourSoi(this, type, data)) throw new Error("Votre rôle ne permet pas cette action.");
-    if (!(options && options.sansControle)) { controlerActivation(this, type, data); controlerModule(this, type, data); }
+    if (type === 'VALEUR') { if (!(options && options.sansControle)) controlerValeur(this, data); }
+    else {
+      if (!(options && options.sansControle) && !this.peut(type) && !permisPourSoi(this, type, data)) throw new Error("Votre rôle ne permet pas cette action.");
+      if (!(options && options.sansControle)) { controlerActivation(this, type, data); controlerModule(this, type, data); }
+    }
     var at = (options && options.at) || new Date().toISOString();
     var by = (options && options.by) || this.utilisateur.id;
     var j = options && options.journalLot ? journaux(this).filter(function (x) { return x.nom === options.journalLot; })[0] : journalPour(this, journaux(this), type, data);

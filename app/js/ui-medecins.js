@@ -26,10 +26,11 @@
     var cfg = U.config(), liste = MED.liste(cfg), gerer = peutGerer(), comptes = U.App.session.comptes || [];
     if (!liste.length) return h('div', { class: 'panneau vide', text: gerer ? 'Aucun médecin : ajoutez les médecins de l’établissement (+ Nouveau médecin).' : 'Aucun médecin dans la liste.' });
     return h('div', { class: 'table-wrap' }, h('table', {},
-      h('thead', {}, h('tr', {}, ['Nom', 'Fonction', 'Services', 'Statut', 'Compte Tessera', ''].map(function (x) { return h('th', { text: x }); }))),
+      h('thead', {}, h('tr', {}, ['Nom', 'Initiales', 'Fonction', 'Services', 'Statut', 'Compte Tessera', ''].map(function (x) { return h('th', { text: x }); }))),
       h('tbody', {}, liste.map(function (m) {
         var termine = !MED.enActivite(m, Date.now()), c = m.compte ? comptes.filter(function (y) { return y.id === m.compte; })[0] : null;
         return h('tr', { class: termine ? 'ancienne' : '' }, h('td', {}, h('b', { text: m.nom }), m.anciensNoms.length ? h('div', {}, h('small', { class: 'muted', text: 'Anciens noms : ' + m.anciensNoms.join(', ') })) : null),
+          h('td', { text: m.initiales || MED.proposerInitiales(m.nom), class: m.initiales ? '' : 'muted' }),
           h('td', { text: MED.FONCTIONS[m.fonction] }), h('td', { text: libServices(m) }),
           h('td', {}, h('span', { class: 'badge' + (m.aConfirmer ? ' bad' : m.statut === 'interimaire' ? ' warn' : ''), text: m.aConfirmer ? 'À confirmer' : MED.STATUTS[m.statut] + (termine ? (m.actif ? ' — hors période' : ' — retiré') : '') }), libPeriode(m) ? h('div', {}, h('small', { class: 'muted', text: libPeriode(m) })) : null),
           h('td', { text: c ? c.nom : '—' }),
@@ -58,6 +59,9 @@
     var nom = h('input', { type: 'text', maxlength: 60, value: x.nom, placeholder: 'ex. Dr NOM' });
     var fonction = h('select', {}, Object.keys(MED.FONCTIONS).map(function (k) { return h('option', { value: k, text: MED.FONCTIONS[k], selected: x.fonction === k }); }));
     var statut = h('select', {}, Object.keys(MED.STATUTS).map(function (k) { return h('option', { value: k, text: MED.STATUTS[k], selected: x.statut === k }); }));
+    // Initiales (0.18.0) : proposées d'après le nom, modifiables ; affichées dans les colonnes réglées « initiales »
+    var initiales = h('input', { type: 'text', maxlength: 8, value: x.initiales || '', placeholder: MED.proposerInitiales(x.nom) || 'ex. JD' });
+    nom.addEventListener('input', function () { initiales.placeholder = MED.proposerInitiales(nom.value) || 'ex. JD'; });
     var choisis = x.services.slice();
     var cases = U.tousServices().map(function (s) {
       var cb = h('input', { type: 'checkbox', checked: choisis.indexOf(s.code) >= 0, onchange: function () { choisis = cb.checked ? choisis.concat([s.code]) : choisis.filter(function (c) { return c !== s.code; }); } });
@@ -86,7 +90,7 @@
       if (compte.value && liste.some(function (y) { return y.compte === compte.value && (!m || y.id !== m.id); })) throw new Error('Ce compte est déjà rattaché à un autre médecin.');
       // Renommage : l'ancien nom est gardé, les saisies faites sous ce nom suivent le médecin (décision du porteur)
       var base = m ? MED.renommer(m, n) : MED.normaliser({ nom: n });
-      var nouveau = Object.assign(base, { id: (m && m.id) || MED.slug(n), fonction: fonction.value, services: choisis, statut: statut.value, debut: debut.value, fin: fin.value, compte: compte.value || null, actif: actif.checked, aConfirmer: false, propose: null });
+      var nouveau = Object.assign(base, { id: (m && m.id) || MED.slug(n), fonction: fonction.value, services: choisis, statut: statut.value, debut: debut.value, fin: fin.value, compte: compte.value || null, actif: actif.checked, aConfirmer: false, propose: null, initiales: initiales.value.trim() });
       // Confirmation d'une fiche corrigée : le nom saisi au départ reste reconnu (les saisies faites sous ce nom suivent)
       if (confirmation && n !== x.nom && nouveau.anciensNoms.indexOf(x.nom) < 0) nouveau.anciensNoms.push(x.nom);
       var i = m ? liste.map(function (y) { return y.id; }).indexOf(m.id) : -1;
@@ -96,6 +100,7 @@
     } });
     U.modale(confirmation ? 'Confirmer le médecin' : m ? 'Modifier le médecin' : 'Nouveau médecin', h('div', { class: 'pile' },
       h('div', { class: 'grille-3' }, h('label', {}, 'Nom', nom), h('label', {}, 'Fonction', fonction), h('label', {}, 'Statut', statut)),
+      h('div', { class: 'grille-3' }, h('label', {}, 'Initiales', initiales), h('small', { class: 'muted', text: 'Vides : proposées d’après le nom (indiquées en gris). Affichées dans les colonnes réglées pour montrer les initiales.' })),
       h('div', {}, h('b', { text: 'Services' }), h('div', { class: 'actions gauche' }, cases), h('small', { class: 'muted', text: 'Aucun coché : proposé dans tous les services.' })),
       h('div', { class: 'grille-2' }, h('label', {}, 'Présent du (intérimaire, vacation)', debut), h('label', {}, 'au (facultatif)', fin)),
       h('label', {}, 'Compte Tessera rattaché' + (admin ? '' : ' (administrateur)'), compte),

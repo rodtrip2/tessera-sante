@@ -37,7 +37,8 @@
   /** Données complémentaires de la fiche visibles par l'agent (tous ses services), en colonnes « c:<id> ». */
   function colonnesComplements() {
     var roles = session().roles();
-    return P.champsComplementaires(U.config()).filter(function (c) { return P.peutVoirChamp(c, roles); }).map(function (c) { return { code: 'c:' + c.id, libelle: c.libelle, champ: c }; });
+    // Données ajoutées des patients (fiche et autres modules, 0.18.0) que l'agent peut lire ; les calculs sont dans la Vue d'ensemble
+    return SIC.champs.definitions(U.config(), { entite: 'patient' }).filter(function (c) { return c.type !== 'formule' && U.champs.lisible(c); }).map(function (c) { return { code: 'c:' + c.id, libelle: c.libelle, champ: c }; });
   }
   function toutesColonnes() { return L.COLONNES.concat(colonnesComplements()); }
   function colonnesVisibles(r) { var iso = isocontLisible(); var sm = suiviLisible(); return toutesColonnes().filter(function (c) { return r.colonnes.indexOf(c.code) >= 0 && (!c.isocont || iso) && (!c.suivi || sm); }).sort(function (a, b) { return r.colonnes.indexOf(a.code) - r.colonnes.indexOf(b.code); }); }
@@ -51,7 +52,7 @@
   // ------------------------------------------------------------ Cellules
   function cellule(code, l, maintenant) {
     var p = l.p, M = SIC.model;
-    if (/^c:/.test(code)) { var cc = colonnesComplements().filter(function (c) { return c.code === code; })[0]; var v = (p.complements || {})[code.slice(2)]; return h('td', { text: cc && v !== undefined ? P.libValeurChamp(cc.champ, v) || '—' : '—' }); }
+    if (/^c:/.test(code)) { var cc = colonnesComplements().filter(function (c) { return c.code === code; })[0]; var v = cc ? U.champs.valeurDe(cc.champ, 'patient', p.id, p) : undefined; return h('td', { text: cc && v !== undefined ? SIC.champs.lib(cc.champ, v) || '—' : '—' }); }
     switch (code) {
       case 'patient': return h('td', { class: 'patient' }, h('b', { text: ((p.nom || '?') + ' ' + (p.prenom || '')).trim() }),
         l.situation === 'recent' ? h('span', { class: 'badge', text: 'sorti(e) le ' + dateFr(l.sortie) }) : (l.situation === 'sorti' ? h('span', { class: 'badge', text: 'sorti(e)' }) : null));
@@ -118,7 +119,7 @@
       var cb = h('input', { type: 'checkbox', checked: r.filtres.modes.indexOf(m) >= 0, onchange: function () { changer(function (x) { x.filtres.modes = cb.checked ? x.filtres.modes.concat([m]) : x.filtres.modes.filter(function (y) { return y !== m; }); }); } });
       return h('label', { class: 'case' }, cb, teinter(h('span', { class: 'badge mode-hospi', text: m }), o.couleursModes[m]));
     }));
-    var filtresC = colonnesComplements().filter(function (c) { return c.champ.type === 'ouiNon' || c.champ.type === 'liste'; }).map(function (c) {
+    var filtresC = colonnesComplements().filter(function (c) { return (c.champ.type === 'ouiNon' || c.champ.type === 'liste') && SIC.champs.typeSaisie(c.champ) === 'COMPLEMENT'; }).map(function (c) {
       var vals = { '': 'Tous' };
       if (c.champ.type === 'ouiNon') { vals.oui = 'Oui'; vals.non = 'Non'; } else c.champ.choix.forEach(function (x) { vals[x] = x; });
       vals['(vide)'] = 'Non renseigné';
@@ -247,7 +248,7 @@
         }
         var tris = {}; L.TRIS.forEach(function (k) { tris[k] = libColonne(k); });
         // Toutes les données complémentaires (l'affichage peut servir à d'autres rôles que l'administrateur)
-        var colsAdmin = L.COLONNES.concat(P.champsComplementaires(U.config()).map(function (c) { return { code: 'c:' + c.id, libelle: c.libelle + ' (donnée complémentaire)' }; }));
+        var colsAdmin = L.COLONNES.concat(SIC.champs.definitions(U.config(), { entite: 'patient' }).filter(function (c) { return c.type !== 'formule'; }).map(function (c) { return { code: 'c:' + c.id, libelle: c.libelle + ' (donnée ajoutée)' }; }));
         var ordre = rg.colonnes.filter(function (c) { return colsAdmin.some(function (y) { return y.code === c; }); }).concat(colsAdmin.map(function (c) { return c.code; }).filter(function (c) { return rg.colonnes.indexOf(c) < 0; }));
         var zoneCols = h('div', { class: 'colonnes-affichage' });
         function dessinerCols() {
@@ -299,79 +300,9 @@
       }));
   }
 
-  // ------------------------------------------------------------ Administration → Patients → Données complémentaires
-  /**
-   * Tableau des données ajoutées à la fiche (décision du porteur du 8 novembre 2026) : une ligne par donnée, son type de
-   * valeur, ses services, les rôles qui la saisissent et ceux qui la voient. Une donnée retirée est masquée, jamais effacée.
-   */
-  function panneauChamps() {
-    var cfg = U.config(), champs = JSON.parse(JSON.stringify(P.champsComplementaires(cfg, { tous: true })));
-    var roles = SIC.modules.obtenir('isocont').droits.rolesConfig(cfg).filter(function (r) { return !r.admin; });
-    var corps = h('tbody');
-    function multi(liste, options, vide, aria) {
-      var resume = h('span', {}), d = h('details', { class: 'multi' }, h('summary', { 'aria-label': aria }, resume));
-      function maj() { resume.textContent = liste.length ? options.filter(function (o) { return liste.indexOf(o.code) >= 0; }).map(function (o) { return o.libelle; }).join(', ') : vide; }
-      options.forEach(function (o) {
-        var cb = h('input', { type: 'checkbox', checked: liste.indexOf(o.code) >= 0, onchange: function () { var i = liste.indexOf(o.code); if (cb.checked && i < 0) liste.push(o.code); if (!cb.checked && i >= 0) liste.splice(i, 1); maj(); } });
-        d.appendChild(h('label', { class: 'case' }, cb, h('span', { text: o.libelle })));
-      });
-      maj();
-      return d;
-    }
-    function dessiner() {
-      U.vider(corps);
-      champs.forEach(function (c, i) {
-        var lib = h('input', { type: 'text', maxlength: 60, value: c.libelle, 'aria-label': 'Nom de la donnée', oninput: function () { c.libelle = lib.value; } });
-        var typ = h('select', { 'aria-label': 'Type de valeur', disabled: !!c.existant, title: c.existant ? 'Type fixé une fois la donnée enregistrée (les valeurs déjà saisies resteraient lisibles)' : null, onchange: function () { c.type = typ.value; dessiner(); } }, Object.keys(P.TYPES_CHAMP).map(function (k) { return h('option', { value: k, text: P.TYPES_CHAMP[k], selected: c.type === k }); }));
-        var choix = c.type === 'liste' ? h('input', { type: 'text', value: (c.choix || []).join(' ; '), placeholder: 'Choix séparés par « ; »', 'aria-label': 'Choix proposés', oninput: function () { c.choix = choix.value.split(';').map(function (x) { return x.trim(); }).filter(Boolean); } }) : h('small', { class: 'muted', text: '—' });
-        var actif = h('input', { type: 'checkbox', checked: c.actif !== false, 'aria-label': 'Proposée', onchange: function () { c.actif = actif.checked; } });
-        corps.appendChild(h('tr', { class: c.actif === false ? 'ancienne' : '' },
-          h('td', {}, lib), h('td', {}, typ), h('td', {}, choix),
-          h('td', {}, multi(c.services, U.tousServices().map(function (v) { return { code: v.code, libelle: v.libelle }; }), 'Tous les services', 'Services')),
-          h('td', {}, multi(c.saisie, roles.map(function (r) { return { code: r.code, libelle: r.libelle }; }), 'Accès aux fiches patient', 'Saisie par')),
-          h('td', {}, multi(c.lecture, roles.map(function (r) { return { code: r.code, libelle: r.libelle }; }), 'Tous', 'Visible par')),
-          h('td', {}, actif),
-          h('td', { class: 'actions-ligne' },
-            h('button', { class: 'btn petit', type: 'button', disabled: i === 0, 'aria-label': 'Monter', onclick: function () { champs.splice(i - 1, 0, champs.splice(i, 1)[0]); dessiner(); } }, '▲'),
-            c.existant ? null : h('button', { class: 'btn petit danger', type: 'button', onclick: function () { champs.splice(i, 1); dessiner(); } }, 'Retirer'))));
-      });
-      if (!champs.length) corps.appendChild(h('tr', {}, h('td', { colspan: 8, class: 'muted', text: 'Aucune donnée complémentaire.' })));
-    }
-    champs.forEach(function (c) { c.existant = true; });
-    dessiner();
-    var nomNouv = h('input', { type: 'text', maxlength: 60, placeholder: 'ex. Sorties libres, éducateur référent, repas favori' });
-    var typeNouv = h('select', { 'aria-label': 'Type de valeur' }, Object.keys(P.TYPES_CHAMP).map(function (k) { return h('option', { value: k, text: P.TYPES_CHAMP[k] }); }));
-    return h('section', { class: 'panneau' }, h('h2', { text: 'Données complémentaires de la fiche patient' }),
-      h('p', { class: 'muted', text: 'Données propres à l’établissement ou à certains services, ajoutées à la fiche patient. Chacune devient une colonne et, pour « Oui ou non » et « Liste de choix », un filtre de la liste des patients. Saisie : par défaut, les rôles qui ont l’accès aux fiches patient ; on peut l’ouvrir à d’autres rôles (ex. aides-soignants pour les sorties libres). Visibilité : par défaut, tous. Une donnée retirée après usage est masquée (décochez « Proposée ») : ses valeurs restent au journal.' }),
-      h('div', { class: 'alerte', text: 'Aucune donnée clinique : ni traitement, ni diagnostic, ni symptôme, ni antécédent. Ces informations relèvent du dossier patient informatisé. Chaque donnée ajoutée est à inscrire à la fiche du registre des traitements (délégué à la protection des données).' }),
-      h('div', { class: 'table-wrap' }, h('table', { class: 'table-champs' },
-        h('thead', {}, h('tr', {}, ['Donnée', 'Type de valeur', 'Choix', 'Services', 'Saisie par', 'Visible par', 'Proposée', ''].map(function (t) { return h('th', { text: t }); }))), corps)),
-      h('div', { class: 'actions gauche ag-ajouter' }, h('span', { class: 'muted', text: 'Ajouter :' }), nomNouv, typeNouv,
-        h('button', { class: 'btn petit', type: 'button', onclick: function () {
-          var n = nomNouv.value.trim(); if (!n) return nomNouv.focus();
-          var mots = P.libelleClinique(n);
-          if (mots.length && !confirm('« ' + n + ' » évoque une donnée clinique (' + mots.join(', ') + '), qui relève du dossier patient informatisé. Ajouter quand même ?')) return;
-          var code = n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'donnee';
-          if (!/^[a-z]/.test(code)) code = 'd-' + code;
-          while (champs.some(function (c) { return c.id === code; })) code = code.slice(0, 26) + '-' + C.hex(C.aleatoire(1));
-          champs.push({ id: code, libelle: n, type: typeNouv.value, choix: [], services: [], saisie: [], lecture: [], actif: true });
-          nomNouv.value = ''; dessiner();
-        } }, 'Ajouter')),
-      U.boutonEnregistrer(async function () {
-        var v = champs.map(function (c) {
-          if (!String(c.libelle || '').trim()) throw new Error('Chaque donnée doit avoir un nom.');
-          if (c.type === 'liste' && !(c.choix || []).length) throw new Error('« ' + c.libelle + ' » : indiquez les choix proposés.');
-          var o = { id: c.id, libelle: c.libelle.trim(), type: c.type, services: c.services, saisie: c.saisie, lecture: c.lecture };
-          if (c.type === 'liste') o.choix = c.choix;
-          if (c.actif === false) o.actif = false;
-          return o;
-        });
-        await U.enregistrerConfig([['patientsChamps', v]]);
-      }));
-  }
-
   SIC.modules.completerInterface('patients', {
     vues: { fiches: vueListe },
-    admin: { onglets: function () { return [['patients-champs', 'Données complémentaires', [panneauChamps()]], ['patients', 'Liste des patients', [panneauReglages()]]]; } }
+    // Données ajoutées (0.18.0) : patients et médecins, tous modules ; mécanisme commun (ui-champs.js)
+    admin: { onglets: function () { return [['patients-champs', 'Données ajoutées', [U.champs.panneauDefinitions({ titre: 'Données ajoutées (patients et médecins)' })]], ['patients', 'Liste des patients', [panneauReglages()]]]; } }
   });
 })();
