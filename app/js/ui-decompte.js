@@ -234,6 +234,7 @@
     var images = options.images || etat.config.imagesDecompte || {};
     var fond = masque.fond && images[masque.fond];
     var doc = new SIC.pdf.Document({ titre: c.titre, auteur: options.auteur || '', marges: masque.marges, fond: fond ? fond.donnees : null, fondPages: masque.fondPages,
+      nb: options.nb !== undefined ? !!options.nb : !!(SIC.ui && SIC.ui.impressionNB && SIC.ui.impressionNB()),
       piedDePage: function (n, total) { return 'Page ' + n + ' / ' + total; } });
     var G = doc.mg.g, L = doc.largeurUtile;
     if (masque.confidentiel) doc.paragraphe('DOCUMENT CONFIDENTIEL — DONNÉES PERSONNELLES DE SANTÉ', { taille: 8.5, style: 'gras', aligne: 'centre', cadre: true, apres: 8 });

@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'vehicules', 'vehiculesInformation', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'vehicules', 'vehiculesInformation', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -54,6 +54,59 @@
         { id: 'educateur', libelle: 'Éducateur référent', type: 'professionnel', services: [], saisie: [], lecture: ['IDE', 'CADRE', 'SECRETAIRE'] },
         { id: 'repas', libelle: 'Repas favori', type: 'liste', choix: ['Pâtes', 'Couscous', 'Poisson', 'Végétarien'], services: [], saisie: ['IDE', 'AS', 'CADRE'], lecture: [] },
         { id: 'activite-preferee', libelle: 'Activité préférée', type: 'texte', services: [], saisie: [], lecture: [], actif: false }]);
+      // Données ajoutées communes (0.18.0) : reprise des données complémentaires ci-dessus, puis téléphone d'un proche
+      // (information concernant un tiers), activités en choix multiple, démarches en notes, check-list d'entrée (modèle et
+      // éléments libres), sortie envisagée en période ; pour les médecins, téléphone professionnel (Suivi médical) ;
+      // une donnée sous clé propre (vigilance organisationnelle, IDE et cadres) ; fictives
+      cfg('champsAjoutes', [
+        { id: 'sorties-libres', libelle: 'Sorties libres', type: 'ouiNon', entite: 'patient', module: 'patients', services: ['U1'], saisie: ['IDE', 'AS', 'CADRE'], lecture: [] },
+        { id: 'educateur', libelle: 'Éducateur référent', type: 'professionnel', entite: 'patient', module: 'patients', services: [], saisie: [], lecture: ['IDE', 'CADRE', 'SECRETAIRE'] },
+        { id: 'repas', libelle: 'Repas favori', type: 'liste', choix: ['Pâtes', 'Couscous', 'Poisson', 'Végétarien'], entite: 'patient', module: 'patients', services: [], saisie: ['IDE', 'AS', 'CADRE'], lecture: [] },
+        { id: 'activite-preferee', libelle: 'Activité préférée', type: 'texte', entite: 'patient', module: 'patients', services: [], saisie: [], lecture: [], actif: false },
+        { id: 'tel-proche', libelle: 'Téléphone de la personne à prévenir', type: 'telephone', entite: 'patient', module: 'patients', services: [], saisie: ['IDE', 'CADRE', 'SECRETAIRE'], lecture: ['IDE', 'CADRE', 'SECRETAIRE'], tiers: true },
+        { id: 'activites', libelle: 'Activités thérapeutiques', type: 'choixMultiple', choix: ['Piscine', 'Jardin', 'Musique', 'Cuisine', 'Sport adapté'], entite: 'patient', module: 'patients', services: [], saisie: ['IDE', 'AS', 'CADRE'], lecture: [] },
+        { id: 'demarches', libelle: 'Démarches et rendez-vous', type: 'notes', entite: 'patient', module: 'patients', services: [], saisie: ['IDE', 'AS', 'CADRE', 'SECRETAIRE'], lecture: [], tri: 'desc' },
+        { id: 'accueil', libelle: 'Check-list d’entrée', type: 'checklist', entite: 'patient', module: 'patients', services: ['U1'], saisie: ['IDE', 'AS', 'CADRE'], lecture: [], libre: true, par: { role: 'CADRE', services: ['U1'] },
+          modele: [{ id: 'inventaire', libelle: 'Inventaire des effets personnels' }, { id: 'livret', libelle: 'Livret d’accueil remis' }, { id: 'droits', libelle: 'Information sur les droits' }, { id: 'personne-confiance', libelle: 'Personne de confiance recueillie' }] },
+        { id: 'projet-sortie', libelle: 'Projet de sortie', type: 'texte', entite: 'patient', module: 'suivi', services: [], saisie: ['IDE', 'CADRE'], lecture: [] },
+        { id: 'vigilance-orga', libelle: 'Vigilance organisationnelle', type: 'notes', entite: 'patient', module: 'patients', protection: 'cle', services: [], saisie: ['IDE', 'CADRE'], lecture: ['IDE', 'CADRE'] },
+        { id: 'jours-avant-sortie', libelle: 'Jours avant la sortie', type: 'formule', formule: 'SIERREUR(-JOURS([Sortie prévisionnelle]); "")', entite: 'patient', module: 'patients', services: ['U1'], saisie: [], lecture: [], par: { role: 'CADRE', services: ['U1'] } },
+        { id: 'tel-pro', libelle: 'Téléphone professionnel', type: 'telephone', entite: 'medecin', module: 'suivi', services: [], saisie: ['CADRE', 'SECRETAIRE'], lecture: [] },
+        { id: 'jours-presence', libelle: 'Jours de présence habituels', type: 'choixMultiple', choix: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'], entite: 'medecin', module: 'suivi', services: [], saisie: ['CADRE', 'SECRETAIRE'], lecture: [] }]);
+      // Réglages des données (0.18.0) : une couleur par psychiatre de 1re ligne, sortie prévisionnelle proche, check-list
+      // d'entrée selon l'avancement, délai de la donnée « Projet de sortie » ; l'Unité 2 a ses propres couleurs (fictifs)
+      cfg('reglagesDonnees', {
+        'patients.medecin1': { '*': { regles: [
+          { si: { op: 'egal', valeur: 'm-arnaud' }, couleur: 'bleu', rendu: 'pastille', libelle: 'Dr Arnaud (fictif)' },
+          { si: { op: 'egal', valeur: 'm-benoit' }, couleur: 'violet', rendu: 'pastille', libelle: 'Dr Benoît (fictif)' },
+          { si: { op: 'egal', valeur: 'm-chen' }, couleur: 'turquoise', rendu: 'pastille', libelle: 'Dr Chen (fictif)' },
+          { si: { op: 'vide' }, couleur: 'rouge', rendu: 'fond', libelle: 'Sans médecin de 1re ligne' }] },
+          U2: { regles: [{ si: { op: 'egal', valeur: 'm-diallo' }, couleur: 'brun', rendu: 'pastille', libelle: 'Dr Diallo (fictif)' }, { si: { op: 'vide' }, couleur: 'rouge', rendu: 'fond', libelle: 'Sans médecin de 1re ligne' }] } },
+        'patients.sortiePrevue': { '*': { regles: [{ si: { op: 'depuisPlusDe', n: 0 }, couleur: 'rouge', rendu: 'fond', libelle: 'Date de sortie passée' }, { si: { op: 'dansMoinsDe', n: 2 }, couleur: 'orange', rendu: 'fond', libelle: 'Sortie dans 2 jours ou moins' }, { si: { op: 'dansMoinsDe', n: 7 }, couleur: 'jaune', rendu: 'fond', libelle: 'Sortie dans la semaine' }] } },
+        'c:accueil': { '*': { regles: [{ si: { op: 'complete' }, couleur: 'vert', rendu: 'fond', libelle: 'Check-list complète' }, { si: { op: 'avancementMoins', n: 50 }, couleur: 'orange', rendu: 'fond', libelle: 'Moins de la moitié faite' }] } },
+        'c:demarches': { '*': { regles: [{ si: { op: 'importance', valeur: 'urgent' }, couleur: 'rouge', rendu: 'texte', libelle: 'Note urgente' }, { si: { op: 'importance', valeur: 'important' }, couleur: 'orange', rendu: 'texte', libelle: 'Note importante' }] } }
+      });
+      // Capacité d'accueil (0.18.2, fictive) : deux lits fermés pour travaux dans l'Unité 1, un lit réservé dans l'Unité 2
+      var jC = function (n) { return SIC.model.dateLocaleISO(now + n * J); };
+      cfg('capacites', { services: {
+        U1: { lits: 8, chambresSeules: 4, chambresDoubles: 2, fermetures: [{ id: 'f1', debut: jC(-3), fin: jC(10), lits: 2, motif: 'Travaux de peinture (fictif)' }], reserves: [] },
+        U2: { lits: 6, chambresSeules: 6, chambresDoubles: 0, fermetures: [], reserves: [{ id: 'r1', debut: jC(-2), fin: jC(5), lits: 1, motif: 'Permission longue (fictif)' }] } } });
+      // Vue d'ensemble (0.19, fictive) : vue médicale de l'établissement, feuille du staff de l'Unité 1 (groupes : entrés depuis
+      // dix jours, entrés depuis une date et une heure, présents depuis plus de 30 jours ; notes, check-list, calcul),
+      // médecins (téléphone et jours de présence ajoutés), équipe ; une colonne réservée aux IDE et cadres
+      cfg('vuesEnsemble', { vues: [
+        { id: 'medicale', nom: 'Vue médicale', lignes: 'patients', services: [], roles: [], perimetre: 'hospitalises', tri: { colonne: 'chambre', sens: 1 },
+          colonnes: [{ code: 'patient' }, { code: 'chambre' }, { code: 'entree' }, { code: 'mode' }, { code: 'medecin1', affichage: 'initiales' }, { code: 'psychologue' }, { code: 'suiviAS' }, { code: 'dernierEntretien' }, { code: 'contrat' }, { code: 'sortiePrevue' }],
+          groupes: [], synthese: ['effectif', 'places', 'sorties'] },
+        { id: 'staff-u1', nom: 'Staff Unité 1', lignes: 'patients', services: ['U1'], roles: [], perimetre: 'hospitalises', tri: { colonne: 'entree', sens: -1 }, par: { role: 'CADRE', services: ['U1'] },
+          colonnes: [{ code: 'patient' }, { code: 'chambre' }, { code: 'jours' }, { code: 'mode' }, { code: 'medecin1' }, { code: 'referents' }, { code: 'c:demarches' }, { code: 'c:accueil' }, { code: 'c:jours-avant-sortie' }, { code: 'sortiePrevue' },
+            { code: 'c:activites', roles: ['IDE', 'CADRE'], regles: [{ si: { op: 'vide' }, couleur: 'gris', rendu: 'fond', libelle: 'Aucune activité' }] }],
+          groupes: [{ id: 'entrants', titre: 'Entrés depuis le ' + jC(-9).split('-').reverse().join('/') + ' 14 h', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'apresLe', valeur: jC(-9) + 'T14:00' }] },
+            { id: 'tres-longs', titre: 'Présents depuis plus de 90 jours', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'depuisPlusDe', n: 90 }] },
+            { id: 'longs', titre: 'Présents depuis plus de 30 jours', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'depuisPlusDe', n: 30 }] }],
+          autres: { titre: 'Autres patients' }, synthese: ['effectif', 'places', 'sorties', 'parMode', 'parMedecin', 'ageMoyen'], instantane: { roles: ['CADRE'] } },
+        { id: 'medecins', nom: 'Médecins', lignes: 'medecins', services: [], roles: [], colonnes: [{ code: 'nom' }, { code: 'initiales' }, { code: 'fonction' }, { code: 'statut' }, { code: 'presence' }, { code: 'c:tel-pro' }, { code: 'c:jours-presence' }, { code: 'patients1' }, { code: 'patients2' }, { code: 'retards' }], groupes: [], synthese: [] },
+        { id: 'equipe', nom: 'Équipe', lignes: 'agents', services: [], roles: ['CADRE'], colonnes: [{ code: 'nom' }, { code: 'roles' }, { code: 'groupes' }, { code: 'referent' }, { code: 'absence' }, { code: 'taches' }], groupes: [], synthese: [] }] });
       // Véhicules : deux données ajoutées par l'administrateur (fictives)
       cfg('vehicules', { champs: [{ id: 'carte-carburant', libelle: 'Carte carburant à bord', type: 'ouiNon' }, { id: 'revision', libelle: 'Prochaine révision', type: 'date' },
         { id: 'equipement', libelle: 'Équipement', type: 'liste', choix: ['Rampe d’accès', 'Siège enfant', 'Galerie de toit'] }] });
@@ -80,7 +133,7 @@
     // médico-psychologiques comme lieu de présence sans patient, où compte la garde de jour (fictifs)
     var lundiISO = function (n) { var d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7 + n); return SIC.model.dateLocaleISO(d.getTime()); };
     if (!(reel && reel.medecins)) cfg('medecins', { liste: [
-      { id: 'm-arnaud', nom: 'Dr Arnaud (fictif)', fonction: 'psychiatre', services: [U1], statut: 'titulaire' },
+      { id: 'm-arnaud', nom: 'Dr Arnaud (fictif)', fonction: 'psychiatre', services: [U1], statut: 'titulaire', initiales: 'AR' },
       { id: 'm-benoit', nom: 'Dr Benoît (fictif)', fonction: 'psychiatre', services: [U1, U2], statut: 'titulaire' },
       { id: 'm-chen', nom: 'Dr Chen (fictif)', fonction: 'psychiatre', services: [U1], statut: 'vacataire' },
       { id: 'm-diallo', nom: 'Dr Diallo (fictif)', fonction: 'psychiatre', services: [U2], statut: 'titulaire' },
@@ -132,6 +185,30 @@
       ['P02', 'repas', 'Couscous'], ['P03', 'repas', 'Végétarien'], ['P04', 'educateur', { id: null, nom: 'Mme Éducatrice (fictif)' }]].forEach(function (x) {
       ajouter(t(-24 * 5), 'COMPLEMENT', { patientId: x[0], champ: x[1], valeur: x[2] });
     });
+    // Données ajoutées (0.18.0, fictives) : téléphone d'un proche, activités, démarches en notes (dont une retirée), check-list
+    // d'entrée en cours, projet de sortie (rangé dans le Suivi médical), téléphone et jours de présence d'un médecin ;
+    // sorties prévisionnelles (date, période, précision seule) gardées avec le séjour
+    if (!reel) {
+      ajouter(t(-24 * 5), 'COMPLEMENT', { patientId: 'P01', champ: 'tel-proche', valeur: '06 00 00 00 01' });
+      ajouter(t(-24 * 5), 'COMPLEMENT', { patientId: 'P01', champ: 'activites', valeur: ['Piscine', 'Musique'] });
+      ajouter(t(-24 * 5), 'COMPLEMENT', { patientId: 'P03', champ: 'activites', valeur: ['Jardin'] });
+      ajouter(t(-24 * 4), 'COMPLEMENT', { patientId: 'P01', champ: 'demarches', op: { ajout: { id: 'nd1', texte: 'Dossier MDPH à compléter (fictif)', importance: 'important' } } });
+      ajouter(t(-24 * 2), 'COMPLEMENT', { patientId: 'P01', champ: 'demarches', op: { ajout: { id: 'nd2', texte: 'Rendez-vous banque jeudi (fictif)', importance: 'info' } } });
+      ajouter(t(-24 * 3), 'COMPLEMENT', { patientId: 'P02', champ: 'demarches', op: { ajout: { id: 'nd3', texte: 'Appeler le mandataire avant vendredi (fictif)', importance: 'urgent' } } });
+      ajouter(t(-24 * 6), 'COMPLEMENT', { patientId: 'P03', champ: 'demarches', op: { ajout: { id: 'nd4', texte: 'Carte vitale retrouvée (fictif)', importance: 'info' } } });
+      ajouter(t(-24 * 1), 'COMPLEMENT', { patientId: 'P03', champ: 'demarches', op: { retrait: 'nd4' } });
+      ['inventaire', 'livret', 'droits'].forEach(function (k) { ajouter(t(-24 * 8 + 1), 'COMPLEMENT', { patientId: 'P05', champ: 'accueil', op: { cocher: { element: k, fait: true } } }); });
+      ajouter(t(-24 * 8 + 2), 'COMPLEMENT', { patientId: 'P05', champ: 'accueil', op: { ajout: { id: 'ea1', libelle: 'Autorisation parentale de sortie (fictif)' } } });
+      ajouter(t(-24 * 40 + 2), 'COMPLEMENT', { patientId: 'P01', champ: 'accueil', op: { cocher: { element: 'inventaire', fait: true } } });
+      ajouter(t(-24 * 2), 'VALEUR', { entite: 'patient', id: 'P03', champ: 'projet-sortie', valeur: 'Retour à domicile avec suivi CMP (fictif)', journal: 'suivi' });
+      ajouter(t(-24 * 2), 'VALEUR', { entite: 'patient', id: 'P04', champ: 'projet-sortie', valeur: 'Orientation en appartement thérapeutique (fictif)', journal: 'suivi' });
+      ajouter(t(-24 * 30), 'VALEUR', { entite: 'medecin', id: 'm-arnaud', champ: 'tel-pro', valeur: '01 00 00 00 11', journal: 'suivi' });
+      ajouter(t(-24 * 30), 'VALEUR', { entite: 'medecin', id: 'm-benoit', champ: 'tel-pro', valeur: '01 00 00 00 12', journal: 'suivi' });
+      ajouter(t(-24 * 30), 'VALEUR', { entite: 'medecin', id: 'm-arnaud', champ: 'jours-presence', valeur: ['Lundi', 'Mardi', 'Jeudi'], journal: 'suivi' });
+    }
+    ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { debut: jISO(24 * 1) } });
+    ajouter(t(-24 * 2), 'SEJOUR', { patientId: 'P01', sejourId: 'SP01', sortiePrevue: { debut: jISO(24 * 6), fin: jISO(24 * 10), precision: 'après la synthèse (fictif)' } });
+    ajouter(t(-24 * 1), 'SEJOUR', { patientId: 'P04', sejourId: 'SP04', sortiePrevue: { precision: 'selon place en appartement thérapeutique (fictif)' } });
     // Rappel : P01 soins sans consentement (SDT), P03 soins libres, P04 SDRE (Unité 2)
 
     var nMes = 0;

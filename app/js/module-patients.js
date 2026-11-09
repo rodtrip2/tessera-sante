@@ -9,9 +9,9 @@
  * viennent aux sous-étapes suivantes.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./modules.js'));
-  else factory(root.SIC.noyauJournal, root.SIC.modules);
-})(typeof self !== 'undefined' ? self : this, function (N, registre) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./modules.js'), require('./champs.js'));
+  else factory(root.SIC.noyauJournal, root.SIC.modules, root.SIC.champs);
+})(typeof self !== 'undefined' ? self : this, function (N, registre, CH) {
   'use strict';
 
   // Fiche commune (décision du 5 novembre 2026) : nom (nom d'usage, affiché), nom de naissance, sexe ; médecins de
@@ -53,9 +53,11 @@
         var pc = st.fiches[id];
         if (!pc || !d.champ) break;
         pc.complements = Object.assign({}, pc.complements || {});
-        if (d.valeur === null || d.valeur === undefined || d.valeur === '') delete pc.complements[d.champ]; else pc.complements[d.champ] = d.valeur;
+        // Notes et check-lists (0.18.0) : la valeur se construit opération après opération (ajout, retrait, case cochée)
+        if (d.op) pc.complements[d.champ] = CH.appliquerOperation(pc.complements[d.champ], d.op, e);
+        else if (d.valeur === null || d.valeur === undefined || d.valeur === '') delete pc.complements[d.champ]; else pc.complements[d.champ] = d.valeur;
         var hc = (pc.historique = pc.historique || {})['c:' + d.champ] = (pc.historique['c:' + d.champ] || []);
-        hc.push({ le: e.at, valeur: d.valeur === undefined ? null : d.valeur, evt: e.id });
+        hc.push({ le: e.at, valeur: d.op ? null : (d.valeur === undefined ? null : d.valeur), op: d.op || undefined, par: e.by, evt: e.id });
         break;
       case 'SEJOUR':
         // Séjours successifs (décision du 7 novembre 2026) : un par numéro de séjour, complété saisie après saisie
@@ -65,6 +67,12 @@
         var sj = ps.sejours.filter(function (x) { return x.id === d.sejourId; })[0];
         if (!sj) { sj = { id: d.sejourId }; ps.sejours.push(sj); }
         ['iep', 'entree', 'sortie', 'service', 'chambre', 'lit'].forEach(function (k) { if (d[k] !== undefined) sj[k] = d[k]; });
+        // Sortie prévisionnelle (0.18.0, décision du porteur du 9 novembre 2026) : date ou période, précision courte ;
+        // chaque changement est gardé, daté
+        if (d.sortiePrevue !== undefined) {
+          if (!egal(sj.sortiePrevue, d.sortiePrevue)) (sj.historiqueSortiePrevue = sj.historiqueSortiePrevue || []).push({ le: e.at, par: e.by, valeur: d.sortiePrevue, evt: e.id });
+          if (d.sortiePrevue === null) delete sj.sortiePrevue; else sj.sortiePrevue = d.sortiePrevue;
+        }
         sj.evts = (sj.evts || []).concat([e.id]);
         ps.sejours.sort(function (a, b) { return String(a.entree || '').localeCompare(String(b.entree || '')); });
         break;
@@ -88,67 +96,39 @@
   function cible(st, id) { var n = 0; while (st.fusions[id] && n++ < 50) id = st.fusions[id]; return id; }
 
   // ------------------------------------------------------------ Données complémentaires (décision du porteur du 8 novembre 2026)
-  /**
-   * Données ajoutées à la fiche par l'administrateur (`config.patientsChamps`), pour certains services et certains rôles :
-   * { id, libelle, type, choix (liste), services ([] : tous), saisie (rôles qui saisissent ; [] : ceux qui ont l'accès aux
-   * fiches patient), lecture (rôles qui voient ; [] : tous), actif (false : masquée, jamais effacée du journal) }.
+  /*
+   * Données ajoutées à la fiche (0.13.0), passées au mécanisme commun des champs ajoutés (champs.js, 0.18.0) : ce sont
+   * les données d'un patient rattachées au module Patients sans clé propre, dont les valeurs sont des saisies
+   * `COMPLEMENT` de ce module. Les autres données ajoutées (autre module, clé propre) sont des saisies `VALEUR`.
    */
-  var TYPES_CHAMP = { ouiNon: 'Oui ou non', texte: 'Texte court', liste: 'Liste de choix', date: 'Date', nombre: 'Nombre', professionnel: 'Professionnel' };
-  // Libellés qui évoquent une donnée clinique (rappel à la création : aucune donnée clinique dans Tessera)
-  var MOTS_CLINIQUES = ['traitement', 'diagnostic', 'pathologie', 'symptome', 'medicament', 'antecedent', 'maladie', 'trouble', 'posologie', 'allergie', 'addiction', 'suicid', 'delire', 'hallucination', 'psychose'];
+  var TYPES_CHAMP = {};
+  Object.keys(CH.TYPES).forEach(function (k) { if (k !== 'formule') TYPES_CHAMP[k] = CH.TYPES[k]; });
   function champsComplementaires(config, options) {
-    var o = options || {}, l = Array.isArray(config && config.patientsChamps) ? config.patientsChamps : [];
-    return l.filter(function (c) { return c && /^[a-z][a-z0-9-]{1,30}$/.test(c.id || '') && String(c.libelle || '').trim() && TYPES_CHAMP[c.type]; }).map(function (c) {
-      return { id: c.id, libelle: String(c.libelle).trim().slice(0, 60), type: c.type, choix: c.type === 'liste' && Array.isArray(c.choix) ? c.choix.map(function (x) { return String(x).trim().slice(0, 60); }).filter(Boolean) : [],
-        services: Array.isArray(c.services) ? c.services.slice() : [], saisie: Array.isArray(c.saisie) ? c.saisie.slice() : [], lecture: Array.isArray(c.lecture) ? c.lecture.slice() : [], actif: c.actif !== false };
-    }).filter(function (c) {
-      if (!o.tous && !c.actif) return false;
-      if (o.service && c.services.length && c.services.indexOf(o.service) < 0) return false;
-      return true;
-    });
+    return CH.definitions(config, Object.assign({}, options || {}, { entite: 'patient', module: 'patients' })).filter(function (c) { return CH.typeSaisie(c) === 'COMPLEMENT' && c.type !== 'formule'; });
   }
-  function aRole(liste, roles) { return !liste.length || (roles || []).some(function (r) { return r === 'ADMIN' || liste.indexOf(r) >= 0; }); }
-  function peutVoirChamp(champ, roles) { return aRole(champ.lecture, roles); }
+  var peutVoirChamp = CH.peutVoir;
   /** `peutFiche` : l'agent a l'accès aux fiches patient (règle des données sans rôles de saisie précisés). */
-  function peutSaisirChamp(champ, roles, peutFiche) {
-    if ((roles || []).indexOf('ADMIN') >= 0) return true;
-    return champ.saisie.length ? aRole(champ.saisie, roles) && peutVoirChamp(champ, roles) : !!peutFiche;
-  }
-  /** Valeur conforme au type, ou erreur. '' ou null : retire la valeur. */
-  function valeurChamp(champ, v) {
-    if (v === null || v === undefined || v === '') return null;
-    switch (champ.type) {
-      case 'ouiNon': if (v === true || v === false) return v; if (v === 'oui') return true; if (v === 'non') return false; break;
-      case 'texte': return String(v).trim().slice(0, 200) || null;
-      case 'liste': if (champ.choix.indexOf(String(v)) >= 0) return String(v); break;
-      case 'date': if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v; break;
-      case 'nombre': if (isFinite(+v)) return +v; break;
-      case 'professionnel': if (v && typeof v === 'object' && String(v.nom || '').trim()) return { id: v.id || null, nom: String(v.nom).trim().slice(0, 80) }; break;
-    }
-    throw new Error('« ' + champ.libelle + ' » : valeur attendue — ' + TYPES_CHAMP[champ.type].toLowerCase() + '.');
-  }
-  function libValeurChamp(champ, v) {
-    if (v === null || v === undefined) return '';
-    if (champ.type === 'ouiNon') return v ? 'Oui' : 'Non';
-    if (champ.type === 'date') return String(v).split('-').reverse().join('/');
-    if (champ.type === 'professionnel') return v.nom || '';
-    return String(v);
-  }
-  function libelleClinique(libelle) {
-    var t = String(libelle || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    return MOTS_CLINIQUES.filter(function (m) { return t.indexOf(m) >= 0; });
-  }
+  function peutSaisirChamp(champ, roles, peutFiche) { return CH.peutSaisir(champ, roles, peutFiche); }
+  var valeurChamp = CH.valeur, libValeurChamp = CH.lib, libelleClinique = CH.libelleClinique;
   /**
    * Saisie d'une donnée complémentaire permise selon les rôles réglés pour cette donnée (et non selon les accès des
    * modules) : le module Patients la contrôle lui-même. ctx : { config, peut }.
    */
   function permisPourSoi(type, data, compte, ctx) {
     if (type !== 'COMPLEMENT' || !compte || !data || !ctx) return false;
-    var c = champsComplementaires(ctx.config, { tous: true }).filter(function (x) { return x.id === data.champ; })[0];
-    if (!c || !c.actif) return false;
-    try { valeurChamp(c, data.valeur); } catch (e) { return false; }
-    return peutSaisirChamp(c, compte.roles, ctx.peut && ctx.peut('PATIENT'));
+    try { CH.controlerSaisie('COMPLEMENT', data, compte.roles, { config: ctx.config, peutModule: function () { return !!(ctx.peut && ctx.peut('PATIENT')); } }); return true; } catch (e) { return false; }
   }
+
+  // ------------------------------------------------------------ Réglages écrits par le cadre (0.18.0)
+  /** Données ajoutées : le cadre règle celles de ses services (champs.js, controlerCadre) ; contrôle de la liste entière. */
+  function cadreChamps(ancien, nouveau, compte) {
+    try { CH.controlerListe(ancien, nouveau); return CH.controlerCadre(ancien, nouveau, compte); } catch (e) { return false; }
+  }
+  function CO() { return (typeof self !== 'undefined' && self.SIC && self.SIC.couleurs) || require('./couleurs.js'); }
+  /** Réglages des données (couleurs, délais) : le cadre règle ceux de ses services, l'établissement reste à l'administrateur. */
+  function cadreReglagesDonnees(ancien, nouveau, compte) { return CO().controlerCadre(ancien, nouveau, compte); }
+  /** Capacité d'accueil (0.18.2) : le cadre règle celle de ses services. */
+  function cadreCapacites(ancien, nouveau, compte) { var K = (typeof self !== 'undefined' && self.SIC && self.SIC.capacites) || require('./capacites.js'); return K.controlerCadre(ancien, nouveau, compte); }
 
   function reduire(evts) {
     return N.reduire(evts, { etat: function () { return { fiches: {}, fusions: {} }; }, appliquer: appliquer });
@@ -204,7 +184,8 @@
       permisPourSoi: permisPourSoi,
       reduire: reduire
     },
-    reglages: { defaut: {}, groupes: [], exclus: [] },
+    // Réglages que le cadre écrit pour ses services (contrôle appelé par la session avant l'enregistrement)
+    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { champsAjoutes: cadreChamps, reglagesDonnees: cadreReglagesDonnees, capacites: cadreCapacites } },
     // Fenêtre du module Patients (décision du porteur du 7 novembre 2026) : liste réglable des patients (ui-liste-patients.js)
     vues: { onglets: [{ code: 'fiches', libelle: 'Liste des patients' }] },
     migrations: [],

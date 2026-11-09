@@ -121,6 +121,14 @@ L'agent reçoit la clé d'un module dès qu'un de ses services l'active. **À l'
 
 Les modules qui concernent des patients (Isocont, Agenda) **dépendent** du module Patients : identité, âge, mode d'hospitalisation, séjour. Le socle charge Patients en premier ; un agent qui a accès à Isocont ou à l'Agenda dans un service reçoit aussi la clé de Patients, en lecture. Créer ou corriger une fiche patient est un accès distinct, réglable (IDE, secrétaire et cadre par défaut).
 
+### Champs ajoutés, réglages des données, Vue d'ensemble *(existant, version 0.19.0)*
+
+- **Champs ajoutés** (`champs.js`) : données ajoutées par l'administrateur ou par le cadre pour ses services (patients, médecins), rattachées à un module : leurs valeurs sont des saisies de ce module, chiffrées par sa clé (saisie `COMPLEMENT` de la fiche patient, ou `VALEUR`). Droits propres à chaque donnée (« visible par », « modifiée par »), appliqués par l'interface, ou **clé propre à la donnée** (`d-<identifiant>`, journal `modules\d-<identifiant>\`) remise aux seuls rôles réglés, avec les mêmes générations et la même attestation que les clés de module. Option « donnée clinique » réservée à l'administrateur (clé propre obligatoire) ; case « information concernant un tiers » qui exclut la donnée de l'export du droit d'accès.
+- **Réglages des données** (`couleurs.js`) : règles de couleur et délais attachés à une donnée, appliqués partout ; établissement remplaçable par service.
+- **Vue d'ensemble** (`module-vue.js`) : module à clé propre ; une case modifiée l'est dans le module propriétaire de la donnée, avec ses contrôles. **Instantanés** : une part par journal des colonnes (chiffrée par la clé de ce journal) et un en-tête ; un agent ne déchiffre que les parts des journaux dont il détient la clé.
+- **Formules** (`formules.js`) : interprète écrit à la main, sans évaluation de code (la politique de sécurité de contenu l'interdit) ; une formule ne lit que les colonnes de sa ligne visibles par l'agent.
+- **Impression** : choix couleur ou noir et blanc ; en PDF, couleurs ramenées au gris et page désaturée par un aplat en mode de fusion « Saturation » (papier à en-tête compris).
+
 ### Échanges entre modules
 
 - **Lecture à la volée** (seul mode activé) : quand l'Agenda affiche les échéances JLD, le socle demande au module Isocont de les calculer **sur le poste**, avec la clé d'Isocont que l'agent détient déjà. Rien n'est écrit sur le partage ; aucune copie n'existe hors du module Isocont. Un agent sans accès à Isocont ne voit pas les échéances. *Existant* depuis la version 0.6.1 pour la fiche patient : Isocont lit les fiches calculées par le module Patients (fourniture `patients.fiches`), sans les reconstituer lui-même.
@@ -294,6 +302,7 @@ Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre
 - Firefox et Safari ne permettent pas d'ouvrir un dossier réseau.
 - Pas de connexion avec la session Windows à ce stade (étudiée pour plus tard).
 - Les saisies d'un journal sont écrites avec la clé de ce journal : tout détenteur de la clé de plateforme pourrait forger une saisie du journal du socle (réglage commun) ; le coffre et la remise des clés en sont protégés par l'attestation, pas l'affichage qui découle de ces réglages. Les enveloppes, en clair dans le coffre, laissent voir quels comptes détiennent les clés maîtresses (administrateurs).
+- Une donnée protégée « par l'écran » (droits plus restreints que son module) reste chiffrée par la clé du module : un agent du module techniquement compétent pourrait la lire ; seule la protection par clé propre l'en empêche.
 - Détection d'une version antérieure du coffre : par les postes qui ont vu une version plus récente et par l'historique du coffre ; si l'historique a aussi été supprimé, un poste neuf ne peut pas la détecter.
 
 ## 14. Recette technique — liste de contrôle
@@ -312,3 +321,6 @@ Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre
 - [ ] Sauvegarde puis restauration du dossier testées.
 - [ ] Vérification qu'aucune requête sortante n'est émise (outils de développement, onglet Réseau).
 - [ ] Mode formation : seules les données fictives s'affichent.
+- [ ] Donnée ajoutée à clé propre : un agent sans rôle coché ne déchiffre pas le journal `modules\d-<identifiant>\` ; un agent coché la lit et la modifie.
+- [ ] Instantané de la Vue d'ensemble : chaque part rangée dans le journal de sa donnée ; un agent sans la clé d'un journal ne voit pas les colonnes correspondantes.
+- [ ] Impression en noir et blanc : PDF sans couleur, papier à en-tête compris.

@@ -78,6 +78,22 @@ Tessera Santé est une plateforme : un **socle commun** (comptes, droits, chiffr
 | Destinataires | Agents habilités des services où le module est activé ; liste des médecins visible de tous les modules qui la proposent |
 | Impressions | Mise en page dédiée avec mention « Document confidentiel — données personnelles de santé » ; nom de l'auteur et date d'impression sur la feuille |
 
+### Traitement 6 — Vue d'ensemble (module Vue d'ensemble) et données ajoutées
+
+| Rubrique | Contenu proposé |
+| --- | --- |
+| Nom du traitement | Tableaux de suivi partagés du service (vue d'ensemble, feuille du staff) |
+| Finalités | Donner à l'équipe une vue d'ensemble de l'organisation des soins (médecins et référents, entretiens et contrats de soins, sortie prévisionnelle, démarches, check-lists d'entrée…), préparer et garder la feuille du staff, connaître les places disponibles |
+| Base légale (à valider) | Article 6.1.e du RGPD (mission d'intérêt public) ; données concernant la santé : article 9.2.h (organisation des soins), à valider |
+| Personnes concernées | Patients hospitalisés ; médecins ; professionnels (auteurs des saisies, agents des vues « équipe ») ; le cas échéant, **tiers** (ex. personne à prévenir) selon les données ajoutées par l'établissement |
+| Données | Données de la fiche commune et des autres modules lues à la volée ; **données ajoutées** par l'établissement ou le cadre (chacune à décrire ici : nom, type, services, rôles qui la voient et la modifient, protection) ; **instantanés** (feuille close : valeurs affichées, auteur, date ; annotations) ; capacité d'accueil des services (sans donnée de patient) |
+| Données concernant des tiers | Donnée marquée « information concernant un tiers » : exclue de l'export remis au patient (droit d'accès), à faire confirmer par le délégué à la protection des données |
+| Données cliniques | Exclues par principe ; option « donnée clinique » activée par l'administrateur seul, donnée par donnée, après avis du délégué à la protection des données, avec clé propre et durée de conservation |
+| Lecture d'autres modules | Fiche patient, Suivi médical, Isolement et contention, Agenda lus à la volée ; une case modifiée l'est dans le module propriétaire de la donnée ; aucune copie hors des instantanés |
+| Destinataires | Rôles réglés pour chaque vue, chaque colonne et chaque donnée ajoutée ; une donnée à clé propre n'est déchiffrable que par les rôles cochés |
+| Durée de conservation | Données ajoutées : comme la fiche patient ; instantanés : durée réglée par l'administrateur (*Instantanés*), à fixer avec le délégué à la protection des données |
+| Impressions | En couleur ou en noir et blanc, avec la mention « Document confidentiel — données personnelles de santé » |
+
 ## 2. Analyse d'impact (AIPD)
 
 La liste de la CNIL des traitements pour lesquels une analyse d'impact est requise comprend les « traitements de données de santé mis en œuvre par les établissements de santé […] pour la prise en charge des personnes ». Le traitement 2 porte en outre sur des personnes vulnérables, souvent hospitalisées sans leur consentement. **Une analyse d'impact paraît donc requise**, au moins pour les traitements 1 et 2 ; elle peut couvrir la plateforme entière, avec une partie par module. Elle peut être conduite avec l'outil PIA de la CNIL ; les éléments ci-dessous en préparent la partie « risques ».
@@ -97,6 +113,7 @@ La liste de la CNIL des traitements pour lesquels une analyse d'impact est requi
 - Le contrôle des droits est fait par l'application sur le poste, sans serveur. Le chiffrement par module en donne la garantie entre modules (pas de clé, pas de lecture) ; à l'intérieur d'un module, le cloisonnement entre services repose sur l'interface : un agent du module disposant de compétences techniques pourrait lire les données d'un autre service du même module, sans pouvoir effacer la trace de ses saisies.
 - La perte simultanée de tous les moyens de déverrouillage rend les données irrécupérables : c'est la contrepartie d'un chiffrement effectif.
 - **Suivi médical** : seules les dates des entretiens et des contrats de soins sont gardées ; les absences des médecins peuvent porter un motif (à limiter à « congé », « formation »… : pas de motif médical) ; les tableaux imprimés portent la mention de confidentialité.
+- **Vue d'ensemble et données ajoutées** : chaque donnée ajoutée est à inscrire au registre (traitement 6) avant usage ; rappel « aucune donnée clinique » à la création (mots évocateurs signalés) et sur la saisie des notes ; les **instantanés** sont des copies datées des valeurs affichées, chiffrées par la clé de chaque donnée (une part par journal), à conserver selon la durée réglée ; une donnée protégée « par l'écran » reste lisible par un agent du module techniquement compétent, la protection par **clé propre** l'en empêche (à privilégier pour une donnée sensible).
 - **Véhicules** : la consigne « motif court, aucune donnée clinique » figure sur l'écran de réservation ; l'historique des réservations rattache un agent à un déplacement (à prendre en compte pour la durée de conservation).
 - **Agenda** : le réglage de la désignation des patients (initiales par défaut) est un choix de minimisation à valider, en tenant compte des écrans visibles par l'équipe. Les alertes et commentaires sont des informations d'organisation ; la consigne de n'y écrire aucune donnée clinique figure sur chaque écran de saisie.
 - **Registre légal** (traitement 2) : il désigne le patient par son IPP et son âge, comme l'exige l'article L. 3222-5-1, et n'est présenté qu'aux instances prévues par la loi. Pour une demande de communication (CADA), l'outil produit une version occultée, choix les plus protecteurs présélectionnés (Conseil d'État, 8 février 2023, n° 455887), édition tracée.
