@@ -170,3 +170,23 @@ test('Médecin non répertorié : ajouté par tout agent, à confirmer ; confirm
   const pm = S.parMedecin(S.reduire([]), base, fiches, 'U1', t('2026-11-08', 12));
   assert.deepEqual(pm.lignes.find((l) => l.medecin.id === 'm-alpha').l1.map((x) => x.patient.id), ['A']);
 });
+
+test('Série : modifier ou retirer un seul jour sans toucher au reste de la série (0.20.0)', () => {
+  const st = S.reduire([
+    ev('PRESENCE', { id: 's1', medecin: 'Dr ALPHA (fictif)', service: 'U1', nature: 'presence', jours: [1, 2], moments: ['matin', 'apresmidi'], repetition: 'semaine', debut: '2026-11-02' }),
+    ev('PRESENCE', { id: 's1', sauf: ['2026-11-09', '2026-11-10'], service: 'U1' }),
+    ev('PRESENCE', { id: 'j1', medecin: 'Dr ALPHA (fictif)', service: 'U1', nature: 'presence', moments: ['matin'], repetition: 'date', debut: '2026-11-09', remplace: 's1' })
+  ]);
+  assert.equal(S.couvre(st.presences.s1, '2026-11-09'), false);   // jour écarté
+  assert.equal(S.couvre(st.presences.s1, '2026-11-16'), true);    // les autres jours restent
+  assert.equal(st.presences.s1.jours.length, 2);                   // la série n'est pas réécrite
+  const lundi = S.situation(st, config, 'Dr ALPHA (fictif)', 'U1', '2026-11-09', 'matin');
+  assert.deepEqual([lundi.etat, lundi.modifie], ['ponctuel', true]);
+  assert.equal(lundi.modifications[0].remplacement.id, 'j1');
+  const apm = S.situation(st, config, 'Dr ALPHA (fictif)', 'U1', '2026-11-09', 'apresmidi');
+  assert.deepEqual([apm.etat, apm.modifie], ['', true]);          // série retirée ce jour, remplacement le matin seulement
+  const mardi = S.modifications(st, config, 'Dr ALPHA (fictif)', '2026-11-10', 'matin');
+  assert.deepEqual([mardi.length, mardi[0].remplacement], [1, null]);   // jour retiré
+  assert.equal(S.situation(st, config, 'Dr ALPHA (fictif)', 'U1', '2026-11-16', 'matin').modifie, false);
+  assert.throws(() => S.contrat.saisies.controler('PRESENCE', { id: 's1', sauf: ['9 novembre'], service: 'U1' }, { config, etat: st }), /mal formés/);
+});
