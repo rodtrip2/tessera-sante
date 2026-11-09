@@ -303,6 +303,6 @@
   SIC.modules.completerInterface('patients', {
     vues: { fiches: vueListe },
     // Données ajoutées (0.18.0) : patients et médecins, tous modules ; mécanisme commun (ui-champs.js)
-    admin: { onglets: function () { return [['patients-champs', 'Données ajoutées', [U.champs.panneauDefinitions({ titre: 'Données ajoutées (patients et médecins)' })]], ['patients', 'Liste des patients', [panneauReglages()]]]; } }
+    admin: { onglets: function () { return [['patients-champs', 'Données ajoutées', [U.champs.panneauDefinitions({ titre: 'Données ajoutées (patients et médecins)' })]], ['patients', 'Liste des patients', [panneauReglages()]], ['patients-capacite', 'Capacité d’accueil', [U.champs.panneauCapacites()]]]; } }
   });
 })();

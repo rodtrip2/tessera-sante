@@ -191,3 +191,17 @@ test('Valeurs ajoutées (VALEUR) : journal du module de rattachement, clé propr
   await ide.synchroniser();
   assert.equal(ide.etat.patients.P1.complements.sorties, true);
 });
+
+test('Capacité d’accueil (0.18.2) : lits ouverts, fermetures et réservations datées, places disponibles, réglage du cadre', () => {
+  const K = require('../app/js/capacites.js');
+  const cfg = { capacites: { services: {
+    U1: { lits: 20, chambresSeules: 12, chambresDoubles: 4, fermetures: [{ id: 'f1', debut: '2026-11-01', fin: '2026-11-15', lits: 2, motif: 'Travaux (fictif)' }], reserves: [{ id: 'r1', debut: '2026-11-08', lits: 1, motif: 'Permission longue' }] },
+    U2: { lits: 15 } } } };
+  assert.deepEqual(K.situation(cfg, ['U1'], '2026-11-09', 16), { lits: 20, fermes: 2, reserves: 1, presents: 16, motifs: ['Travaux (fictif)'], ouverts: 18, places: 1 });
+  assert.equal(K.situation(cfg, ['U1'], '2026-11-20', 19).places, 0, 'fermeture terminée, réservation sans fin');
+  assert.equal(K.situation(cfg, ['U1', 'U2'], '2026-11-20', 30).places, 4);
+  assert.equal(K.situation(cfg, ['U3'], '2026-11-20', 3), null, 'capacité non renseignée');
+  const cadre = { roles: ['CADRE'], services: ['U1'] };
+  assert.ok(K.controlerCadre(cfg.capacites, { services: Object.assign({}, cfg.capacites.services, { U1: { lits: 22 } }) }, cadre));
+  assert.ok(!K.controlerCadre(cfg.capacites, { services: Object.assign({}, cfg.capacites.services, { U2: { lits: 10 } }) }, cadre));
+});
