@@ -674,3 +674,61 @@ table.liste-patients .btn.tri { color: inherit; text-decoration: none; font-weig
 .doc-suivi tr { break-inside: avoid; }
 .doc-suivi footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #000; margin-top: 8px; padding-top: 3px; font-size: 9pt; }
 .barre select.select-barre { width: auto; max-width: 280px; }
+
+/* ---- Champs ajoutés et réglages des données : couleurs (0.18.0) ---- */
+.cf-vert { background: color-mix(in srgb, #2e9d5f 30%, transparent); }
+.ct-vert { color: #2e9d5f; font-weight: 600; }
+.cpv-vert { background: #2e9d5f; }
+.cf-jaune { background: color-mix(in srgb, #d4a514 30%, transparent); }
+.ct-jaune { color: #d4a514; font-weight: 600; }
+.cpv-jaune { background: #d4a514; }
+.cf-orange { background: color-mix(in srgb, #e07b1a 30%, transparent); }
+.ct-orange { color: #e07b1a; font-weight: 600; }
+.cpv-orange { background: #e07b1a; }
+.cf-rouge { background: color-mix(in srgb, #d0352b 30%, transparent); }
+.ct-rouge { color: #d0352b; font-weight: 600; }
+.cpv-rouge { background: #d0352b; }
+.cf-bleu { background: color-mix(in srgb, #2f6fd0 30%, transparent); }
+.ct-bleu { color: #2f6fd0; font-weight: 600; }
+.cpv-bleu { background: #2f6fd0; }
+.cf-violet { background: color-mix(in srgb, #7d4fb8 30%, transparent); }
+.ct-violet { color: #7d4fb8; font-weight: 600; }
+.cpv-violet { background: #7d4fb8; }
+.cf-rose { background: color-mix(in srgb, #d63d7a 30%, transparent); }
+.ct-rose { color: #d63d7a; font-weight: 600; }
+.cpv-rose { background: #d63d7a; }
+.cf-turquoise { background: color-mix(in srgb, #0f98a3 30%, transparent); }
+.ct-turquoise { color: #0f98a3; font-weight: 600; }
+.cpv-turquoise { background: #0f98a3; }
+.cf-brun { background: color-mix(in srgb, #8a5f4c 30%, transparent); }
+.ct-brun { color: #8a5f4c; font-weight: 600; }
+.cpv-brun { background: #8a5f4c; }
+.cf-gris { background: color-mix(in srgb, #808080 30%, transparent); }
+.ct-gris { color: #808080; font-weight: 600; }
+.cpv-gris { background: #808080; }
+.pastille-couleur { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.marque-couleur:not(.pastille-couleur) { display: none; }
+.legende-couleurs { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .8rem; color: var(--ink-2); margin: 6px 0; }
+.legende-item { display: inline-flex; align-items: center; gap: 5px; }
+.echantillon { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); }
+.notes-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.note { padding: 4px 8px; border-left: 3px solid var(--line); background: var(--surface-2); border-radius: 4px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.note .btn { margin-left: auto; }
+.note.imp-important { border-left-color: #e07b1a; }
+.note.imp-urgent { border-left-color: #d0352b; background: color-mix(in srgb, #d0352b 12%, transparent); }
+.checklist { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 2px; }
+.date-fenetre { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.date-fenetre input[type=text] { flex: 1 1 160px; }
+.choix-multiple { gap: 4px 12px; }
+input.court { width: 5em; }
+/* Impression en noir et blanc (0.18.1) : nuances de gris et symbole de chaque couleur */
+@media print {
+  body.impression-nb { filter: grayscale(1); }
+  body.impression-nb [data-symbole]::before { content: attr(data-symbole) ' '; }
+  body.impression-nb .marque-couleur:not(.pastille-couleur) { display: inline; }
+  body.impression-nb .pastille-couleur { display: none; }
+  body.impression-nb .echantillon { border-color: #000; }
+}
+.notes .actions, .checklist-bloc .actions { flex-wrap: nowrap; align-items: center; }
+.notes .actions input[type=text], .checklist-bloc .actions input[type=text] { flex: 1 1 auto; width: auto; }
+.notes .actions select { flex: 0 0 auto; width: auto; }

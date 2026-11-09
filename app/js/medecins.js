@@ -41,9 +41,25 @@
       statut: STATUTS[m.statut] ? m.statut : 'titulaire', debut: dateISO(m.debut), fin: dateISO(m.fin),
       compte: typeof m.compte === 'string' && m.compte ? m.compte : null, actif: m.actif !== false,
       anciensNoms: Array.isArray(m.anciensNoms) ? m.anciensNoms.map(function (n) { return texte(n, 60); }).filter(Boolean) : [],
-      aConfirmer: m.aConfirmer === true,
+      aConfirmer: m.aConfirmer === true, initiales: texte(m.initiales, 8),
       propose: m.aConfirmer === true && m.propose && typeof m.propose === 'object' ? { par: texte(m.propose.par, 40), nom: texte(m.propose.nom, 60), le: texte(m.propose.le, 30), service: texte(m.propose.service, 20) } : null
     };
+  }
+  /**
+   * Initiales proposées d'après le nom (0.18.0, décision du porteur du 9 novembre 2026), modifiables dans la fiche du
+   * médecin : titre (Dr, Pr) et précision entre parenthèses écartés ; « Jeanne Dupont » → « JD », « Arnaud » → « ARN ».
+   */
+  function proposerInitiales(nom) {
+    var mots = texte(nom).replace(/\([^)]*\)/g, ' ').split(/[\s-]+/).filter(function (w) { return w && !/^(dr|pr|docteur|professeur)\.?$/i.test(w); });
+    if (!mots.length) return '';
+    if (mots.length === 1) return mots[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3).toUpperCase();
+    return mots.map(function (w) { return w.charAt(0).toUpperCase(); }).join('').slice(0, 4);
+  }
+  /** Initiales affichées : celles réglées dans la fiche du médecin, sinon proposées d'après le nom. */
+  function initiales(config, nom, id) {
+    var m = id ? parId(config, id) : null;
+    if (!m && nom) m = parNom(config, nom);
+    return (m && m.initiales) || proposerInitiales(m ? m.nom : nom);
   }
   function brut(config) { var x = config && config.medecins; return x && typeof x === 'object' && !Array.isArray(x) ? x : { liste: Array.isArray(x) ? x : [] }; }
   /** Liste commune, validée à la lecture, avec la reprise des noms de l'ancienne liste des psychiatres. */
@@ -151,6 +167,6 @@
     return true;
   }
 
-  return { FONCTIONS: FONCTIONS, STATUTS: STATUTS, GESTION_DEFAUT: GESTION_DEFAUT, liste: liste, gestion: gestion, enActivite: enActivite, proposes: proposes, noms: noms,
+  return { proposerInitiales: proposerInitiales, initiales: initiales, FONCTIONS: FONCTIONS, STATUTS: STATUTS, GESTION_DEFAUT: GESTION_DEFAUT, liste: liste, gestion: gestion, enActivite: enActivite, proposes: proposes, noms: noms,
     parNom: parNom, parId: parId, refuses: refuses, estRefuse: estRefuse, aConfirmer: aConfirmer, nonRattaches: nonRattaches, reunir: reunir, parCompte: parCompte, resoudre: resoudre, nomActuel: nomActuel, meme: meme, renommer: renommer, estPsychiatre: estPsychiatre, psychiatres: psychiatres, peutGerer: peutGerer, controler: controler, normaliser: normaliser, slug: slug };
 });

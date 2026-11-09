@@ -269,22 +269,27 @@
     var zoneComp = h('div', { class: 'pile' });
     function dessinerComplements() {
       U.vider(zoneComp); complements = {};
-      var champs = P.champsComplementaires(U.config(), { service: sv.value }).filter(function (c) { return P.peutVoirChamp(c, rolesAgent); });
+      // Données ajoutées des patients (0.13.0, mécanisme commun 0.18.0) : fiche (COMPLEMENT) et autres modules (VALEUR),
+      // selon le service, le rôle et les clés détenues ; notes et check-lists enregistrées aussitôt
+      var champs = SIC.champs.definitions(U.config(), { entite: 'patient', service: sv.value }).filter(function (c) { return c.type !== 'formule' && U.champs.lisible(c); });
       if (!champs.length) return;
-      zoneComp.appendChild(h('b', { text: 'Données complémentaires' }));
-      var grille = h('div', { class: 'grille-3' });
+      zoneComp.appendChild(h('b', { text: 'Données ajoutées' }));
+      var grille = h('div', { class: 'grille-3' }), cumul = h('div', { class: 'pile' });
       champs.forEach(function (c) {
-        var v = (f.complements || {})[c.id], ok = !nouveau && P.peutSaisirChamp(c, rolesAgent, peut) && !U.App.session.apercu, d0 = ok ? {} : { disabled: true }, champ, lire;
-        if (c.type === 'ouiNon') { champ = h('select', d0, [['', '—'], ['oui', 'Oui'], ['non', 'Non']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: (v === true ? 'oui' : v === false ? 'non' : '') === x[0] }); })); lire = function () { return champ.value; }; }
-        else if (c.type === 'liste') { champ = h('select', d0, [h('option', { value: '', text: '—' })].concat(c.choix.map(function (x) { return h('option', { value: x, text: x, selected: v === x }); }))); lire = function () { return champ.value; }; }
-        else if (c.type === 'date') { champ = h('input', Object.assign({ type: 'date', value: v || '' }, d0)); lire = function () { return champ.value; }; }
-        else if (c.type === 'nombre') { champ = h('input', Object.assign({ type: 'number', value: v === undefined ? '' : v }, d0)); lire = function () { return champ.value === '' ? '' : +champ.value; }; }
-        else if (c.type === 'professionnel') { champ = h('input', Object.assign({ type: 'text', maxlength: 80, list: listeAgents, value: (v && v.nom) || '', placeholder: 'Nom du professionnel' }, d0)); lire = function () { var n = champ.value.trim(); if (!n) return ''; var a = (U.App.session.comptes || []).filter(function (x) { return x.nom === n; })[0]; return { id: a ? a.id : null, nom: n }; }; }
-        else { champ = h('input', Object.assign({ type: 'text', maxlength: 200, value: v || '' }, d0)); lire = function () { return champ.value.trim(); }; }
-        if (ok) complements[c.id] = { champ: c, lire: lire, avant: v };
-        grille.appendChild(h('label', { title: ok ? null : (nouveau ? 'Se renseigne après la création de la fiche' : 'Votre rôle ne saisit pas cette donnée') }, c.libelle, champ));
+        var fiche = (!nouveau && U.App.session.etat.patients && U.App.session.etat.patients[f.id]) || f;
+        var v = U.champs.valeurDe(c, 'patient', f.id, fiche);
+        var ok = !nouveau && !U.App.session.apercu && (SIC.champs.typeSaisie(c) === 'COMPLEMENT' ? P.peutSaisirChamp(c, rolesAgent, peut) : U.champs.modifiable(c));
+        if (SIC.champs.CUMULATIFS[c.type]) {
+          var opts = { peut: ok, enregistrerOp: function (op) { return U.champs.enregistrer(c, 'patient', f.id, { op: op }); }, apres: dessinerComplements };
+          cumul.appendChild(h('div', { class: 'pile' }, h('b', { text: c.libelle }), nouveau ? h('small', { class: 'muted', text: 'Se renseigne après la création de la fiche.' }) : (c.type === 'notes' ? U.champs.notes(c, v, opts) : U.champs.checklist(c, v, opts))));
+          return;
+        }
+        var w = U.champs.saisie(c, v, { disabled: !ok });
+        if (ok) complements[c.id] = { champ: c, lire: w.lire, avant: v };
+        grille.appendChild(h('label', { title: ok ? null : (nouveau ? 'Se renseigne après la création de la fiche' : 'Votre rôle ne saisit pas cette donnée') }, c.libelle, w.el));
       });
       zoneComp.appendChild(grille);
+      zoneComp.appendChild(cumul);
     }
     var as0 = f.suiviAS || {};
     var selAS = h('select', dis, [['', 'Non renseigné'], ['oui', 'Oui'], ['non', 'Non']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: (as0.suivi === true ? 'oui' : as0.suivi === false ? 'non' : '') === x[0] }); }));
@@ -361,11 +366,11 @@
         var envois = [];
         Object.keys(complements).forEach(function (k) {
           var c = complements[k], v = P.valeurChamp(c.champ, c.lire());
-          if (JSON.stringify(v === null ? undefined : v) !== JSON.stringify(c.avant)) envois.push({ patientId: f.id, champ: k, valeur: v });
+          if (JSON.stringify(v === null ? undefined : v) !== JSON.stringify(c.avant)) envois.push({ champ: c.champ, valeur: v });
         });
         if (!peut) {
           if (!envois.length) return true;
-          for (var e0 = 0; e0 < envois.length; e0++) await U.App.session.enregistrer('COMPLEMENT', envois[e0]);
+          for (var e0 = 0; e0 < envois.length; e0++) await U.champs.enregistrer(envois[e0].champ, 'patient', f.id, { valeur: envois[e0].valeur });
           U.toast('Fiche mise à jour.');
           return;
         }
@@ -390,7 +395,7 @@
         if (avecMode && U.depuisSaisie(modeDepuis.value) > Date.now() + 10 * 60000) throw new Error('La date du mode d’hospitalisation ne peut pas être dans le futur.');
         if (!ch && !envois.length) return true;
         if (ch) await U.App.session.enregistrer('PATIENT', d);
-        for (var e1 = 0; e1 < envois.length; e1++) await U.App.session.enregistrer('COMPLEMENT', envois[e1]);
+        for (var e1 = 0; e1 < envois.length; e1++) await U.champs.enregistrer(envois[e1].champ, 'patient', f.id, { valeur: envois[e1].valeur });
         if (avecMode) await U.App.session.enregistrer('MODE_HOSPI', { patientId: id, mode: selMode.value, date: U.depuisSaisie(modeDepuis.value) || Date.now() });
         U.toast(nouveau ? 'Fiche créée.' : 'Fiche mise à jour.');
       } } : null].filter(Boolean), { large: true });
