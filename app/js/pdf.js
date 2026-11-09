@@ -82,6 +82,12 @@
 
   function num(v) { return (Math.round(v * 100) / 100).toString(); }
   function couleur(c) { return c ? c.map(num).join(' ') : '0 0 0'; }
+  /** Couleur d'un document : en noir et blanc (0.18.1), nuance de gris de même luminance. */
+  function couleurDe(doc, c) {
+    if (!c || !doc.o.nb) return couleur(c);
+    var y = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+    return couleur([y, y, y]);
+  }
 
   /** Dimensions et composantes d'une image JPEG (marqueur SOF). */
   function infoJPEG(o) {
@@ -103,7 +109,8 @@
 
   /**
    * Document PDF. `options` : { titre, auteur, marges: { haut, droite, bas, gauche } (mm), fond: data URL JPEG,
-   * fondPages: 'toutes' | 'premiere', piedDePage: fonction (n, total) → texte }.
+   * fondPages: 'toutes' | 'premiere', piedDePage: fonction (n, total) → texte, nb: impression en noir et blanc (0.18.1 :
+   * couleurs ramenées à leur nuance de gris, et page entière, papier à en-tête compris, désaturée à l'affichage) }.
    */
   function Document(options) {
     this.o = options || {};
@@ -134,17 +141,17 @@
 
   Document.prototype.texte = function (x, y, t, taille, style, rgb) {
     var gras = style === 'gras' || style === 'gras-italique', police = style === 'gras-italique' ? '/F4' : gras ? '/F2' : style === 'italique' ? '/F3' : '/F1';
-    this.page.ops.push('BT ' + couleur(rgb) + ' rg ' + police + ' ' + num(taille) + ' Tf ' + num(x) + ' ' + num(y) + ' Td (' + code(t, gras) + ') Tj ET');
+    this.page.ops.push('BT ' + couleurDe(this, rgb) + ' rg ' + police + ' ' + num(taille) + ' Tf ' + num(x) + ' ' + num(y) + ' Td (' + code(t, gras) + ') Tj ET');
   };
   Document.prototype.rect = function (x, y, l, h, fond, trait, pointille) {
     var op = 'q ';
-    if (fond) op += couleur(fond) + ' rg ';
-    if (trait) op += couleur(trait) + ' RG 0.5 w ' + (pointille ? '[2 2] 0 d ' : '');
+    if (fond) op += couleurDe(this, fond) + ' rg ';
+    if (trait) op += couleurDe(this, trait) + ' RG 0.5 w ' + (pointille ? '[2 2] 0 d ' : '');
     op += num(x) + ' ' + num(y) + ' ' + num(l) + ' ' + num(h) + ' re ' + (fond && trait ? 'B' : fond ? 'f' : 'S') + ' Q';
     this.page.ops.push(op);
   };
   Document.prototype.filet = function (x1, y1, x2, y2, rgb, ep) {
-    this.page.ops.push('q ' + couleur(rgb || [0.6, 0.6, 0.6]) + ' RG ' + num(ep || 0.5) + ' w ' + num(x1) + ' ' + num(y1) + ' m ' + num(x2) + ' ' + num(y2) + ' l S Q');
+    this.page.ops.push('q ' + couleurDe(this, rgb || [0.6, 0.6, 0.6]) + ' RG ' + num(ep || 0.5) + ' w ' + num(x1) + ' ' + num(y1) + ' m ' + num(x2) + ' ' + num(y2) + ' l S Q');
   };
 
   /**
@@ -234,7 +241,10 @@
       var inf = this.image.info;
       imgId = obj({ entete: '<< /Type /XObject /Subtype /Image /Width ' + inf.l + ' /Height ' + inf.h + ' /ColorSpace /' + (inf.comp === 1 ? 'DeviceGray' : inf.comp === 4 ? 'DeviceCMYK' : 'DeviceRGB') + ' /BitsPerComponent 8 /Filter /DCTDecode /Length ' + this.image.octets.length + ' >>', flux: this.image.octets });
     }
-    var ressources = '<< /Font << /F1 ' + f1 + ' 0 R /F2 ' + f2 + ' 0 R /F3 ' + f3 + ' 0 R /F4 ' + f4 + ' 0 R >>' + (imgId ? ' /XObject << /Fond ' + imgId + ' 0 R >>' : '') + ' >>';
+    // Noir et blanc : un aplat gris en mode de fusion « Saturation » couvre chaque page et retire toute couleur, y compris
+    // celle du papier à en-tête (image JPEG en couleur)
+    var gsNb = this.o.nb ? obj('<< /Type /ExtGState /BM /Saturation >>') : null;
+    var ressources = '<< /Font << /F1 ' + f1 + ' 0 R /F2 ' + f2 + ' 0 R /F3 ' + f3 + ' 0 R /F4 ' + f4 + ' 0 R >>' + (imgId ? ' /XObject << /Fond ' + imgId + ' 0 R >>' : '') + (gsNb ? ' /ExtGState << /GSnb ' + gsNb + ' 0 R >>' : '') + ' >>';
     var idsPages = [];
     this.pages.forEach(function (p, i) {
       var ops = p.ops.slice();
@@ -242,6 +252,7 @@
         var t = self.o.piedDePage(i + 1, n), lg = largeur(t, 7, false);
         ops.push('BT 0.35 0.35 0.35 rg /F1 7 Tf ' + num(A4.l - self.mg.d - lg) + ' ' + num(Math.max(10, self.mg.b / 2 - 3)) + ' Td (' + code(t, false) + ') Tj ET');
       }
+      if (gsNb) ops.push('q /GSnb gs 0.5 g 0 0 ' + num(A4.l) + ' ' + num(A4.h) + ' re f Q');
       var flux = ops.join('\n');
       var c = obj({ entete: '<< /Length ' + flux.length + ' >>', flux: flux });
       idsPages.push(obj('<< /Type /Page /Parent ' + pagesId + ' 0 R /MediaBox [0 0 ' + num(A4.l) + ' ' + num(A4.h) + '] /Resources ' + ressources + ' /Contents ' + c + ' 0 R >>'));

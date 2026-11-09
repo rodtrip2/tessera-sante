@@ -302,6 +302,12 @@ Plan relu par le porteur le 9 novembre 2026 (*Tessera Santé — Plan du module 
 - **Palette** de dix couleurs, chacune avec un **équivalent en noir et blanc** (nuance de gris et symbole ● ▲ ◆ ■ ★ ✚ ♥ ▼ ◐ ○) et une légende (décision 25).
 - Éditeur commun (`U.champs.modaleReglages`) : portée (établissement ou service), règles, délai.
 
+### Impression en couleur ou en noir et blanc (0.18.1, décision 16)
+
+- **Partout où Tessera imprime** (`U.imprimer`, `U.imprimerPage` : décompte JLD, registre communiqué, fiches de remise, rapport annuel, Suivi médical, aperçus du registre et des statistiques, Vue d'ensemble) : fenêtre de choix *Couleur* ou *Noir et blanc*, choix **retenu dans les préférences de l'agent** (`impression`), couleur par défaut.
+- Noir et blanc à l'écran d'impression : classe `impression-nb` (page en nuances de gris, symbole de chaque couleur affiché devant la case, légende).
+- **PDF** (`pdf.js`, option `nb`, appliquée selon la préférence de l'agent aux PDF du registre, des statistiques et du décompte) : couleurs ramenées à leur nuance de gris de même luminance, et aplat gris en mode de fusion « Saturation » sur chaque page, qui désature aussi le **papier à en-tête**.
+
 ## 8. Imports
 
 ### Liste des patients exportée du DPI (décisions des 4 au 7 novembre 2026)
