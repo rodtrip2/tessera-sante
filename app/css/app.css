@@ -761,3 +761,11 @@ input.court { width: 5em; }
 body.redimension { cursor: col-resize; user-select: none; }
 .largeur-reglee { overflow-wrap: anywhere; }
 @media print { .poignee-largeur { display: none; } }
+/* Impression en couleur (0.20.0, défaut signalé par le porteur) : sans cette consigne, le navigateur n'imprime ni les fonds
+   ni les pastilles ; « Couleur » les garde, « Noir et blanc » les ramène au gris avec leur symbole */
+@media print {
+  body:not(.impression-nb) *, body.impression-nb * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+/* Titres de colonnes : retour à la ligne plutôt que troncature quand la colonne est étroite */
+.table-vue th { white-space: normal; overflow-wrap: anywhere; hyphens: auto; vertical-align: bottom; }
+th.largeur-reglee { white-space: normal; overflow-wrap: anywhere; }

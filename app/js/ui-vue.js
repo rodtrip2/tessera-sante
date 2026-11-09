@@ -416,7 +416,11 @@
             h('button', { class: 'btn petit danger', type: 'button', 'aria-label': 'Retirer', onclick: function () { v.colonnes.splice(i, 1); dessinerCols(); } }, '✕'))));
       });
       var dispo = c.filter(function (x) { return !choisis.some(function (y) { return y.code === x.code; }); });
-      var ajout = h('select', { 'aria-label': 'Ajouter une colonne' }, [h('option', { value: '', text: '+ Ajouter une colonne…' })].concat(dispo.map(function (x) { return h('option', { value: x.code, text: x.libelle + (x.champ ? ' (donnée ajoutée' + (x.champ.type === 'formule' ? ', calcul' : '') + ')' : '') }); })));
+      // Données ajoutées non proposées : affichées en grisé avec leur raison (rôle, clé propre pas encore créée…)
+      var ent = lignes.value === 'patients' ? 'patient' : lignes.value === 'medecins' ? 'medecin' : 'agent';
+      var indispo = CH.definitions(cfg(), { tous: true, entite: ent }).map(function (d) { return { d: d, r: U.champs.raisonIndisponible(d) }; }).filter(function (x) { return x.r; });
+      var ajout = h('select', { 'aria-label': 'Ajouter une colonne' }, [h('option', { value: '', text: '+ Ajouter une colonne…' })].concat(dispo.map(function (x) { return h('option', { value: x.code, text: x.libelle + (x.champ ? ' (donnée ajoutée' + (x.champ.type === 'formule' ? ', calcul' : '') + ')' : '') }); }))
+        .concat(indispo.length ? [h('optgroup', { label: 'Non disponibles' }, indispo.map(function (x) { return h('option', { value: '', disabled: true, text: x.d.libelle + ' — ' + x.r }); }))] : []));
       ajout.addEventListener('change', function () { if (ajout.value) { v.colonnes.push({ code: ajout.value, roles: [], affichage: 'nom', regles: [] }); dessinerCols(); dessinerGroupes(); } });
       zoneCols.appendChild(h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Colonne', 'Visible par', 'Affichage', 'Largeur (px)', 'Couleurs', ''].map(function (t) { return h('th', { text: t }); }))), tb)));
       zoneCols.appendChild(h('div', { class: 'actions gauche' }, ajout,

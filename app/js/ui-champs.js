@@ -32,6 +32,18 @@
     var j = t[cle];
     return !!j && (j.v1 || !!j.maitresse || Object.keys(j.octets || {}).length > 0);
   }
+  /**
+   * Raison pour laquelle une donnée n'est pas proposée à l'agent ('' si elle l'est) : masquée, rôle qui ne la voit pas,
+   * clé propre pas encore créée (connexion suivante d'un administrateur), clé non détenue.
+   */
+  function raisonIndisponible(champ) {
+    if (!champ.actif) return 'masquée';
+    if (!CH.peutVoir(champ, roles())) return 'votre rôle ne la voit pas';
+    var cle = CH.cleDe(champ), s = session();
+    if (cle && !(s.coffre && s.coffre.cles && s.coffre.cles[cle])) return 'clé propre pas encore créée : elle le sera à la prochaine connexion d’un administrateur';
+    if (!lisible(champ)) return cle ? 'vous n’avez pas sa clé propre' : 'vous n’avez pas la clé du module « ' + (((SIC.modules.obtenir(champ.module) || {}).libelle) || champ.module) + ' »';
+    return '';
+  }
   function modifiable(champ) { return lisible(champ) && !session().apercu && CH.peutSaisir(champ, roles(), session().ecritDans(champ.module)); }
   /** Enregistre une valeur (`valeur`) ou une opération (`op`) pour une entité. */
   async function enregistrer(champ, entite, id, contenu) {
@@ -428,6 +440,6 @@
       }));
   }
 
-  U.champs = { valeurDe: valeurDe, lisible: lisible, modifiable: modifiable, enregistrer: enregistrer, saisie: saisie, notes: notes, checklist: checklist,
+  U.champs = { valeurDe: valeurDe, lisible: lisible, raisonIndisponible: raisonIndisponible, modifiable: modifiable, enregistrer: enregistrer, saisie: saisie, notes: notes, checklist: checklist,
     classeCouleur: classeCouleur, marque: marque, legende: legende, multi: multi, panneauDefinitions: panneauDefinitions, modaleDefinition: modaleDefinition, modaleReglages: modaleReglages, definitionsBrutes: definitionsBrutes, panneauCapacites: panneauCapacites };
 })();
