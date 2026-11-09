@@ -234,3 +234,19 @@ test('Instantané de la Vue d’ensemble : parts rangées dans le journal de cha
   await ide.synchroniser();
   assert.deepEqual(Object.keys(ide.etatModule('vue').instantanes).sort(), ['I1', 'I3']);
 });
+
+test('Liste commune des psychologues (0.20.0) : liste séparée, mêmes réglages que les médecins', () => {
+  const PS = MED.psychologues;
+  assert.equal(PS.CLE, 'psychologues');
+  const cfg = { psychiatres: ['Dr Ancien (fictif)'], psychologues: { liste: [{ id: 'p-a', nom: 'Mme A (fictif)', fonction: 'neuropsychologue', anciensNoms: ['Mme Avant (fictif)'] }] } };
+  assert.deepEqual(PS.liste(cfg).map((m) => m.nom), ['Mme A (fictif)'], 'sans reprise de l’ancienne liste des psychiatres');
+  assert.equal(PS.resoudre(cfg, 'Mme Avant (fictif)'), 'Mme A (fictif)', 'ancien nom suivi');
+  assert.equal(PS.initiales(cfg, null, 'p-a'), 'A');
+  assert.equal(PS.slug('Mme Durand'), 'p-mme-durand');
+  // Un agent qui ne gère pas la liste ajoute seulement un psychologue non répertorié, à confirmer
+  const ide = { id: 'u1', roles: ['IDE'] };
+  const ajout = { liste: cfg.psychologues.liste.concat([{ id: 'p-b', nom: 'M. B (fictif)', aConfirmer: true, propose: { par: 'u1' } }]) };
+  assert.ok(PS.controler(cfg, 'psychologues', ajout, ide));
+  assert.throws(() => PS.controler(cfg, 'psychologues', { liste: [] }, ide), /psychologue non répertorié/);
+  assert.ok(PS.controler(cfg, 'psychologues', { liste: [] }, { roles: ['SECRETAIRE'] }), 'gestion : cadre et secrétaire');
+});

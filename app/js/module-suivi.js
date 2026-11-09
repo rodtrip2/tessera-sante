@@ -306,7 +306,7 @@
     droits: D,
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [] },
-    vues: { onglets: [{ code: 'presences', libelle: 'Présences médicales' }, { code: 'entretiens', libelle: 'Entretiens et contrats de soins' }, { code: 'medecins', libelle: 'Patients par médecin' }, { code: 'liste', libelle: 'Médecins' }] },
+    vues: { onglets: [{ code: 'presences', libelle: 'Présences médicales' }, { code: 'entretiens', libelle: 'Entretiens et contrats de soins' }, { code: 'medecins', libelle: 'Patients par médecin' }, { code: 'liste', libelle: 'Médecins' }, { code: 'psychologues', libelle: 'Psychologues' }] },
     migrations: [],
     fournitures: [
       // Lue par la liste des patients et par l'agenda : derniers entretien et contrat d'un patient, alertes du module

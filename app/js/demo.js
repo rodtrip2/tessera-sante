@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'vehicules', 'vehiculesInformation', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -132,6 +132,12 @@
     // Liste commune des médecins et module Suivi médical (0.17.0) : somaticien, vacataire, intérimaire ; urgences
     // médico-psychologiques comme lieu de présence sans patient, où compte la garde de jour (fictifs)
     var lundiISO = function (n) { var d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7 + n); return SIC.model.dateLocaleISO(d.getTime()); };
+    // Liste commune des psychologues (0.20.0, fictive) : titulaire, neuropsychologue, intérimaire ; une fiche à confirmer
+    if (!(reel && reel.psychologues)) cfg('psychologues', { liste: [
+      { id: 'p-martin', nom: 'Mme Martin (fictif)', fonction: 'clinicien', services: [U1], statut: 'titulaire', initiales: 'MM' },
+      { id: 'p-leroy', nom: 'M. Leroy (fictif)', fonction: 'neuropsychologue', services: [], statut: 'titulaire' },
+      { id: 'p-nguyen', nom: 'Mme Nguyen (fictif)', fonction: 'clinicien', services: [U2], statut: 'interimaire', debut: SIC.model.dateLocaleISO(now - 20 * J), fin: SIC.model.dateLocaleISO(now + 40 * J) },
+      { id: 'p-propose', nom: 'Mme Petit (fictif)', fonction: 'clinicien', services: [U1], statut: 'titulaire', aConfirmer: true, propose: { par: 'demo-a', nom: 'Agent A (fictif)', le: new Date(now - 2 * J).toISOString(), service: U1 } }] });
     if (!(reel && reel.medecins)) cfg('medecins', { liste: [
       { id: 'm-arnaud', nom: 'Dr Arnaud (fictif)', fonction: 'psychiatre', services: [U1], statut: 'titulaire', initiales: 'AR' },
       { id: 'm-benoit', nom: 'Dr Benoît (fictif)', fonction: 'psychiatre', services: [U1, U2], statut: 'titulaire' },
@@ -164,15 +170,15 @@
     var complements = {
       // Médecins de 1re et 2e ligne (Suivi médical, 0.17.0) : un patient sans médecin de 1re ligne par unité, plusieurs sans 2e ligne
       P01: { chambre: '12', lit: 'P', entree: -24 * 40, psychologue: 'Mme Psy (fictif)', suiviAS: { suivi: true, nom: 'M. Social (fictif)' }, referents: [{ id: null, nom: 'Agent A (fictif)' }], medecin1: 'Dr Arnaud (fictif)', medecin2: 'Dr Benoît (fictif)' },
-      P02: { chambre: '14', lit: '', entree: -24 * 35, psychologue: 'Mme Psy (fictif)', referents: [{ id: null, nom: 'Agent C (fictif)' }], medecin1: 'Dr Benoît (fictif)', medecin2: 'Dr Arnaud (fictif)' },
+      P02: { chambre: '14', lit: '', entree: -24 * 35, psychologue: 'Mme Martin (fictif)', psychologueId: 'p-martin', referents: [{ id: null, nom: 'Agent C (fictif)' }], medecin1: 'Dr Benoît (fictif)', medecin2: 'Dr Arnaud (fictif)' },
       P03: { chambre: '8', lit: 'F', entree: -24 * 60, suiviAS: { suivi: false, nom: '' }, medecin1: 'Dr Chen (fictif)' },
-      P04: { chambre: 'A3', lit: '', entree: -24 * 20, psychologue: 'M. Psy (fictif)', suiviAS: { suivi: true, nom: '' }, medecin1: 'Dr Diallo (fictif)', medecin2: 'Dr Benoît (fictif)' },
+      P04: { chambre: 'A3', lit: '', entree: -24 * 20, psychologue: 'Mme Nguyen (fictif)', psychologueId: 'p-nguyen', suiviAS: { suivi: true, nom: '' }, medecin1: 'Dr Diallo (fictif)', medecin2: 'Dr Benoît (fictif)' },
       P05: { chambre: '10', lit: 'P', entree: -24 * 8, referents: [{ id: null, nom: 'Agent E (fictif)' }], medecin1: '', medecin2: 'Dr Fontaine (fictif)' },
       P06: { chambre: 'A5', lit: '', entree: -24 * 12, medecin1: '' }
     };
     patients.forEach(function (p) {
       var c = complements[p[0]];
-      ajouter(t(-24 * 279), 'PATIENT', { patientId: p[0], medecin1: c.medecin1, medecin2: c.medecin2 || '', referents: c.referents || [], psychologue: c.psychologue || '', suiviAS: c.suiviAS || null });
+      ajouter(t(-24 * 279), 'PATIENT', { patientId: p[0], medecin1: c.medecin1, medecin2: c.medecin2 || '', referents: c.referents || [], psychologue: c.psychologue || '', psychologueId: c.psychologueId || '', suiviAS: c.suiviAS || null });
       ajouter(t(c.entree), 'SEJOUR', { patientId: p[0], sejourId: 'S' + p[0], iep: '7' + p[1], entree: jISO(c.entree), service: p[5], chambre: c.chambre, lit: c.lit });
     });
     [['P07', '900107', 'GOLF', 'Ilan', 'SL', U1, 52, -24 * 15, -24 * 3, '6'], ['P08', '900108', 'HOTEL', 'Maé', 'SDT', U1, 29, -24 * 50, -24 * 21, '3']].forEach(function (p) {

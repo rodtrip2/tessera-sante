@@ -67,7 +67,7 @@
       case 'medecin1': return h('td', { text: nomMed(p.medecin1, p.medecin1Id) || '—' });
       case 'medecin2': return h('td', { text: nomMed(p.medecin2, p.medecin2Id) || '—' });
       case 'referents': return h('td', { text: (p.referents || []).map(function (r) { return r.nom; }).join(', ') || '—' });
-      case 'psychologue': return h('td', { text: p.psychologue || '—' });
+      case 'psychologue': return h('td', { text: p.psychologue || p.psychologueId ? SIC.psychologues.resoudre(U.config(), p.psychologue, p.psychologueId) : '—' });
       case 'suiviAS': var a = p.suiviAS; return h('td', { text: !a ? '—' : (a.suivi ? 'Oui' + (a.nom ? ' (' + a.nom + ')' : '') : 'Non') });
       case 'protection': return h('td', { text: p.protection || '—' });
       case 'detenu': return h('td', { text: p.detenu ? 'Oui' : '—' });

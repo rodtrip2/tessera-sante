@@ -503,7 +503,7 @@
     try { return S.alertes(st(), cfg(), fiches(), U.services().map(function (x) { return x.code; }), Date.now()).length; } catch (e) { return 0; }
   }
   SIC.modules.completerInterface('suivi', {
-    vues: { presences: vuePresences, entretiens: vueEntretiens, medecins: vueParMedecin, liste: function () { return U.medecins.vue(); } },
+    vues: { presences: vuePresences, entretiens: vueEntretiens, medecins: vueParMedecin, liste: function () { return U.medecins.vue(); }, psychologues: function () { return U.psychologues.vue(); } },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'La saisie revient à son état précédent.'; } },
     admin: { onglets: function () { return [['suivi', 'Suivi médical', [panneauReglages()]]]; } },
     pastille: pastille

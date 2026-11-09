@@ -172,7 +172,13 @@
         } });
       });
       col({ code: 'referents', libelle: 'Référents soignants', type: 'texte', journal: 'patients', lire: function (l) { var t = (l.p.referents || []).map(function (r) { return r.nom; }).join(', '); return { v: t || null, lib: t || '—', brute: t || null }; } });
-      col({ code: 'psychologue', libelle: 'Psychologue référent', type: 'texte', journal: 'patients', edition: { type: 'texte', cle: 'psychologue' }, lire: function (l) { return { v: l.p.psychologue || null, lib: l.p.psychologue || '—', brute: l.p.psychologue || null }; } });
+      // Psychologue référent : liste commune des psychologues (0.20.0), nom ou initiales comme les médecins
+      col({ code: 'psychologue', libelle: 'Psychologue référent', type: 'liste', journal: 'patients', reglage: 'patients.psychologue', edition: { type: 'psychologue' }, medecin: true, psychologue: true, lire: function (l, c) {
+        var PS = MED.psychologues, n = l.p.psychologue || l.p.psychologueId ? PS.resoudre(ctx.config, l.p.psychologue, l.p.psychologueId) : '';
+        var m = PS.parId(ctx.config, l.p.psychologueId) || PS.parNom(ctx.config, n);
+        var aff = c && c.affichage === 'initiales' && n ? PS.initiales(ctx.config, n, l.p.psychologueId) : n;
+        return { v: n || null, lib: aff || '—', brute: n || null, cle: m ? m.id : (n || ''), titre: n };
+      } });
       col({ code: 'suiviAS', libelle: 'Suivi assistant(e) social(e)', type: 'ouiNon', journal: 'patients', edition: { type: 'suiviAS' }, lire: function (l) {
         var a = l.p.suiviAS; return { v: a ? !!a.suivi : null, lib: !a ? '—' : (a.suivi ? 'Oui' + (a.nom ? ' (' + a.nom + ')' : '') : 'Non'), brute: a ? (a.suivi ? 1 : 0) : null };
       } });

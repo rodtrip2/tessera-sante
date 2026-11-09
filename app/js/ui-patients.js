@@ -263,7 +263,9 @@
     // Psychologue référent et suivi par l'assistant(e) social(e) du service (décision du porteur du 7 novembre 2026)
     var listeAgents = 'ag-' + C.hex(C.aleatoire(3));
     var datalistAgents = h('datalist', { id: listeAgents }, (U.App.session.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours'; }).map(function (c) { return h('option', { value: c.nom }); }));
-    var psychologue = champ(f.psychologue, { list: listeAgents, placeholder: 'Nom du psychologue' });
+    // Psychologue référent lié à la liste commune des psychologues (0.20.0), comme les médecins
+    var psychologue = U.psychologues.champ({ valeur: f.psychologue, id: f.psychologueId, service: svMed, libelle: 'psychologue référent', vide: '— Aucun —' });
+    if (!peut) psychologue.select.disabled = true;
     // Données complémentaires ajoutées par l'administrateur (8 novembre 2026), selon le service et le rôle
     var rolesAgent = U.App.session.roles(), complements = {};
     var zoneComp = h('div', { class: 'pile' });
@@ -356,7 +358,7 @@
       h('div', { class: 'grille-2' }, h('label', {}, lib1, medecin1), h('label', {}, lib2, medecin2)), datalist,
       h('div', { class: 'pile' }, h('b', { text: 'Référents soignants' }), zoneRef),
       zoneComp,
-      h('div', { class: 'grille-3' }, h('label', {}, 'Psychologue référent', psychologue), h('label', {}, 'Suivi par l’assistant(e) social(e) du service', selAS), h('label', {}, 'Assistant(e) social(e)', nomAS)), datalistAgents,
+      h('div', { class: 'grille-3' }, h('label', {}, 'Psychologue référent', psychologue.select), h('label', {}, 'Suivi par l’assistant(e) social(e) du service', selAS), h('label', {}, 'Assistant(e) social(e)', nomAS)), datalistAgents,
       h('small', { class: 'muted', text: 'Médecins et référents sont propres à Tessera (distincts du médecin responsable du dossier patient informatisé). Chaque changement est gardé avec sa date. Une mesure garde le nom affiché au moment de sa création dans le journal ; les écrans utilisent la fiche à jour.' }),
       sejours,
       !nouveau && U.agenda && U.agenda.sectionPatient ? U.agenda.sectionPatient(f, fermerPuis) : null), [
@@ -388,7 +390,8 @@
         });
         if (!!f.detenu !== detenu.checked && !zoneDetenu.hidden) { d.detenu = detenu.checked; ch++; }
         if (JSON.stringify(f.referents || []) !== JSON.stringify(referents)) { d.referents = referents; ch++; }
-        if ((f.psychologue || '') !== psychologue.value.trim()) { d.psychologue = psychologue.value.trim(); ch++; }
+        if ((f.psychologue || '') !== psychologue.nom()) { d.psychologue = psychologue.nom(); ch++; }
+        if ((f.psychologueId || '') !== (psychologue.medecinId() || '')) { d.psychologueId = psychologue.medecinId() || ''; ch++; }
         var as1 = selAS.value ? { suivi: selAS.value === 'oui', nom: selAS.value === 'oui' ? nomAS.value.trim() : '' } : null;
         if (JSON.stringify(f.suiviAS || null) !== JSON.stringify(as1)) { d.suiviAS = as1; ch++; }
         var avecMode = nouveau && !zoneMode.hidden && selMode.value;
