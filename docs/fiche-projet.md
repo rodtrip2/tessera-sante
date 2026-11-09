@@ -117,6 +117,8 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 - **Codes couleur** réglés une fois pour une donnée et repris partout (ex. vert, jaune, orange, rouge selon un délai ; une couleur par psychiatre) ; **groupes de lignes** (ex. entrés depuis telle date, présents depuis plus de 90 jours) ; **bandeau de synthèse** (places disponibles, sorties prévues, âge moyen…).
 - **Feuille du staff** : préparée, complétée pendant le staff puis close ; l'**instantané** est conservé tel qu'il était, chacun n'en revoyant que ce qu'il pouvait voir.
 - **Impression** en couleur ou en noir et blanc, partout dans Tessera.
+- **Largeur des colonnes** réglable dans tous les tableaux : la liste des patients la garde avec l'affichage, Isolement et contention avec le réglage du cadre ou de l'administrateur, les autres tableaux pour chaque agent.
+- **Données ajoutées depuis les fiches** du patient, du médecin et de l'agent ; données du personnel protégées par une clé propre et réservées au cadre par défaut ; **liste commune des psychologues** sur le modèle de celle des médecins.
 
 ## 5 ter. Groupes d'agents
 
@@ -161,7 +163,7 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 
 ## 9. État d'avancement
 
-- **Socle commun, modules Patients, Isolement et contention, Agenda, Véhicules, Suivi médical et Vue d'ensemble** : développés et vérifiés par des tests automatiques (version 0.19.0), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
+- **Socle commun, modules Patients, Isolement et contention, Agenda, Véhicules, Suivi médical et Vue d'ensemble** : développés et vérifiés par des tests automatiques (version 0.20.0), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
 - **Kit de déploiement** : guide d'installation, procédures de secours, éléments RGPD (un traitement par module), guides utilisateur et guide pratique illustré, imports (dossier `kit/` du dépôt).
 
 ## 10. Démarche
