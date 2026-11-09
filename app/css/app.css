@@ -769,3 +769,6 @@ body.redimension { cursor: col-resize; user-select: none; }
 /* Titres de colonnes : retour à la ligne plutôt que troncature quand la colonne est étroite */
 .table-vue th { white-space: normal; overflow-wrap: anywhere; hyphens: auto; vertical-align: bottom; }
 th.largeur-reglee { white-space: normal; overflow-wrap: anywhere; }
+
+/* Jour modifié ou retiré dans une série (Suivi médical, 0.20.0) */
+.jour-modifie { font-weight: 700; color: var(--accent, inherit); margin-left: .2em; cursor: help; }

@@ -92,7 +92,9 @@
           return h('td', { class: 'case-presence' + (c.jour === auj ? ' aujourdhui' : ''), onclick: peut('PRESENCE') ? function () { modaleCase(l.medecin.nom, c); } : null, title: peut('PRESENCE') ? 'Voir ou modifier' : '' },
             e ? h('span', { class: 'badge ' + e[1], text: c.etat === 'absent' && c.remplacant ? 'Remplacé' : e[0] }) : null,
             c.remplacant ? h('div', {}, h('small', { text: 'par ' + c.remplacant })) : null,
-            c.precision ? h('div', {}, h('small', { class: 'muted', text: c.precision })) : null);
+            c.precision ? h('div', {}, h('small', { class: 'muted', text: c.precision })) : null,
+            // Jour modifié ou retiré dans une série (0.20.0) : astérisque, détail au survol
+            c.modifie ? h('span', { class: 'jour-modifie', title: libModifs(c.modifications), 'aria-label': 'Jour modifié dans une série', text: '*' }) : null);
         }));
     });
     var gardes = h('tr', { class: 'ligne-gardes' }, h('th', { text: 'Gardes et astreintes' }), g.gardes.filter(function (x) { return js.indexOf(x.jour) >= 0; }).map(function (x) {
@@ -112,6 +114,11 @@
     var sm = S.semaineMedecin(st(), cfg(), vue.medecin, vue.lundi), js = vue.weekend ? sm.jours : sm.jours.slice(0, 5), auj = S.jourISO(maintenant);
     var idx = function (j) { return sm.jours.indexOf(j); };
     var txt = function (cas) {
+      var mods = cas.moments.filter(function (m) { return m.s.modifie; });
+      var base = txt0(cas);
+      return mods.length ? h('span', {}, base, h('span', { class: 'jour-modifie', title: mods.map(function (m) { return libModifs(m.s.modifications); }).join('\n'), 'aria-label': 'Jour modifié dans une série', text: '*' })) : base;
+    };
+    var txt0 = function (cas) {
       var ab = cas.moments.filter(function (m) { return m.s.etat === 'absent'; }), pr = cas.moments.filter(function (m) { return /present|ponctuel|garde/.test(m.s.etat); });
       if (ab.length) return h('span', { class: 'badge bad', text: 'Absent' + (ab.length === 1 ? ' ' + S.MOMENTS[ab[0].moment].toLowerCase() : '') });
       if (!pr.length) return h('span', { class: 'muted', text: '—' });
@@ -139,18 +146,65 @@
     return h('div', { class: 'agenda-point' }, h('span', { text: S.medecinDe(cfg(), p) + ' : ' + libPresence(p) }),
       peut('PRESENCE') ? bouton('Modifier', function () { modalePresence(p); }, 'petit') : null);
   }
-  /** Case de la grille : ce qui s'applique ce jour-là, avec modification, et ajout. */
+  function libModifs(l) {
+    return (l || []).map(function (m) { return 'Série « ' + libPresence(m.serie) + ' » ' + (m.remplacement ? 'remplacée ce jour par : ' + libPresence(m.remplacement) : 'retirée ce jour'); }).join('\n');
+  }
+  /** Écarte un jour d'une série (modifié ou retiré ce jour seulement) ; `rendre` : le rétablir. */
+  function ecarter(p, jour, rendre) {
+    var sauf = (p.sauf || []).filter(function (x) { return x !== jour; });
+    if (!rendre) sauf.push(jour);
+    return U.App.session.enregistrer('PRESENCE', { id: p.id, sauf: sauf.sort(), service: p.service || serviceCourant() });
+  }
+  /**
+   * Case de la grille (décision du porteur du 9 novembre 2026) : pour une série, « Modifier ce jour seulement », « Retirer
+   * ce jour seulement », « Modifier toute la série », « Arrêter la série à partir de ce jour » ; pour une saisie d'un jour,
+   * « Modifier » et « Retirer » ; jours déjà écartés d'une série, à rétablir ; « Ajouter autre chose ce jour ».
+   */
   function modaleCase(medecin, c) {
-    var ps = Object.keys(st().presences).map(function (k) { return st().presences[k]; }).filter(function (p) {
+    var tout = Object.keys(st().presences).map(function (k) { return st().presences[k]; });
+    var ps = tout.filter(function (p) {
       return !p.supprime && S.medecinDe(cfg(), p) === medecin && S.couvre(p, c.jour) && (p.nature === 'garde' || !p.moments || !p.moments.length || p.moments.indexOf(c.moment) >= 0);
     });
-    U.modale(medecin + ' — ' + jourFr(c.jour) + ' ' + S.MOMENTS[c.moment].toLowerCase(), h('div', { class: 'pile' },
-      ps.length ? ps.map(lignePresence) : h('p', { class: 'muted', text: 'Rien d’enregistré pour ce moment.' })), [
-      { texte: 'Fermer' },
-      { texte: 'Ajouter pour ce jour', classe: 'primaire', action: function () { setTimeout(function () { modalePresence(null, { lieu: vue.lieu, medecin: medecin, jour: c.jour, moment: c.moment }); }, 0); } }]);
+    var ecartees = S.modifications(st(), cfg(), medecin, c.jour, c.moment);
+    var titre = medecin + ' — ' + jourFr(c.jour) + ' ' + S.MOMENTS[c.moment].toLowerCase();
+    var dlg;
+    function fermer() { if (dlg) { dlg.close(); dlg.remove(); } U.rendreContenu(); }
+    async function agir(f, msg) { try { await f(); U.toast(msg); fermer(); } catch (e) { alert(e.message); } }
+    function ligne(p) {
+      var serie = p.repetition !== 'date', btns;
+      if (serie) btns = [
+        bouton('Modifier ce jour seulement', function () { fermer(); setTimeout(function () { modalePresence(null, { jourSeul: { serie: p, jour: c.jour } }); }, 0); }, 'petit primaire'),
+        bouton('Retirer ce jour seulement', function () { if (confirm('Retirer le ' + jourFr(c.jour) + ' de la série ? Les autres jours ne changent pas.')) agir(function () { return ecarter(p, c.jour); }, 'Jour retiré de la série.'); }, 'petit'),
+        bouton('Modifier toute la série', function () { fermer(); setTimeout(function () { modalePresence(p); }, 0); }, 'petit'),
+        bouton('Arrêter la série à partir de ce jour', function () {
+          if (!confirm('Arrêter la série à partir du ' + jourFr(c.jour) + ' ? Les jours précédents sont gardés.')) return;
+          var veille = S.jourISO(S.plusJours(S.depuisISO(c.jour), -1));
+          agir(function () { return veille < p.debut ? U.App.session.enregistrer('PRESENCE', { id: p.id, supprime: true, service: p.service || serviceCourant() }) : U.App.session.enregistrer('PRESENCE', { id: p.id, fin: veille, service: p.service || serviceCourant() }); }, 'Série arrêtée.');
+        }, 'petit danger')];
+      else btns = [
+        bouton('Modifier', function () { fermer(); setTimeout(function () { modalePresence(p); }, 0); }, 'petit'),
+        bouton('Retirer', function () { if (confirm('Retirer : ' + libPresence(p) + ' ?')) agir(function () { return U.App.session.enregistrer('PRESENCE', { id: p.id, supprime: true, service: p.service || serviceCourant() }); }, 'Retiré.'); }, 'petit danger')];
+      return h('div', { class: 'agenda-point pile' }, h('span', {}, h('b', { text: serie ? 'Série : ' : 'Ce jour : ' }), libPresence(p) + (p.remplace ? ' (remplace un jour d’une série)' : '')), h('div', { class: 'actions gauche' }, btns));
+    }
+    var corps = h('div', { class: 'pile' },
+      ps.length ? ps.map(ligne) : h('p', { class: 'muted', text: 'Rien d’enregistré pour ce moment.' }),
+      ecartees.length ? h('div', { class: 'pile' }, h('b', { text: 'Jour écarté d’une série' }), ecartees.map(function (m) {
+        return h('div', { class: 'agenda-point' }, h('span', { text: libPresence(m.serie) + (m.remplacement ? ' — remplacée ce jour' : ' — retirée ce jour') }),
+          bouton('Rétablir ce jour', function () { agir(function () { return ecarter(m.serie, c.jour, true).then(function () { return m.remplacement ? U.App.session.enregistrer('PRESENCE', { id: m.remplacement.id, supprime: true, service: m.remplacement.service || serviceCourant() }) : null; }); }, 'Jour rétabli dans la série.'); }, 'petit'));
+      })) : null,
+      h('small', { class: 'muted', text: 'Une série se répète chaque semaine ou toutes les deux semaines. « Modifier ce jour seulement » ne change que ce jour (marqué * dans la grille) ; « Modifier toute la série » change tous les jours de la série.' }));
+    dlg = h('dialog', { class: 'large', 'aria-label': titre });
+    dlg.appendChild(h('div', { class: 'tete' }, h('h2', { text: titre })));
+    dlg.appendChild(h('div', { class: 'corps' }, corps));
+    dlg.appendChild(h('div', { class: 'pied' }, bouton('Fermer', fermer), bouton('Ajouter autre chose ce jour', function () { fermer(); setTimeout(function () { modalePresence(null, { lieu: vue.lieu, medecin: medecin, jour: c.jour, moment: c.moment }); }, 0); }, 'primaire')));
+    dlg.addEventListener('cancel', function (ev) { ev.preventDefault(); fermer(); });
+    document.body.appendChild(dlg); dlg.showModal();
   }
   function modalePresence(p, init) {
-    var x = p || {}, ini = init || {}, o = opts();
+    var ini = init || {}, o = opts();
+    // « Modifier ce jour seulement » : saisie d'un jour reprise de la série, qui écarte ce jour de la série à l'enregistrement
+    var seul = ini.jourSeul || null;
+    var x = seul ? Object.assign({}, seul.serie, { id: null, repetition: 'date', debut: seul.jour, fin: '', jours: [], sauf: undefined }) : (p || {});
     var nature = x.nature || 'presence';
     var radios = h('div', { class: 'actions gauche' }), zone = h('div', { class: 'pile' });
     var selMed = h('select', { 'aria-label': 'Médecin' });
@@ -210,10 +264,14 @@
         service: nature === 'presence' ? selLieu.value : serviceCourant(), garde: nature === 'garde' ? selGarde.value : '', remplacant: nature === 'absence' ? selRemp.value : '',
         medecinId: idMed(selMed.value), remplacantId: nature === 'absence' && selRemp.value ? idMed(selRemp.value) : null };
       if (nature !== 'garde' && !d.moments.length) throw new Error('Choisissez le matin, l’après-midi ou les deux.');
+      if (seul) {
+        d.repetition = 'date'; d.jours = []; d.fin = ''; d.remplace = seul.serie.id;
+        await ecarter(seul.serie, seul.jour);
+      }
       await U.App.session.enregistrer('PRESENCE', d);
-      U.toast('Enregistré.');
+      U.toast(seul ? 'Ce jour est modifié ; la série ne change pas les autres jours.' : 'Enregistré.');
     } });
-    U.modale(p ? 'Modifier' : 'Présence, absence ou garde', h('div', { class: 'pile' }, radios, zone), boutons, { large: true });
+    U.modale(seul ? 'Modifier ce jour seulement (' + jourFr(seul.jour) + ')' : p ? 'Modifier toute la série' : 'Présence, absence ou garde', h('div', { class: 'pile' }, radios, zone), boutons, { large: true });
   }
   function imprimerPresences() {
     var corps;

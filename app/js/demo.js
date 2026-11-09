@@ -372,6 +372,10 @@
     presence({ medecin: 'Dr Chen (fictif)', nature: 'garde', garde: 'jour', jours: [1], moments: [], service: U1 });
     presence({ medecin: 'Dr Benoît (fictif)', nature: 'garde', garde: 'nuit', repetition: 'date', debut: lundiISO(1), jours: [], moments: [], service: U1 });
     presence({ medecin: 'Dr Diallo (fictif)', nature: 'garde', garde: 'astreinte', jours: [3], moments: [], service: U2 });
+    // Jours modifiés dans une série (0.20.0) : la série du Dr Esposito en Unité 1 (PM009) est remplacée jeudi par un
+    // après-midi et retirée vendredi, sans changer les autres semaines (marqués « * » dans la grille)
+    ajouter(t(-24 * 2), 'PRESENCE', { id: 'PM009', sauf: [lundiISO(3), lundiISO(4)], service: U1 });
+    presence({ medecin: 'Dr Esposito (fictif)', service: U1, nature: 'presence', repetition: 'date', debut: lundiISO(3), jours: [], moments: ['apresmidi'], precision: 'Décalé l’après-midi', remplace: 'PM009' });
     var sv0 = 0, suivi = function (p, n, medecin, quoi, svc) { ajouter(t(-24 * n + 2), 'SUIVI', { id: 'SV' + String(++sv0).padStart(3, '0'), patient: p, service: svc || U1, date: SIC.model.dateLocaleISO(t(-24 * n)), medecin: medecin, quoi: quoi }); };
     suivi('P01', 20, 'Dr Arnaud (fictif)', 'contrat'); suivi('P01', 3, 'Dr Arnaud (fictif)', 'entretien');
     suivi('P02', 16, 'Dr Benoît (fictif)', 'entretien'); suivi('P02', 10, 'Dr Benoît (fictif)', 'contrat');

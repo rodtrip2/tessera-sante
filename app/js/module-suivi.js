@@ -66,7 +66,9 @@
         if (!d.id) return;
         if (d.supprime) { if (st.presences[d.id]) st.presences[d.id].supprime = true; return; }
         var p = Object.assign({}, st.presences[d.id] || { id: d.id, par: e.by, cree: e.at });
-        ['medecin', 'medecinId', 'service', 'nature', 'garde', 'jours', 'moments', 'repetition', 'debut', 'fin', 'precision', 'remplacant', 'remplacantId'].forEach(function (k) { if (d[k] !== undefined) p[k] = d[k]; });
+        // `sauf` : jours écartés d'une série (modifiés ou retirés ce jour seulement) ; `remplace` : série dont cette saisie
+        // d'un jour remplace un jour (0.20.0, décision du porteur du 9 novembre 2026)
+        ['medecin', 'medecinId', 'service', 'nature', 'garde', 'jours', 'moments', 'repetition', 'debut', 'fin', 'precision', 'remplacant', 'remplacantId', 'sauf', 'remplace'].forEach(function (k) { if (d[k] !== undefined) p[k] = d[k]; });
         p.modifie = e.at; st.presences[d.id] = p;
         return;
       case 'SUIVI':
@@ -82,6 +84,7 @@
   /** La présence s'applique-t-elle à ce jour (ISO) ? Selon les jours de la semaine, la répétition et la période. */
   function couvre(p, j) {
     if (!p || p.supprime || !p.debut || j < p.debut || (p.fin && j > p.fin)) return false;
+    if (Array.isArray(p.sauf) && p.sauf.indexOf(j) >= 0) return false;
     if (p.repetition === 'date') return j === p.debut;
     var t = depuisISO(j), jours = Array.isArray(p.jours) ? p.jours : [];
     if (jours.indexOf(new Date(t).getDay()) < 0) return false;
@@ -104,13 +107,35 @@
   function situation(st, config, medecin, lieu, j, moment) {
     var ps = presencesActives(st).filter(function (p) { return medecinDe(config, p) === medecin && couvre(p, j) && moments(p).indexOf(moment) >= 0; });
     var abs = ps.filter(function (p) { return p.nature === 'absence'; })[0];
-    if (abs) return { etat: 'absent', remplacant: abs.remplacant ? MED.resoudre(config, abs.remplacant, abs.remplacantId) : '', precision: abs.precision || '' };
+    if (abs) { var ma = modifications(st, config, medecin, j, moment); return { etat: 'absent', remplacant: abs.remplacant ? MED.resoudre(config, abs.remplacant, abs.remplacantId) : '', precision: abs.precision || '', modifie: ma.length > 0, modifications: ma }; }
     var pr = ps.filter(function (p) { return p.nature === 'presence' && p.service === lieu; })[0];
-    if (pr) return { etat: pr.repetition === 'date' ? 'ponctuel' : 'present', precision: pr.precision || '' };
+    var modif = modifications(st, config, medecin, j, moment);
+    if (pr) return { etat: pr.repetition === 'date' ? 'ponctuel' : 'present', precision: pr.precision || '', modifie: modif.length > 0, modifications: modif };
     var gardes = options(config).gardes;
     var g = ps.filter(function (p) { if (p.nature !== 'garde') return false; var t = gardes.filter(function (x) { return x.code === p.garde; })[0]; return !!t && t.lieu === lieu; })[0];
-    if (g) return { etat: 'garde', precision: g.precision || '', garde: g.garde };
-    return { etat: '' };
+    if (g) return { etat: 'garde', precision: g.precision || '', garde: g.garde, modifie: modif.length > 0, modifications: modif };
+    return { etat: '', modifie: modif.length > 0, modifications: modif };
+  }
+  /**
+   * Modifications d'un jour dans une série (0.20.0) : séries écartées ce jour-là et saisies d'un jour qui remplacent un
+   * jour d'une série, pour le médecin et le moment : [{ serie, remplacement }] (marquées « * » dans les grilles).
+   */
+  function modifications(st, config, medecin, j, moment) {
+    var res = [];
+    Object.keys(st.presences || {}).map(function (k) { return st.presences[k]; }).forEach(function (p) {
+      if (p.supprime || medecinDe(config, p) !== medecin || (moment && p.nature !== 'garde' && moments(p).indexOf(moment) < 0)) return;
+      if (Array.isArray(p.sauf) && p.sauf.indexOf(j) >= 0) res.push({ serie: p, remplacement: null });
+    });
+    res.forEach(function (r) {
+      r.remplacement = Object.keys(st.presences || {}).map(function (k) { return st.presences[k]; }).filter(function (x) { return !x.supprime && x.remplace === r.serie.id && x.debut === j; })[0] || null;
+    });
+    // Saisie d'un jour qui remplace un jour de série sur un autre moment (ex. décalée l'après-midi) : marquée aussi
+    Object.keys(st.presences || {}).map(function (k) { return st.presences[k]; }).forEach(function (x) {
+      var serie = x.remplace && st.presences[x.remplace];
+      if (!serie || x.supprime || x.debut !== j || medecinDe(config, x) !== medecin || (moment && x.nature !== 'garde' && moments(x).indexOf(moment) < 0)) return;
+      if (!res.some(function (r) { return r.serie.id === serie.id; })) res.push({ serie: serie, remplacement: x });
+    });
+    return res;
   }
   /** Médecins à afficher pour un lieu sur une période : ceux qui y ont une présence (ou une garde rattachée), et ceux de la liste commune affectés à ce service. */
   function medecinsDuLieu(st, config, lieu, j0, j1) {
@@ -295,6 +320,7 @@
       if (!/^\d{4}-\d{2}-\d{2}$/.test(p.debut || '')) throw new Error('Indiquez le premier jour.');
       if (p.fin && p.fin < p.debut) throw new Error('Le dernier jour précède le premier.');
       if (p.repetition !== 'date' && !(p.jours || []).length) throw new Error('Choisissez au moins un jour de la semaine.');
+      if (p.sauf !== undefined && (!Array.isArray(p.sauf) || p.sauf.some(function (x) { return !/^\d{4}-\d{2}-\d{2}$/.test(x); }))) throw new Error('Jours écartés de la série mal formés.');
     }
   }
   var contrat = {
@@ -319,7 +345,7 @@
   };
   registre.declarer(contrat);
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, NATURES: NATURES, MOMENTS: MOMENTS, REPETITIONS: REPETITIONS, QUOI: QUOI, TRANCHES_DEFAUT: TRANCHES_DEFAUT, GARDES_DEFAUT: GARDES_DEFAUT,
-    options: options, delais: delais, libGarde: libGarde, couvre: couvre, situation: situation, grilleLieu: grilleLieu, gardesDuJour: gardesDuJour, semaineMedecin: semaineMedecin,
+    options: options, delais: delais, libGarde: libGarde, couvre: couvre, situation: situation, modifications: modifications, grilleLieu: grilleLieu, gardesDuJour: gardesDuJour, semaineMedecin: semaineMedecin,
     medecinsDuLieu: medecinsDuLieu, medecinDe: medecinDe, derniers: derniers, suivisDe: suivisDe, suiviPatient: suiviPatient, jourHospitalisation: jourHospitalisation, identite: identite, hospitalises: hospitalises,
     suivis: suivis, parMedecin: parMedecin, alertes: alertes, serviceDe: serviceDe, lieuxCodes: lieuxCodes, jourISO: jourISO, depuisISO: depuisISO, plusJours: plusJours };
 });
