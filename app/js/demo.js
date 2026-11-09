@@ -70,6 +70,7 @@
           modele: [{ id: 'inventaire', libelle: 'Inventaire des effets personnels' }, { id: 'livret', libelle: 'Livret d’accueil remis' }, { id: 'droits', libelle: 'Information sur les droits' }, { id: 'personne-confiance', libelle: 'Personne de confiance recueillie' }] },
         { id: 'projet-sortie', libelle: 'Projet de sortie', type: 'texte', entite: 'patient', module: 'suivi', services: [], saisie: ['IDE', 'CADRE'], lecture: [] },
         { id: 'vigilance-orga', libelle: 'Vigilance organisationnelle', type: 'notes', entite: 'patient', module: 'patients', protection: 'cle', services: [], saisie: ['IDE', 'CADRE'], lecture: ['IDE', 'CADRE'] },
+        { id: 'jours-avant-sortie', libelle: 'Jours avant la sortie', type: 'formule', formule: 'SIERREUR(-JOURS([Sortie prévisionnelle]); "")', entite: 'patient', module: 'patients', services: ['U1'], saisie: [], lecture: [], par: { role: 'CADRE', services: ['U1'] } },
         { id: 'tel-pro', libelle: 'Téléphone professionnel', type: 'telephone', entite: 'medecin', module: 'suivi', services: [], saisie: ['CADRE', 'SECRETAIRE'], lecture: [] },
         { id: 'jours-presence', libelle: 'Jours de présence habituels', type: 'choixMultiple', choix: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'], entite: 'medecin', module: 'suivi', services: [], saisie: ['CADRE', 'SECRETAIRE'], lecture: [] }]);
       // Réglages des données (0.18.0) : une couleur par psychiatre de 1re ligne, sortie prévisionnelle proche, check-list
@@ -90,6 +91,22 @@
       cfg('capacites', { services: {
         U1: { lits: 8, chambresSeules: 4, chambresDoubles: 2, fermetures: [{ id: 'f1', debut: jC(-3), fin: jC(10), lits: 2, motif: 'Travaux de peinture (fictif)' }], reserves: [] },
         U2: { lits: 6, chambresSeules: 6, chambresDoubles: 0, fermetures: [], reserves: [{ id: 'r1', debut: jC(-2), fin: jC(5), lits: 1, motif: 'Permission longue (fictif)' }] } } });
+      // Vue d'ensemble (0.19, fictive) : vue médicale de l'établissement, feuille du staff de l'Unité 1 (groupes : entrés depuis
+      // dix jours, entrés depuis une date et une heure, présents depuis plus de 30 jours ; notes, check-list, calcul),
+      // médecins (téléphone et jours de présence ajoutés), équipe ; une colonne réservée aux IDE et cadres
+      cfg('vuesEnsemble', { vues: [
+        { id: 'medicale', nom: 'Vue médicale', lignes: 'patients', services: [], roles: [], perimetre: 'hospitalises', tri: { colonne: 'chambre', sens: 1 },
+          colonnes: [{ code: 'patient' }, { code: 'chambre' }, { code: 'entree' }, { code: 'mode' }, { code: 'medecin1', affichage: 'initiales' }, { code: 'psychologue' }, { code: 'suiviAS' }, { code: 'dernierEntretien' }, { code: 'contrat' }, { code: 'sortiePrevue' }],
+          groupes: [], synthese: ['effectif', 'places', 'sorties'] },
+        { id: 'staff-u1', nom: 'Staff Unité 1', lignes: 'patients', services: ['U1'], roles: [], perimetre: 'hospitalises', tri: { colonne: 'entree', sens: -1 }, par: { role: 'CADRE', services: ['U1'] },
+          colonnes: [{ code: 'patient' }, { code: 'chambre' }, { code: 'jours' }, { code: 'mode' }, { code: 'medecin1' }, { code: 'referents' }, { code: 'c:demarches' }, { code: 'c:accueil' }, { code: 'c:jours-avant-sortie' }, { code: 'sortiePrevue' },
+            { code: 'c:activites', roles: ['IDE', 'CADRE'], regles: [{ si: { op: 'vide' }, couleur: 'gris', rendu: 'fond', libelle: 'Aucune activité' }] }],
+          groupes: [{ id: 'entrants', titre: 'Entrés depuis le ' + jC(-9).split('-').reverse().join('/') + ' 14 h', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'apresLe', valeur: jC(-9) + 'T14:00' }] },
+            { id: 'tres-longs', titre: 'Présents depuis plus de 90 jours', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'depuisPlusDe', n: 90 }] },
+            { id: 'longs', titre: 'Présents depuis plus de 30 jours', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'depuisPlusDe', n: 30 }] }],
+          autres: { titre: 'Autres patients' }, synthese: ['effectif', 'places', 'sorties', 'parMode', 'parMedecin', 'ageMoyen'], instantane: { roles: ['CADRE'] } },
+        { id: 'medecins', nom: 'Médecins', lignes: 'medecins', services: [], roles: [], colonnes: [{ code: 'nom' }, { code: 'initiales' }, { code: 'fonction' }, { code: 'statut' }, { code: 'presence' }, { code: 'c:tel-pro' }, { code: 'c:jours-presence' }, { code: 'patients1' }, { code: 'patients2' }, { code: 'retards' }], groupes: [], synthese: [] },
+        { id: 'equipe', nom: 'Équipe', lignes: 'agents', services: [], roles: ['CADRE'], colonnes: [{ code: 'nom' }, { code: 'roles' }, { code: 'groupes' }, { code: 'referent' }, { code: 'absence' }, { code: 'taches' }], groupes: [], synthese: [] }] });
       // Véhicules : deux données ajoutées par l'administrateur (fictives)
       cfg('vehicules', { champs: [{ id: 'carte-carburant', libelle: 'Carte carburant à bord', type: 'ouiNon' }, { id: 'revision', libelle: 'Prochaine révision', type: 'date' },
         { id: 'equipement', libelle: 'Équipement', type: 'liste', choix: ['Rampe d’accès', 'Siège enfant', 'Galerie de toit'] }] });

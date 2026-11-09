@@ -139,7 +139,7 @@
 
   // ------------------------------------------------------------ Rendu des couleurs
   /** Classe CSS d'une couleur (fond, texte ou pastille) ; '' sans couleur. */
-  function classeCouleur(r) { return r ? (r.rendu === 'texte' ? 'ct-' : r.rendu === 'pastille' ? 'cp ' + 'cpv-' : 'cf-') + r.couleur : ''; }
+  function classeCouleur(r) { return !r || r.rendu === 'pastille' ? '' : (r.rendu === 'texte' ? 'ct-' : 'cf-') + r.couleur; }
   /** Pastille ou symbole (noir et blanc) précédant le contenu d'une case colorée. */
   function marque(r) { return r ? h('span', { class: 'marque-couleur' + (r.rendu === 'pastille' ? ' pastille-couleur cpv-' + r.couleur : ''), 'aria-hidden': 'true', 'data-symbole': r.symbole }, r.rendu === 'pastille' ? '' : '') : null; }
   /** Légende : [{ couleur, symbole, libelle }]. */
