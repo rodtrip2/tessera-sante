@@ -1136,6 +1136,18 @@
     if (data.op) data.op = CH().operation(c, data.op); else data.valeur = CH().valeur(c, data.valeur);
     data.journal = CH().journalDe(c);
   }
+  /**
+   * Retrait d'une note ou d'un élément libre de check-list (décision du porteur du 9 novembre 2026) : par son auteur, le
+   * cadre ou l'administrateur. La note retirée reste dans l'historique.
+   */
+  function controlerRetrait(s, type, data) {
+    var roles = s.roles();
+    if (roles.indexOf('ADMIN') >= 0 || roles.indexOf('CADRE') >= 0) return;
+    var v = type === 'COMPLEMENT' ? (((s.etat && s.etat.patients && s.etat.patients[data.patientId]) || {}).complements || {})[data.champ]
+      : (((s.valeurs()[data.entite] || {})[data.id]) || {})[data.champ];
+    var l = Array.isArray(v) ? v : (v && v.elements) || [], x = l.filter(function (e) { return e.id === data.op.retrait; })[0];
+    if (x && x.par && x.par !== s.utilisateur.id) throw new Error('Seuls son auteur et le cadre retirent cet élément.');
+  }
   /** Valeurs des données ajoutées portées par les saisies `VALEUR` (champs.js, reduireValeurs), recalculées au besoin. */
   Session.prototype.valeurs = function () {
     if (!this._valeurs || this._valeurs.n !== this.evts.length || this._valeurs.etat !== this.etat) {
@@ -1164,6 +1176,7 @@
     }
     // Aperçu d'un rôle : rien n'est enregistré (seules les traces techniques des opérations réellement faites passent)
     if (this.apercu && type !== 'COMPTE') throw new Error('Aperçu de l’affichage du rôle « ' + this.apercu.libelle + ' » : aucune saisie n’est enregistrée. Revenez à votre affichage (liste « Affichage » en haut de l’écran) pour saisir.');
+    if ((type === 'VALEUR' || type === 'COMPLEMENT') && data && data.op && data.op.retrait && !(options && options.sansControle)) controlerRetrait(this, type, data);
     if (type === 'VALEUR') { if (!(options && options.sansControle)) controlerValeur(this, data); }
     else {
       if (!(options && options.sansControle) && !this.peut(type) && !permisPourSoi(this, type, data)) throw new Error("Votre rôle ne permet pas cette action.");

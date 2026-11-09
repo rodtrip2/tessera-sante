@@ -93,6 +93,14 @@
       return (!v.roles.length || v.roles.some(function (r) { return roles.indexOf(r) >= 0; })) && (!v.services.length || v.services.some(function (s) { return sv.indexOf(s) >= 0; }));
     });
   }
+  /** Durée de conservation des instantanés (mois ; 0 : sans limite), réglée par l'établissement (décision 20). */
+  function conservationMois(config) { var n = Math.round(+(((config && config.vuesEnsemble) || {}).conservationMois)); return isFinite(n) && n > 0 && n <= 600 ? n : 0; }
+  /** Instantané au-delà de la durée de conservation (à retirer selon la procédure de l'établissement). */
+  function auDelaConservation(config, i, maintenant) {
+    var m = conservationMois(config); if (!m || !i || !i.entete) return false;
+    var d = new Date(maintenant || Date.now()); d.setMonth(d.getMonth() - m);
+    return Date.parse(i.entete.le) < d.getTime();
+  }
   function vueDe(config, id) { return vues(config).filter(function (v) { return v.id === id; })[0] || null; }
   /** Le cadre règle les vues de ses services (services non vides, tous à lui) ; l'administrateur, toutes. */
   function peutRegler(v, compte) {
@@ -450,5 +458,5 @@
   registre.declarer(contrat);
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, LIGNES: LIGNES, PERIMETRES: PERIMETRES, SYNTHESE: SYNTHESE, vuesProposees: vuesProposees, normaliser: normaliser, vues: vues, vuesPour: vuesPour, vueDe: vueDe,
     peutRegler: peutRegler, peutClore: peutClore, controlerCadre: controlerCadre, catalogue: catalogue, colonneDe: colonneDe, lignes: lignes, cellule: cellule, ranger: ranger, synthese: synthese,
-    preparerInstantane: preparerInstantane, instantanes: instantanes, jourISO: jourISO };
+    preparerInstantane: preparerInstantane, instantanes: instantanes, conservationMois: conservationMois, auDelaConservation: auDelaConservation, jourISO: jourISO };
 });

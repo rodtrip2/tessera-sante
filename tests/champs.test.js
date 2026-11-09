@@ -187,6 +187,12 @@ test('Valeurs ajoutées (VALEUR) : journal du module de rattachement, clé propr
   assert.ok(!(as.valeurs().patient.P1 || {}).projet);
   await ide.synchroniser();
   assert.equal(ide.valeurs().medecin['m-alpha']['tel-pro'], '01 23 45 67 89');
+  // Retrait d'une note : par son auteur ou le cadre seulement
+  await a2.creerComptes([{ nom: 'IDE 2 (fictif)', login: 'ide.d', motDePasse: 'mot de passe ide d', roles: ['IDE'], services: ['U1'] }]);
+  const ide2 = await connecter(racine, 'ide.d', 'mot de passe ide d');
+  await assert.rejects(ide2.enregistrer('VALEUR', { entite: 'patient', id: 'P1', champ: 'projet', op: { retrait: 'n1' } }), /auteur/);
+  await ide.synchroniser();
+  await ide.enregistrer('VALEUR', { entite: 'patient', id: 'P1', champ: 'projet', op: { retrait: 'n1' } });
   // COMPLEMENT : notes et check-lists aussi dans la fiche patient (module Patients)
   await ide.enregistrer('COMPLEMENT', { patientId: 'P1', champ: 'sorties', valeur: true });
   await ide.synchroniser();

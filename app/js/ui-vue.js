@@ -316,11 +316,19 @@
   function vueInstantanes() {
     var st = session().etatModule('vue') || { instantanes: {} }, ouvertes = mesVues().map(function (v) { return v.id; });
     var l = V.instantanes(st).filter(function (i) { return estAdmin() || ouvertes.indexOf(i.entete.vue) >= 0; });
-    return h('section', { class: 'pile' }, h('h2', { text: 'Instantanés' }),
+    var mois = V.conservationMois(cfg()), anciens = l.filter(function (i) { return V.auDelaConservation(cfg(), i, Date.now()); }).length;
+    var reglage = null;
+    if (estAdmin()) {
+      var n = h('input', { type: 'number', min: 0, max: 600, value: mois, class: 'court', 'aria-label': 'Durée de conservation (mois)' });
+      reglage = h('div', { class: 'actions gauche' }, h('span', { text: 'Durée de conservation des instantanés :' }), n, h('span', { text: 'mois (0 : sans limite)' }),
+        h('button', { class: 'btn petit', type: 'button', onclick: async function () { var x = JSON.parse(JSON.stringify(cfg().vuesEnsemble || {})); if (!Array.isArray(x.vues)) x.vues = V.vuesProposees(); x.conservationMois = Math.max(0, Math.round(+n.value) || 0); await U.enregistrerConfig([['vuesEnsemble', x]]); } }, 'Enregistrer'));
+    }
+    return h('section', { class: 'pile' }, h('h2', { text: 'Instantanés' }), reglage,
+      anciens ? h('div', { class: 'alerte', text: anciens + ' instantané(s) au-delà de la durée de conservation (' + mois + ' mois) : à retirer selon la procédure de l’établissement (copie de sauvegarde, puis purge par le service informatique).' }) : null,
       h('p', { class: 'muted', text: 'Feuilles closes, gardées telles qu’elles étaient au moment de la clôture. Chacun n’en revoit que les colonnes qu’il pouvait voir (les valeurs sont rangées dans le journal de chaque donnée).' }),
       l.length ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Vue', 'Clos le', 'Par', 'Lignes', 'Annotations', ''].map(function (x) { return h('th', { text: x }); }))),
         h('tbody', {}, l.map(function (i) {
-          return h('tr', {}, h('td', { text: i.entete.nom }), h('td', { text: U.date(Date.parse(i.entete.le)) }), h('td', { text: session().nomAuteur(i.par) }),
+          return h('tr', { class: V.auDelaConservation(cfg(), i, Date.now()) ? 'ancienne' : '' }, h('td', { text: i.entete.nom }), h('td', { text: U.date(Date.parse(i.entete.le)) }), h('td', { text: session().nomAuteur(i.par) }),
             h('td', { text: String(i.entete.groupes.reduce(function (s, g) { return s + g.lignes.length; }, 0)) }), h('td', { text: String(i.notes.length) }),
             h('td', {}, h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleInstantane(i); } }, 'Ouvrir')));
         })))) : h('div', { class: 'panneau vide', text: 'Aucun instantané : préparez puis closez une feuille depuis une vue.' }));
