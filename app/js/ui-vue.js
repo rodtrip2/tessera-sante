@@ -96,7 +96,7 @@
   function editer(td, col, l, cell) {
     var e = col.edition, s = session(), p = l.p;
     if (e.type === 'champ') {
-      var c = col.champ, ent = c.entite, id = ent === 'patient' ? p.id : l.m.id;
+      var c = col.champ, ent = c.entite, id = ent === 'patient' ? p.id : ent === 'medecin' ? l.m.id : l.a.id;
       if (CH.CUMULATIFS[c.type] || c.type === 'dateFenetre' || c.type === 'choixMultiple') return modaleChamp(c, ent, id, titreLigne(l));
       return editerDansCase(td, col, l, cell.v, function (v) { return U.champs.enregistrer(c, ent, id, { valeur: v }); });
     }
@@ -241,6 +241,12 @@
           if (cell.erreur) td.title = cell.erreur;
           if (cell.titre && cell.titre !== cell.lib) td.title = cell.titre;
           td.appendChild(contenuCase(cell, x.col));
+          // Nom d'un agent ou d'un médecin : ouvre sa fiche (données ajoutées), sans changer de fenêtre
+          if (!o.impression && x.col.code === 'nom' && (l.a || l.m)) {
+            var lien = h('button', { class: 'btn lien', type: 'button', title: 'Ouvrir la fiche', text: cell.lib });
+            lien.addEventListener('click', function (ev) { ev.stopPropagation(); if (l.a) U.champs.ficheAgent(l.a); else U.champs.ficheMedecin(l.m); });
+            U.vider(td).appendChild(lien);
+          }
           caseCouleur(td, cell.couleur);
           if (!o.impression && modifiable(x.col, l)) {
             td.classList.add('modifiable'); td.tabIndex = 0;
@@ -433,7 +439,7 @@
       ajout.addEventListener('change', function () { if (ajout.value) { v.colonnes.push({ code: ajout.value, roles: [], affichage: 'nom', regles: [] }); dessinerCols(); dessinerGroupes(); } });
       zoneCols.appendChild(h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Colonne', 'Visible par', 'Affichage', 'Largeur (px)', 'Couleurs', ''].map(function (t) { return h('th', { text: t }); }))), tb)));
       zoneCols.appendChild(h('div', { class: 'actions gauche' }, ajout,
-        h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleDonnees(); } }, 'Données ajoutées…'),
+        h('button', { class: 'btn petit', type: 'button', onclick: function () { U.champs.modaleDefinitions({ entite: lignes.value === 'patients' ? 'patient' : lignes.value === 'medecins' ? 'medecin' : 'agent' }); } }, 'Données ajoutées…'),
         h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleCalcul(lignes.value, function (code) { v.colonnes.push({ code: code, roles: [], affichage: 'nom', regles: [] }); }); } }, '+ Colonne calculée…')));
       c.forEach(function (x) { selTri.appendChild(h('option', { value: x.code, text: x.libelle, selected: v.tri.colonne === x.code })); });
     }
@@ -537,17 +543,6 @@
     d.appendChild(h('div', { class: 'pied' }, h('button', { class: 'btn primaire', type: 'button', onclick: function () { d.close(); d.remove(); } }, 'Valider')));
     document.body.appendChild(d); d.showModal();
   }
-  /** Données ajoutées réglées par le cadre (ses services) ou l'administrateur, dans une fenêtre superposée. */
-  function modaleDonnees() {
-    var d = h('dialog', { class: 'large', 'aria-label': 'Données ajoutées' });
-    function contenu() { return U.champs.panneauDefinitions({ cadre: !estAdmin(), titre: 'Données ajoutées', apres: function () { setTimeout(function () { U.vider(zc).appendChild(contenu()); }, 50); } }); }
-    var zc = h('div', {}, contenu());
-    d.appendChild(h('div', { class: 'tete' }, h('h2', { text: 'Données ajoutées' })));
-    d.appendChild(h('div', { class: 'corps' }, zc));
-    d.appendChild(h('div', { class: 'pied' }, h('button', { class: 'btn primaire', type: 'button', onclick: function () { d.close(); d.remove(); } }, 'Fermer')));
-    document.body.appendChild(d); d.showModal();
-  }
-
   // ------------------------------------------------------------ Colonne calculée : formules prêtes, aide à la rédaction
   /** Aide : fonctions (explication, exemple), colonnes de la ligne insérées au clic, aperçu du résultat. */
   function aide(zoneTexte, entite) {

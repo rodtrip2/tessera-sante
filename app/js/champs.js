@@ -37,7 +37,12 @@
   var TYPES_SIMPLES = ['ouiNon', 'texte', 'liste', 'date', 'nombre'];
   /** Types dont la valeur se construit par opérations (ajout, retrait, case cochée). */
   var CUMULATIFS = { notes: 1, checklist: 1 };
-  var ENTITES = { patient: 'Patient', medecin: 'Médecin' };
+  var ENTITES = { patient: 'Patient', medecin: 'Médecin', agent: 'Agent' };
+  /*
+   * Données d'un agent (0.20.0, décision du porteur du 9 novembre 2026, en attendant le module Agents) : données du
+   * personnel, toujours sous clé propre, visibles et modifiées par le cadre seul par défaut ; avertissement à la création.
+   */
+  var AVERTISSEMENT_AGENT = 'Données du personnel : à limiter au strict nécessaire à l’organisation du service (ni donnée de santé, ni évaluation, ni appréciation). Avant usage : avis du délégué à la protection des données, inscription au registre des traitements, information des agents et, selon l’établissement, des représentants du personnel. La donnée est protégée par une clé propre, remise aux seuls rôles cochés (le cadre par défaut).';
   var IMPORTANCES = { info: 'Information', important: 'Important', urgent: 'Urgent' };
   var PROTECTIONS = { interface: 'Droits appliqués par l’écran (plus restreints que le module)', cle: 'Clé propre à la donnée' };
   // Libellés qui évoquent une donnée clinique (rappel à la création : aucune donnée clinique dans Tessera)
@@ -55,11 +60,13 @@
     var d = defaut || {}, entite = ENTITES[c.entite] ? c.entite : (d.entite || 'patient');
     var x = {
       id: c.id, libelle: texte(c.libelle, 60), type: c.type, entite: entite,
-      module: MOTIF_ID.test(c.module || '') ? c.module : (d.module || (entite === 'medecin' ? 'suivi' : 'patients')),
+      module: entite === 'agent' ? 'vue' : MOTIF_ID.test(c.module || '') ? c.module : (d.module || (entite === 'medecin' ? 'suivi' : 'patients')),
       choix: c.type === 'liste' || c.type === 'choixMultiple' ? (Array.isArray(c.choix) ? c.choix.map(function (v) { return texte(v, 60); }).filter(Boolean) : []) : [],
       services: liste(c.services), saisie: liste(c.saisie), lecture: liste(c.lecture), actif: c.actif !== false,
-      protection: c.clinique === true || c.protection === 'cle' ? 'cle' : 'interface', tiers: c.tiers === true, clinique: c.clinique === true
+      protection: c.clinique === true || c.protection === 'cle' || entite === 'agent' ? 'cle' : 'interface', tiers: c.tiers === true, clinique: c.clinique === true
     };
+    // Donnée d'un agent : le cadre seul par défaut (rôles qui la voient et la modifient)
+    if (entite === 'agent') { if (!x.lecture.length) x.lecture = ['CADRE']; if (!x.saisie.length) x.saisie = ['CADRE']; }
     if (c.type === 'checklist') {
       x.modele = (Array.isArray(c.modele) ? c.modele : []).filter(function (e) { return e && MOTIF_ID.test(e.id || '') && texte(e.libelle); })
         .map(function (e) { return { id: e.id, libelle: texte(e.libelle, 80), actif: e.actif !== false }; });
@@ -279,7 +286,7 @@
    * daté de chaque valeur (`historique[entite][id][champ]`). `annules` : saisies annulées (réduction du journal).
    */
   function reduireValeurs(evts, annules) {
-    var res = { patient: {}, medecin: {}, historique: { patient: {}, medecin: {} } };
+    var res = { patient: {}, medecin: {}, agent: {}, historique: { patient: {}, medecin: {}, agent: {} } };
     // Lots (démonstration, imports) dépliés comme par la réduction du journal : mêmes identifiants
     var tous = [];
     (evts || []).forEach(function (e) {
@@ -363,7 +370,7 @@
   }
 
   return {
-    TYPES: TYPES, TYPES_SIMPLES: TYPES_SIMPLES, CUMULATIFS: CUMULATIFS, ENTITES: ENTITES, IMPORTANCES: IMPORTANCES, PROTECTIONS: PROTECTIONS,
+    TYPES: TYPES, TYPES_SIMPLES: TYPES_SIMPLES, CUMULATIFS: CUMULATIFS, ENTITES: ENTITES, AVERTISSEMENT_AGENT: AVERTISSEMENT_AGENT, IMPORTANCES: IMPORTANCES, PROTECTIONS: PROTECTIONS,
     normaliser: normaliser, definitions: definitions, definition: definition, peutVoir: peutVoir, peutSaisir: peutSaisir,
     cleDe: cleDe, clesPropres: clesPropres, aDroitCle: aDroitCle, journalDe: journalDe, typeSaisie: typeSaisie,
     valeur: valeur, operation: operation, appliquerOperation: appliquerOperation, notes: notes, importanceMax: importanceMax, checklist: checklist,

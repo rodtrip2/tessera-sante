@@ -110,7 +110,9 @@
       h('div', { class: 'grille-2' }, h('label', {}, 'Présent du (intérimaire, vacation)', debut), h('label', {}, 'au (facultatif)', fin)),
       h('label', {}, 'Compte Tessera rattaché' + (admin ? '' : ' (administrateur)'), compte),
       h('small', { class: 'muted', text: T.t('Changer le nom ou rattacher un compte ne coupe aucun lien : les saisies déjà faites (fiches patients, présences, entretiens, Isocont) suivent le médecin. Les anciens noms restent reconnus.') + (m && m.anciensNoms.length ? ' Anciens noms : ' + m.anciensNoms.join(', ') + '.' : '') }),
-      h('label', { class: 'case' }, actif, h('span', { text: 'En activité (proposé dans les listes de choix)' }))), boutons, { large: true });
+      h('label', { class: 'case' }, actif, h('span', { text: 'En activité (proposé dans les listes de choix)' })),
+      // Données ajoutées du médecin (0.20.0) : saisies et réglées depuis sa fiche
+      T.entite && m && !confirmation && U.champs ? U.champs.blocValeurs(T.entite, m.id) : (T.entite && U.champs && !m ? h('div', { class: 'actions gauche' }, U.champs.boutonGerer(T.entite)) : null)), boutons, { large: true });
   }
 
   // ------------------------------------------------------------ Champ « médecin » commun (fiche patient, Isocont, Suivi médical)
@@ -243,7 +245,7 @@
   }
 
   function tel(x) { return x; }
-  U.medecins = creerUI(SIC.medecins, { t: tel,
+  U.medecins = creerUI(SIC.medecins, { t: tel, entite: 'medecin',
     description: 'Liste commune à Tessera : médecins de 1re et 2e ligne de la fiche patient, psychiatre décisionnaire d’Isocont, présences et entretiens du Suivi médical. Les médecins n’ont pas besoin de compte ; leur nom pourra être rattaché plus tard à leur compte. Un intérimaire sort des listes de choix après sa période ; son nom reste dans l’historique.',
     nomsSaisis: function () {
       var res = [], st = U.st() || {}, push = function (n, src) { if (n) res.push({ nom: n, source: src }); };
