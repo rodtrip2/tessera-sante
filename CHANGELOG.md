@@ -1,5 +1,18 @@
 # Journal des modifications — Tessera Santé
 
+## 0.20.0 — 9 novembre 2026
+
+Retours du porteur sur la 0.19.0 (décisions du 9 novembre 2026).
+
+- **Impression en couleur effective** : les fonds et les pastilles s'impriment quand « Couleur » est choisi (consigne d'impression des couleurs ajoutée) ; « Noir et blanc » inchangé.
+- **Liste commune des psychologues**, sur le modèle de celle des médecins : fonction (psychologue clinicien, neuropsychologue, psychologue du travail, autre), services, statut, compte rattaché ; gérée par l'administrateur, le cadre et la secrétaire ; psychologue non répertorié ajouté par tout agent puis confirmé, réuni ou refusé ; **Noms à rattacher** pour les noms déjà saisis en texte libre. **Un psychologue par patient**, choisi dans la fiche patient, repris dans la liste des patients et la Vue d'ensemble. Onglet *Psychologues* du Suivi médical et *Administration*.
+- **Données ajoutées créées et gérées depuis les fiches** : bouton « Gérer les données ajoutées… » dans la fiche patient, la fiche d'un médecin et la nouvelle **fiche d'un agent** (*Administration → Comptes → Fiche*, et agents d'un groupe sans compte). **Données du personnel** : avertissement sur leur nature de données de gestion du personnel, **clé propre obligatoire**, visibles et modifiées par le cadre seul par défaut ; colonnes possibles dans les vues de lignes « Agents » (ex. AFGSU, habilitations).
+- **Vue d'ensemble** : les données qui ne peuvent pas être ajoutées en colonne apparaissent grisées dans la liste, avec la raison (clé propre pas encore créée, rôles non autorisés, donnée d'un autre type de lignes) ; les titres de colonnes reviennent à la ligne quand la colonne est étroite.
+- **Suivi médical — un seul jour d'une série** : une case d'une présence répétée propose « Modifier ce jour seulement », « Retirer ce jour seulement », « Modifier toute la série » et « Arrêter la série à partir de ce jour » (une saisie d'un jour : « Modifier », « Retirer ») ; « Ajouter autre chose ce jour » ; jours écartés rétablis d'un clic ; **astérisque** sur les jours modifiés (détail au survol) dans les grilles par service et par médecin.
+- **Largeur des colonnes réglable dans les tableaux** (glisser le bord droit du titre, double-clic : largeur automatique) : **liste des patients** (largeurs gardées avec l'affichage, celui de l'agent ou celui de l'établissement) ; tableaux d'**Isolement et contention** (réglées par l'administrateur pour l'établissement et par le cadre pour ses services, réglage commun `largeursColonnes`) ; **autres tableaux** (Suivi médical, Agenda, Véhicules, administration) : préférence de l'agent, qui le suit sur tous les postes. Grilles (agenda, planning des véhicules, présences médicales) écartées ; Vue d'ensemble inchangée (réglage de la vue).
+- Démonstration : liste des psychologues (dont un à confirmer), psychologues des patients, données du personnel (AFGSU avec couleur d'échéance, habilitations) dans la vue *Équipe*, série d'un médecin modifiée un jeudi et retirée un vendredi.
+- Tests : 263 au vert (nouveau fichier `largeurs.test.js`, tests des psychologues, des données du personnel et des jours de série) ; écrans vérifiés dans Chrome ; architecture, fiche projet, fiche technique, éléments RGPD et guide utilisateur à jour.
+
 ## 0.19.0 — 9 novembre 2026
 
 Nouveau module **Vue d'ensemble** et ses fondations au socle (plan relu par le porteur le 9 novembre 2026, 34 décisions ; développé dans la branche `vue-d-ensemble`, étapes 0.18.0 à 0.19.5).

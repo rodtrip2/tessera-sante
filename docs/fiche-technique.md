@@ -121,13 +121,15 @@ L'agent reçoit la clé d'un module dès qu'un de ses services l'active. **À l'
 
 Les modules qui concernent des patients (Isocont, Agenda) **dépendent** du module Patients : identité, âge, mode d'hospitalisation, séjour. Le socle charge Patients en premier ; un agent qui a accès à Isocont ou à l'Agenda dans un service reçoit aussi la clé de Patients, en lecture. Créer ou corriger une fiche patient est un accès distinct, réglable (IDE, secrétaire et cadre par défaut).
 
-### Champs ajoutés, réglages des données, Vue d'ensemble *(existant, version 0.19.0)*
+### Champs ajoutés, réglages des données, Vue d'ensemble *(existant, versions 0.19.0 et 0.20.0)*
 
 - **Champs ajoutés** (`champs.js`) : données ajoutées par l'administrateur ou par le cadre pour ses services (patients, médecins), rattachées à un module : leurs valeurs sont des saisies de ce module, chiffrées par sa clé (saisie `COMPLEMENT` de la fiche patient, ou `VALEUR`). Droits propres à chaque donnée (« visible par », « modifiée par »), appliqués par l'interface, ou **clé propre à la donnée** (`d-<identifiant>`, journal `modules\d-<identifiant>\`) remise aux seuls rôles réglés, avec les mêmes générations et la même attestation que les clés de module. Option « donnée clinique » réservée à l'administrateur (clé propre obligatoire) ; case « information concernant un tiers » qui exclut la donnée de l'export du droit d'accès.
 - **Réglages des données** (`couleurs.js`) : règles de couleur et délais attachés à une donnée, appliqués partout ; établissement remplaçable par service.
 - **Vue d'ensemble** (`module-vue.js`) : module à clé propre ; une case modifiée l'est dans le module propriétaire de la donnée, avec ses contrôles. **Instantanés** : une part par journal des colonnes (chiffrée par la clé de ce journal) et un en-tête ; un agent ne déchiffre que les parts des journaux dont il détient la clé.
 - **Formules** (`formules.js`) : interprète écrit à la main, sans évaluation de code (la politique de sécurité de contenu l'interdit) ; une formule ne lit que les colonnes de sa ligne visibles par l'agent.
-- **Impression** : choix couleur ou noir et blanc ; en PDF, couleurs ramenées au gris et page désaturée par un aplat en mode de fusion « Saturation » (papier à en-tête compris).
+- **Données du personnel** (0.20.0) : données ajoutées à la fiche d'un agent ; clé propre obligatoire (seuls les rôles cochés, le cadre par défaut, la détiennent).
+- **Largeur des colonnes** (`largeurs.js`, 0.20.0) : liste des patients avec l'affichage ; Isolement et contention dans le réglage commun `largeursColonnes` (administrateur pour l'établissement, cadre pour ses services, contrôlé par la session) ; autres tableaux dans les préférences chiffrées de l'agent. Aucune donnée de patient.
+- **Impression** : choix couleur ou noir et blanc (couleurs des fonds imprimées : `print-color-adjust: exact`) ; en PDF, couleurs ramenées au gris et page désaturée par un aplat en mode de fusion « Saturation » (papier à en-tête compris).
 
 ### Échanges entre modules
 
