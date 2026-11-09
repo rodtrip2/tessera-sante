@@ -85,6 +85,11 @@
         'c:accueil': { '*': { regles: [{ si: { op: 'complete' }, couleur: 'vert', rendu: 'fond', libelle: 'Check-list complète' }, { si: { op: 'avancementMoins', n: 50 }, couleur: 'orange', rendu: 'fond', libelle: 'Moins de la moitié faite' }] } },
         'c:demarches': { '*': { regles: [{ si: { op: 'importance', valeur: 'urgent' }, couleur: 'rouge', rendu: 'texte', libelle: 'Note urgente' }, { si: { op: 'importance', valeur: 'important' }, couleur: 'orange', rendu: 'texte', libelle: 'Note importante' }] } }
       });
+      // Capacité d'accueil (0.18.2, fictive) : deux lits fermés pour travaux dans l'Unité 1, un lit réservé dans l'Unité 2
+      var jC = function (n) { return SIC.model.dateLocaleISO(now + n * J); };
+      cfg('capacites', { services: {
+        U1: { lits: 8, chambresSeules: 4, chambresDoubles: 2, fermetures: [{ id: 'f1', debut: jC(-3), fin: jC(10), lits: 2, motif: 'Travaux de peinture (fictif)' }], reserves: [] },
+        U2: { lits: 6, chambresSeules: 6, chambresDoubles: 0, fermetures: [], reserves: [{ id: 'r1', debut: jC(-2), fin: jC(5), lits: 1, motif: 'Permission longue (fictif)' }] } } });
       // Véhicules : deux données ajoutées par l'administrateur (fictives)
       cfg('vehicules', { champs: [{ id: 'carte-carburant', libelle: 'Carte carburant à bord', type: 'ouiNon' }, { id: 'revision', libelle: 'Prochaine révision', type: 'date' },
         { id: 'equipement', libelle: 'Équipement', type: 'liste', choix: ['Rampe d’accès', 'Siège enfant', 'Galerie de toit'] }] });

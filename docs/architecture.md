@@ -308,6 +308,12 @@ Plan relu par le porteur le 9 novembre 2026 (*Tessera Santé — Plan du module 
 - Noir et blanc à l'écran d'impression : classe `impression-nb` (page en nuances de gris, symbole de chaque couleur affiché devant la case, légende).
 - **PDF** (`pdf.js`, option `nb`, appliquée selon la préférence de l'agent aux PDF du registre, des statistiques et du décompte) : couleurs ramenées à leur nuance de gris de même luminance, et aplat gris en mode de fusion « Saturation » sur chaque page, qui désature aussi le **papier à en-tête**.
 
+### Capacité d'accueil des services (0.18.2, décision 27, `capacites.js`)
+
+- Réglage du socle `capacites` : par service, lits, chambres seules et doubles (facultatif), **fermetures temporaires** datées avec motif court, **lits réservés** datés (ex. patient en permission longue) ; la chambre de soins intensifs n'est pas comptée comme un lit.
+- **Places disponibles = lits ouverts − lits réservés − patients présents** (négatif : suroccupation) ; sorties prévues lues dans la sortie prévisionnelle des séjours ; lues par le bandeau de synthèse de la Vue d'ensemble.
+- Réglée dans *Administration → Patients → Capacité d'accueil* par l'administrateur, et par le **cadre pour ses services** (`reglages.cadre.capacites`, `capacites.controlerCadre`).
+
 ## 8. Imports
 
 ### Liste des patients exportée du DPI (décisions des 4 au 7 novembre 2026)

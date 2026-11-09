@@ -383,6 +383,51 @@
       } }], { large: true });
   }
 
+
+  // ------------------------------------------------------------ Capacité d'accueil des services (0.18.2)
+  /**
+   * Capacité d'accueil : lits, chambres seules et doubles, fermetures temporaires datées (motif court), lits réservés
+   * (ex. patient en permission longue). L'administrateur règle tous les services, le cadre les siens. options : { cadre }.
+   */
+  function panneauCapacites(options) {
+    var o = options || {}, cfg = U.config(), K = SIC.capacites, admin = roles().indexOf('ADMIN') >= 0;
+    var tous = JSON.parse(JSON.stringify(cfg.capacites || {})); tous.services = tous.services || {};
+    var mes = admin ? null : (session().utilisateur.services || []);
+    var svs = U.tousServices().filter(function (s) { return !mes || mes.indexOf(s.code) >= 0; });
+    var zone = h('div', { class: 'pile' });
+    function nb(v, aria, maj) { var i = h('input', { type: 'number', min: 0, max: 999, value: v || 0, class: 'court', 'aria-label': aria }); i.addEventListener('input', function () { maj(+i.value || 0); }); return i; }
+    function periodes(x, cle, titre) {
+      var corps = h('tbody');
+      function dessiner() {
+        U.vider(corps);
+        (x[cle] || []).forEach(function (p, i) {
+          var deb = h('input', { type: 'date', value: p.debut || '', 'aria-label': 'Du' }), fin = h('input', { type: 'date', value: p.fin || '', 'aria-label': 'Au' });
+          var l = h('input', { type: 'number', min: 1, value: p.lits || 1, class: 'court', 'aria-label': 'Lits' }), m = h('input', { type: 'text', maxlength: 80, value: p.motif || '', placeholder: 'Motif court', 'aria-label': 'Motif' });
+          [deb, fin, l, m].forEach(function (e) { e.addEventListener('input', function () { p.debut = deb.value; p.fin = fin.value; p.lits = +l.value || 1; p.motif = m.value; }); });
+          corps.appendChild(h('tr', {}, h('td', {}, deb), h('td', {}, fin), h('td', {}, l), h('td', {}, m), h('td', {}, h('button', { class: 'btn petit danger', type: 'button', onclick: function () { x[cle].splice(i, 1); dessiner(); } }, 'Retirer'))));
+        });
+        if (!(x[cle] || []).length) corps.appendChild(h('tr', {}, h('td', { colspan: 5, class: 'muted', text: 'Aucune.' })));
+      }
+      dessiner();
+      return h('div', {}, h('b', { text: titre }), h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Du', 'Au (facultatif)', 'Lits', 'Motif', ''].map(function (t) { return h('th', { text: t }); }))), corps)),
+        h('button', { class: 'btn petit', type: 'button', onclick: function () { (x[cle] = x[cle] || []).push({ id: 'p' + C.hex(C.aleatoire(3)), debut: K.jourISO(Date.now()), fin: '', lits: 1, motif: '' }); dessiner(); } }, '+ Ajouter'));
+    }
+    svs.forEach(function (sv) {
+      var x = tous.services[sv.code] = tous.services[sv.code] || { lits: 0, chambresSeules: 0, chambresDoubles: 0, fermetures: [], reserves: [] };
+      var sit = K.situation(Object.assign({}, cfg, { capacites: tous }), [sv.code], Date.now(), 0);
+      zone.appendChild(h('details', { class: 'panneau', open: svs.length === 1 ? true : null }, h('summary', {}, h('b', { text: sv.libelle }), ' — ', h('span', { class: 'muted', text: sit && sit.lits ? sit.ouverts + ' lit(s) ouvert(s) aujourd’hui sur ' + sit.lits : 'capacité non renseignée' })),
+        h('div', { class: 'actions gauche' }, h('label', {}, 'Lits ', nb(x.lits, 'Lits', function (v) { x.lits = v; })), h('label', {}, 'Chambres seules ', nb(x.chambresSeules, 'Chambres seules', function (v) { x.chambresSeules = v; })), h('label', {}, 'Chambres doubles ', nb(x.chambresDoubles, 'Chambres doubles', function (v) { x.chambresDoubles = v; }))),
+        periodes(x, 'fermetures', 'Fermetures temporaires de lits'), periodes(x, 'reserves', 'Lits réservés (ex. patient en permission longue)')));
+    });
+    return h('section', { class: 'panneau' }, h('h2', { text: 'Capacité d’accueil' }),
+      h('p', { class: 'muted', text: 'Nombre de lits de chaque service (la chambre de soins intensifs n’est pas comptée comme un lit), fermetures temporaires et lits réservés. Places disponibles = lits ouverts − lits réservés − patients présents ; affichées dans le bandeau de synthèse de la Vue d’ensemble. Les sorties prévues se lisent dans la sortie prévisionnelle des séjours.' }),
+      svs.length ? zone : h('p', { class: 'muted', text: 'Aucun service.' }),
+      U.boutonEnregistrer(async function () {
+        Object.keys(tous.services).forEach(function (c) { var x = tous.services[c]; ['fermetures', 'reserves'].forEach(function (k) { (x[k] || []).forEach(function (p) { if (!p.debut) throw new Error('Indiquez le premier jour de chaque période.'); if (p.fin && p.fin < p.debut) throw new Error('Une période finit avant de commencer.'); }); }); });
+        await U.enregistrerConfig([['capacites', tous]]);
+      }));
+  }
+
   U.champs = { valeurDe: valeurDe, lisible: lisible, modifiable: modifiable, enregistrer: enregistrer, saisie: saisie, notes: notes, checklist: checklist,
-    classeCouleur: classeCouleur, marque: marque, legende: legende, multi: multi, panneauDefinitions: panneauDefinitions, modaleDefinition: modaleDefinition, modaleReglages: modaleReglages, definitionsBrutes: definitionsBrutes };
+    classeCouleur: classeCouleur, marque: marque, legende: legende, multi: multi, panneauDefinitions: panneauDefinitions, modaleDefinition: modaleDefinition, modaleReglages: modaleReglages, definitionsBrutes: definitionsBrutes, panneauCapacites: panneauCapacites };
 })();

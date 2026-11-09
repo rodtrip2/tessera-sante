@@ -127,6 +127,8 @@
   function CO() { return (typeof self !== 'undefined' && self.SIC && self.SIC.couleurs) || require('./couleurs.js'); }
   /** Réglages des données (couleurs, délais) : le cadre règle ceux de ses services, l'établissement reste à l'administrateur. */
   function cadreReglagesDonnees(ancien, nouveau, compte) { return CO().controlerCadre(ancien, nouveau, compte); }
+  /** Capacité d'accueil (0.18.2) : le cadre règle celle de ses services. */
+  function cadreCapacites(ancien, nouveau, compte) { var K = (typeof self !== 'undefined' && self.SIC && self.SIC.capacites) || require('./capacites.js'); return K.controlerCadre(ancien, nouveau, compte); }
 
   function reduire(evts) {
     return N.reduire(evts, { etat: function () { return { fiches: {}, fusions: {} }; }, appliquer: appliquer });
@@ -183,7 +185,7 @@
       reduire: reduire
     },
     // Réglages que le cadre écrit pour ses services (contrôle appelé par la session avant l'enregistrement)
-    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { champsAjoutes: cadreChamps, reglagesDonnees: cadreReglagesDonnees } },
+    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { champsAjoutes: cadreChamps, reglagesDonnees: cadreReglagesDonnees, capacites: cadreCapacites } },
     // Fenêtre du module Patients (décision du porteur du 7 novembre 2026) : liste réglable des patients (ui-liste-patients.js)
     vues: { onglets: [{ code: 'fiches', libelle: 'Liste des patients' }] },
     migrations: [],
