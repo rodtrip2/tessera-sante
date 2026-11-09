@@ -10,7 +10,7 @@
  *
  * Réglage `vuesEnsemble` (journal du socle) : { vues: [vue] } ; sans réglage, vues proposées. Vue : { id, nom, lignes
  * (patients | medecins | agents), services ([] : établissement, réservée à l'administrateur), roles ([] : tous), perimetre,
- * tri { colonne, sens }, colonnes [{ code, roles, affichage (nom | initiales), regles }], groupes [{ id, titre, conditions
+ * tri { colonne, sens }, colonnes [{ code, roles, affichage (nom | initiales), regles, largeur (pixels ; 0 : automatique) }], groupes [{ id, titre, conditions
  * [{ colonne, op, valeur, n }], combinaison (toutes | une) }], autres { titre, masque }, synthese [éléments], instantane
  * { roles } (rôles qui closent : cadre par défaut, réglable par le cadre), par }.
  *
@@ -53,6 +53,8 @@
       { id: 'equipe', nom: 'Équipe', lignes: 'agents', services: [], roles: ['CADRE'], colonnes: ['nom', 'roles', 'groupes', 'referent', 'absence', 'taches'].map(function (c) { return { code: c }; }), groupes: [], synthese: [] }
     ];
   }
+  /** Largeur d'une colonne en pixels (40 à 800) ; 0 : automatique (ajustée au contenu). */
+  function largeur(v) { var n = Math.round(+v); return isFinite(n) && n >= 40 && n <= 800 ? n : 0; }
   function condition(c) {
     if (!c || !texte(c.colonne) || !(CO.CONDITIONS[c.op] || c.op === 'apresLe' || c.op === 'avantLe')) return null;
     var x = { colonne: texte(c.colonne, 60), op: c.op };
@@ -65,8 +67,8 @@
     if (!v || !MOTIF_ID.test(v.id || '') || !texte(v.nom)) return null;
     var lignes = LIGNES[v.lignes] ? v.lignes : 'patients';
     var cols = (Array.isArray(v.colonnes) ? v.colonnes : []).map(function (c) { return typeof c === 'string' ? { code: c } : c; }).filter(function (c) { return c && texte(c.code); })
-      .map(function (c) { return { code: texte(c.code, 60), roles: liste(c.roles), affichage: c.affichage === 'initiales' ? 'initiales' : 'nom', regles: CO.regles(c.regles), libelle: texte(c.libelle, 60) }; });
-    if (!cols.length) cols = [{ code: lignes === 'patients' ? 'patient' : 'nom', roles: [], affichage: 'nom', regles: [], libelle: '' }];
+      .map(function (c) { return { code: texte(c.code, 60), roles: liste(c.roles), affichage: c.affichage === 'initiales' ? 'initiales' : 'nom', regles: CO.regles(c.regles), libelle: texte(c.libelle, 60), largeur: largeur(c.largeur) }; });
+    if (!cols.length) cols = [{ code: lignes === 'patients' ? 'patient' : 'nom', roles: [], affichage: 'nom', regles: [], libelle: '', largeur: 0 }];
     return {
       id: v.id, nom: texte(v.nom, 60), lignes: lignes, services: liste(v.services), roles: liste(v.roles),
       perimetre: PERIMETRES[v.perimetre] ? v.perimetre : 'hospitalises',
@@ -395,6 +397,7 @@
     part(jId).identites = identites;
     if (v.lignes === 'patients') part('patients').synthese = synthese(v, [].concat.apply([], groupes.map(function (g) { return g.lignes; })), ctx);
     var entete = { id: id, vue: v.id, nom: v.nom, lignes: v.lignes, services: v.services.length ? v.services : (ctx.services || []), le: at, ordre: colonnes.map(function (x) { return x.col.code; }),
+      largeurs: colonnes.reduce(function (m, x) { if (x.vcol.largeur) m[x.col.code] = x.vcol.largeur; return m; }, {}),
       groupes: groupes.map(function (g) { return { id: g.id, titre: g.titre, lignes: g.lignes.map(function (l) { return l.id; }) }; }), journaux: Object.keys(parts) };
     return { entete: entete, parts: Object.keys(parts).map(function (j) { return { journal: j, data: parts[j] }; }) };
   }
@@ -458,5 +461,5 @@
   registre.declarer(contrat);
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, LIGNES: LIGNES, PERIMETRES: PERIMETRES, SYNTHESE: SYNTHESE, vuesProposees: vuesProposees, normaliser: normaliser, vues: vues, vuesPour: vuesPour, vueDe: vueDe,
     peutRegler: peutRegler, peutClore: peutClore, controlerCadre: controlerCadre, catalogue: catalogue, colonneDe: colonneDe, lignes: lignes, cellule: cellule, ranger: ranger, synthese: synthese,
-    preparerInstantane: preparerInstantane, instantanes: instantanes, conservationMois: conservationMois, auDelaConservation: auDelaConservation, jourISO: jourISO };
+    preparerInstantane: preparerInstantane, instantanes: instantanes, largeur: largeur, conservationMois: conservationMois, auDelaConservation: auDelaConservation, jourISO: jourISO };
 });

@@ -158,6 +158,39 @@
   }
 
   // ------------------------------------------------------------ Tableau d'une vue
+  /** Largeur réglée d'une colonne (décision du porteur du 9 novembre 2026) : appliquée à l'en-tête et aux cases. */
+  function appliquerLargeur(el, px) {
+    if (!px) return el;
+    el.style.width = px + 'px'; el.style.minWidth = px + 'px'; el.style.maxWidth = px + 'px';
+    el.classList.add('largeur-reglee');
+    return el;
+  }
+  /**
+   * Poignée de redimensionnement dans l'en-tête (cadre et administrateur qui règlent la vue) : glisser pour régler la
+   * largeur, double-clic pour revenir à la largeur automatique ; enregistrée avec la vue.
+   */
+  function poignee(th, v, vc) {
+    var p = h('span', { class: 'poignee-largeur', title: 'Glisser pour régler la largeur ; double-clic : largeur automatique', 'aria-hidden': 'true' });
+    var x0 = 0, l0 = 0, actif = false;
+    function bouger(ev) { if (!actif) return; appliquerLargeur(th, Math.max(40, Math.min(800, Math.round(l0 + ev.clientX - x0)))); }
+    async function finir() {
+      if (!actif) return; actif = false;
+      document.removeEventListener('pointermove', bouger); document.removeEventListener('pointerup', finir);
+      document.body.classList.remove('redimension');
+      await enregistrerLargeur(v, vc.code, Math.round(th.getBoundingClientRect().width));
+    }
+    p.addEventListener('pointerdown', function (ev) { ev.preventDefault(); ev.stopPropagation(); actif = true; x0 = ev.clientX; l0 = th.getBoundingClientRect().width; document.body.classList.add('redimension'); document.addEventListener('pointermove', bouger); document.addEventListener('pointerup', finir); });
+    p.addEventListener('click', function (ev) { ev.stopPropagation(); });
+    p.addEventListener('dblclick', function (ev) { ev.stopPropagation(); enregistrerLargeur(v, vc.code, 0); });
+    return p;
+  }
+  async function enregistrerLargeur(v, code, px) {
+    var l = vuesBrutes(), x = l.filter(function (y) { return y.id === v.id; })[0];
+    if (!x) return;
+    x.colonnes = (x.colonnes || []).map(function (c) { c = typeof c === 'string' ? { code: c } : c; if (c.code === code) { if (px) c.largeur = V.largeur(px); else delete c.largeur; } return c; });
+    try { await U.enregistrerConfig([['vuesEnsemble', Object.assign({}, cfg().vuesEnsemble || {}, { vues: l })]]); } catch (e) { alert(e.message); }
+    U.rendreContenu();
+  }
   function caseCouleur(td, coul) {
     var cls = U.champs.classeCouleur(coul);
     if (cls) cls.split(' ').forEach(function (k) { td.classList.add(k); });
@@ -181,9 +214,13 @@
   }
   function tableau(v, groupes, cols, ctx, options) {
     var o = options || {}, cat = cols.map(function (x) { return x.col; }), reglable = !o.impression && (estAdmin() || roles().indexOf('CADRE') >= 0);
+    var largeurs = !o.impression && V.peutRegler(v, compte());
     var thead = h('thead', {}, h('tr', {}, cols.map(function (x) {
       var lib = x.vcol.libelle || x.col.libelle;
-      return h('th', {}, lib, reglable && !o.impression ? h('button', { class: 'btn lien reglage-donnee', type: 'button', title: 'Couleurs et délai de la donnée « ' + lib + ' »', 'aria-label': 'Réglages de la donnée ' + lib, onclick: function () { reglerDonnee(x.col); } }, '⚙') : null);
+      var th = h('th', { class: largeurs ? 'redimensionnable' : null }, lib, reglable && !o.impression ? h('button', { class: 'btn lien reglage-donnee', type: 'button', title: 'Couleurs et délai de la donnée « ' + lib + ' »', 'aria-label': 'Réglages de la donnée ' + lib, onclick: function () { reglerDonnee(x.col); } }, '⚙') : null);
+      appliquerLargeur(th, x.vcol.largeur);
+      if (largeurs) th.appendChild(poignee(th, v, x.vcol));
+      return th;
     })));
     var corps = [];
     groupes.forEach(function (g) {
@@ -192,7 +229,7 @@
       g.lignes.forEach(function (l) {
         var tr = h('tr');
         cols.forEach(function (x) {
-          var cell = V.cellule(x.col, l, ctx, x.vcol, cat), td = h('td', { class: 'case-vue' + (x.col.code === 'patient' || x.col.code === 'nom' ? ' patient' : '') });
+          var cell = V.cellule(x.col, l, ctx, x.vcol, cat), td = appliquerLargeur(h('td', { class: 'case-vue' + (x.col.code === 'patient' || x.col.code === 'nom' ? ' patient' : '') }), x.vcol.largeur);
           if (cell.erreur) td.title = cell.erreur;
           if (cell.titre && cell.titre !== cell.lib) td.title = cell.titre;
           td.appendChild(contenuCase(cell, x.col));
@@ -281,13 +318,14 @@
     var e = i.entete, valeurs = {}, colonnes = {}, identites = {}, synth = null;
     Object.keys(i.parts).forEach(function (j) { var p = i.parts[j]; (p.colonnes || []).forEach(function (c) { colonnes[c.code] = c.libelle; }); Object.keys(p.valeurs || {}).forEach(function (l) { valeurs[l] = Object.assign(valeurs[l] || {}, p.valeurs[l]); }); if (p.identites) Object.assign(identites, p.identites); if (p.synthese) synth = p.synthese; });
     var ordre = e.ordre.filter(function (c) { return colonnes[c]; }), masquees = e.ordre.length - ordre.length;
-    var thead = h('thead', {}, h('tr', {}, ordre.map(function (c) { return h('th', { text: colonnes[c] }); })));
+    var lg = e.largeurs || {};
+    var thead = h('thead', {}, h('tr', {}, ordre.map(function (c) { return appliquerLargeur(h('th', { text: colonnes[c] }), lg[c]); })));
     var corps = e.groupes.map(function (g) {
       var tb = h('tbody', {});
       if (g.titre || e.groupes.length > 1) tb.appendChild(h('tr', { class: 'titre-groupe' }, h('th', { colspan: ordre.length || 1 }, (g.titre || 'Lignes') + ' (' + g.lignes.length + ')')));
       g.lignes.forEach(function (l) {
         tb.appendChild(h('tr', {}, ordre.map(function (c) {
-          var x = (valeurs[l] || {})[c], td = h('td', {});
+          var x = (valeurs[l] || {})[c], td = appliquerLargeur(h('td', {}), lg[c]);
           if (!x) { td.appendChild(h('span', { class: 'muted', text: c === 'patient' || c === 'nom' ? (identites[l] || '—') : '—' })); return td; }
           var coul = x.couleur ? Object.assign({ couleur: x.couleur, rendu: x.rendu }, CO.CODES[x.couleur]) : null;
           td.appendChild(h('span', {}, coul ? h('span', { class: 'marque-couleur' + (coul.rendu === 'pastille' ? ' pastille-couleur cpv-' + coul.couleur : ''), 'data-symbole': coul.symbole }) : null, h('span', { text: x.lib })));
@@ -369,7 +407,9 @@
         if (aff) aff.addEventListener('change', function () { vc.affichage = aff.value; });
         var lib = h('input', { type: 'text', maxlength: 60, value: vc.libelle || '', placeholder: col.libelle, 'aria-label': 'Titre de la colonne' });
         lib.addEventListener('input', function () { vc.libelle = lib.value.trim(); });
-        tb.appendChild(h('tr', {}, h('td', {}, lib), h('td', {}, U.champs.multi(vc.roles, rs, 'Tous', 'Visible par')), h('td', {}, aff),
+        var lg = h('input', { type: 'number', min: 40, max: 800, step: 10, value: vc.largeur || '', placeholder: 'auto', class: 'court', 'aria-label': 'Largeur (pixels)', title: 'Largeur en pixels (40 à 800) ; vide : automatique' });
+        lg.addEventListener('input', function () { vc.largeur = V.largeur(lg.value); });
+        tb.appendChild(h('tr', {}, h('td', {}, lib), h('td', {}, U.champs.multi(vc.roles, rs, 'Tous', 'Visible par')), h('td', {}, aff), h('td', {}, lg),
           h('td', {}, h('button', { class: 'btn petit', type: 'button', title: 'Couleurs propres à cette vue (évaluées avant celles de la donnée)', onclick: function () { modaleReglesVue(col, vc); } }, 'Règles' + (vc.regles && vc.regles.length ? ' (' + vc.regles.length + ')' : ''))),
           h('td', { class: 'actions-ligne' },
             h('button', { class: 'btn petit', type: 'button', disabled: i === 0, 'aria-label': 'Monter', onclick: function () { v.colonnes.splice(i - 1, 0, v.colonnes.splice(i, 1)[0]); dessinerCols(); } }, '▲'),
@@ -378,7 +418,7 @@
       var dispo = c.filter(function (x) { return !choisis.some(function (y) { return y.code === x.code; }); });
       var ajout = h('select', { 'aria-label': 'Ajouter une colonne' }, [h('option', { value: '', text: '+ Ajouter une colonne…' })].concat(dispo.map(function (x) { return h('option', { value: x.code, text: x.libelle + (x.champ ? ' (donnée ajoutée' + (x.champ.type === 'formule' ? ', calcul' : '') + ')' : '') }); })));
       ajout.addEventListener('change', function () { if (ajout.value) { v.colonnes.push({ code: ajout.value, roles: [], affichage: 'nom', regles: [] }); dessinerCols(); dessinerGroupes(); } });
-      zoneCols.appendChild(h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Colonne', 'Visible par', 'Affichage', 'Couleurs', ''].map(function (t) { return h('th', { text: t }); }))), tb)));
+      zoneCols.appendChild(h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Colonne', 'Visible par', 'Affichage', 'Largeur (px)', 'Couleurs', ''].map(function (t) { return h('th', { text: t }); }))), tb)));
       zoneCols.appendChild(h('div', { class: 'actions gauche' }, ajout,
         h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleDonnees(); } }, 'Données ajoutées…'),
         h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleCalcul(lignes.value, function (code) { v.colonnes.push({ code: code, roles: [], affichage: 'nom', regles: [] }); }); } }, '+ Colonne calculée…')));
