@@ -727,6 +727,7 @@
     var memeVue = vueAffichee === cleVue;
     var pos = memeVue ? { x: window.scrollX, y: window.scrollY, h: zoneContenu.offsetHeight, zones: Array.prototype.map.call(zoneContenu.querySelectorAll('.table-wrap, .apercu-document, .apercu-registre'), function (z) { return [z.scrollLeft, z.scrollTop]; }) } : null;
     rendreContenuBrut();
+    try { activerLargeurs(zoneContenu); } catch (e) { /* largeurs : sans conséquence sur l'affichage */ }
     vueAffichee = App.onglet + '|' + App.service + (estOngletAdmin(App.onglet) ? '|' + App.sousOngletAdmin : '');
     App.miseAJourEnAttente = false; signalerAttente();
     if (pos) {
@@ -1561,6 +1562,85 @@
     if (nb !== null) lancerImpression(nb);
   }
 
+  // ================================================================ Largeur des colonnes (0.20.0)
+  /*
+   * Décisions du porteur du 9 novembre 2026 : les colonnes des tableaux se redimensionnent en glissant le bord droit de
+   * leur titre (double-clic : largeur automatique). Liste des patients : largeurs gardées avec l'affichage (le tableau
+   * fournit `_largeurs`) ; tableaux d'Isolement et contention : réglées par l'administrateur (établissement) ou le cadre
+   * (ses services) ; autres tableaux : préférence de l'agent. Grilles (agenda, planning, présences) et Vue d'ensemble
+   * (réglage propre) écartées, comme les tableaux marqués `sans-largeurs`.
+   */
+  var EXCLUS_LARGEURS = 'table-vue, grille-agenda, planning-vehicules, grille-presences, sans-largeurs, agenda-grille, semaine-agenda'.split(', ');
+  function appliquerLargeurCol(table, i, px) {
+    Array.prototype.forEach.call(table.rows, function (tr) {
+      var c = tr.cells[i];
+      if (!c || tr.cells.length !== table.tHead.rows[table.tHead.rows.length - 1].cells.length) return;
+      if (px) { c.style.width = px + 'px'; c.style.minWidth = px + 'px'; c.style.maxWidth = px + 'px'; c.classList.add('largeur-reglee'); }
+      else { c.style.width = ''; c.style.minWidth = ''; c.style.maxWidth = ''; c.classList.remove('largeur-reglee'); }
+    });
+  }
+  /** Source des largeurs d'un tableau sans réglage propre : selon la fenêtre (Isolement et contention : réglage commun). */
+  function sourceLargeurs(cle) {
+    var s = App.session, K = SIC.largeurs, roles = s.roles();
+    if (App.fenetre === 'isocont') {
+      var svc = App.service !== '*' ? App.service : (services()[0] || '');
+      var admin = roles.indexOf('ADMIN') >= 0, cadre = roles.indexOf('CADRE') >= 0;
+      var portees = admin ? [App.service !== '*' ? App.service : '*'] : cadre ? (App.service !== '*' ? [App.service] : services()) : [];
+      return {
+        lire: function () { return K.pourService(config(), cle, admin && App.service === '*' ? '*' : svc); },
+        peutRegler: portees.length > 0,
+        titre: admin && App.service === '*' ? 'largeur pour l’établissement' : 'largeur pour ' + (portees.length > 1 ? 'vos services' : 'le service'),
+        enregistrer: function (col, px) { return enregistrerConfig([['largeursColonnes', K.reglerCommun(config().largeursColonnes, cle, portees, col, px)]]); }
+      };
+    }
+    return {
+      lire: function () { return K.carte(((s.preferences || {}).largeurs || {})[cle]); },
+      peutRegler: !!s.utilisateur,
+      titre: 'votre largeur, sur tous les postes',
+      enregistrer: function (col, px) {
+        var tout = Object.assign({}, (s.preferences || {}).largeurs || {}), c = K.regler(tout[cle], col, px);
+        if (Object.keys(c).length) tout[cle] = c; else delete tout[cle];
+        return s.enregistrerPreference('largeurs', tout);
+      }
+    };
+  }
+  function poigneeLargeur(table, th, i, col, src) {
+    var p = h('span', { class: 'poignee-largeur', title: 'Glisser pour régler la largeur (' + src.titre + ') ; double-clic : largeur automatique', 'aria-hidden': 'true' });
+    var x0 = 0, l0 = 0, actif = false;
+    function bouger(ev) { if (actif) appliquerLargeurCol(table, i, Math.max(40, Math.min(800, Math.round(l0 + ev.clientX - x0)))); }
+    async function finir() {
+      if (!actif) return; actif = false;
+      document.removeEventListener('pointermove', bouger); document.removeEventListener('pointerup', finir);
+      document.body.classList.remove('redimension');
+      try { await src.enregistrer(col, Math.round(th.getBoundingClientRect().width)); } catch (e) { toast('Largeur appliquée sur cet écran ; elle n’a pas pu être enregistrée (' + e.message + ').'); }
+    }
+    p.addEventListener('pointerdown', function (ev) { ev.preventDefault(); ev.stopPropagation(); actif = true; x0 = ev.clientX; l0 = th.getBoundingClientRect().width; document.body.classList.add('redimension'); document.addEventListener('pointermove', bouger); document.addEventListener('pointerup', finir); });
+    p.addEventListener('click', function (ev) { ev.stopPropagation(); });
+    p.addEventListener('dblclick', async function (ev) { ev.stopPropagation(); appliquerLargeurCol(table, i, 0); try { await src.enregistrer(col, 0); } catch (e) { toast(e.message); } });
+    return p;
+  }
+  /** Rend redimensionnables les tableaux d'une zone affichée (appelé après chaque affichage). */
+  function activerLargeurs(zone) {
+    if (!zone || !SIC.largeurs || !App.session || !App.session.utilisateur) return;
+    var vus = {};
+    Array.prototype.forEach.call(zone.querySelectorAll('table'), function (table) {
+      if (!table.tHead || !table.tHead.rows.length || table.closest('dialog') || EXCLUS_LARGEURS.some(function (c) { return table.classList.contains(c); })) return;
+      var ligne = table.tHead.rows[table.tHead.rows.length - 1];
+      if (table.tHead.rows.length > 1 || Array.prototype.some.call(ligne.cells, function (c) { return c.colSpan > 1; })) return;   // en-têtes groupés : grille
+      var titres = Array.prototype.map.call(ligne.cells, function (c) { return c.getAttribute('data-col') || SIC.largeurs.codeTitre(c.textContent); });
+      var base = (App.fenetre || '') + '/' + (App.onglet || '') + '/' + (titres.filter(Boolean)[0] || 'tableau');
+      var cle = table.getAttribute('data-largeurs') || (vus[base] ? base + '#' + (vus[base] + 1) : base);
+      vus[base] = (vus[base] || 0) + 1;
+      var src = table._largeurs || sourceLargeurs(cle), m = src.lire() || {};
+      Array.prototype.forEach.call(ligne.cells, function (th, i) {
+        var col = titres[i];
+        if (!col) return;   // colonne sans titre (boutons) : largeur automatique
+        if (m[col]) appliquerLargeurCol(table, i, m[col]);
+        if (src.peutRegler) { th.classList.add('redimensionnable'); th.appendChild(poigneeLargeur(table, th, i, col, src)); }
+      });
+    });
+  }
+
   // ================================================================ Partage avec les autres modules
   SIC.ui = {
     vues: (SIC.ui && SIC.ui.vues) || {}, actions: (SIC.ui && SIC.ui.actions) || {},
@@ -1569,7 +1649,7 @@
     App: App, st: st, config: config, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, lignesDe: lignesDe, zoneTexte: zoneTexte, periodeDepuis: periodeDepuis, changerDossier: function () { return changerDossier(); },
-    lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu,
+    lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu, activerLargeurs: activerLargeurs,
     demarrer: demarrer, verrouiller: verrouiller,
     retenirAccueil: function () { retenirAccueil(); }
   };
