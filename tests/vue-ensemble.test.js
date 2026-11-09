@@ -114,3 +114,11 @@ test('Vue des médecins et de l’équipe : lignes, colonnes du Suivi médical e
   assert.deepEqual(la.map((l) => l.id), ['demo-a', 'u-ide']);
   assert.equal(V.cellule(V.colonneDe(cata, 'groupes'), la[1], c2).lib, 'Équipe de jour');
 });
+
+test('Instantanés : durée de conservation réglée par l’établissement', () => {
+  const i = { entete: { le: '2025-01-15T10:00:00Z' } };
+  assert.equal(V.conservationMois({}), 0);
+  assert.ok(!V.auDelaConservation({}, i, maintenant), 'sans limite par défaut');
+  assert.ok(V.auDelaConservation({ vuesEnsemble: { conservationMois: 12 } }, i, maintenant));
+  assert.ok(!V.auDelaConservation({ vuesEnsemble: { conservationMois: 24 } }, i, maintenant));
+});
