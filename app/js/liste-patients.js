@@ -57,6 +57,11 @@
   function hex(c) { return /^#[0-9a-fA-F]{6}$/.test(c || '') ? String(c).toLowerCase() : null; }
   function texte(v, n) { return String(v === undefined || v === null ? '' : v).trim().slice(0, n || 80); }
 
+  function largeurs(m) {
+    var r = {};
+    if (m && typeof m === 'object' && !Array.isArray(m)) Object.keys(m).forEach(function (k) { var n = Math.round(+m[k]); if ((CODES.indexOf(k) >= 0 || /^c:[a-z][a-z0-9-]{1,30}$/.test(k)) && isFinite(n) && n >= 40 && n <= 800) r[k] = n; });
+    return r;
+  }
   /** Réglage d'un affichage, validé (valeurs inconnues remplacées par celles par défaut). */
   function reglage(r) {
     r = r || {};
@@ -72,7 +77,9 @@
       tri: TRIS.indexOf(r.tri) >= 0 ? r.tri : 'patient', sens: r.sens === -1 ? -1 : 1,
       coloration: COLORATIONS[r.coloration] ? r.coloration : 'aucune',
       colonnes: cols,
-      filtres: { modes: Array.isArray(f.modes) ? f.modes.map(function (m) { return texte(m, 20); }).filter(Boolean) : [], medecin: texte(f.medecin), referent: texte(f.referent), complements: fc }
+      filtres: { modes: Array.isArray(f.modes) ? f.modes.map(function (m) { return texte(m, 20); }).filter(Boolean) : [], medecin: texte(f.medecin), referent: texte(f.referent), complements: fc },
+      // Largeur des colonnes réglée (0.20.0) : { code: pixels de 40 à 800 }, gardée avec l'affichage
+      largeurs: largeurs(r.largeurs)
     };
   }
 

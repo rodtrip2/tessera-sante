@@ -150,9 +150,15 @@
     else corps = ls.map(ligne);
     function entete(c) {
       var triable = L.TRIS.indexOf(c.code) >= 0 && r.regroupement !== 'chambre', actif = r.tri === c.code;
-      return h('th', { 'aria-sort': actif && triable ? (r.sens === 1 ? 'ascending' : 'descending') : null },
+      return h('th', { 'data-col': c.code, 'aria-sort': actif && triable ? (r.sens === 1 ? 'ascending' : 'descending') : null },
         triable ? h('button', { class: 'btn lien tri', type: 'button', title: 'Trier', onclick: function () { changer(function (x) { if (x.tri === c.code) x.sens = -x.sens; else { x.tri = c.code; x.sens = 1; } }); } }, libColonne(c.code) + (actif ? (r.sens === 1 ? ' ▲' : ' ▼') : '')) : libColonne(c.code));
     }
+    var tableau = h('table', { class: 'liste-patients entetes-souples' }, h('thead', {}, h('tr', {}, cols.map(entete), h('th'))), h('tbody', {}, corps));
+    // Largeur des colonnes (0.20.0) : gardée avec l'affichage en cours ; « Enregistrer cet affichage » la garde pour
+    // l'agent, « Reprendre l'affichage en cours » (administration) pour un service et un métier
+    tableau._largeurs = { titre: 'avec l’affichage en cours ; enregistrez l’affichage pour la garder', peutRegler: true,
+      lire: function () { return r.largeurs || {}; },
+      enregistrer: function (col, px) { changer(function (x) { x.largeurs = Object.assign({}, x.largeurs || {}); if (px) x.largeurs[col] = px; else delete x.largeurs[col]; }); return Promise.resolve(); } };
     return h('div', {},
       h('div', { class: 'barre' }, h('h1', { text: 'Liste des patients' }),
         peutFiche ? h('button', { class: 'btn primaire', onclick: function () { U.fichePatient.modale(null); } }, '+ Nouvelle fiche') : null,
@@ -167,9 +173,7 @@
         h('button', { class: 'btn petit', type: 'button', onclick: modaleColonnes }, 'Colonnes…'),
         h('button', { class: 'btn petit', type: 'button', title: 'Garder ce réglage dans « Mes affichages »', onclick: modaleEnregistrer }, modifie ? 'Enregistrer cet affichage…' : 'Mes affichages…')),
       filtres,
-      ls.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'liste-patients entetes-souples' },
-        h('thead', {}, h('tr', {}, cols.map(entete), h('th'))),
-        h('tbody', {}, corps))) : h('div', { class: 'panneau vide', text: etat.recherche || nbFiltres ? 'Aucun patient ne correspond à la recherche ou aux filtres.' : 'Aucun patient.' }),
+      ls.length ? h('div', { class: 'table-wrap' }, tableau) : h('div', { class: 'panneau vide', text: etat.recherche || nbFiltres ? 'Aucun patient ne correspond à la recherche ou aux filtres.' : 'Aucun patient.' }),
       h('p', { class: 'muted' }, h('small', { text: ls.length + ' patient(s). ' + (r.perimetre === 'recents' ? 'Sorties récentes : ' + o.joursRecents + ' derniers jours (réglage de l’établissement). ' : '') + 'Une fiche sans séjour connu compte comme hospitalisée. Les statistiques d’isolement et de contention par patient restent dans l’onglet « Patients » du module Isolement et contention.' })));
   }
 
