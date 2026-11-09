@@ -18,25 +18,34 @@
  * Reprise de l'existant : les noms de l'ancienne liste `psychiatres` absents de la liste commune y figurent comme
  * psychiatres titulaires ; à l'enregistrement, `psychiatres` est tenue à jour (noms des psychiatres actifs) pour les
  * écrans qui la lisent encore.
+ * Liste commune des psychologues (0.20.0, décision du porteur du 9 novembre 2026) : liste séparée, mêmes réglages
+ * (fonctions, statuts dont intérimaire, initiales, non répertorié à confirmer, anciens noms, gestion) : `creer({ cle:
+ * 'psychologues', … })`, exposée en `SIC.psychologues`. Un planning des psychologues pourra s'y appuyer plus tard.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else (root.SIC = root.SIC || {}).medecins = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-
-  var FONCTIONS = { psychiatre: 'Psychiatre', somaticien: 'Médecin somaticien', interne: 'Interne', autre: 'Autre médecin' };
+  /**
+   * Fabrique d'une liste commune de professionnels. o : { cle (réglage commun), fonctions, fonctionDefaut, prefixe
+   * (identifiants), anciens (reprise et tenue à jour de l'ancienne liste `psychiatres` : médecins seulement), nom, noms
+   * (désignation au singulier et au pluriel, pour les messages) }.
+   */
+  function creer(o) {
+  var CLE = o.cle, PREFIXE = o.prefixe, ANCIENS = !!o.anciens, UN = o.nom, DES = o.noms;
+  var FONCTIONS = o.fonctions, FONCTION_DEFAUT = o.fonctionDefaut;
   var STATUTS = { titulaire: 'Titulaire', vacataire: 'Vacataire', interimaire: 'Intérimaire' };
   var GESTION_DEFAUT = ['CADRE', 'SECRETAIRE'];
 
   function texte(v, n) { return String(v === undefined || v === null ? '' : v).trim().slice(0, n || 80); }
   function dateISO(v) { return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; }
-  function slug(n) { return 'm-' + (texte(n).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'medecin'); }
+  function slug(n) { return PREFIXE + '-' + (texte(n).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || UN); }
   function jourISO(t) { var d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
   function normaliser(m) {
     return {
-      id: texte(m.id, 40) || slug(m.nom), nom: texte(m.nom, 60), fonction: FONCTIONS[m.fonction] ? m.fonction : 'psychiatre',
+      id: texte(m.id, 40) || slug(m.nom), nom: texte(m.nom, 60), fonction: FONCTIONS[m.fonction] ? m.fonction : FONCTION_DEFAUT,
       services: Array.isArray(m.services) ? m.services.filter(function (s) { return typeof s === 'string'; }) : [],
       statut: STATUTS[m.statut] ? m.statut : 'titulaire', debut: dateISO(m.debut), fin: dateISO(m.fin),
       compte: typeof m.compte === 'string' && m.compte ? m.compte : null, actif: m.actif !== false,
@@ -50,7 +59,7 @@
    * médecin : titre (Dr, Pr) et précision entre parenthèses écartés ; « Jeanne Dupont » → « JD », « Arnaud » → « ARN ».
    */
   function proposerInitiales(nom) {
-    var mots = texte(nom).replace(/\([^)]*\)/g, ' ').split(/[\s-]+/).filter(function (w) { return w && !/^(dr|pr|docteur|professeur)\.?$/i.test(w); });
+    var mots = texte(nom).replace(/\([^)]*\)/g, ' ').split(/[\s-]+/).filter(function (w) { return w && !/^(dr|pr|docteur|professeur|mme|mlle|m|mr|madame|monsieur)\.?$/i.test(w); });
     if (!mots.length) return '';
     if (mots.length === 1) return mots[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3).toUpperCase();
     return mots.map(function (w) { return w.charAt(0).toUpperCase(); }).join('').slice(0, 4);
@@ -61,7 +70,7 @@
     if (!m && nom) m = parNom(config, nom);
     return (m && m.initiales) || proposerInitiales(m ? m.nom : nom);
   }
-  function brut(config) { var x = config && config.medecins; return x && typeof x === 'object' && !Array.isArray(x) ? x : { liste: Array.isArray(x) ? x : [] }; }
+  function brut(config) { var x = config && config[CLE]; return x && typeof x === 'object' && !Array.isArray(x) ? x : { liste: Array.isArray(x) ? x : [] }; }
   /** Liste commune, validée à la lecture, avec la reprise des noms de l'ancienne liste des psychiatres. */
   function liste(config) {
     var vus = {}, res = [];
@@ -71,7 +80,7 @@
       if (vus[cle]) return;
       vus[cle] = true; x.anciensNoms.forEach(function (a) { vus[a.toLowerCase()] = vus[a.toLowerCase()] || 'ancien'; }); res.push(x);
     });
-    ((config && config.psychiatres) || []).forEach(function (n) {
+    (ANCIENS && config && config.psychiatres || []).forEach(function (n) {
       if (typeof n !== 'string' || !n.trim() || vus[n.trim().toLowerCase()]) return;
       vus[n.trim().toLowerCase()] = true;
       res.push(normaliser({ nom: n, fonction: 'psychiatre', statut: 'titulaire', repris: true }));
@@ -152,21 +161,32 @@
   function controler(config, cle, nouveau, compte) {
     if (!peutGerer(config, compte)) {
       // Un agent qui ne gère pas la liste peut seulement y ajouter des médecins non répertoriés, à confirmer
-      if (cle !== 'medecins') throw new Error('La liste des médecins est gérée par l’administrateur et les rôles désignés (cadre et secrétaire par défaut).');
-      var avant = brut(config), apres = brut({ medecins: nouveau }), id = compte && compte.id;
+      if (cle !== CLE) throw new Error('La liste des ' + DES + ' est gérée par l’administrateur et les rôles désignés (cadre et secrétaire par défaut).');
+      var nv = {}; nv[CLE] = nouveau;
+      var avant = brut(config), apres = brut(nv), id = compte && compte.id;
       var la = (avant.liste || []).map(normaliser), ln = (apres.liste || []).map(normaliser);
       var memes = la.every(function (m) { return ln.some(function (y) { return JSON.stringify(y) === JSON.stringify(m); }); });
       var ajouts = ln.filter(function (y) { return !la.some(function (m) { return m.id === y.id; }); });
       if (!memes || ln.length !== la.length + ajouts.length || ajouts.some(function (y) { return !y.aConfirmer || !y.propose || y.propose.par !== id; })
-        || JSON.stringify(gestion({ medecins: nouveau })) !== JSON.stringify(gestion(config)) || JSON.stringify(refuses({ medecins: nouveau })) !== JSON.stringify(refuses(config)))
-        throw new Error('Vous pouvez ajouter un médecin non répertorié (à confirmer) ; la liste est gérée par le cadre et la secrétaire.');
+        || JSON.stringify(gestion(nv)) !== JSON.stringify(gestion(config)) || JSON.stringify(refuses(nv)) !== JSON.stringify(refuses(config)))
+        throw new Error('Vous pouvez ajouter un ' + UN + ' non répertorié (à confirmer) ; la liste est gérée par le cadre et la secrétaire.');
       return true;
     }
     var admin = ((compte && compte.roles) || []).indexOf('ADMIN') >= 0;
-    if (cle === 'medecins' && !admin && JSON.stringify(gestion({ medecins: nouveau })) !== JSON.stringify(gestion(config))) throw new Error('Seul l’administrateur choisit qui gère la liste des médecins.');
+    var nv2 = {}; nv2[CLE] = nouveau;
+    if (cle === CLE && !admin && JSON.stringify(gestion(nv2)) !== JSON.stringify(gestion(config))) throw new Error('Seul l’administrateur choisit qui gère la liste des ' + DES + '.');
     return true;
   }
 
-  return { proposerInitiales: proposerInitiales, initiales: initiales, FONCTIONS: FONCTIONS, STATUTS: STATUTS, GESTION_DEFAUT: GESTION_DEFAUT, liste: liste, gestion: gestion, enActivite: enActivite, proposes: proposes, noms: noms,
+  return { CLE: CLE, ANCIENS: ANCIENS, NOM: UN, NOMS: DES, FONCTION_DEFAUT: FONCTION_DEFAUT, proposerInitiales: proposerInitiales, initiales: initiales, FONCTIONS: FONCTIONS, STATUTS: STATUTS, GESTION_DEFAUT: GESTION_DEFAUT, liste: liste, gestion: gestion, enActivite: enActivite, proposes: proposes, noms: noms,
     parNom: parNom, parId: parId, refuses: refuses, estRefuse: estRefuse, aConfirmer: aConfirmer, nonRattaches: nonRattaches, reunir: reunir, parCompte: parCompte, resoudre: resoudre, nomActuel: nomActuel, meme: meme, renommer: renommer, estPsychiatre: estPsychiatre, psychiatres: psychiatres, peutGerer: peutGerer, controler: controler, normaliser: normaliser, slug: slug };
+  }
+
+  var medecins = creer({ cle: 'medecins', prefixe: 'm', anciens: true, nom: 'médecin', noms: 'médecins', fonctionDefaut: 'psychiatre',
+    fonctions: { psychiatre: 'Psychiatre', somaticien: 'Médecin somaticien', interne: 'Interne', autre: 'Autre médecin' } });
+  medecins.creer = creer;
+  medecins.psychologues = creer({ cle: 'psychologues', prefixe: 'p', anciens: false, nom: 'psychologue', noms: 'psychologues', fonctionDefaut: 'clinicien',
+    fonctions: { clinicien: 'Psychologue clinicien', neuropsychologue: 'Neuropsychologue', travail: 'Psychologue du travail', autre: 'Autre psychologue' } });
+  if (typeof self !== 'undefined' && self.SIC) self.SIC.psychologues = medecins.psychologues;
+  return medecins;
 });

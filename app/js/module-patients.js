@@ -18,7 +18,7 @@
   // 1re et 2e ligne et référents soignants saisis dans Tessera (distincts du médecin responsable du DPI)
   // Psychologue référent et suivi par l'assistant(e) social(e) du service : ajoutés le 7 novembre 2026 (décision du porteur) ;
   // `suiviAS` : { suivi: true | false, nom: '' } (nom facultatif)
-  var CHAMPS = ['ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'service', 'detenu', 'medecin1', 'medecin2', 'medecin1Id', 'medecin2Id', 'referents', 'psychologue', 'suiviAS', 'decoupageNom'];
+  var CHAMPS = ['ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'service', 'detenu', 'medecin1', 'medecin2', 'medecin1Id', 'medecin2Id', 'referents', 'psychologue', 'psychologueId', 'suiviAS', 'decoupageNom'];
   var COMPLETES_A_LA_FUSION = ['ipp', 'nom', 'prenom', 'naissance', 'protection', 'service', 'nomNaissance', 'sexe', 'medecin1', 'medecin2', 'psychologue', 'suiviAS'];
   /** Champs dont les changements sont gardés, datés, dans l'historique de la fiche (jamais écrasés). */
   var DATES = ['protection', 'detenu', 'service', 'medecin1', 'medecin2', 'referents', 'psychologue', 'suiviAS'];
@@ -191,7 +191,7 @@
     migrations: [],
     fournitures: [
       { nom: 'patients.fiches', version: 1, acces: 'lecture', calculer: fiches,
-        champs: ['id', 'ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'detenu', 'service', 'medecin1', 'medecin2', 'medecin1Id', 'medecin2Id', 'referents', 'psychologue', 'suiviAS', 'complements', 'sejours', 'modes', 'fusionnes', 'historique'] }
+        champs: ['id', 'ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'detenu', 'service', 'medecin1', 'medecin2', 'medecin1Id', 'medecin2Id', 'referents', 'psychologue', 'psychologueId', 'suiviAS', 'complements', 'sejours', 'modes', 'fusionnes', 'historique'] }
     ],
     besoins: []
   };

@@ -294,6 +294,12 @@ Plan relu par le porteur le 9 novembre 2026 (*Tessera Santé — Plan du module 
 - **Initiales des médecins** (décision 5) : champ `initiales` de la liste commune, proposées d'après le nom (« Dr Jeanne Dupont » → « JD », un seul nom → trois lettres), modifiables dans la fiche du médecin ; affichées par les colonnes réglées « initiales ».
 - **Sortie prévisionnelle** (décision 6) : champ `sortiePrevue` du séjour (saisie `SEJOUR`) : date, période ou précision seule ; chaque changement gardé (`historiqueSortiePrevue`).
 
+### Liste commune des psychologues (0.20.0, décisions du porteur du 9 novembre 2026)
+
+- **Liste séparée**, aux **mêmes réglages** que celle des médecins (`medecins.js` devenu une fabrique `creer` : `SIC.medecins`, `SIC.psychologues`) : réglage commun `psychologues` ; fonctions propres (psychologue clinicien, neuropsychologue, psychologue du travail, autre), statuts (titulaire, vacataire, intérimaire avec sa période), initiales (civilités écartées), anciens noms, « psychologue non répertorié » à confirmer, noms à rattacher, gestion par le cadre et la secrétaire (rôles réglés par l'administrateur). Interface commune (`ui-medecins.js`, fabrique `creerUI` : `U.medecins`, `U.psychologues`) ; onglet *Psychologues* de la fenêtre *Suivi médical* ; *Administration → Réglages généraux* ; bandeau des fiches à confirmer.
+- **Un psychologue référent par patient** : fiche patient (liste de choix, `psychologue` et `psychologueId`), liste des patients, colonne de la Vue d'ensemble (nom ou initiales, modification sur place avec confirmation d'un remplacement, couleurs par psychologue). Les noms saisis avant en texte libre apparaissent dans *Noms à rattacher*.
+- Un planning des psychologues pourra s'appuyer plus tard sur cette liste.
+
 ### Réglages attachés aux données (0.18.0, `couleurs.js`)
 
 - Réglage du socle `reglagesDonnees` : { <code de la donnée> : { '*' : { regles, delai }, <service> : { regles, delai } } } ; code des données natives `patients.medecin1`, `patients.mode`, `patients.sortiePrevue`, `suivi.entretien`… et `c:<id>` pour une donnée ajoutée. Appliqués **partout** où la donnée apparaît (décision 11) ; réglage de l'établissement **remplaçable par chaque service** (décision 24) ; sans réglage, règles proposées par la donnée (ex. délais du Suivi médical). Cadre : ses services seulement (`reglages.cadre.reglagesDonnees`, `couleurs.controlerCadre`).

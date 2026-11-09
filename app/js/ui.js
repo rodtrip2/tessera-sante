@@ -846,6 +846,7 @@
     try { var bg = SIC.ui.bandeauAjoutsGroupes ? SIC.ui.bandeauAjoutsGroupes() : null; if (bg) corps.appendChild(bg); } catch (e) { /* sans effet sur la vue */ }
     // Médecins non répertoriés à confirmer : information des gestionnaires de la liste (cadre et secrétaire par défaut)
     try { var bm = SIC.ui.medecins && SIC.ui.medecins.bandeauAConfirmer ? SIC.ui.medecins.bandeauAConfirmer() : null; if (bm) corps.appendChild(bm); } catch (e) { /* sans effet sur la vue */ }
+    try { var bp = SIC.ui.psychologues && SIC.ui.psychologues.bandeauAConfirmer ? SIC.ui.psychologues.bandeauAConfirmer() : null; if (bp) corps.appendChild(bp); } catch (e) { /* sans effet sur la vue */ }
     try { corps.appendChild(vue(maintenant)); }
     catch (e) { corps.appendChild(h('div', { class: 'erreur', text: 'Erreur d’affichage : ' + e.message })); console.error(e); }
   }
@@ -1120,7 +1121,8 @@
         h('label', {}, 'Services (code ; libellé), un par ligne', tServices),
         h('label', {}, lieu('Chambres de soins intensifs (code service : CSI 1, CSI 2)'), tLieux)),
       h('div', { class: 'barre' }, h('span', { text: 'Médecins (fiche patient, Isocont, Suivi médical) : ' + (SIC.medecins ? SIC.medecins.liste(cfg).length : 0) + ' dans la liste commune.' }),
-        SIC.ui.medecins ? h('button', { class: 'btn petit', type: 'button', onclick: function () { SIC.ui.medecins.modaleListe(); } }, 'Gérer la liste des médecins…') : null),
+        SIC.ui.medecins ? h('button', { class: 'btn petit', type: 'button', onclick: function () { SIC.ui.medecins.modaleListe(); } }, 'Gérer la liste des médecins…') : null,
+        SIC.ui.psychologues ? h('button', { class: 'btn petit', type: 'button', onclick: function () { SIC.ui.psychologues.modaleListe(); } }, 'Gérer la liste des psychologues…') : null),
       boutonEnregistrer(async function () {
         var svs = lignesDe(tServices).map(function (l) { var x = l.split(';'); if (x.length < 2 || !x[0].trim()) throw new Error('Service mal formé : ' + l); return { code: x[0].trim(), libelle: x.slice(1).join(';').trim() }; });
         var codes = svs.map(function (x) { return x.code; });

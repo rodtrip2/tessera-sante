@@ -56,7 +56,7 @@
     var e = col.edition; if (!e || session().apercu) return false;
     switch (e.type) {
       case 'champ': return U.champs.modifiable(col.champ);
-      case 'medecin': case 'texte': case 'suiviAS': return peut('PATIENT');
+      case 'medecin': case 'psychologue': case 'texte': case 'suiviAS': return peut('PATIENT');
       case 'sejour': case 'sortiePrevue': return peut('SEJOUR') && !!sejourEnCours(l.p);
       case 'mode': return peut('MODE_HOSPI') && !!(U.fichePatient && U.fichePatient.mode);
       case 'suivi': return peut('SUIVI');
@@ -69,7 +69,10 @@
   function editerDansCase(td, col, l, valeur, enregistrer) {
     U.vider(td);
     var w;
-    if (col.edition.type === 'medecin') {
+    if (col.edition.type === 'psychologue') {
+      w = U.psychologues.champ({ valeur: l.p.psychologue, id: l.p.psychologueId, service: l.service, libelle: col.libelle, vide: '— Aucun —' });
+      w = { el: w.select, lire: function () { return { nom: this.b.nom(), id: this.b.medecinId() }; }, b: w };
+    } else if (col.edition.type === 'medecin') {
       w = U.medecins.champ({ valeur: l.p[col.edition.cle], id: l.p[col.edition.cle + 'Id'], service: l.service, libelle: col.libelle });
       w = { el: w.select, lire: function () { return { nom: this.b.nom(), id: this.b.medecinId() }; }, b: w };
     } else if (col.champ) w = U.champs.saisie(col.champ, valeur);
@@ -102,6 +105,11 @@
       if (avant && v.nom && avant !== v.nom && !confirm(titreLigne(l) + ' a déjà un ' + col.libelle.toLowerCase() + ' (' + avant + '). Le remplacer par ' + v.nom + ' ?')) throw new Error('Changement abandonné.');
       var d = { patientId: p.id }; d[e.cle] = v.nom || ''; d[e.cle + 'Id'] = v.id || null;
       return s.enregistrer('PATIENT', d);
+    });
+    if (e.type === 'psychologue') return editerDansCase(td, col, l, null, async function (v) {
+      var avant = l.p.psychologue || l.p.psychologueId ? SIC.psychologues.resoudre(cfg(), l.p.psychologue, l.p.psychologueId) : '';
+      if (avant && v.nom && avant !== v.nom && !confirm(titreLigne(l) + ' a déjà un psychologue référent (' + avant + '). Le remplacer par ' + v.nom + ' ?')) throw new Error('Changement abandonné.');
+      return s.enregistrer('PATIENT', { patientId: p.id, psychologue: v.nom || '', psychologueId: v.id || '' });
     });
     if (e.type === 'texte') return editerDansCase(td, col, l, p[e.cle], function (v) { var d = { patientId: p.id }; d[e.cle] = v; return s.enregistrer('PATIENT', d); });
     if (e.type === 'sejour') { var sj = sejourEnCours(p); return editerDansCase(td, col, l, sj[e.cle], function (v) { var d = { patientId: p.id, sejourId: sj.id }; d[e.cle] = v; return s.enregistrer('SEJOUR', d); }); }
@@ -375,7 +383,8 @@
   // ------------------------------------------------------------ Réglage d'une donnée depuis l'en-tête de colonne
   function reglerDonnee(col) {
     var choix = null;
-    if (col.medecin) choix = MED.liste(cfg()).map(function (m) { return { valeur: m.id, libelle: m.nom }; });
+    if (col.psychologue) choix = SIC.psychologues.liste(cfg()).map(function (m) { return { valeur: m.id, libelle: m.nom }; });
+    else if (col.medecin) choix = MED.liste(cfg()).map(function (m) { return { valeur: m.id, libelle: m.nom }; });
     else if (col.champ && (col.champ.type === 'liste' || col.champ.type === 'choixMultiple')) choix = col.champ.choix.map(function (c) { return { valeur: c, libelle: c }; });
     else if (col.code === 'mode') choix = (cfg().modesHospitalisation || []).map(function (m) { return { valeur: m.code, libelle: m.code + ' — ' + m.libelle }; });
     U.champs.modaleReglages({ code: col.reglage || ('vue.' + col.code), libelle: col.libelle, type: col.type, choix: choix, defaut: col.defaut,
