@@ -17,7 +17,7 @@
     var cfg = U.config(), masque = M.masqueDecompte(cfg, service || '*');
     var images = cfg.imagesDecompte || {}, fond = masque.fond && images[masque.fond];
     var auteur = U.App.session ? U.App.session.utilisateur.nom : '';
-    var doc = new SIC.pdf.Document({ titre: titre, auteur: auteur, marges: masque.marges, fond: fond ? fond.donnees : null, fondPages: masque.fondPages,
+    var doc = new SIC.pdf.Document({ titre: titre, auteur: auteur, marges: masque.marges, fond: fond ? fond.donnees : null, fondPages: masque.fondPages, nb: options.nb !== undefined ? !!options.nb : U.impressionNB(),
       piedDePage: function (n, total) { return 'Page ' + n + ' / ' + total; } });
     var G = doc.mg.g, L = doc.largeurUtile;
     if (options.confidentiel) doc.paragraphe('DOCUMENT CONFIDENTIEL — DONNÉES PERSONNELLES DE SANTÉ', { taille: 8.5, style: 'gras', aligne: 'centre', cadre: true, apres: 8 });

@@ -169,7 +169,7 @@
         h('button', { class: 'btn', onclick: function () { U.qualite.modaleRapport(svs, annee); } }, 'Rapport annuel (trame)…'),
         h('button', { class: 'btn', title: 'Avec le papier à en-tête (masque du décompte JLD)', onclick: function () { try { exporterPDF(a, b, svs, titreSv); } catch (e) { U.toast(e.message); } } }, 'Enregistrer en PDF'),
         h('button', { class: 'btn', onclick: function () { exporterCSV(a, b, svs); } }, 'Exporter (CSV)'),
-        h('button', { class: 'btn', onclick: function () { window.print(); } }, 'Imprimer')),
+        h('button', { class: 'btn', onclick: function () { U.imprimerPage(); } }, 'Imprimer')),
       h('div', { class: 'seulement-impression' }, h('h2', { text: (U.etablissement() ? U.etablissement() + ' — ' : '') + 'L’isolement et la contention en chiffres — ' + titreSv + ' — ' + annee })),
       h('p', { class: 'muted', text: titreSv + U.lieu('. Une mesure = une entrée du registre anonymisé terminée, comptée l’année de son début ; une contention en CSI couvre l’isolement qui l’accompagne.') + (b.enCours ? ' ' + b.enCours + ' entrée(s) encore en cours ne sont pas comptées.' : '') + (function () {
         var op = M.optionsPauses(etat.config);

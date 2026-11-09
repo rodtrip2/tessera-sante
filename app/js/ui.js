@@ -269,7 +269,7 @@
       h('div', { class: 'code-secours', text: code }),
       h('p', { class: 'muted', text: 'Imprimez-le ou recopiez-le, puis conservez-le sous enveloppe scellée au coffre. Sans lui, une perte de tous les moyens de déblocage rendrait les données définitivement illisibles.' }),
       h('label', { class: 'case' }, ok, h('span', { text: 'J’ai noté le code de secours et je le conserve en lieu sûr.' })),
-      h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: function () { window.print(); } }, 'Imprimer'), suite))));
+      h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: function () { imprimerPage(); } }, 'Imprimer'), suite))));
   }
 
   // ---------------------------------------------------------------- Connexion
@@ -1518,20 +1518,50 @@
 
   // ================================================================ Impression
   /** Imprime un document construit à part (décompte, rapport), sans l'interface autour. */
-  function imprimer(noeud) {
+  // ---------------------------------------------------------------- Impression en couleur ou en noir et blanc (0.18.1)
+  /*
+   * Décision du porteur du 9 novembre 2026 : partout où Tessera imprime, l'agent choisit couleur ou noir et blanc ; le
+   * choix est retenu dans ses préférences (`impression`), couleur par défaut, et vaut aussi pour les PDF. En noir et
+   * blanc, chaque couleur des réglages des données a son symbole (● ▲ ◆ ■…), et la page est imprimée en nuances de gris.
+   */
+  function impressionNB() { var p = (App.session && App.session.preferences) || {}; return p.impression === 'nb'; }
+  function choisirImpression() {
+    return new Promise(function (resoudre) {
+      var nb = impressionNB(), retenir = h('input', { type: 'checkbox', checked: true });
+      var fini = false;
+      function choix(v) { return async function () { fini = true; if (retenir.checked && v !== nb && App.session && App.session.enregistrerPreference) { try { await App.session.enregistrerPreference('impression', v ? 'nb' : 'couleur'); } catch (e) { /* préférence non retenue : sans conséquence */ } } resoudre(v); }; }
+      modale('Imprimer', h('div', { class: 'pile' }, h('p', { text: 'Impression en couleur ou en noir et blanc ? En noir et blanc, chaque couleur est remplacée par une nuance de gris et un symbole repris dans la légende.' }),
+        h('label', { class: 'case' }, retenir, h('span', { text: 'Retenir mon choix pour mes prochaines impressions et mes PDF' }))), [
+        { texte: 'Annuler' },
+        { texte: 'Noir et blanc', classe: nb ? 'primaire' : '', action: choix(true) },
+        { texte: 'Couleur', classe: nb ? '' : 'primaire', action: choix(false) }]).then(function () { if (!fini) resoudre(null); });
+    });
+  }
+  function lancerImpression(nb, apres) {
+    document.body.classList.toggle('impression-nb', !!nb);
+    var fin = function () { document.body.classList.remove('impression-nb'); if (apres) apres(); window.removeEventListener('afterprint', fin); };
+    window.addEventListener('afterprint', fin);
+    setTimeout(function () { window.print(); }, 60);
+  }
+  async function imprimer(noeud) {
+    var nb = await choisirImpression();
+    if (nb === null) return;
     var zone = document.getElementById('zone-impression') || document.body.appendChild(h('div', { id: 'zone-impression' }));
     vider(zone).appendChild(noeud);
     document.body.classList.add('mode-impression');
-    var fin = function () { document.body.classList.remove('mode-impression'); vider(zone); window.removeEventListener('afterprint', fin); };
-    window.addEventListener('afterprint', fin);
-    window.print();
+    lancerImpression(nb, function () { document.body.classList.remove('mode-impression'); vider(zone); });
+  }
+  /** Impression de la page affichée (aperçus du registre, des statistiques…), après le choix couleur / noir et blanc. */
+  async function imprimerPage() {
+    var nb = await choisirImpression();
+    if (nb !== null) lancerImpression(nb);
   }
 
   // ================================================================ Partage avec les autres modules
   SIC.ui = {
     vues: (SIC.ui && SIC.ui.vues) || {}, actions: (SIC.ui && SIC.ui.actions) || {},
     h: h, vider: vider, date: date, court: court, duree: duree, relatif: relatif, versSaisie: versSaisie, depuisSaisie: depuisSaisie,
-    ouvrirFenetre: ouvrirFenetre, toast: toast, modale: modale, imprimer: imprimer, erreurDans: erreurDans, fmtJour: fmtJour,
+    ouvrirFenetre: ouvrirFenetre, toast: toast, modale: modale, imprimer: imprimer, imprimerPage: imprimerPage, impressionNB: impressionNB, erreurDans: erreurDans, fmtJour: fmtJour,
     App: App, st: st, config: config, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, lignesDe: lignesDe, zoneTexte: zoneTexte, periodeDepuis: periodeDepuis, changerDossier: function () { return changerDossier(); },
