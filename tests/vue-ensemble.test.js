@@ -122,3 +122,11 @@ test('Instantanés : durée de conservation réglée par l’établissement', ()
   assert.ok(V.auDelaConservation({ vuesEnsemble: { conservationMois: 12 } }, i, maintenant));
   assert.ok(!V.auDelaConservation({ vuesEnsemble: { conservationMois: 24 } }, i, maintenant));
 });
+
+test('Largeur des colonnes : réglée en pixels (40 à 800), automatique sinon, gardée dans l’instantané', () => {
+  const v = V.normaliser({ id: 'l', nom: 'L', services: ['U1'], colonnes: [{ code: 'patient', largeur: 180 }, { code: 'chambre', largeur: 5 }, { code: 'mode', largeur: '120' }] });
+  assert.deepEqual(v.colonnes.map((c) => c.largeur), [180, 0, 120]);
+  const cat = V.catalogue('patients', ctx), cols = v.colonnes.map((c) => ({ col: V.colonneDe(cat, c.code), vcol: c }));
+  const p = V.preparerInstantane(v, V.ranger(v, V.lignes(v, ctx), cat, ctx, cols.map((x) => x.col)), cols, ctx, 'I9');
+  assert.deepEqual(p.entete.largeurs, { patient: 180, mode: 120 });
+});

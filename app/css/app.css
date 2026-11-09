@@ -754,3 +754,10 @@ input.court { width: 5em; }
 .apercu-formule { font-size: .85rem; padding: 4px 8px; border-radius: 4px; background: var(--surface-2); }
 .doc-vue table { font-size: 9pt; }
 @media print { .table-vue td.modifiable { cursor: default; outline: none; } .table-vue th .reglage-donnee { display: none; } }
+/* Largeur des colonnes réglable (Vue d'ensemble) */
+.table-vue th.redimensionnable { position: relative; padding-right: 12px; }
+.poignee-largeur { position: absolute; top: 0; right: 0; width: 7px; height: 100%; cursor: col-resize; user-select: none; touch-action: none; }
+.poignee-largeur:hover, body.redimension .poignee-largeur { background: color-mix(in srgb, var(--accent, #2f6f5e) 35%, transparent); }
+body.redimension { cursor: col-resize; user-select: none; }
+.largeur-reglee { overflow-wrap: anywhere; }
+@media print { .poignee-largeur { display: none; } }
