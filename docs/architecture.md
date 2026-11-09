@@ -277,7 +277,7 @@ Maquettes validées par le porteur le 8 novembre 2026 (trois versions). Journal 
 
 ## 7 quinquies. Vue d'ensemble, champs ajoutés communs et réglages des données (branche `vue-d-ensemble`, décisions du porteur du 9 novembre 2026)
 
-Plan relu par le porteur le 9 novembre 2026 (*Tessera Santé — Plan du module « Vue d'ensemble »*, trois séries de décisions). Développement dans la branche `vue-d-ensemble` ; documents autres que celui-ci mis à jour à la fusion.
+Plan relu par le porteur le 9 novembre 2026 (*Tessera Santé — Plan du module « Vue d'ensemble »*, trois séries de décisions). Développé dans la branche `vue-d-ensemble` (étapes 0.18.0 à 0.19.5), fusionné et publié en **0.19.0** le 9 novembre 2026.
 
 **Objet.** Un module de tableaux partagés, un onglet par vue, où chaque case se modifie sur place, sans changer de fenêtre. Le cadre crée les vues, choisit et ordonne les colonnes, ajoute des colonnes de données (dont des colonnes calculées par formule), règle des groupes de lignes et un bandeau de synthèse, et décide quels rôles voient chaque vue et chaque colonne. Une vue se prépare, se complète pendant le staff, puis se clôt en **instantané** conservé. Le module n'a pas de données propres en dehors des instantanés : chaque information est écrite dans le module qui en est propriétaire, par l'interface, avec la clé et les contrôles de ce module (un module n'écrit jamais dans le journal d'un autre).
 
@@ -430,6 +430,7 @@ Sept étapes, chacune publiable seule avec tous les tests au vert.
 | 6. Module Agenda | Fait. Besoins et plan arrêtés (§ 7 bis) ; plusieurs modules affichés, Agenda déclaré (0.8.0) ; agenda du service (0.8.1) ; tâches, absences, répétition et check-lists (0.8.3) ; niveaux des tâches, délais des check-lists (0.8.4) ; alertes et « Mon agenda » (0.8.5). **Fait** |
 | 7. Kit de déploiement | Fait (0.9.0) : `kit/` (README, guide d'installation, procédures de secours, éléments RGPD par module, guide utilisateur de la plateforme, guide du module Isolement et contention, guide pratique IDE et AS avec captures régénérées, reprise à partir du registre, robocopy, travail hors réseau, import de la liste des patients), PDF dans `kit/pdf/` par `scripts/docs-pdf.py` ; chemins d'exemple et noms des tâches planifiées renommés « TesseraSante » |
 | Module Suivi médical | Fait (0.17.0) : présences médicales, entretiens et contrats de soins, patients par médecin, liste commune des médecins (§ 7 quater) |
+| Module Vue d'ensemble | Fait (0.19.0) : champs ajoutés communs et réglages des données, impression couleur ou noir et blanc, capacité d'accueil, vues partagées modifiables sur place, formules, groupes, synthèse, instantanés (§ 7 quinquies) |
 | Module Véhicules | Fait (0.14.0) : parc, prêts et mises à disposition, réservations (directes ou depuis l'Agenda, disponibilité contrôlée), signalements, administration (§ 7 ter) |
 
 Restent propres à Isocont dans la coquille : quelques aides d'affichage liées aux patients et aux mesures (`patient`, `lieu`, réglages d'affichage de l'accueil), à reprendre avec le module Patients (étape 5) ; textes (titre, « Informations techniques », fichier lisez-moi du jeu de formation), à généraliser avec l'écran d'accueil des modules (étape 6). À l'étape 3 : le panneau « Règles légales et sécurité » d'Isocont porte aussi le verrouillage après inactivité, réglage du socle.
