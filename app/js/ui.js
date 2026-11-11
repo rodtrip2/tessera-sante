@@ -604,6 +604,7 @@
     admin: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'],
     suivi: ['M9 3h6v4H9z', 'M6 5H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-1', 'M12 11v6', 'M9 14h6'],
     vue: ['M3 4h18v16H3z', 'M3 9h18', 'M3 14h18', 'M9 4v16', 'M15 4v16'],
+    travaux: ['M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z'],
     vehicules: ['M5 17h14v-5l-2-5H7l-2 5z', 'M3 12h18', 'M7 17v2', 'M17 17v2', 'M7.5 14.5h1', 'M15.5 14.5h1'],
     module: ['M4 4h7v7H4z', 'M13 4h7v7h-7z', 'M4 13h7v7H4z', 'M13 13h7v7h-7z']
   };
@@ -1647,6 +1648,16 @@
     });
   }
 
+  /**
+   * Chambres indisponibles pendant des travaux (module Demandes de travaux, 0.22.0), lues à la volée pour la Vue
+   * d'ensemble et la liste des patients ; vide si l'agent n'a pas la clé du module ou si l'option n'est pas activée.
+   */
+  function chambresTravaux(services) {
+    var s = App.session;
+    try { var e = s && s.detientCle && s.detientCle('travaux') ? s.etatModule('travaux') : null; return e ? SIC.modules.lire('travaux.chambres', e, { services: services, config: config() }) || [] : []; }
+    catch (err) { return []; }
+  }
+
   // ================================================================ Partage avec les autres modules
   SIC.ui = {
     vues: (SIC.ui && SIC.ui.vues) || {}, actions: (SIC.ui && SIC.ui.actions) || {},
@@ -1655,7 +1666,7 @@
     App: App, st: st, config: config, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, lignesDe: lignesDe, zoneTexte: zoneTexte, periodeDepuis: periodeDepuis, changerDossier: function () { return changerDossier(); },
-    lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu, activerLargeurs: activerLargeurs,
+    lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu, activerLargeurs: activerLargeurs, chambresTravaux: chambresTravaux,
     demarrer: demarrer, verrouiller: verrouiller,
     retenirAccueil: function () { retenirAccueil(); }
   };

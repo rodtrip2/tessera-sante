@@ -34,7 +34,7 @@
     var isocont = s.detientCle && s.detientCle('isocont') && SIC.model && SIC.model.listeMesures;
     var hosp = Object.keys(fiches).map(function (k) { return fiches[k]; }).filter(function (p) { var r = null; (p.sejours || []).forEach(function (x) { if (!x.sortie) r = x; }); return !!r; });
     return { config: cfg(), maintenant: maintenant, roles: roles(), fiches: fiches, suivi: st || null, suiviModule: SIC.suivi, agenda: ag || null, agendaModule: SIC.agenda,
-      valeurs: s.valeurs(), lisible: U.champs.lisible, comptes: s.comptes || [], libService: U.libService, services: servicesAffiches(), hospitalises: hosp,
+      valeurs: s.valeurs(), chambresTravaux: U.chambresTravaux ? U.chambresTravaux(U.services().map(function (v) { return v.code; })) : [], lisible: U.champs.lisible, comptes: s.comptes || [], libService: U.libService, services: servicesAffiches(), hospitalises: hosp,
       libRole: function (r) { return SIC.modules.obtenir('isocont').droits.libRole(cfg(), r); },
       joursRecents: SIC.listePatients ? SIC.listePatients.options(cfg()).joursRecents : 7,
       mesuresEnCours: isocont ? function (pid) {

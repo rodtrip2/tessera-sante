@@ -788,3 +788,17 @@ th.largeur-reglee { white-space: normal; overflow-wrap: anywhere; }
 .ag-etape-badge.retard { outline: 2px solid var(--bad, #a12b2b); outline-offset: 1px; }
 .ag-mention { border-left: 3px solid var(--warn, #b97a00); padding-left: .5rem; margin: 0; }
 @media print { .ag-etape.courante, .ag-etape-badge { color: #000; background: none; border: 2px solid var(--c, #000); font-weight: 700; } }
+
+/* Demandes de travaux (0.22.0) */
+.travaux-liste { gap: .5rem; }
+.travaux-carte { border: 1px solid var(--bord, #d0d5dd); border-left: 4px solid var(--warn, #b97a00); border-radius: 8px; padding: .6rem .8rem; cursor: pointer; background: var(--fond-carte, transparent); }
+.travaux-carte:hover, .travaux-carte:focus { outline: 2px solid var(--accent, #2c5c9b); }
+.travaux-carte.urgente { border-left-color: var(--bad, #a12b2b); }
+.travaux-carte.traitee { opacity: .55; border-left-color: var(--bord, #d0d5dd); }
+.travaux-description { margin: .3rem 0; white-space: pre-wrap; }
+.travaux-urgence { border-left: 4px solid var(--bad, #a12b2b); padding: .4rem .6rem; background: color-mix(in srgb, var(--bad, #a12b2b) 10%, transparent); }
+tr.traitee td { opacity: .55; }
+.travaux-bon th { text-align: left; width: 14em; }
+.ag-puce.ag-travaux { border-left: 4px solid #8a5a2b; }
+tr.chambre-travaux th { background: color-mix(in srgb, var(--warn, #b97a00) 12%, transparent); }
+.travaux-filtres select { width: auto; max-width: 16rem; }
