@@ -564,7 +564,20 @@
     vues: { presences: vuePresences, entretiens: vueEntretiens, medecins: vueParMedecin, liste: function () { return U.medecins.vue(); }, psychologues: function () { return U.psychologues.vue(); } },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'La saisie revient à son état précédent.'; } },
     admin: { onglets: function () { return [['suivi', 'Suivi médical', [panneauReglages()]]]; } },
-    pastille: pastille
+    pastille: pastille,
+    // Onglet Informations de la messagerie (0.23.0, réglage de l'établissement) : alertes du module, par service et par type
+    informations: function () {
+      try {
+        var par = {}, auj = S.jourISO(Date.now());
+        S.alertes(st(), cfg(), fiches(), U.services().map(function (x) { return x.code; }), Date.now()).forEach(function (a) { var k = a.service + '|' + a.type; par[k] = (par[k] || 0) + 1; });
+        var LIBS = { entretien: 'sans entretien médical dans le délai', contrat: 'sans réévaluation du contrat de soins dans le délai', nonAttribue: 'sans médecin attribué' };
+        return Object.keys(par).map(function (k) {
+          var p = k.split('|'), n = par[k];
+          return { id: 'su-' + k + '-' + auj + '-' + n, niveau: 'warn', titre: n + ' patient' + (n > 1 ? 's ' : ' ') + LIBS[p[1]] + ' — ' + U.libService(p[0]),
+            detail: 'Liste et dates dans le module Suivi médical.', ouvrir: function () { U.ouvrirFenetre('suivi'); } };
+        });
+      } catch (e) { return []; }
+    }
   });
   U.suivi = { modaleCocher: modaleCocher, nomPatient: nomPatient };
 })();
