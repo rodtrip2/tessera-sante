@@ -307,6 +307,11 @@
     var r = choixRoles(ctx, 'rolesConfirmation', SIC.agendaParticipants.ROLES_CONFIRMATION_DEFAUT);
     return { titre: 'Inscriptions à confirmer : qui confirme, en plus de l’auteur de l’événement et de ses organisateurs', noeud: r.noeud, lire: function () { return { rolesConfirmation: r.lire() }; } };
   });
+  ajouterRubrique(function (ctx) {
+    var suit = ctx.niveau !== '*' && ctx.propre.partageDefaut === undefined, v = ctx.effectif.partageDefaut === 'co' ? 'co' : 'invites';
+    var sel = h('select', { 'aria-label': 'Place proposée pour les autres services' }, (ctx.niveau === '*' ? [] : [h('option', { value: '', text: 'Comme l’établissement', selected: suit })]).concat(Object.keys(A.PARTAGES).map(function (k) { return h('option', { value: k, text: A.PARTAGES[k], selected: !suit && v === k }); })));
+    return { titre: 'Événements de plusieurs services : choix proposé à la création', noeud: sel, lire: function () { return { partageDefaut: sel.value || undefined }; } };
+  });
 
   I.panneauReglages = panneauReglages;
   I.panneauReglagesService = panneauReglagesService; I.ajouterRubrique = ajouterRubrique; I.choixRoles = choixRoles;

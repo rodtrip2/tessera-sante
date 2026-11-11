@@ -314,6 +314,10 @@
     // - réunion sur invitation (un groupe d'agents et un rôle), deux places : l'agent connecté y est invité
     rdv({ nature: 'reunion', titre: 'Groupe de travail : accueil des familles', debut: jour(4, 14), fin: jour(4, 15), lieu: 'Salle de réunion', service: U1,
       participation: { mode: 'exact', nombre: 2, invites: [{ t: 'groupe', id: 'equipe-jour-u1', nom: 'Équipe de jour' }, { t: 'role', id: 'CADRE', nom: 'Cadre de santé' }] } });
+    // - événements de plusieurs services (0.21.0) : l'Unité 2 invitée (elle inscrit ses patients et ses agents) ; l'Unité 1 co-organisatrice
+    rdv({ nature: 'activite', titre: 'Tournoi de pétanque inter-unités (fictif)', debut: jour(5, 14), fin: jour(5, 16), lieu: 'Parc de l’établissement', service: U1, services: [U2], partage: 'invites', patients: ['P01', 'P03', 'P04'],
+      participation: { mode: 'min', nombre: 3, libre: true, patientsMax: 8 } });
+    rdv({ nature: 'reunion', titre: 'Réunion des deux unités', debut: jour(6, 11), fin: jour(6, 12), lieu: 'Salle du pôle (fictive)', service: U2, services: [U1], partage: 'co' });
     rdv({ nature: 'activite', titre: 'Atelier terre', debut: lundiDe(2, 10, 30), fin: lundiDe(2, 11, 30), lieu: 'Salle d’activités', service: U1, patients: ['P01', 'P02', 'P05'], professionnels: [profC], regularite: { type: 'semaine', jours: [3], intervalle: 2 } });
     // Activité sans patient inscrit pour l'instant (transparente, réglage de démonstration)
     rdv({ nature: 'activite', titre: 'Atelier cuisine', debut: jour(2, 15), fin: jour(2, 17), lieu: 'Cuisine thérapeutique', service: U1, patients: [], accompagnateurs: 1 });

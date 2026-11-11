@@ -105,7 +105,7 @@
         (function () { var vs = A.etatValidations(r, x.occurrence, x.debut, fiches(), U.config(), Date.now()).filter(function (v) { return v.type !== 'permission' || !sp; }); var att = vs.filter(function (v) { return !v.fait; });
           return vs.length ? h('span', { class: 'badge ' + (att.some(function (v) { return v.niveau === 'retard'; }) ? 'bad' : (att.length ? 'warn' : 'ok')), title: vs.map(function (v) { return v.libelle + (v.fait ? ' : ' + (v.fait.statut === 'validee' ? 'validée' : 'refusée') : ' : à faire valider'); }).join(' ; '), text: att.length ? att.length + ' à valider' : 'Validé' }) : null; })(),
         A.etatTransports(r, x.occurrence).map(function (t) { return h('span', { class: 'badge ' + (t.reserve ? 'ok' : 'warn'), text: (t.nombre > 1 ? t.nombre + ' ' : '') + A.TRANSPORTS[t.type] + (t.reserve ? ' réservé' : ' à réserver') }); }),
-        x.externe ? h('span', { class: 'badge warn', text: U.libService(r.service) }) : null,
+        x.externe || x.partage ? h('span', { class: 'badge warn', text: U.libService(r.service) }) : ((r.services || []).length ? h('span', { class: 'badge', title: 'Avec ' + r.services.map(function (c) { return U.libService(c); }).join(', '), text: '+' + r.services.length + ' service' + (r.services.length > 1 ? 's' : '') }) : null),
         x.annulee || A.enAttente(r, U.config()) ? null : [badgeAccompagnateurs(x), boutonInscription(x, true)],
         cl ? h('span', { class: 'badge ' + (cl.alertes ? 'bad' : (cl.reste ? 'warn' : 'ok')), text: 'Check-list ' + (cl.items.length - cl.reste) + '/' + cl.items.length }) : null,
         x.absents.length ? h('span', { class: 'badge bad', text: 'Absent(e) : ' + x.absents.map(function (p) { return p.nom; }).join(', ') }) : null,
@@ -496,6 +496,11 @@
     // Toujours l'élément enregistré (réglages de toutes les dates), même ouvert depuis une date qui a ses propres réglages
     if (r && r.id && st().rdv[r.id]) r = st().rdv[r.id];
     var ini = init || {}, s = U.App.session, moi = s.compteEffectif();
+    // Événement de plusieurs services (0.21.0) vu depuis un service qui n'en est pas l'organisateur : co-organisateur
+    // (il modifie) ou invité (il inscrit ses patients et ses agents, sans modifier)
+    var mesSv = U.services().map(function (v) { return v.code; });
+    var partageVu = r && mesSv.indexOf(r.service) < 0 && (r.services || []).some(function (c) { return mesSv.indexOf(c) >= 0; }) ? (r.partage === 'co' ? 'co' : 'invites') : null;
+    if (partageVu === 'invites') { lecture = true; patientsVisibles = (r.patients || []).filter(function (pid) { return mesSv.indexOf(A.serviceDuPatient(fiches()[pid])) >= 0; }); }
     var repete = !!r && !!occurrence && A.regularite(r.regularite).type !== 'aucune';
     // Portée de la modification d'un élément répété : cette date seulement (par défaut) ou toutes les dates (décision du 8 novembre 2026)
     var portee = repete ? (ini.portee || 'date') : 'toutes', parDate = portee === 'date';
@@ -506,7 +511,32 @@
     var reg = A.regularite(x.regularite), checklist = (x.checklist || []).map(function (it) { return { id: it.id, libelle: it.libelle, delai: it.delai === undefined ? null : it.delai }; });
     var serviceInitial = x.service || ini.service || (U.App.service !== '*' ? U.App.service : '');
     var disCommun = parDate ? { disabled: true, title: 'Commun à toutes les dates : choisissez « toutes les dates » pour le changer' } : dis;
-    var sv = h('select', disCommun, (lecture ? U.tousServices() : U.services()).map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === serviceInitial }); }));
+    var svChoix = lecture || partageVu ? U.tousServices() : U.services();
+    var sv = h('select', partageVu ? { disabled: true, title: 'Seul le service organisateur change le service de l’événement' } : disCommun, svChoix.map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === serviceInitial }); }));
+    // Autres services de l'événement, et leur place : invités ou co-organisateurs (choix proposé réglé par le cadre)
+    var autresSv = (x.services || []).slice(), partage = x.partage || A.partageDefaut(U.config(), serviceInitial);
+    var zoneSv = h('div', { class: 'pile' });
+    function svTous() { return [sv.value].concat(autresSv.filter(function (c) { return c !== sv.value; })); }
+    function dessinerServices() {
+      U.vider(zoneSv);
+      var autres = U.tousServices().filter(function (v) { return v.code !== sv.value && (autresSv.indexOf(v.code) >= 0 || A.droits.serviceActif(U.config(), v.code)); });
+      if (!autres.length) { zoneSv.hidden = true; return; }
+      zoneSv.hidden = false;
+      var fige = lecture || parDate || !!partageVu;
+      if (fige) {
+        if (!autresSv.length) { zoneSv.hidden = true; return; }
+        zoneSv.appendChild(h('p', { text: 'Avec ' + autresSv.map(function (c) { return U.libService(c); }).join(', ') + ' — ' + (partage === 'co' ? 'services co-organisateurs' : 'services invités') + (partageVu ? ' (organisé par ' + U.libService(x.service) + ')' : '') }));
+        return;
+      }
+      zoneSv.appendChild(h('div', { class: 'actions gauche' }, h('span', { text: 'Avec d’autres services :' }), autres.map(function (v) {
+        var cb = h('input', { type: 'checkbox', checked: autresSv.indexOf(v.code) >= 0, onchange: function () { autresSv = cb.checked ? autresSv.concat([v.code]) : autresSv.filter(function (c) { return c !== v.code; }); dessinerServices(); dessinerPatients(); dessinerPros(); } });
+        return h('label', { class: 'case' }, cb, h('span', { text: v.libelle }));
+      })));
+      if (autresSv.length) {
+        var selP = h('select', { 'aria-label': 'Place des autres services', onchange: function () { partage = selP.value; } }, Object.keys(A.PARTAGES).map(function (k) { return h('option', { value: k, text: A.PARTAGES[k], selected: partage === k }); }));
+        zoneSv.appendChild(selP);
+      }
+    }
     var natureInitiale = x.nature || ini.nature || 'accompagnement';
     var codesNature = naturesPour(serviceInitial || null); if (codesNature.indexOf(natureInitiale) < 0) codesNature.push(natureInitiale);
     var nature = h('select', disCommun, codesNature.map(function (k) { return h('option', { value: k, text: libNature(k, serviceInitial), selected: natureInitiale === k }); }));
@@ -567,7 +597,7 @@
     var zonePat = h('div', { class: 'pile' }), recherche = '';
     function fichesDuService() {
       var f = fiches();
-      return Object.keys(f).map(function (k) { return f[k]; }).filter(function (p) { return A.serviceDuPatient(p) === sv.value || patients.indexOf(p.id) >= 0; })
+      return Object.keys(f).map(function (k) { return f[k]; }).filter(function (p) { return svTous().indexOf(A.serviceDuPatient(p)) >= 0 || patients.indexOf(p.id) >= 0; })
         .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
     }
     function dessinerPatients() {
@@ -578,7 +608,24 @@
         var att = ids.filter(function (i) { return ppl.attente.indexOf(i) >= 0; });
         if (att.length) zonePat.appendChild(h('p', { text: 'Liste d’attente : ' + nomsPatients(att).join(', ') }));
         if (ppl.min || ppl.max) zonePat.appendChild(h('small', { class: 'muted', text: 'Places : ' + (ppl.min ? 'au moins ' + ppl.min : '') + (ppl.min && ppl.max ? ', ' : '') + (ppl.max ? ppl.max + ' au plus' : '') + (ppl.manque ? ' — il manque ' + ppl.manque + ' patient(s)' : '') }));
-        if (patientsVisibles && patientsVisibles.length < patients.length) zonePat.appendChild(h('small', { class: 'muted', text: 'Seuls les patients hospitalisés dans votre service sont affichés.' }));
+        if (patientsVisibles && patientsVisibles.length < patients.length) zonePat.appendChild(h('small', { class: 'muted', text: 'Seuls les patients hospitalisés dans votre service sont nommés' + (partageVu ? ' (' + (patients.length - patientsVisibles.length) + ' autre(s) patient(s) inscrit(s))' : '') + '.' }));
+        // Service invité : il inscrit ou retire ses propres patients, sans modifier l'événement
+        if (partageVu === 'invites' && peut('PATIENT_INSCRIT') && !s.apercu && !nouveau) {
+          var f0 = fiches(), miens = Object.keys(f0).map(function (k) { return f0[k]; }).filter(function (p) { return mesSv.indexOf(A.serviceDuPatient(p)) >= 0; }).sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
+          zonePat.appendChild(h('b', { class: 'ag-sous-titre', text: 'Inscrire les patients de votre service' }));
+          zonePat.appendChild(h('div', { class: 'grille-2 liste-cases' }, miens.slice(0, 60).map(function (p) {
+            var cb = h('input', { type: 'checkbox', checked: patients.indexOf(p.id) >= 0, onchange: async function () {
+              try {
+                await s.enregistrer('PATIENT_INSCRIT', { rdv: x.id, occurrence: occurrence || undefined, patient: p.id, retrait: cb.checked ? undefined : true, service: x.service });
+                patients = cb.checked ? patients.concat([p.id]) : patients.filter(function (i) { return i !== p.id; });
+                patientsVisibles = patients.filter(function (pid) { return mesSv.indexOf(A.serviceDuPatient(fiches()[pid])) >= 0; });
+                U.toast(cb.checked ? 'Patient inscrit.' : 'Patient retiré.'); dessinerPatients();
+              } catch (e) { cb.checked = !cb.checked; alert(e.message); }
+            } });
+            var rg = ppl.attente.indexOf(p.id);
+            return h('label', { class: 'case' }, cb, h('span', { text: (p.nom || '?') + ' ' + (p.prenom || '') }), rg >= 0 ? h('span', { class: 'badge warn', text: 'attente n° ' + (rg + 1) }) : null);
+          })));
+        }
         return;
       }
       var q = recherche.trim().toLowerCase(), liste = fichesDuService().filter(function (p) { return !q || ((p.nom || '') + ' ' + (p.prenom || '') + ' ' + (p.ipp || '')).toLowerCase().indexOf(q) >= 0; });
@@ -606,7 +653,7 @@
       U.vider(zonePro);
       zonePro.appendChild(h('b', { class: 'ag-sous-titre', text: 'Désignés (sans confirmation)' }));
       if (lecture) { zonePro.appendChild(h('p', { text: profs.length ? profs.map(function (p) { return p.nom; }).join(', ') : '—' })); return; }
-      var comptes = (s.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && (!(c.services || []).length || (c.services || []).indexOf(sv.value) >= 0 || profs.some(function (p) { return p.id === c.id; })); })
+      var comptes = (s.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && (!(c.services || []).length || (c.services || []).some(function (v) { return svTous().indexOf(v) >= 0; }) || profs.some(function (p) { return p.id === c.id; })); })
         .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
       zonePro.appendChild(h('div', { class: 'grille-2 liste-cases' }, comptes.map(function (c) {
         var cb = h('input', { type: 'checkbox', checked: profs.some(function (p) { return p.id === c.id; }), onchange: function () { profs = cb.checked ? profs.concat([{ id: c.id, nom: c.nom }]) : profs.filter(function (p) { return p.id !== c.id; }); } });
@@ -908,11 +955,11 @@
       dessinerTransports(); dessinerAccompagnateurs(); dessinerValidations(); dessinerChecklist(); majVisibles();
     }
     nature.addEventListener('change', function () { majNature(true); });
-    sv.addEventListener('change', function () { dessinerPatients(); dessinerPros(); });
+    sv.addEventListener('change', function () { dessinerServices(); dessinerPatients(); dessinerPros(); });
     [date, hDebut].forEach(function (c) { c.addEventListener('change', dessinerValidations); });
     [date, hDebut, dateFin, hFin, sv].forEach(function (c) { c.addEventListener('change', function () { if (transports.some(function (t) { return t.type === 'vehicule'; })) dessinerTransports(); }); });
     if (!nouveau) dessinerCommentaires();
-    dessinerPatients(); dessinerPros(); dessinerChecklist();
+    dessinerServices(); dessinerPatients(); dessinerPros(); dessinerChecklist();
 
     var boutons = [{ texte: lecture || repete ? 'Fermer' : 'Annuler' }];
     var propres = (x.surchargee || []).map(function (k) { return LIB_CHAMPS[k] || k; });
@@ -970,6 +1017,7 @@
       if (validations.some(function (v) { return v.type !== 'permission' && !String(v.libelle || '').trim(); })) throw new Error('Précisez l’intitulé de chaque validation médicale ou autre (ex. avis du psychiatre).');
       var d = { id: x.id || 'R' + C.hex(C.aleatoire(6)), nature: nv, titre: titre.value.trim(), debut: d0, fin: d1, lieu: lieu.value.trim(), service: sv.value,
         patients: visibles.patients ? patients : [], professionnels: profs, regularite: rg, checklist: checklist,
+        services: autresSv.filter(function (c) { return c !== sv.value; }), partage: autresSv.length ? partage : '',
         accompagnateurs: Math.min(20, part.nombre), consigneAccompagnateurs: consigneAcc.trim(),
         participation: sansAncien(P.reglage({ participation: Object.assign({}, part, visibles.patients ? {} : { patientsMin: 0, patientsMax: 0 }) })),
         transports: visibles.transports ? transports.map(function (t) { var o = { id: t.id, type: t.type || 'vsl', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: String(t.precision || '').trim() }; if (o.type === 'vehicule' && t.vehicule) o.vehicule = t.vehicule; return o; }) : [],
@@ -1008,6 +1056,9 @@
       if (!nouveau && Array.isArray(d.validations) && !Array.isArray(x.validations) && !d.validations.length && !A.validationsDe(x).length) delete d.validations;
       if (!nouveau && !d.consigneAccompagnateurs && !x.consigneAccompagnateurs) delete d.consigneAccompagnateurs;
       if (!nouveau && JSON.stringify(d.participation) === JSON.stringify(partAvant)) delete d.participation;
+      if (!d.services.length && !(x.services || []).length) delete d.services;
+      if ((d.partage || '') === (x.partage || '')) delete d.partage;
+      if (partageVu) delete d.service;
       if (!nouveau && d.accompagnateurs === Math.min(20, partAvant.nombre)) delete d.accompagnateurs;
       if (nouveau && JSON.stringify(d.participation) === JSON.stringify(sansAncien(P.reglage({ participation: {} })))) delete d.participation;
       if (nouveau) ['accompagnateurs', 'consigneAccompagnateurs', 'transports', 'validations'].forEach(function (k) { if (!d[k] || (Array.isArray(d[k]) && !d[k].length)) delete d[k]; });
@@ -1025,7 +1076,7 @@
         })),
         parDate ? h('small', { class: 'muted', text: (x.annulee ? 'Date annulée' + (x.motifAnnulation ? ' : ' + x.motifAnnulation : '') + '. ' : '') + (propres.length ? 'Réglages propres à cette date : ' + propres.join(', ') + '. ' : '') + 'Patients, accompagnateurs, transports, validations, check-list, horaires et lieu se règlent pour cette date ; le type, le service et la répétition sont communs à toutes les dates.' }) :
           h('small', { class: 'muted', text: 'Les dates qui ont leurs propres réglages les gardent.' })) : null,
-      h('div', { class: 'grille-2' }, h('label', {}, 'Type', nature), h('label', {}, 'Service', sv)),
+      h('div', { class: 'grille-2' }, h('label', {}, 'Type', nature), h('label', {}, partageVu || autresSv.length ? 'Service organisateur' : 'Service', sv)), zoneSv,
       zoneEnt, zoneExamen, zoneAudience,
       h('label', {}, 'Intitulé', titre),
       h('div', { class: 'grille-4' }, h('label', {}, 'Jour de début', date), h('label', {}, 'Heure de début', hDebut), h('label', {}, 'Jour de fin', dateFin), h('label', {}, 'Heure de fin', hFin)),
@@ -1045,7 +1096,7 @@
   function fermerPuisAgenda(fn) { var dlg = document.querySelector('dialog[open]'); if (dlg) dlg.dispatchEvent(new Event('cancel')); setTimeout(fn, 0); }
 
   // Délai d'alerte d'un point de check-list (jours avant l'événement)
-  var LIB = { OCCURRENCE: 'Agenda : réglage d’une date', VALIDATION: 'Agenda : validation', TRANSPORT: 'Agenda : transport', RDV: 'Agenda : élément', COMMENTAIRE: 'Agenda : commentaire', CHECK: 'Agenda : check-list', INSCRIPTION: 'Agenda : inscription d’un accompagnateur', TACHE: 'Agenda : tâche du service', TACHE_EQUIPE: 'Agenda : tâche de l’équipe', TACHE_AJUSTEMENT: 'Agenda : tâche ajustée', TACHE_FAITE: 'Agenda : tâche faite', ABSENCE: 'Agenda : absence', ALERTE: 'Agenda : alerte', ALERTE_VUE: 'Agenda : alerte vue' };
+  var LIB = { OCCURRENCE: 'Agenda : réglage d’une date', VALIDATION: 'Agenda : validation', TRANSPORT: 'Agenda : transport', RDV: 'Agenda : élément', COMMENTAIRE: 'Agenda : commentaire', CHECK: 'Agenda : check-list', INSCRIPTION: 'Agenda : inscription d’un professionnel', PATIENT_INSCRIT: 'Agenda : patient inscrit par un service invité', TACHE: 'Agenda : tâche du service', TACHE_EQUIPE: 'Agenda : tâche de l’équipe', TACHE_AJUSTEMENT: 'Agenda : tâche ajustée', TACHE_FAITE: 'Agenda : tâche faite', ABSENCE: 'Agenda : absence', ALERTE: 'Agenda : alerte', ALERTE_VUE: 'Agenda : alerte vue' };
   function resume(e) {
     var d = e.data || {};
     switch (e.type) {
@@ -1063,6 +1114,7 @@
       case 'TRANSPORT': var rtr = st().rdv[d.rdv], tt = rtr && (rtr.transports || []).filter(function (y) { return y.id === d.transport; })[0];
         return (tt ? A.TRANSPORTS[tt.type] || 'Transport' : 'Transport') + ' — « ' + (rtr ? libelleElement(rtr) : 'élément') + ' » le ' + String(d.occurrence || '').split('-').reverse().join('/') + ' : ' + (d.statut === 'reserve' ? 'réservé' + (d.precision ? ' (' + d.precision + ')' : '') : 'remis à réserver');
       case 'INSCRIPTION': var ri = st().rdv[d.rdv]; return (e.by && e.by !== d.agent ? U.App.session.nomAuteur(e.by) + ' : ' : '') + (d.retrait ? 'retrait de ' : d.etat === 'propose' ? 'proposition à ' : d.etat === 'demande' ? 'demande de participation de ' : d.etat === 'refuse' ? 'refus' + (d.motif ? ' (' + d.motif + ')' : '') + ' pour ' : (d.prioritaire ? 'passage en tête de ' : 'inscription de ')) + (d.nom || U.App.session.nomAuteur(d.agent)) + ' : « ' + (ri ? libelleElement(ri) : 'élément') + ' » le ' + String(d.occurrence || '').split('-').reverse().join('/');
+      case 'PATIENT_INSCRIT': var rpi = st().rdv[d.rdv]; return (d.retrait ? 'Patient retiré de « ' : 'Patient inscrit à « ') + (rpi ? libelleElement(rpi) : 'élément') + ' »' + (d.occurrence ? ' le ' + String(d.occurrence).split('-').reverse().join('/') : '') + ' : ' + nomsPatients([d.patient])[0];
       case 'COMMENTAIRE': var rr = st().rdv[d.rdv]; return 'Commentaire sur ' + (rr ? '« ' + (rr.titre || '') + ' »' : 'un élément') + (d.service ? ' (' + U.libService(d.service) + ')' : '') + ' : ' + (d.texte || '');
       case 'CHECK': var rk = st().rdv[d.rdv], it = rk && (rk.checklist || []).filter(function (y) { return y.id === d.item; })[0]; return 'Check-list de « ' + (rk ? rk.titre : '') + ' » (' + String(d.occurrence || '').split('-').reverse().join('/') + ') : ' + (it ? it.libelle : 'point') + (d.fait === false ? ' décoché' : ' fait');
       case 'TACHE_AJUSTEMENT': var ta = st().taches[d.tache];
