@@ -101,6 +101,12 @@ test('Réponses : à l’auteur seulement, à tous, aucune ; nouvelles réponses
   // L'auteur qui répond : visible par tous les destinataires
   const stA = MS.reduire(evts.concat([ev('cadre', 'MESSAGE_REPONSE', { message: 'M1', id: 'R3', texte: 'Au poste de soins (fictif)' }, 2)]));
   assert.deepEqual(MS.reponsesVisibles(stA.messages.M1, ide1).map(r => r.id), ['R1', 'R3']);
+  // L'auteur répond à un seul agent : visible par lui seul (et l'auteur)
+  const stB = MS.reduire(evts.concat([ev('cadre', 'MESSAGE_REPONSE', { message: 'M1', id: 'R4', texte: 'Dans le placard (fictif)', a: 'as1', nomA: 'AS 1' }, 2)]));
+  assert.deepEqual([MS.reponsesVisibles(stB.messages.M1, as1).map(r => r.id), MS.reponsesVisibles(stB.messages.M1, ide1).map(r => r.id), stB.messages.M1.reponsesListe[2].a], [['R2', 'R4'], ['R1'], 'as1']);
+  const stT = MS.reduire([message({ reponses: 'tous' }), evts[1], evts[2], ev('cadre', 'MESSAGE_REPONSE', { message: 'M1', id: 'R5', texte: 'x', a: 'as1' }, 2)]);
+  assert.deepEqual(MS.reponsesVisibles(stT.messages.M1, ide1).map(r => r.id), ['R1', 'R2']);
+  assert.throws(() => MS.controler('MESSAGE_REPONSE', { message: 'M1', texte: 'ok', a: 'as1' }, { etat: st, compte: Object.assign({ groupes: [] }, ide1), config }), /Seul l’auteur/);
   assert.equal(MS.liste(st, cadre, gr(cadre), config, NOV(3), 'envoyes')[0].situation.nouvellesReponses, 2);
   assert.equal(MS.enAttente(st, cadre, gr(cadre), config, NOV(3)), 1);
   evts.push(ev('cadre', 'MESSAGE_LU', { message: 'M1' }, 3));

@@ -241,17 +241,30 @@
       m.relances.length ? h('small', { class: 'muted', text: 'Relancé ' + m.relances.map(function (x) { return 'le ' + dateHeure(x.le); }).join(', ') }) : null);
   }
   function sectionReponses(m) {
-    var c = moi(), rs = MS.reponsesVisibles(m, c), z = h('section', { class: 'pile ms-reponses', 'aria-label': 'Réponses' });
+    var c = moi(), auteur = m.par === c.id, rs = MS.reponsesVisibles(m, c), z = h('section', { class: 'pile ms-reponses', 'aria-label': 'Réponses' });
     if (m.reponses === 'aucune') return rs.length ? z : null;
-    z.appendChild(h('b', {}, 'Réponses (' + rs.length + ') ', h('small', { class: 'muted', text: '— ' + (m.reponses === 'tous' ? 'visibles par tous les destinataires' : 'chaque réponse n’est visible que par l’auteur ; ses réponses à lui, par tous') })));
+    z.appendChild(h('b', {}, 'Réponses (' + rs.length + ') ', h('small', { class: 'muted', text: '— ' + (m.reponses === 'tous' ? 'visibles par tous les destinataires' : 'chaque réponse n’est visible que par l’auteur') + ' ; l’auteur répond au groupe ou à un seul agent' })));
+    // Auteur : « À tous les destinataires » ou à l'un des agents qui ont répondu
+    var dest = null, t = null;
     rs.forEach(function (r) {
-      z.appendChild(h('div', { class: 'ms-reponse' + (r.par === c.id ? ' mienne' : '') }, h('small', { class: 'muted', text: (r.nom || s().nomAuteur(r.par)) + ' — ' + dateHeure(r.le) }), h('p', { class: 'ms-texte', text: r.texte })));
+      var lib = (r.nom || s().nomAuteur(r.par)) + (r.a ? ' → ' + (r.a === c.id ? 'vous seulement' : (r.nomA || s().nomAuteur(r.a)) + ' seulement') : '') + ' — ' + dateHeure(r.le);
+      z.appendChild(h('div', { class: 'ms-reponse' + (r.par === c.id ? ' mienne' : '') + (r.a ? ' individuelle' : '') }, h('small', { class: 'muted', text: lib }), h('p', { class: 'ms-texte', text: r.texte })));
     });
     if (!m.retire && !s().apercu && s().peut('MESSAGE_REPONSE')) {
-      var t = h('textarea', { rows: 2, maxlength: 2000, placeholder: m.par === c.id ? 'Répondre (visible par les destinataires)' : m.reponses === 'tous' ? 'Répondre à tous' : 'Répondre à l’auteur', 'aria-label': 'Votre réponse' });
-      z.appendChild(h('div', { class: 'ms-repondre' }, t, h('button', { class: 'btn primaire', type: 'button', onclick: function () {
+      var vus = {}, repondants = rs.filter(function (r) { return r.par !== c.id && !vus[r.par] && (vus[r.par] = 1); });
+      dest = auteur ? h('select', { 'aria-label': 'Destinataire de la réponse' }, [h('option', { value: '', text: 'À tous les destinataires' })]
+        .concat(repondants.map(function (r) { return h('option', { value: r.par, text: 'À ' + (r.nom || s().nomAuteur(r.par)) + ' seulement' }); }))) : null;
+      t = h('textarea', { rows: 2, maxlength: 2000, placeholder: auteur ? 'Votre réponse' : m.reponses === 'tous' ? 'Répondre à tous' : 'Répondre à l’auteur', 'aria-label': 'Votre réponse' });
+      // Boutons « Répondre à … seulement » : ajoutés maintenant que le choix existe
+      if (auteur) Array.prototype.forEach.call(z.querySelectorAll('.ms-reponse'), function (el, i) {
+        var r = rs[i]; if (r.par === c.id) return;
+        el.appendChild(h('button', { class: 'btn lien', type: 'button', onclick: function () { dest.value = r.par; t.focus(); } }, 'Répondre à ' + (r.nom || s().nomAuteur(r.par)) + ' seulement'));
+      });
+      z.appendChild(h('div', { class: 'ms-repondre' }, dest ? h('div', { class: 'pile ms-repondre-champ' }, dest, t) : t, h('button', { class: 'btn primaire', type: 'button', onclick: function () {
         if (!t.value.trim()) return;
-        ecrire('MESSAGE_REPONSE', { message: m.id, id: 'R' + SIC.crypto.hex(SIC.crypto.aleatoire(5)), texte: t.value.trim(), nom: moi().nom }, 'Réponse envoyée.');
+        var d = { message: m.id, id: 'R' + SIC.crypto.hex(SIC.crypto.aleatoire(5)), texte: t.value.trim(), nom: moi().nom };
+        if (dest && dest.value) { d.a = dest.value; var r0 = repondants.filter(function (r) { return r.par === dest.value; })[0]; d.nomA = r0 ? r0.nom || '' : ''; }
+        ecrire('MESSAGE_REPONSE', d, d.a ? 'Réponse envoyée à ' + (d.nomA || 'l’agent') + ' seulement.' : 'Réponse envoyée.');
       } }, 'Envoyer')));
     }
     return z;
