@@ -356,6 +356,36 @@
         return { processPermissions: Object.keys(propres).length ? propres : undefined, tachesPermission: selT.value || undefined };
       } };
   });
+  // Tâches suggérées selon la prise en charge (type de professionnel ou de structure → tâche, délai, obligatoire)
+  ajouterRubrique(function (ctx) {
+    var suit = ctx.niveau !== '*' && !Array.isArray(ctx.propre.suggestions);
+    var regles = JSON.parse(JSON.stringify(Array.isArray(ctx.effectif.suggestions) ? ctx.effectif.suggestions : A.SUGGESTIONS_DEFAUT));
+    var types = SIC.intervenants.reglages(U.config()).types, zone = h('div', { class: 'pile' });
+    var cbSuit = ctx.niveau === '*' ? null : h('input', { type: 'checkbox', checked: suit, onchange: function () { suit = cbSuit.checked; dessiner(); } });
+    function dessiner() {
+      U.vider(zone);
+      if (suit) return;
+      regles.forEach(function (rg, i) {
+        var selT = h('select', { 'aria-label': 'Type de professionnel ou de structure', onchange: function () { rg.type = selT.value; } }, types.map(function (t) { return h('option', { value: t.code, text: t.libelle, selected: rg.type === t.code }); }));
+        var tache = h('input', { type: 'text', maxlength: 100, value: rg.tache || '', placeholder: 'ex. Appeler l’infirmier libéral', 'aria-label': 'Tâche suggérée', oninput: function () { rg.tache = tache.value; } });
+        var obl = h('input', { type: 'checkbox', checked: !!rg.obligatoire, onchange: function () { rg.obligatoire = obl.checked; } });
+        zone.appendChild(h('div', { class: 'pile ag-validation' }, h('div', { class: 'actions gauche' }, selT, tache, selectDelai(rg.delai === undefined ? null : rg.delai, function (v) { rg.delai = v; }),
+          h('button', { class: 'btn petit danger', type: 'button', onclick: function () { regles.splice(i, 1); dessiner(); } }, 'Retirer')),
+          h('div', { class: 'actions gauche' }, h('small', { class: 'muted', text: 'Pour :' }), Object.keys(A.EVENEMENTS_SUGGESTION).map(function (k) {
+            var c = h('input', { type: 'checkbox', checked: (rg.pour || []).indexOf(k) >= 0, onchange: function () { rg.pour = c.checked ? (rg.pour || []).concat([k]) : (rg.pour || []).filter(function (y) { return y !== k; }); } });
+            return h('label', { class: 'case' }, c, h('span', { text: A.EVENEMENTS_SUGGESTION[k] }));
+          }), h('label', { class: 'case' }, obl, h('span', { text: 'Obligatoire (ajoutée d’office, retirée par le cadre seul)' })))));
+      });
+      zone.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { regles.push({ type: types[0].code, tache: '', delai: 2, pour: ['sortie'] }); dessiner(); } }, '+ Règle'));
+    }
+    dessiner();
+    var bSuit = ctx.niveau !== '*' && ctx.propre.tachesObligatoiresBloquent === undefined;
+    var selB = h('select', { 'aria-label': 'Tâches obligatoires non faites' }, (ctx.niveau === '*' ? [] : [h('option', { value: '', text: 'Comme l’établissement', selected: bSuit })]).concat([['non', 'Alerte seulement (pas de blocage)'], ['oui', 'La dernière étape d’une permission attend les tâches obligatoires']].map(function (o) { return h('option', { value: o[0], text: o[1], selected: !bSuit && (ctx.effectif.tachesObligatoiresBloquent ? 'oui' : 'non') === o[0] }); })));
+    return { titre: 'Tâches suggérées selon la prise en charge du patient (infirmier libéral, foyer, hôpital de jour…)', noeud: h('div', { class: 'pile' },
+      h('small', { class: 'muted', text: 'Quand un patient d’une sortie ou d’une permission a un professionnel ou une structure de ce type dans sa fiche, la tâche est proposée pour la check-list, avec son délai d’anticipation.' }),
+      cbSuit ? h('label', { class: 'case' }, cbSuit, h('span', { text: 'Comme l’établissement' })) : null, zone, h('label', {}, 'Tâches obligatoires non faites', selB)),
+      lire: function () { return { suggestions: suit ? undefined : regles.filter(function (rg) { return String(rg.tache || '').trim(); }), tachesObligatoiresBloquent: selB.value === '' ? undefined : selB.value === 'oui' }; } };
+  });
 
   I.panneauReglages = panneauReglages;
   I.panneauReglagesService = panneauReglagesService; I.ajouterRubrique = ajouterRubrique; I.choixRoles = choixRoles;

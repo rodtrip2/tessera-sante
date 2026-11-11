@@ -28,11 +28,11 @@
   // Types d'événements autorisés par rôle. L'IDE dispose en permanence des
   // actions JLD (usage prévu le week-end et en l'absence de la secrétaire).
   var DROITS = {
-    IDE: ['PATIENT', 'SEJOUR', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],
+    IDE: ['PATIENT', 'SEJOUR', 'MODE_HOSPI', 'INTERVENANT', 'PRISE_EN_CHARGE', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],
     // AS : ni création ni correction des fiches patient (décision du porteur du 7 novembre 2026), sinon comme l'IDE
     AS: ['MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'PROPOSITION', 'ENTRETIEN'],
-    SECRETAIRE: ['PATIENT', 'SEJOUR', 'MODE_HOSPI', 'JLD', 'RECOURS'],   // fiches patient : IDE, secrétaire et cadre par défaut (décision du 4 novembre 2026)
-    CADRE: ['PATIENT', 'SEJOUR', 'MODE_HOSPI', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'ENTRETIEN', 'CORRECTION', 'REFUS_PROPOSITION', 'ANNULATION', 'STATS', 'FUSION'],
+    SECRETAIRE: ['PATIENT', 'SEJOUR', 'MODE_HOSPI', 'INTERVENANT', 'PRISE_EN_CHARGE', 'JLD', 'RECOURS'],   // fiches patient : IDE, secrétaire et cadre par défaut (décision du 4 novembre 2026)
+    CADRE: ['PATIENT', 'SEJOUR', 'MODE_HOSPI', 'INTERVENANT', 'PRISE_EN_CHARGE', 'MESURE_DEBUT', 'MESURE_FIN', 'PAUSE', 'REPRISE', 'TIERS', 'PROFESSIONNEL', 'JLD', 'INFORMATION', 'TRANSFERT', 'SOMATIQUE', 'SOMATIQUE_RETOUR', 'RECOURS', 'ENTRETIEN', 'CORRECTION', 'REFUS_PROPOSITION', 'ANNULATION', 'STATS', 'FUSION'],
     ADMIN: ['CONFIG', 'ANNULATION', 'COMPTE', 'LOT', 'INTEGRITE']
   };
 
@@ -42,7 +42,7 @@
    * Le rôle Administrateur est fixe : droits d'administration, non modifiable (choix du porteur).
    */
   var ACCES = [
-    { code: 'patients', libelle: 'Fiches patient : créer et corriger, mode d’hospitalisation, séjours (module Patients)', types: ['PATIENT', 'SEJOUR', 'MODE_HOSPI'] },
+    { code: 'patients', libelle: 'Fiches patient : créer et corriger, mode d’hospitalisation, séjours (module Patients)', types: ['PATIENT', 'SEJOUR', 'MODE_HOSPI', 'INTERVENANT', 'PRISE_EN_CHARGE'] },
     { code: 'mesures', libelle: 'Début et fin des mesures, changement de lieu, mode d’hospitalisation saisi avec la mesure', types: ['MESURE_DEBUT', 'MESURE_FIN', 'MODE_HOSPI'] },
     { code: 'pauses', libelle: 'Pauses (levées temporaires) et reprises', types: ['PAUSE', 'REPRISE'] },
     { code: 'tiers', libelle: 'Information du tiers', types: ['TIERS'] },
@@ -235,6 +235,7 @@
     capacites: {},         // capacité d'accueil par service (capacites.js, 0.18.2) : lits, fermetures et réservations datées
     vuesEnsemble: {},      // module Vue d'ensemble (0.19.0) : vues de l'établissement et des services
     psychologues: { liste: [] },   // liste commune des psychologues (medecins.js, 0.20.0), mêmes réglages que les médecins
+    intervenants: {},      // prise en charge : types de professionnels ou structures et champs ajoutés (0.21.0)
     agendaReglages: {},    // réglages de l'Agenda par service, ouverts au cadre (0.21.0) : { '*': {...}, <service>: {...} }
     largeursColonnes: {},  // largeur des colonnes réglée par le cadre ou l'administrateur (tableaux d'Isocont, 0.20.0)
     patientsChamps: [],    // module Patients : données complémentaires ajoutées par l'administrateur (module-patients.js, champsComplementaires)
@@ -2036,6 +2037,7 @@
     { code: 'champs', libelle: 'Données ajoutées (patients, médecins) et réglages des données (couleurs, délais)', cles: ['champsAjoutes', 'reglagesDonnees'] },
     { code: 'capacites', libelle: 'Capacité d’accueil des services (lits, fermetures, lits réservés)', cles: ['capacites'] },
     { code: 'psychologues', libelle: 'Liste commune des psychologues', cles: ['psychologues'] },
+    { code: 'intervenants', libelle: 'Patients : types et champs des professionnels ou structures de la prise en charge', cles: ['intervenants'] },
     { code: 'agendaReglages', libelle: 'Agenda : réglages par service (inscriptions, permissions, sorties)', cles: ['agendaReglages'] },
     { code: 'largeursColonnes', libelle: 'Largeur des colonnes des tableaux d’Isocont', cles: ['largeursColonnes'] },
     { code: 'vuesEnsemble', libelle: 'Module Vue d’ensemble : vues, colonnes, groupes, synthèse', cles: ['vuesEnsemble'] },

@@ -200,3 +200,38 @@ test('Permissions : processus par mode d’hospitalisation, étapes, délais, re
   assert.equal(A.processusPermission({ modesHospitalisation: config.modesHospitalisation, agenda: { delaisPermission: { SDRE: 72 } } }, 'U1', ['SDRE']).etapes.filter(x => x.code === 'envoye')[0].delai, 72);
   assert.equal(A.tachesPermission({ agendaReglages: { U1: { tachesPermission: 'office' } } }, 'U1'), 'office');
 });
+
+test('Prise en charge : répertoire, fiche patient, tâches suggérées de l’agenda', () => {
+  const Pt = require('../app/js/module-patients.js'), K = require('../app/js/intervenants.js');
+  const e2 = (type, data) => ({ id: 'p' + (++n), at: new Date(Date.UTC(2026, 10, 1, 8, n)).toISOString(), by: 'ide1', type, data });
+  const evts = [e2('PATIENT', { patientId: 'P1', nom: 'ALPHA', prenom: 'Un (fictif)', service: 'U1' }),
+    e2('INTERVENANT', { id: 'IV1', type: 'idel', nom: 'Cabinet infirmier (fictif)', contact: '02 00 00 00 01' }),
+    e2('INTERVENANT', { id: 'IV2', type: 'hdj', nom: 'Hôpital de jour (fictif)' }),
+    e2('PRISE_EN_CHARGE', { patientId: 'P1', lien: 'L1', intervenant: 'IV1', commentaire: 'Matin et soir' }),
+    e2('PRISE_EN_CHARGE', { patientId: 'P1', lien: 'L2', intervenant: 'IV2' })];
+  let st = Pt.reduire(evts);
+  assert.deepEqual(K.dePatient(st, st.fiches.P1).map(l => [l.intervenant.nom, l.commentaire]), [['Cabinet infirmier (fictif)', 'Matin et soir'], ['Hôpital de jour (fictif)', '']]);
+  st = Pt.reduire(evts.concat([e2('PRISE_EN_CHARGE', { patientId: 'P1', lien: 'L2', retire: true }), e2('INTERVENANT', { id: 'IV1', contact: '02 00 00 00 09' })]));
+  assert.deepEqual(K.dePatient(st, st.fiches.P1).map(l => l.intervenant.contact), ['02 00 00 00 09']);   // fiche commune corrigée une fois
+  assert.equal(K.repertoire(Pt.reduire(evts.concat([e2('INTERVENANT', { id: 'IV2', supprime: true })]))).length, 1);
+  assert.throws(() => K.normaliser({ id: 'x', nom: ' ' }, {}), /nom/);
+  assert.equal(K.reglages({ intervenants: { types: [{ code: 'aide', libelle: 'Aide à domicile' }], champs: [{ code: 'jours', libelle: 'Jours de passage' }] } }).types.length, 1);
+  assert.equal(K.reglages({}).types[0].code, 'idel');
+  assert.ok(K.controlerCadre({}, { types: [] }, { roles: ['CADRE'] }) && !K.controlerCadre({}, { types: [] }, { roles: ['IDE'] }));
+  // Tâches suggérées : selon le type, l'événement et le réglage du service
+  const entrees = [{ type: 'idel', nom: 'Cabinet infirmier (fictif)', contact: '02 00 00 00 01' }, { type: 'hdj', nom: 'Hôpital de jour (fictif)' }];
+  assert.deepEqual(A.tachesSuggerees({}, 'U1', 'sortie', entrees).map(t => [t.libelle, t.delai, t.obligatoire]),
+    [['Appeler l’infirmier libéral : Cabinet infirmier (fictif) (02 00 00 00 01)', 2, undefined], ['Prévenir l’hôpital de jour : Hôpital de jour (fictif)', 1, undefined]]);
+  assert.equal(A.tachesSuggerees({}, 'U1', 'permission', entrees).length, 1);   // l'hôpital de jour : sorties seulement
+  assert.equal(A.tachesSuggerees({}, 'U1', 'activite', entrees).length, 0);
+  const cfg = { agendaReglages: { U1: { suggestions: [{ type: 'idel', tache: 'Prévenir le cabinet', delai: 3, pour: ['permission'], obligatoire: true }], tachesObligatoiresBloquent: true } } };
+  assert.deepEqual(A.tachesSuggerees(cfg, 'U1', 'permission', entrees), [{ libelle: 'Prévenir le cabinet : Cabinet infirmier (fictif) (02 00 00 00 01)', delai: 3, obligatoire: true }]);
+  assert.equal(A.tachesSuggerees(cfg, 'U2', 'sortie', entrees).length, 2);   // autre service : règles de l'établissement
+  // Tâche obligatoire bloquante (réglage) : la dernière étape de la permission attend qu'elle soit faite
+  const debut = Date.UTC(2026, 10, 20, 9);
+  const perm = ev('auteur', 'RDV', { id: 'R1', nature: 'permission', debut, service: 'U1', patients: ['P1'], validations: [{ id: 'pv', type: 'permission' }], checklist: [{ id: 'i1', libelle: 'Prévenir le cabinet', delai: 3, obligatoire: true }] });
+  const fin = st0 => () => A.contrat.saisies.controler('VALIDATION', { rdv: 'R1', validation: 'pv', occurrence: OCC, statut: 'etape', etape: 'signe', finale: true, processus: 'libre' }, { etat: st0, config: cfg, peut: () => true, compte: { id: 'z', roles: ['IDE'], services: ['U1'] } });
+  assert.throws(fin(A.reduire([perm])), /Tâche obligatoire/);
+  assert.doesNotThrow(fin(A.reduire([perm, ev('ide1', 'CHECK', { rdv: 'R1', item: 'i1', occurrence: OCC, fait: true })])));
+  assert.equal(A.etatChecklist(A.reduire([perm]).rdv.R1, OCC).items[0].obligatoire, true);
+});
