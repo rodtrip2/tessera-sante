@@ -115,6 +115,21 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.27.0 (lot C, étape 1 : fiches des agents et contact d'un clic ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Module | Fenêtre « Équipe » : fiches des agents, référents (étape 2), annuaire ; reprend la fiche agent et ses données ajoutées | Nouveau module `equipe` (`module-equipe.js`, `ui-equipe.js`), journal `modules\equipe\`, clé remise à tous les rôles ; onglets *Annuaire*, *Ma fiche*, *Médecins* (droit) ; bouton « Données ajoutées » vers la fiche agent de 0.20.0 (cadre, administrateur) |
+| Coordonnées | Téléphone et courriel professionnels et personnels ; l'agent remplit sa fiche, le cadre complète celles de ses services | Saisie `COORDONNEES` (agent lui-même : `permisPourSoi` ; cadre : accès « Compléter les fiches » ; administrateur) ; fonction facultative |
+| Coordonnées personnelles | Visibles de l'agent, du cadre de ses services et de l'administrateur, clé propre ; accord de l'agent | Enveloppe chiffrée (`session.chiffrerEnveloppe` / `ouvrirEnveloppe`) pour les clés `e-p.<service>` des services de l'agent (remises au cadre du service) et sa clé de liste `t-a.<agent>` (relecture après un mot de passe oublié) ; l'administrateur l'ouvre par l'application ; accord donné ou retiré par l'agent seul (sans accord : plus lues) |
+| Numéro personnel des médecins | Accessible au cadre et au chef de service (demande du porteur) | Saisie `COORDONNEES_MEDECIN`, enveloppe pour les clés `e-m.<service>` des services du médecin (cadre ; médecin chef de service quand le rôle existera, étape 4) ; l'administrateur ne l'ouvre pas par l'application (sauf s'il est aussi cadre) |
+| Contact d'un clic | Clic sur un nom : petite fiche (numéro à copier, « Écrire ») | `U.equipe.contact`, `U.equipe.lien` ; branchés : annuaire, Informations du service (contact relié à un compte), recherche générale (agents : « Coordonnées ») ; à brancher au fil des modifications (agenda, salles, messagerie, Vue d'ensemble) |
+| Parties publiques attestées | — | `attestation.js` : parties publiques signées aussi pour les clés `e-` et `t-a.` (écrire pour ces clés sans les détenir) |
+
+Démonstration : coordonnées professionnelles d'agents fictifs, coordonnées personnelles de l'agent B (accord) et de l'agent connecté, numéro personnel d'un médecin. Tests : `tests/equipe.test.js`. Parcours complété. À documenter : architecture (module, familles de clés `e-p.`, `e-m.`), fiche technique, kit RGPD (**données du personnel** : coordonnées personnelles avec accord ; numéro personnel des médecins : base légale et information des médecins, avis du délégué à la protection des données), guide utilisateur.
+
+Points à valider : information des agents et des médecins ; accord des médecins pour leur numéro personnel (aujourd'hui saisi par le cadre sans accord recueilli dans Tessera).
+
 ## Version 0.26.5 (Mes tâches : clé de liste tenue par le trousseau ; décision du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |
