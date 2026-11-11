@@ -677,11 +677,13 @@
   App.ongletsFenetres = {};
   /** Ouvre la fenêtre d'un module : son dernier onglet affiché, sinon le premier ; choix retenu sur le poste. */
   // Retour sur sa dernière position (0.26.4) : onglet et service de chaque fenêtre, retenus sur le poste
-  function positions() { try { var p = JSON.parse(localStorage.getItem('sic-positions') || '{}'); return p && typeof p === 'object' ? p : {}; } catch (e) { return {}; } }
+  // Retenues par agent : deux agents du même poste ne retrouvent pas la position de l'autre
+  function clePositions() { return 'sic-positions:' + ((App.session && App.session.utilisateur && App.session.utilisateur.id) || ''); }
+  function positions() { try { var p = JSON.parse(localStorage.getItem(clePositions()) || '{}'); return p && typeof p === 'object' ? p : {}; } catch (e) { return {}; } }
   function retenirPosition() {
     if (!App.fenetre) return;
     App.ongletsFenetres[App.fenetre] = App.onglet;
-    try { var p = positions(); p[App.fenetre] = { onglet: App.onglet, service: App.service }; localStorage.setItem('sic-positions', JSON.stringify(p)); } catch (e) { /* stockage indisponible */ }
+    try { var p = positions(); p[App.fenetre] = { onglet: App.onglet, service: App.service }; localStorage.setItem(clePositions(), JSON.stringify(p)); } catch (e) { /* stockage indisponible */ }
   }
   function ouvrirFenetre(id) {
     var s = App.session, pseudo = id === 'patients' || id === 'admin' || id === 'aujourdhui';
@@ -808,7 +810,7 @@
     if (estOngletAdmin(App.onglet) && estAdmin) App.fenetre = 'admin';
     if (!App.fenetre) { try { App.fenetre = localStorage.getItem('sic-fenetre') || ''; } catch (e) { App.fenetre = ''; } }
     // Connexion : la page « Aujourd'hui » s'ouvre d'abord (une fois par session)
-    if (!s._accueilVu) { s._accueilVu = true; if (fs.some(function (f) { return f.id === 'aujourdhui'; }) && !estOngletAdmin(App.onglet)) { retenirPosition(); App.fenetre = 'aujourdhui'; App.onglet = 'aujourdhui'; } }
+    if (!s._accueilVu) { s._accueilVu = true; App.ongletsFenetres = {}; if (fs.some(function (f) { return f.id === 'aujourdhui'; }) && !estOngletAdmin(App.onglet)) { App.fenetre = 'aujourdhui'; App.onglet = 'aujourdhui'; } }
     if (App.fenetre === 'patients' || App.fenetre === 'admin' || App.fenetre === 'aujourdhui') { if (!fs.some(function (f) { return f.id === App.fenetre; })) App.fenetre = ''; }
     else if (App.fenetre !== s.moduleAffiche()) App.fenetre = '';
     if (!App.fenetre) App.fenetre = s.moduleAffiche();
