@@ -12,11 +12,11 @@
 | Module Messagerie | Tessera Santé, 8 novembre 2026 | **Réalisé en 0.23.0**, chiffrement réservé aux destinataires en 0.24.0 | Moyenne |
 | Module Demandes de travaux et de réparation | Tessera Santé, 8 novembre 2026 | **Réalisé en 0.22.0** | Moyenne |
 | Demandes de travaux : photos jointes | Tessera Santé, 11 novembre 2026 | Piste : stockage chiffré des images, risque de photographier un patient à étudier avec le délégué à la protection des données | Moyenne |
-| Planning d'occupation des bureaux | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Petite à moyenne |
+| Planning d'occupation des bureaux | Tessera Santé, 8 novembre 2026 | **Réalisé en 0.25.0** (module Salles et bureaux) | Petite à moyenne |
 | Feuille de staff : codes CIM et projet thérapeutique | Tessera Santé, 8 novembre 2026 | Feuille de staff réalisée en 0.19.0 sans ces colonnes ; **données cliniques** (décision préalable ; option « donnée clinique » par donnée disponible) | Petite (liste CIM à embarquer) |
 | Notes par patient : notes cliniques | Tessera Santé, 8 novembre 2026 | Notes organisationnelles réalisées en 0.19.0 ; **données cliniques** (décision préalable) | Petite |
 | Module Agents (fiches des agents et des psychiatres) | Tessera Santé, 8 novembre 2026 | Demande, à préciser ; une première fiche agent avec données ajoutées existe depuis la 0.20.0 ; **données du personnel** (avis préalable) | Moyenne à grande |
-| Planning des psychologues | Tessera Santé, 9 novembre 2026 | Piste : liste commune des psychologues réalisée en 0.20.0, planning sur le modèle des présences médicales | Petite à moyenne |
+| Planning des psychologues | Tessera Santé, 9 novembre 2026 | **Réalisé en 0.25.0** | Petite à moyenne |
 | Rôle Cadre supérieur de santé | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
 | Tri des colonnes d'un tableau par clic sur le titre | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Petite |
 | Module Demandes de congés | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **données du personnel** (avis du délégué à la protection des données) | Grande |
@@ -156,7 +156,9 @@ Bons de travaux par service, **visibles par tous les agents du service**, pour s
 - **Fonctionnement** : journal `modules\travaux\` en ajout seul, clé propre, activation par service ; les services techniques n'ayant pas accès à Tessera, un export (PDF ou tableau) du bon peut leur être remis, ou la référence de leur propre outil notée dans la demande.
 - **À trancher avant développement** : listes de types, de gravités et d'urgences proposées par défaut ; délai d'affichage des demandes traitées réglé par l'établissement ou par service ; rôles qui créent, transmettent et confirment ; lien éventuel avec l'outil de gestion des services techniques de l'établissement (sans connexion sortante, donc par export seulement).
 
-## Planning d'occupation des bureaux (demande du porteur, 8 novembre 2026)
+## Planning d'occupation des bureaux (demande du porteur, 8 novembre 2026) — réalisé en 0.25.0
+
+*Réalisé en 0.25.0 (module Salles et bureaux) avec les décisions du 11 novembre 2026 (`docs/a-documenter.md`).*
 
 Réserver les bureaux et salles du service (bureau d'entretien, salle de réunion, bureau du médecin, salle des familles…) comme les véhicules.
 

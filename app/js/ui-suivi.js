@@ -233,6 +233,10 @@
     var precision = h('input', { type: 'text', maxlength: 100, value: x.precision || '', placeholder: 'ex. staff, consultations, congé, formation' });
     var selRemp = h('select', { 'aria-label': 'Remplaçant' }, [h('option', { value: '', text: '— Pas de remplaçant —' })].concat(MED.proposes(cfg(), {}).map(function (m) { return h('option', { value: m.nom, text: m.nom, selected: x.remplacant && m.nom === nomMed(x.remplacant, x.remplacantId) }); })));
     var zoneJours = h('div', {}, h('b', { text: 'Jours' }), h('div', { class: 'actions gauche' }, casesJours));
+    // Salle occupée par la présence (module Salles et bureaux, 0.25.0), heures des demi-journées réglées dans Salles
+    var selSalle = U.salles && U.App.session.detientCle('salles') ? U.salles.selecteur({ service: function () { return selLieu.value; }, valeur: x.salle || '', exclure: x.id ? 'suivi|' + x.id : null,
+      periode: function () { var SA = SIC.salles, oS = SA.options(cfg(), selLieu.value), m = momChoisis.indexOf('matin') >= 0 ? oS.matin : oS.apresmidi; return debut.value ? [SA.instant(debut.value, m[0]), SA.instant(debut.value, momChoisis.indexOf('apresmidi') >= 0 ? oS.apresmidi[1] : m[1])] : null; } }) : null;
+    if (selSalle) { selLieu.addEventListener('change', function () { selSalle.remplir(); }); debut.addEventListener('change', function () { selSalle.maj(); }); }
     function dessiner() {
       U.vider(radios);
       Object.keys(S.NATURES).forEach(function (k) {
@@ -249,6 +253,7 @@
       zone.appendChild(zoneJours);
       zone.appendChild(h('div', { class: 'grille-2' }, h('label', {}, rep.value === 'date' ? 'Date' : 'À partir du', debut), rep.value === 'date' ? h('span') : h('label', {}, 'Jusqu’au (facultatif)', fin)));
       zone.appendChild(h('label', {}, 'Précision (facultatif)', precision));
+      if (selSalle && nature === 'presence') zone.appendChild(h('label', {}, 'Salle occupée (facultatif)', selSalle.noeud));
     }
     rep.addEventListener('change', dessiner);
     dessiner();
@@ -264,11 +269,23 @@
         service: nature === 'presence' ? selLieu.value : serviceCourant(), garde: nature === 'garde' ? selGarde.value : '', remplacant: nature === 'absence' ? selRemp.value : '',
         medecinId: idMed(selMed.value), remplacantId: nature === 'absence' && selRemp.value ? idMed(selRemp.value) : null };
       if (nature !== 'garde' && !d.moments.length) throw new Error('Choisissez le matin, l’après-midi ou les deux.');
+      d.salle = selSalle && nature === 'presence' ? selSalle.valeur() : '';
+      var demandesSalle = [];
+      if (d.salle) {
+        // Dates des 8 prochaines semaines : conflits ou salle à valider (demande au gestionnaire de la salle)
+        var SA = SIC.salles, oS = SA.options(cfg(), d.service), per = [], jj = d.debut;
+        for (var n = 0; n < 56 && per.length < 60; n++, jj = SA.plusJours(jj, 1)) {
+          if (!S.couvre(Object.assign({}, d, { id: d.id }), jj) || jj < S.jourISO(Date.now() - 864e5)) continue;
+          d.moments.forEach(function (mo) { var hh = mo === 'matin' ? oS.matin : oS.apresmidi; per.push({ ref: 'suivi|' + d.id + '|' + jj + '|' + mo, debut: SA.instant(jj, hh[0]), fin: SA.instant(jj, hh[1]) }); });
+        }
+        demandesSalle = U.salles.verifier({ salle: d.salle, service: d.service, titre: selMed.value, genre: 'medical', periodes: per, exclure: 'suivi|' + d.id });
+      }
       if (seul) {
         d.repetition = 'date'; d.jours = []; d.fin = ''; d.remplace = seul.serie.id;
         await ecarter(seul.serie, seul.jour);
       }
       await U.App.session.enregistrer('PRESENCE', d);
+      if (demandesSalle.length) await U.salles.envoyer(demandesSalle);
       U.toast(seul ? 'Ce jour est modifié ; la série ne change pas les autres jours.' : 'Enregistré.');
     } });
     U.modale(seul ? 'Modifier ce jour seulement (' + jourFr(seul.jour) + ')' : p ? 'Modifier toute la série' : 'Présence, absence ou garde', h('div', { class: 'pile' }, radios, zone), boutons, { large: true });
@@ -550,11 +567,13 @@
   }
 
   // ------------------------------------------------------------ Journal, pastille
-  var LIB = { PRESENCE: 'Suivi médical : présence, absence ou garde', SUIVI: 'Suivi médical : entretien ou contrat de soins' };
+  var LIB = { PRESENCE: 'Suivi médical : présence, absence ou garde', SUIVI: 'Suivi médical : entretien ou contrat de soins', PRESENCE_PSY: 'Psychologues : présence ou absence', ENTRETIEN_PREVU: 'Psychologues : entretien prévu' };
   function resume(e) {
     var d = e.data || {};
     if (e.type === 'PRESENCE') { var p = st().presences[d.id] || d; return d.supprime ? 'Supprimé : ' + nomMed(p.medecin, p.medecinId) + ' — ' + (p.nature ? libPresence(p) : '') : nomMed(d.medecin || p.medecin, d.medecinId || p.medecinId) + ' — ' + libPresence(Object.assign({}, p, d)); }
     if (e.type === 'SUIVI') { var s = st().suivis[d.id] || d, pt = fiches()[s.patient]; return (d.annule ? 'Annulé : ' : '') + (S.QUOI[s.quoi] || 'Saisie') + ' le ' + (s.date ? s.date.split('-').reverse().join('/') : '') + ' — ' + (pt ? identite(pt) : 'patient') + (s.medecin ? ' — ' + nomMed(s.medecin, s.medecinId) : ''); }
+    if (e.type === 'PRESENCE_PSY') { var q = st().presencesPsy[d.id] || d; return (d.supprime ? 'Supprimé : ' : '') + (q.psychologue || d.psychologue || 'Psychologue') + ' — ' + ((q.nature || d.nature) === 'absence' ? 'absence' : 'présence') + (q.debut ? ' à partir du ' + q.debut.split('-').reverse().join('/') : ''); }
+    if (e.type === 'ENTRETIEN_PREVU') { var en = st().entretiensPrevus[d.id] || d, pe = fiches()[en.patient]; return (d.annule ? 'Annulé : ' : '') + 'entretien prévu le ' + String(en.jour || '').split('-').reverse().join('/') + ' ' + (en.de || '') + ' — ' + (pe ? identite(pe) : 'patient') + ' — ' + (en.psychologue || ''); }
     return e.type;
   }
   function pastille() {
