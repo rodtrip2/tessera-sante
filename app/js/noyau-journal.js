@@ -74,9 +74,33 @@
    * `def.etat()` : état initial propre au module ; `def.appliquer(st, e)` : application d'une saisie retenue.
    * Ajoute à l'état : conflits, annules, journal, parId, manquants, integrite, manquantsAcquis.
    */
+  /**
+   * Tri mémorisé (0.21.1, test de charge du 11 novembre 2026) : à chaque recalcul, tous les modules reconstituent leur
+   * état à partir des mêmes saisies ; le tri, qui coûtait l'essentiel du temps, est fait une fois et partagé. Quand de
+   * nouvelles saisies s'ajoutent à la fin (synchronisation, saisie du poste) et sont toutes postérieures aux autres,
+   * seules elles sont triées ; sinon tout est retrié. Résultat identique au tri complet ; le tableau rendu n'est jamais
+   * modifié par `reduire`.
+   */
+  var memoTri = { entree: null, n: 0, tries: null };
+  function trierMemorise(evts) {
+    var m = memoTri, tries = null;
+    if (m.entree && evts.length >= m.n && m.n > 0) {
+      var prefixe = m.entree === evts || evts[0] === m.entree[0];
+      for (var i = 0; prefixe && i < m.n; i++) if (evts[i] !== m.entree[i]) prefixe = false;
+      if (prefixe && evts.length === m.n) tries = m.tries;
+      else if (prefixe) {
+        var nouveaux = deplier(evts.slice(m.n)), dernier = m.tries[m.tries.length - 1];
+        if (!dernier || nouveaux.every(function (e) { return e.at > dernier.at; })) tries = m.tries.concat(trierEvenements(nouveaux));
+      }
+    }
+    if (!tries) tries = trierEvenements(deplier(evts));
+    memoTri = { entree: evts, n: evts.length, tries: tries };
+    return tries;
+  }
+
   function reduire(evts, def) {
     var st = etatCommun(def.etat());
-    var tries = trierEvenements(deplier(evts));
+    var tries = trierMemorise(evts);
 
     // 1) Annulations d'abord (elles neutralisent leur cible, quelle que soit leur date). Une annulation peut
     //    elle-même être annulée (« Rétablir ») : seule une annulation qui n'est pas neutralisée produit son effet.

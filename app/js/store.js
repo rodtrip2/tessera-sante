@@ -512,6 +512,9 @@
    * Lit les saisies absentes de `connus` (noms de fichiers déjà chargés) :
    * instantané du mois s'il existe, puis fichiers individuels restants.
    * Écrit les instantanés manquants ou incomplets des mois clos.
+   * `options.recents` (0.21.1, test de charge) : seuls le mois en cours et le mois précédent sont parcourus ; les mois
+   * clos, dont la liste des fichiers ne change plus en temps normal, sont parcourus par la lecture complète (connexion,
+   * puis à intervalle régulier), qui rattrape une saisie arrivée tard (poste hors réseau, dossier de secours).
    */
   Dossier.prototype.lireNouveaux = async function (cle, connus, options) {
     var res = { evenements: [], rejetes: [], instantanes: 0 };
@@ -529,6 +532,7 @@
       for await (var mois of an.values()) {
         if (mois.kind !== 'directory') continue;
         var cleMois = an.name + '-' + mois.name;
+        if (options && options.recents && moisClos(cleMois, maintenant)) continue;
         var fichiers = [];
         for await (var f of mois.values()) if (f.kind === 'file' && /\.enc$/.test(f.name)) fichiers.push(f);
         var nouveaux = fichiers.filter(function (x) { return !connus.has(x.name); });

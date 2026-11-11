@@ -77,6 +77,7 @@
   /** Clés propres à une donnée détenues par la session (journaux `modules\d-<id>\`). */
   function clesPropresDetenues(s) { return Object.keys(s.trousseau || {}).filter(function (n) { return /^d-/.test(n) && aCle(s, n); }).sort(); }
 
+  var LECTURE_COMPLETE = 10 * 60000;   // lecture complète des journaux : à la connexion, puis toutes les 10 minutes
   function nouveauJournal(nom, dossier, cle) { return { nom: nom, dossier: dossier, cle: cle, evts: [], connus: new Set(), rejetes: [], reperesLus: {} }; }
   /** Journaux du jeu de données actif. */
   /**
@@ -1559,7 +1560,11 @@
       try {
         d = await dossierJournal(this, j, false);
         if (!d) continue;   // journal pas encore créé (aucune saisie)
-        r = await d.lireNouveaux(j.cle, j.connus);
+        // Lecture rapide (mois en cours et précédent) entre deux lectures complètes (0.21.1, test de charge) : la liste
+        // des fichiers des mois clos n'est relue qu'à la connexion puis toutes les LECTURE_COMPLETE millisecondes
+        var complete = !j.lectureComplete || Date.now() - j.lectureComplete >= LECTURE_COMPLETE;
+        r = await d.lireNouveaux(j.cle, j.connus, complete ? undefined : { recents: true });
+        if (complete && !r.interrompu) j.lectureComplete = Date.now();
       } catch (e) { interruption = e; continue; }   // journal momentanément illisible : les autres sont lus quand même
       if (r.interrompu) interruption = new Error(r.interrompu);
       // Fichiers illisibles : liste tenue à jour à chaque lecture (un fichier relu avec succès en sort)

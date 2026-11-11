@@ -641,8 +641,11 @@
       .sort(function (a, b) { return a.debut - b.debut; });
   }
   /** Professionnels prévus sur une occurrence et absents pendant celle-ci (comptes désignés). */
-  function prevusAbsents(st, r, o) {
-    var abs = absences(st, o.debut, o.fin || o.debut + 1);
+  function prevusAbsents(st, r, o, absPeriode) {
+    // Sans professionnel désigné, rien à chercher ; `absPeriode` : absences de la période affichée, lues une fois (0.21.1)
+    if (!(r.professionnels || []).some(function (p) { return p.id; })) return [];
+    var f = o.fin || o.debut + 1;
+    var abs = absPeriode ? absPeriode.filter(function (a) { return a.debut < f && (a.fin || a.debut) >= o.debut; }) : absences(st, o.debut, f);
     return (r.professionnels || []).filter(function (p) { return p.id && abs.some(function (a) { return a.agent === p.id; }); });
   }
 
@@ -659,7 +662,8 @@
    * affichés en lecture seule, avec les seuls patients concernés). Triés par heure de début.
    */
   function elements(st, fiches, services, debut, fin, avecAnnulees) {
-    var res = [];
+    var res = [], absPeriode = null;
+    function absDe() { return absPeriode || (absPeriode = absences(st, debut - 15 * 864e5, fin + 15 * 864e5)); }   // marge : éléments de 14 jours au plus
     Object.keys(st.rdv).forEach(function (k) {
       var base = st.rdv[k];
       if (base.supprime) return;
@@ -677,7 +681,7 @@
         }
         // Service invité : il ne voit nommément que ses patients (les autres sont comptés)
         if (partage === 'invites') concernes = concernes.filter(function (pid) { return services.indexOf(serviceDuPatient(fiches[pid])) >= 0; });
-        res.push({ rdv: r, externe: externe, partage: partage, patients: concernes, occurrence: o.occurrence, debut: o.debut, fin: o.fin, annulee: o.annulee, checklist: etatChecklist(r, o.occurrence), absents: prevusAbsents(st, r, o),
+        res.push({ rdv: r, externe: externe, partage: partage, patients: concernes, occurrence: o.occurrence, debut: o.debut, fin: o.fin, annulee: o.annulee, checklist: etatChecklist(r, o.occurrence), absents: prevusAbsents(st, r, o, (o.debut >= debut - 15 * 864e5 && (o.fin || o.debut) <= fin + 15 * 864e5) ? absDe() : null),
           accompagnateurs: accompagnateurs(r, o.occurrence) });
       });
     });
