@@ -13,12 +13,18 @@
 | Module Demandes de travaux et de réparation | Tessera Santé, 8 novembre 2026 | **Réalisé en 0.22.0** | Moyenne |
 | Demandes de travaux : photos jointes | Tessera Santé, 11 novembre 2026 | Piste : stockage chiffré des images, risque de photographier un patient à étudier avec le délégué à la protection des données | Moyenne |
 | Planning d'occupation des bureaux | Tessera Santé, 8 novembre 2026 | **Réalisé en 0.25.0** (module Salles et bureaux) | Petite à moyenne |
-| Feuille de staff : codes CIM et projet thérapeutique | Tessera Santé, 8 novembre 2026 | Feuille de staff réalisée en 0.19.0 sans ces colonnes ; **données cliniques** (décision préalable ; option « donnée clinique » par donnée disponible) | Petite (liste CIM à embarquer) |
+| Feuille de staff : codes CIM, motif d'hospitalisation, projet thérapeutique, codage de la dépendance | Tessera Santé, 8 et 11 novembre 2026 | Feuille de staff réalisée en 0.19.0 sans ces colonnes ; **données cliniques** (décision préalable ; option « donnée clinique » par donnée disponible) | Petite (liste CIM à embarquer) |
 | Notes par patient : notes cliniques | Tessera Santé, 8 novembre 2026 | Notes organisationnelles réalisées en 0.19.0 ; **données cliniques** (décision préalable) | Petite |
 | Module Agents (fiches des agents et des psychiatres) | Tessera Santé, 8 novembre 2026 | Demande, à préciser ; une première fiche agent avec données ajoutées existe depuis la 0.20.0 ; **données du personnel** (avis préalable) | Moyenne à grande |
 | Planning des psychologues | Tessera Santé, 9 novembre 2026 | **Réalisé en 0.25.0** | Petite à moyenne |
-| Rôle Cadre supérieur de santé | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
+| Rôles d'encadrement : cadre supérieur de santé, médecin chef de service, médecin chef de pôle | Tessera Santé, 8 et 11 novembre 2026 | Demande, à préciser | Moyenne |
 | Tri des colonnes d'un tableau par clic sur le titre | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Petite |
+| Liste de tâches personnelle, reliée aux autres modules | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Moyenne |
+| Page d'accueil de l'administration : modules activés ou désactivés | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Petite |
+| Informations du service | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Petite à moyenne |
+| Rôles de référents (escarres, pharmacie, restriction des libertés…) | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Moyenne |
+| Rôles d'intervenants extérieurs, informations limitées | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; touche aux clés et aux droits (avis du responsable de la sécurité informatique) | Moyenne |
+| « Information d'un tiers » dans la messagerie et les données patient ; vérification avant l'export du droit d'accès | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **règle d'exclusion à valider** (délégué à la protection des données) | Moyenne |
 | Module Demandes de congés | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **données du personnel** (avis du délégué à la protection des données) | Grande |
 | Prêt de droits pendant une absence | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; touche aux clés et aux droits (avis du responsable de la sécurité informatique) | Moyenne |
 | Module Signalement (lanceur d'alerte) | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **cadre légal et confidentialité renforcée** (avis du délégué à la protection des données et de la direction juridique) | Moyenne à grande |
@@ -179,6 +185,7 @@ Feuille récapitulative du staff : un **instantané à un jour donné, conservé
 - **Colonnes modifiables** (comme les données complémentaires de la fiche patient : ajout, masquage, ordre, par service) ; en tête, les **places disponibles** du service (lits, chambres libres, sorties prévues).
 - **Instantané** : la feuille du jour est préparée à partir des données de Tessera puis complétée pendant le staff ; « Clore la feuille » la fige et l'enregistre au journal (une saisie, jamais modifiée) ; la feuille suivante reprend les valeurs de la précédente. Export PDF ou impression.
 - **À trancher** : codes CIM saisis à la main ou liste de référence (à embarquer dans l'application, sans connexion sortante) ; qui voit la feuille (rôles) ; durée de conservation des feuilles closes ; place par rapport au DPI.
+- **Demande du 11 novembre 2026** : ajouter une colonne **code CIM**, le **motif d'hospitalisation**, le **projet thérapeutique** et le **codage de la dépendance** (grille à préciser : celle du recueil d'informations médicalisé en psychiatrie, RIM-P, ou une grille propre à l'établissement). Toutes sont des **données cliniques** : elles relèvent de l'option « donnée clinique » (administrateur, après avertissement, clé propre) et des avis préalables ; leur import depuis l'export du DPI, plutôt qu'une saisie en double, est à étudier.
 
 ## Notes par patient (demande du porteur, 8 novembre 2026) — réalisées en 0.19.0 pour les notes organisationnelles
 
@@ -202,9 +209,11 @@ Fiches des agents du service et des psychiatres, **gérées par le cadre**, avec
 - **Données du personnel** : les entretiens et notes sur un agent sont des **données de ressources humaines** ; avant tout développement : avis du délégué à la protection des données (DPO, référent RGPD) et de la direction des ressources humaines, inscription au registre des traitements, durée de conservation, droit d'accès de l'agent à sa fiche, frontière avec le dossier administratif de l'agent et les outils de la direction des ressources humaines (éviter un dossier parallèle).
 - **À trancher avant développement** : champs par défaut ; types de champs proposés ; qui lit les entretiens et les notes ; l'agent voit-il sa fiche ; journal en ajout seul (une correction est une nouvelle saisie) et clé propre au module, remise aux seuls rôles habilités.
 
-## Rôle Cadre supérieur de santé (demande du porteur, 8 novembre 2026)
+## Rôles d'encadrement : cadre supérieur de santé, médecin chef de service, médecin chef de pôle (demandes du porteur, 8 et 11 novembre 2026)
 
-Un rôle aux droits **entre ceux du cadre et ceux de l'administrateur**.
+**Médecin chef de service et médecin chef de pôle** (demande du 11 novembre 2026) : rôles médicaux d'encadrement, sur le modèle du cadre et du cadre supérieur. Proposition : le chef de service valide ce qui relève des médecins de son service (par exemple les demandes de congés des médecins, piste « Demandes de congés », et les réglages du Suivi médical) ; le chef de pôle fait de même pour les services de son pôle. À trancher : accès aux données patients, lien avec la liste commune des médecins (un médecin chef est-il un compte Tessera ?), création d'un rôle « médecin » (point déjà ouvert pour le Suivi médical), notion de pôle commune à ces rôles et au cadre supérieur.
+
+**Cadre supérieur de santé** : un rôle aux droits **entre ceux du cadre et ceux de l'administrateur**.
 
 - **Proposition de périmètre** : tout ce que fait le cadre, pour **tous les services de son pôle** (ou des services qui lui sont affectés) ; réglages des modules par service (catégories de l'agenda, véhicules, suivi médical) ; groupes d'agents et destinataires des informations sur l'ensemble de ses services ; lecture des journaux de ses services ; validation de ce que le cadre confirme (médecins non répertoriés, intérimaires…).
 - **Restent à l'administrateur** : coffre et clés, comptes et droits techniques, activation des modules, réglages généraux de l'établissement, sauvegardes et restauration.
@@ -253,4 +262,51 @@ Permettre à un agent de signaler un fait (atteinte, manquement, danger) de faç
 - **Confidentialité** : contenu chiffré pour le seul référent (sur le modèle du chiffrement réservé aux destinataires de la messagerie) ; **l'administrateur ne doit pas pouvoir lire**, ce que le trousseau actuel ne garantit pas (il détient toutes les clés) : clé hors du trousseau de l'administrateur à concevoir ; identité de l'auteur protégée, possibilité d'un signalement anonyme (limites : le journal en ajout seul garde l'auteur de chaque saisie) ; aucune consultation par le cadre.
 - **Suivi** : accusé de réception, échanges entre l'auteur et le référent, retour sur les suites données, délais légaux ; journal des accès.
 - **À trancher** : faisabilité au regard de l'anonymat et de l'administrateur ; à distinguer de la déclaration des événements indésirables (outil qualité de l'établissement).
+
+## Liste de tâches personnelle, reliée aux autres modules (demande du porteur, 11 novembre 2026)
+
+Une liste de tâches propre à chaque agent (« à faire »), qui reprend aussi ce que les autres modules lui demandent.
+
+- **Fonctionnement envisagé** : tâches personnelles (titre, échéance, rappel, fait / pas fait), visibles du seul agent ; rattachement d'un élément d'un autre module (événement ou tâche de l'agenda, demande de travaux, réservation, message), sur le modèle des éléments rattachés de la messagerie (lien seulement, détail réservé à qui a accès au module) ; tâches reçues des modules (réponses attendues de l'agenda, tâches de la check-list d'une permission, demandes à arbitrer, messages à confirmer) affichées à part et cochées dans leur module.
+- **Clé** : clé propre à l'agent (comme la clé `m-a` de la messagerie), pour que personne d'autre ne lise sa liste.
+- **À trancher** : lien avec les tâches de l'agenda (une tâche de service attribuée à l'agent y figure-t-elle ?) ; partage d'une tâche avec un collègue ; place dans l'interface (fenêtre à part, ou onglet de la messagerie à côté de *Informations*).
+
+## Page d'accueil de l'administration : modules activés ou désactivés (demande du porteur, 11 novembre 2026)
+
+Une page principale de la fenêtre *Administration* avec l'icône de chaque module.
+
+- **Fonctionnement envisagé** : icône, nom et état de chaque module (activé ou désactivé, services où il l'est) ; activer ou désactiver directement depuis la page (administrateur ; services : comme l'activation actuelle) ; un clic sur l'icône ouvre l'onglet des réglages du module ; clés du module créées à l'activation comme aujourd'hui.
+- **À trancher** : activation pour tous les services d'un clic, ou choix des services ; confirmation avant de désactiver un module qui a des données (rien n'est effacé, le module est seulement masqué).
+
+## Informations du service (demande du porteur, 11 novembre 2026)
+
+Une page d'informations pratiques sur chaque service, tenue par le cadre et consultable par les agents.
+
+- **Contenu proposé** : coordonnées (téléphones, adresses de messagerie, poste de soins), horaires (visites, repas, relèves), organisation (secteurs, chambres, équipes), consignes et procédures du service, numéros utiles (services techniques, sécurité, pharmacie, garde), référents (voir la piste ci-dessous) ; rubriques ajoutées ou masquées par le cadre.
+- **À trancher** : contenu exact attendu ; une page par service ou aussi pour l'établissement ; lien avec l'accueil des nouveaux agents (livret d'accueil) ; documents joints (procédures en PDF, sur le modèle des pièces jointes de la messagerie).
+
+## Rôles de référents (demande du porteur, 11 novembre 2026)
+
+Désigner, par service, les agents référents d'un domaine (escarres, pharmacie, restriction des libertés, hygiène, douleur…), avec une liste que tous les agents consultent.
+
+- **Fonctionnement envisagé** : domaines de référence réglables par le cadre (liste proposée par défaut, ajout et masquage) ; un ou plusieurs référents par domaine et par service, choisis parmi les comptes ou les membres des groupes ; liste consultable par les agents (page du service ou fenêtre dédiée) ; lien direct pour les contacter : écrire un message (messagerie), téléphone s'il est renseigné.
+- **Droits** : un domaine peut donner des droits (par exemple le référent pharmacie confirme les demandes de travaux de la pharmacie) ; à décider domaine par domaine, sinon le référent n'a que la mention dans la liste.
+- **À trancher** : distinction avec les groupes d'agents (un domaine pourrait être un groupe particulier) ; référents de l'établissement en plus de ceux des services.
+
+## Rôles d'intervenants extérieurs, informations limitées (demande du porteur, 11 novembre 2026)
+
+Donner un accès limité à des intervenants qui ne sont pas agents du service (intervenants associatifs, enseignants, intervenants libéraux, étudiants…).
+
+- **Fonctionnement envisagé** : rôle (ou famille de rôles) « intervenant extérieur », sans accès par défaut à aucun module ; accès choisis un par un dans *Rôles et accès* (par exemple : l'agenda de ses activités seulement, la messagerie avec certains destinataires) ; identité des patients réduite (initiales) ou absente ; durée de validité du compte (date de fin, comme les intérimaires de la liste des médecins).
+- **Clés** : un droit = une clé : l'intervenant ne reçoit que les clés de ses accès ; une limitation à l'intérieur d'un module (ne voir que ses activités) relève de l'interface, sauf clé propre à concevoir. Avis du responsable de la sécurité informatique.
+- **À trancher** : types d'intervenants et accès par défaut de chacun ; signature d'une charte de confidentialité ; qui crée ces comptes (administrateur, cadre pour ses services).
+
+## « Information d'un tiers » dans la messagerie et les données patient ; vérification avant l'export du droit d'accès (demande du porteur, 11 novembre 2026)
+
+Le droit d'accès d'un patient exclut les informations qui concernent un tiers ou qui proviennent d'un tiers (point déjà à faire valider : `CLAUDE.md` § 7). Il faut pouvoir les marquer.
+
+- **Messagerie** : quand un patient figure dans un message (fiche rattachée, mention), case « information d'un tiers » cochée par l'auteur pour exclure ce message des données du patient (export du droit d'accès) ; aujourd'hui la messagerie n'est pas reprise dans l'export : la case prépare une éventuelle reprise.
+- **Données patient** : case « information d'un tiers » sur chaque élément qui peut l'être (note, donnée ajoutée, intervenant de la prise en charge, réponse d'une vue d'ensemble), pour qu'il ne soit pas exporté.
+- **Vérification avant l'export** : l'export du droit d'accès affiche d'abord la liste des éléments retenus et écartés (tiers, donnée clinique, commentaire interne), que l'agent vérifie, coche ou décoche, avant de produire le fichier ; la vérification est inscrite au journal.
+- **À valider** : règle d'exclusion et qui en décide (délégué à la protection des données, direction des usagers) ; trace des choix faits à l'export.
 
