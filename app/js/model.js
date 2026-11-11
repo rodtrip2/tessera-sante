@@ -235,6 +235,7 @@
     capacites: {},         // capacité d'accueil par service (capacites.js, 0.18.2) : lits, fermetures et réservations datées
     vuesEnsemble: {},      // module Vue d'ensemble (0.19.0) : vues de l'établissement et des services
     psychologues: { liste: [] },   // liste commune des psychologues (medecins.js, 0.20.0), mêmes réglages que les médecins
+    agendaReglages: {},    // réglages de l'Agenda par service, ouverts au cadre (0.21.0) : { '*': {...}, <service>: {...} }
     largeursColonnes: {},  // largeur des colonnes réglée par le cadre ou l'administrateur (tableaux d'Isocont, 0.20.0)
     patientsChamps: [],    // module Patients : données complémentaires ajoutées par l'administrateur (module-patients.js, champsComplementaires)
     patientsListe: {},     // module Patients, liste : { joursRecents, couleursModes, vues } (liste-patients.js) ; vide = réglages proposés
@@ -2035,6 +2036,7 @@
     { code: 'champs', libelle: 'Données ajoutées (patients, médecins) et réglages des données (couleurs, délais)', cles: ['champsAjoutes', 'reglagesDonnees'] },
     { code: 'capacites', libelle: 'Capacité d’accueil des services (lits, fermetures, lits réservés)', cles: ['capacites'] },
     { code: 'psychologues', libelle: 'Liste commune des psychologues', cles: ['psychologues'] },
+    { code: 'agendaReglages', libelle: 'Agenda : réglages par service (inscriptions, permissions, sorties)', cles: ['agendaReglages'] },
     { code: 'largeursColonnes', libelle: 'Largeur des colonnes des tableaux d’Isocont', cles: ['largeursColonnes'] },
     { code: 'vuesEnsemble', libelle: 'Module Vue d’ensemble : vues, colonnes, groupes, synthèse', cles: ['vuesEnsemble'] },
     { code: 'vehicules', libelle: 'Module Véhicules : types de véhicules et de signalements, données ajoutées', cles: ['vehicules', 'vehiculesInformation'] },

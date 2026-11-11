@@ -772,3 +772,8 @@ th.largeur-reglee { white-space: normal; overflow-wrap: anywhere; }
 
 /* Jour modifié ou retiré dans une série (Suivi médical, 0.20.0) */
 .jour-modifie { font-weight: 700; color: var(--accent, inherit); margin-left: .2em; cursor: help; }
+
+/* Agenda : rubriques « Quel(s) professionnel(s) ? » et « Quel(s) patient(s) ? » (0.21.0) */
+.ag-sous-titre { font-size: .9em; opacity: .8; }
+.ag-reponses { border-left: 4px solid var(--warn, #b97a00); }
+.ag-section .actions.gauche select, .ag-section label.en-ligne select { width: auto; max-width: 100%; }

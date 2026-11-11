@@ -630,10 +630,15 @@
     return [['isocont', 'Isolement et contention'], ['patients', 'Patients'], ['agenda', 'Agenda du service']].filter(function (x) { return SIC.modules.obtenir(x[0]); })
       .concat(SIC.modules.liste().filter(function (m) { return ['isocont', 'patients', 'agenda'].indexOf(m.id) < 0 && m.interface && m.interface.admin && m.interface.admin.onglets; }).map(function (m) { return [m.id, m.libelle]; }));
   }
+  /** Modules dont certains réglages sont ouverts au cadre dans sa fenêtre Administration (`interface.admin.cadre`, 0.21.0). */
+  function modulesCadre() {
+    var s = App.session, acc = s ? s.modulesAccessibles().map(function (m) { return m.id; }) : [];
+    return SIC.modules.liste().filter(function (m) { return acc.indexOf(m.id) >= 0 && m.interface && m.interface.admin && typeof m.interface.admin.cadre === 'function'; });
+  }
   /** Onglets de la fenêtre affichée : ceux du module (son contrat), puis le journal commun. */
   function onglets() {
     if (App.fenetre === 'admin') {
-      if (App.session && App.session.roles().indexOf('ADMIN') < 0) return [['groupes', 'Groupes d’agents'], ['journal', 'Journal']];
+      if (App.session && App.session.roles().indexOf('ADMIN') < 0) return [['groupes', 'Groupes d’agents']].concat(modulesCadre().map(function (m) { return ['cadre-' + m.id, m.libelle]; }), [['journal', 'Journal']]);
       return [['admin', 'Réglages généraux'], ['groupes', 'Groupes d’agents']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['journal', 'Journal']]);
     }
     var id = App.fenetre === 'patients' ? 'patients' : (App.session ? App.session.moduleAffiche() : null);
@@ -833,6 +838,7 @@
     zoneContenu.appendChild(h('section', { class: 'fenetre', 'aria-label': 'Fenêtre du module' }, titreFenetre(), nav, corps));
     var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: function () { return vueAdmin('general'); }, groupes: function () { return SIC.ui.vueGroupes ? SIC.ui.vueGroupes() : h('p', { class: 'muted', text: 'Groupes indisponibles.' }); } };
     modulesAdmin().forEach(function (x) { vues['admin-' + x[0]] = function () { return vueAdmin(x[0]); }; });
+    modulesCadre().forEach(function (m) { vues['cadre-' + m.id] = function () { return h('div', { class: 'pile' }, m.interface.admin.cadre()); }; });
     var mAff = moduleAffiche(), vuesAff = (mAff.interface && mAff.interface.vues) || {}, vuesModule = interfaceModule().vues || {};
     var mPat = SIC.modules.obtenir('patients'), vuesPat = (mPat && mPat.interface && mPat.interface.vues) || {};
     var vue = vues[App.onglet] || (App.fenetre === 'patients' ? vuesPat[App.onglet] : null) || vuesAff[App.onglet] || vuesModule[App.onglet] || vuesAff[(mAff.vues.onglets[0] || {}).code] || vues.aucun;

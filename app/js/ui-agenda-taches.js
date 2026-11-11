@@ -246,7 +246,9 @@
     var pv = A.aFaireValider(st(), fiches(), U.config(), svs, maintenant), tr = A.transportsAReserver(st(), fiches(), svs, maintenant, 7, U.config()), am = A.accompagnateursManquants(st(), fiches(), svs, maintenant, 7, U.config());
     if (pv.length) parts.push(pv.length + (pv.length > 1 ? ' validations à obtenir' : ' validation à obtenir') + (pv.some(function (p) { return p.niveau === 'retard'; }) ? ' (dont en retard)' : ''));
     if (tr.length) parts.push(tr.length + (tr.length > 1 ? ' transports à réserver' : ' transport à réserver'));
-    if (am.length) parts.push(am.length + (am.length > 1 ? ' éléments sans tous leurs accompagnateurs' : ' élément sans tous ses accompagnateurs'));
+    if (am.length) parts.push(am.length + (am.length > 1 ? ' événements où il manque des professionnels' : ' événement où il manque des professionnels'));
+    var pmq = A.patientsManquants(st(), fiches(), svs, maintenant, 7);
+    if (pmq.length) parts.push(pmq.length + (pmq.length > 1 ? ' événements où il manque des patients' : ' événement où il manque des patients'));
     var sm = alertesSuivi(maintenant, svs);
     if (sm.length) parts.push(sm.length + (sm.length > 1 ? ' points de suivi médical à voir' : ' point de suivi médical à voir'));
     if (!parts.length) return null;
@@ -309,11 +311,18 @@
                 h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleElement(t.rdv, null, !peut('RDV'), null, false, t.occurrence); } }, libelleElement(t.rdv)),
                 h('span', { text: ' — ' + libJour(t.debut) + ' ' + hm(t.debut) + (t.transport.precision ? ' (' + t.transport.precision + ')' : '') }));
             })) : h('p', { class: 'muted', text: 'Aucun transport à réserver.' })),
-          h('section', { class: 'panneau' }, h('h2', { text: 'Accompagnateurs à trouver (7 jours)' }),
+          h('section', { class: 'panneau' }, h('h2', { text: 'Professionnels à trouver (7 jours)' }),
             am.length ? h('ul', { class: 'liste-simple' }, am.map(function (x) {
               return h('li', {}, badgeAccompagnateurs(x), ' ', h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirElement(x); } }, libelleElement(x.rdv)),
                 h('span', { text: ' — ' + libJour(x.debut) + ' ' + hm(x.debut) + ' ' }), boutonInscription(x, true));
-            })) : h('p', { class: 'muted', text: 'Tous les accompagnateurs sont trouvés.' })));
+            })) : h('p', { class: 'muted', text: 'Aucun professionnel ne manque.' }),
+            (function () {
+              var pm = A.patientsManquants(st(), fiches(), svs, maintenant, 7);
+              return pm.length ? h('div', { class: 'pile' }, h('h2', { text: 'Patients à inscrire (7 jours)' }), h('ul', { class: 'liste-simple' }, pm.map(function (x) {
+                var pp = A.placesPatients(x.rdv, x.occurrence);
+                return h('li', {}, h('span', { class: 'badge warn', text: 'Patients ' + pp.inscrits.length + '/' + pp.min }), ' ', h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirElement(x); } }, libelleElement(x.rdv)), h('span', { text: ' — ' + libJour(x.debut) + ' ' + hm(x.debut) }));
+              }))) : null;
+            })()));
       })(),
       h('section', { class: 'panneau' }, h('h2', { text: 'Points de check-list en retard' }),
         cl.length ? h('ul', { class: 'liste-simple' }, cl.map(function (c) {

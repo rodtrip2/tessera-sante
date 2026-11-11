@@ -246,7 +246,25 @@
   }
   /** Patients d'une date : inscrits, liste d'attente, minimum manquant (0.21.0). */
   function placesPatients(r, occurrence) { return P.patients(rdvOccurrence(r, occurrence)); }
-  function rolesConfirmation(config) { var v = ((config || {}).agenda || {}).rolesConfirmation; return Array.isArray(v) && v.length ? v.filter(function (x) { return typeof x === 'string'; }) : P.ROLES_CONFIRMATION_DEFAUT.slice(); }
+  /**
+   * Réglages de l'Agenda par service (0.21.0, principe du porteur : réglables par le cadre dans l'administration) :
+   * `config.agendaReglages` = { '*': réglages de l'établissement, <service>: ce que le service remplace }. L'administrateur
+   * écrit partout, le cadre seulement pour ses services (`controlerCadreReglages`).
+   */
+  function reglagesService(config, service) {
+    var v = (config && config.agendaReglages) || {};
+    return Object.assign({}, v['*'] || {}, service && service !== '*' && v[service] ? v[service] : {});
+  }
+  function controlerCadreReglages(ancien, nouveau, compte) {
+    var roles = (compte && compte.roles) || [], sv = (compte && compte.services) || [];
+    if (roles.indexOf('ADMIN') >= 0) return true;
+    if (roles.indexOf('CADRE') < 0 || !nouveau || typeof nouveau !== 'object' || Array.isArray(nouveau)) return false;
+    var a = ancien || {}, cles = {};
+    Object.keys(a).concat(Object.keys(nouveau)).forEach(function (k) { cles[k] = 1; });
+    return Object.keys(cles).every(function (k) { return JSON.stringify(a[k]) === JSON.stringify(nouveau[k]) || (k !== '*' && sv.indexOf(k) >= 0); });
+  }
+  /** Rôles qui confirment les demandes d'inscription, en plus de l'auteur et des organisateurs (cadre par défaut). */
+  function rolesConfirmation(config, service) { var v = reglagesService(config, service).rolesConfirmation; return Array.isArray(v) && v.length ? v.filter(function (x) { return typeof x === 'string'; }) : P.ROLES_CONFIRMATION_DEFAUT.slice(); }
   /**
    * Ce qui attend une réponse de l'agent (0.21.0) : propositions d'un collègue et invitations sans réponse, pour les dates
    * des `jours` prochains jours. [{ rdv, occurrence, debut, situation }].
@@ -258,9 +276,9 @@
   }
   /** Demandes d'inscription que l'agent peut confirmer ou refuser (auteur, organisateur, cadre, rôle réglé). */
   function aConfirmer(st, fiches, config, compte, services, maintenant, jours) {
-    var res = [], rc = rolesConfirmation(config);
+    var res = [];
     elements(st, fiches, services, maintenant, plusJours(maintenant, jours || 30)).forEach(function (x) {
-      if (x.externe || x.annulee || !x.accompagnateurs.demandes.length || !P.peutConfirmer(rdvOccurrence(x.rdv, x.occurrence), compte, rc)) return;
+      if (x.externe || x.annulee || !x.accompagnateurs.demandes.length || !P.peutConfirmer(rdvOccurrence(x.rdv, x.occurrence), compte, rolesConfirmation(config, x.rdv.service))) return;
       x.accompagnateurs.demandes.forEach(function (d) { if (d.agent !== compte.id) res.push({ rdv: x.rdv, occurrence: x.occurrence, debut: x.debut, demande: d }); });
     });
     return res;
@@ -368,7 +386,10 @@
     nb('duree', 14 * 1440); nb('accompagnateurs', 20); nb('dureeMax', 24 * 30);
     if (typeof x.heure === 'string' && (x.heure === '' || /^\d{2}:\d{2}$/.test(x.heure))) r.heure = x.heure;
     ['lieu', 'titre', 'checklist'].forEach(function (k) { if (typeof x[k] === 'string') r[k] = x[k].trim().slice(0, 120); });
-    ['patients', 'attente', 'psychiatrie'].forEach(function (k) { if (typeof x[k] === 'boolean') r[k] = x[k]; });
+    ['patients', 'attente', 'psychiatrie', 'inscriptionFixe'].forEach(function (k) { if (typeof x[k] === 'boolean') r[k] = x[k]; });
+    // Places et façon de s'inscrire proposées (0.21.0) ; `inscriptionFixe` : la façon de s'inscrire ne se change pas sur l'événement
+    if (x.participation && typeof x.participation === 'object') { var g = P.reglage({ participation: x.participation }); r.participation = { mode: g.mode, nombre: g.nombre, max: g.max, libre: g.libre, aConfirmer: g.aConfirmer }; }
+    else if (x.participation === null) r.participation = null;
     if (Array.isArray(x.transports)) r.transports = x.transports.filter(function (t) { return t && TRANSPORTS[t.type]; }).map(function (t) { return { type: t.type, nombre: Math.max(1, Math.min(9, Math.round(+t.nombre || 1))), precision: String(t.precision || '').slice(0, 100) }; });
     if (Array.isArray(x.validations)) r.validations = x.validations.filter(function (t) { return t && TYPES_VALIDATION[t.type]; }).map(function (t) { var o = { type: t.type, libelle: String(t.libelle || '').slice(0, 80) }; if (t.type !== 'permission') o.delai = Math.max(0, Math.min(336, Math.round(+t.delai || 24))); return o; });
     return r;
@@ -780,7 +801,7 @@
     var st = ctx.etat || { taches: {} }, t = d && (st.taches[d.id] || st.taches[d.tache]), o = optionsTaches(ctx.config);
     // Inscription d'un professionnel (0.21.0) : selon le réglage de l'événement (libre, à confirmer, invitation, places)
     if (type === 'INSCRIPTION' && ctx.compte && st.rdv && st.rdv[d.rdv] && d.occurrence) {
-      P.controler(rdvOccurrence(st.rdv[d.rdv], d.occurrence), d.occurrence, d, { compte: ctx.compte, rolesConfirmation: rolesConfirmation(ctx.config), peutInscrire: ctx.peut('INSCRIPTION') });
+      P.controler(rdvOccurrence(st.rdv[d.rdv], d.occurrence), d.occurrence, d, { compte: ctx.compte, rolesConfirmation: rolesConfirmation(ctx.config, st.rdv[d.rdv].service), peutInscrire: ctx.peut('INSCRIPTION') });
     }
     if (type === 'TACHE_EQUIPE') {
       if (t && t.niveau === 'service') throw new Error('Cette tâche est une tâche du service : seuls les rôles qui règlent les tâches la modifient ou la suppriment.');
@@ -807,7 +828,7 @@
     droits: D,
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, permisPourSoi: permisPourSoi, controler: controler,
       services: function (st, e) { return cibles(st, e); } },
-    reglages: { defaut: {}, groupes: [], exclus: [] },
+    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { agendaReglages: controlerCadreReglages } },
     // Onglet « Tâches du service » : affiché à qui peut régler les tâches (décision du porteur du 7 novembre 2026)
     vues: { onglets: [{ code: 'agenda', libelle: 'Agenda' }, { code: 'alertes', libelle: 'Alertes' }, { code: 'mon-agenda', libelle: 'Mon agenda' }, { code: 'taches', libelle: 'Tâches récurrentes', droit: ['TACHE', 'TACHE_AJUSTEMENT'] }] },
     migrations: [],
@@ -819,7 +840,7 @@
   return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
-    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
+    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
     enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
     alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,

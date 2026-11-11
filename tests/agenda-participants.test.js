@@ -63,7 +63,14 @@ test('Inscription à confirmer : demande, confirmée ou refusée par l’auteur,
   const r = st.rdv.R1;
   assert.ok(P.peutConfirmer(r, { id: 'auteur', roles: ['IDE'] }) && P.peutConfirmer(r, { id: 'ide9', roles: ['IDE'] }) && P.peutConfirmer(r, { id: 'c', roles: ['CADRE'] }));
   assert.ok(!P.peutConfirmer(r, { id: 'x', roles: ['IDE'] }) && P.peutConfirmer(r, { id: 'x', roles: ['SECRETAIRE'] }, ['SECRETAIRE']));
-  assert.deepEqual(A.rolesConfirmation({ agenda: { rolesConfirmation: ['CADRE', 'SECRETAIRE'] } }), ['CADRE', 'SECRETAIRE']);
+  assert.deepEqual(A.rolesConfirmation({ agendaReglages: { '*': { rolesConfirmation: ['CADRE'] }, U1: { rolesConfirmation: ['CADRE', 'SECRETAIRE'] } } }, 'U1'), ['CADRE', 'SECRETAIRE']);
+  assert.deepEqual(A.rolesConfirmation({}, 'U1'), ['CADRE']);
+  // Réglages par service : le cadre n'écrit que pour ses services
+  const cadre = { roles: ['CADRE'], services: ['U1'] };
+  assert.equal(A.controlerCadreReglages({ '*': { a: 1 } }, { '*': { a: 1 }, U1: { rolesConfirmation: ['CADRE', 'IDE'] } }, cadre), true);
+  assert.equal(A.controlerCadreReglages({ '*': { a: 1 } }, { '*': { a: 2 } }, cadre), false);
+  assert.equal(A.controlerCadreReglages({}, { U2: { a: 1 } }, cadre), false);
+  assert.equal(A.controlerCadreReglages({}, { '*': { a: 1 } }, { roles: ['ADMIN'] }), true);
   st = A.reduire(base.concat([insc('auteur', 'as1', { etat: 'inscrit' })]));
   assert.deepEqual([pros(st).total, st.avis[0].genre], [2, 'confirmation']);
   st = A.reduire(base.concat([insc('auteur', 'as1', { etat: 'refuse', motif: 'Effectif du service' })]));

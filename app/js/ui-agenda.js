@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  var SIC = self.SIC, U = SIC.ui, h = U.h, A = SIC.agenda, C = SIC.crypto;
+  var SIC = self.SIC, U = SIC.ui, h = U.h, A = SIC.agenda, C = SIC.crypto, P = SIC.agendaParticipants;
   var JOUR = 864e5, JOURS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
   var vue = { mode: 'semaine', ref: minuit(Date.now()), nature: '', alertesVues: false };
   try { vue.mode = localStorage.getItem('sic-agenda-mode') === 'jour' ? 'jour' : 'semaine'; } catch (e) { /* stockage indisponible */ }
@@ -58,24 +58,29 @@
     return teinter(el, couleur);
   }
 
-  /** Bouton « S'inscrire » / « Me désinscrire » comme accompagnateur d'une occurrence. */
+  function moiG() { var c = U.App.session.compteEffectif(); return Object.assign({}, c, { groupes: SIC.groupes ? SIC.groupes.de(U.config(), c.id) : [] }); }
+  /** Bouton rapide d'une date selon la situation de l'agent : s'inscrire, demander, accepter une proposition ou une invitation, se retirer. */
   function boutonInscription(x, petit) {
-    var acc = x.accompagnateurs, moi = U.App.session.compteEffectif();
-    if (!acc || !acc.requis || x.externe || U.App.session.apercu) return null;
-    var inscrit = acc.inscrits.some(function (i) { return i.agent === moi.id; }), prevu = (x.rdv.professionnels || []).some(function (p) { return p.id === moi.id; });
-    if (prevu || (!inscrit && !acc.manque)) return null;
-    return h('button', { class: 'btn ' + (petit ? 'petit ag-inscrire' : 'petit') + (inscrit ? '' : ' primaire'), type: 'button', onclick: async function (ev) {
+    var acc = x.accompagnateurs, moi = moiG();
+    if (!acc || x.externe || U.App.session.apercu) return null;
+    var sit = P.situation(A.rdvOccurrence(x.rdv, x.occurrence), x.occurrence, moi), a = sit.actions;
+    var quoi = a.indexOf('accepter') >= 0 ? ['inscrit', sit.etat === 'propose' ? 'Accepter la proposition' : 'Accepter l’invitation', 'Vous participez.'] : a.indexOf('inscrire') >= 0 ? ['inscrit', acc.complet ? 'S’inscrire (attente)' : 'S’inscrire', acc.complet ? 'Vous êtes en liste d’attente.' : 'Vous êtes inscrit(e).']
+      : a.indexOf('demander') >= 0 ? ['demande', 'Demander à participer', 'Demande envoyée aux organisateurs.'] : a.indexOf('retirer') >= 0 ? [null, sit.etat === 'demande' ? 'Retirer ma demande' : sit.etat === 'attente' ? 'Quitter la liste d’attente' : 'Me désinscrire', 'Vous n’êtes plus inscrit(e).'] : null;
+    if (!quoi) return null;
+    return h('button', { class: 'btn ' + (petit ? 'petit ag-inscrire' : 'petit') + (quoi[0] ? ' primaire' : ''), type: 'button', onclick: async function (ev) {
       ev.stopPropagation();
       try {
-        await U.App.session.enregistrer('INSCRIPTION', { rdv: x.rdv.id, occurrence: x.occurrence, agent: moi.id, nom: moi.nom, retrait: inscrit ? true : undefined, service: x.rdv.service });
-        U.toast(inscrit ? 'Vous n’êtes plus inscrit(e).' : 'Vous êtes inscrit(e) comme accompagnateur.');
+        await U.App.session.enregistrer('INSCRIPTION', { rdv: x.rdv.id, occurrence: x.occurrence, agent: moi.id, nom: moi.nom, retrait: quoi[0] ? undefined : true, etat: quoi[0] || undefined, service: x.rdv.service });
+        U.toast(quoi[2]);
       } catch (e) { alert(e.message); }
-    } }, inscrit ? 'Me désinscrire' : 'S’inscrire');
+    } }, quoi[1]);
   }
   function badgeAccompagnateurs(x) {
     var acc = x.accompagnateurs;
-    if (!acc || !acc.requis) return null;
-    return h('span', { class: 'badge ' + (acc.manque ? 'warn' : 'ok'), title: (acc.consigne ? 'Consigne : ' + acc.consigne + '\n' : '') + (acc.inscrits.length ? 'Inscrits : ' + acc.inscrits.map(function (i) { return i.nom; }).join(', ') : 'Aucun inscrit'), text: 'Accompagnateurs ' + acc.total + '/' + acc.requis });
+    if (!acc || (!acc.requis && !acc.max && !acc.ouvert)) return null;
+    var detail = [acc.consigne ? 'Consigne : ' + acc.consigne : '', acc.inscrits.length ? 'Inscrits : ' + acc.inscrits.map(function (i) { return i.nom; }).join(', ') : 'Aucun inscrit',
+      acc.attente.length ? 'Liste d’attente : ' + acc.attente.map(function (i) { return i.nom; }).join(', ') : '', acc.demandes.length ? acc.demandes.length + ' demande(s) à confirmer' : '', acc.proposes.length ? acc.proposes.length + ' proposition(s) sans réponse' : ''].filter(Boolean).join('\n');
+    return h('span', { class: 'badge ' + (acc.manque ? 'warn' : 'ok'), title: detail, text: 'Professionnels ' + P.libellePlaces(acc) + (acc.attente.length ? ' (+' + acc.attente.length + ' en attente)' : '') });
   }
   function ouvrirElement(x) {
     var modifiable = peut('RDV') && (!x.externe || opts().modifAutresServices);
@@ -204,14 +209,48 @@
     var s = U.App.session;
     try { await s.enregistrerPreference('avisVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); }
   }
+  /** Ce qui attend une réponse de l'agent (propositions, invitations) et les demandes qu'il peut confirmer (0.21.0). */
+  function mesReponses() {
+    var s = U.App.session, c = s && s.compteEffectif && s.compteEffectif();
+    if (!c || s.apercu || !s.etatModule('agenda')) return { repondre: [], confirmer: [] };
+    var svs = U.services().map(function (x) { return x.code; }), moi = moiG();
+    return { repondre: A.aRepondre(st(), fiches(), moi, svs, Date.now(), 30), confirmer: A.aConfirmer(st(), fiches(), U.config(), moi, svs, Date.now(), 30) };
+  }
+  function bandeauReponses() {
+    var m = mesReponses(), moi = moiG();
+    if (!m.repondre.length && !m.confirmer.length) return null;
+    async function ecrire(x, agent, nom, o) {
+      try { await U.App.session.enregistrer('INSCRIPTION', { rdv: x.rdv.id, occurrence: x.occurrence, agent: agent, nom: nom, etat: o.etat, motif: o.motif || undefined, service: x.rdv.service }); U.toast(o.etat === 'refuse' ? 'Refus enregistré.' : 'Enregistré.'); }
+      catch (e) { alert(e.message); }
+    }
+    function lien(x) { return h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleElement(x.rdv, null, !peut('RDV'), null, false, x.occurrence); } }, libelleElement(x.rdv)); }
+    function quand(x) { return h('span', { text: ' — ' + libJour(x.debut) + ' ' + hm(x.debut) + ' ' }); }
+    return h('section', { class: 'panneau ag-avis ag-reponses', role: 'status' }, h('h2', { text: 'Votre réponse est attendue' }),
+      h('ul', { class: 'liste-simple' },
+        m.repondre.map(function (x) {
+          return h('li', {}, h('span', { text: x.situation.etat === 'propose' ? U.App.session.nomAuteur(x.situation.par) + ' vous propose de participer : ' : 'Vous êtes invité(e) : ' }), lien(x), quand(x),
+            h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { ecrire(x, moi.id, moi.nom, { etat: 'inscrit' }); } }, 'Accepter'), ' ',
+            h('button', { class: 'btn petit', type: 'button', onclick: function () { var mo = prompt('Motif du refus (facultatif, court, sans donnée de santé) :'); if (mo !== null) ecrire(x, moi.id, moi.nom, { etat: 'refuse', motif: mo.trim() }); } }, 'Refuser…'));
+        }),
+        m.confirmer.map(function (x) {
+          return h('li', {}, h('span', { text: (x.demande.nom || U.App.session.nomAuteur(x.demande.agent)) + ' demande à participer : ' }), lien(x), quand(x),
+            h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { ecrire(x, x.demande.agent, x.demande.nom, { etat: 'inscrit' }); } }, 'Confirmer'), ' ',
+            h('button', { class: 'btn petit', type: 'button', onclick: function () { var mo = prompt('Motif du refus (court, sans donnée de santé) :'); if (mo && mo.trim()) ecrire(x, x.demande.agent, x.demande.nom, { etat: 'refuse', motif: mo.trim() }); } }, 'Refuser…'));
+        })));
+  }
   function bandeauAvis() {
-    var av = mesAvis();
-    if (!av.length) return null;
+    var av = mesAvis(), rep = bandeauReponses();
+    if (!av.length) return rep;
+    return h('div', { class: 'pile' }, rep, bandeauInfos(av));
+  }
+  function bandeauInfos(av) {
     return h('section', { class: 'panneau ag-avis', role: 'status' }, h('div', { class: 'barre' }, h('h2', { text: av.length > 1 ? av.length + ' informations pour vous' : 'Une information pour vous' }), h('div', { class: 'espace' }),
       av.length > 1 ? h('button', { class: 'btn petit', type: 'button', onclick: function () { marquerVus(av.map(function (a) { return a.id; })); } }, 'Tout marquer vu') : null),
       h('ul', { class: 'liste-simple' }, av.map(function (a) {
         var r = st().rdv[a.rdv], o = r ? A.occurrences(r, A.depuisISO(a.occurrence), plusJours(A.depuisISO(a.occurrence), 1))[0] : null;
-        return h('li', {}, h('span', { text: U.App.session.nomAuteur(a.par) + (a.retrait ? ' vous a désinscrit(e)' : ' vous a inscrit(e)') + ' comme accompagnateur : ' }),
+        var quoi = { retrait: ' vous a désinscrit(e) : ', refus: ' a refusé votre demande' + (a.motif ? ' (' + a.motif + ')' : '') + ' : ', confirmation: ' a confirmé votre demande : ',
+          propositionRefusee: ' a refusé votre proposition' + (a.motif ? ' (' + a.motif + ')' : '') + ' : ', propositionAcceptee: ' a accepté votre proposition : ' }[a.genre || (a.retrait ? 'retrait' : '')] || ' vous a inscrit(e) : ';
+        return h('li', {}, h('span', { text: U.App.session.nomAuteur(a.par) + quoi }),
           r ? h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleElement(r, null, !peut('RDV'), null, false, a.occurrence); } }, libelleElement(r)) : 'élément',
           h('span', { text: ' — ' + (o ? libJour(o.debut) + ' ' + hm(o.debut) : a.occurrence.split('-').reverse().join('/')) + ' ' }),
           h('button', { class: 'btn petit', type: 'button', onclick: function () { marquerVus([a.id]); } }, 'Vu'));
@@ -495,7 +534,10 @@
     var patients = (x.patients || ini.patients || []).slice(), profs = (x.professionnels || []).map(function (p) { return { id: p.id || null, nom: p.nom }; });
     var transports = (Array.isArray(x.transports) ? x.transports : []).map(function (t) { return Object.assign({}, t); });
     var validations = A.validationsDe(x).map(function (v) { return Object.assign({}, v); });
-    var nbAcc = Math.max(0, Math.round(+x.accompagnateurs || 0)), consigneAcc = String(x.consigneAccompagnateurs || '');
+    // Places et inscriptions (« Quel(s) professionnel(s) ? », « Quel(s) patient(s) ? ») ; `partFixe` : façon de s'inscrire fixée par le type d'événement
+    function sansAncien(g) { var o = Object.assign({}, g); delete o.ancien; return o; }
+    var partAvant = sansAncien(P.reglage(x)), part = JSON.parse(JSON.stringify(partAvant)), partFixe = !nouveau && !!(cat(x.nature, x.service).prereglages || {}).inscriptionFixe;
+    var consigneAcc = String(x.consigneAccompagnateurs || '');
     // Préréglages d'une création selon le type (Audience : un VSL et un soignant ; permission : validation de la permission)
     // Préréglages de la catégorie à la création (durée, heure, lieu, intitulé, accompagnateurs, transports, validations, check-list)
     function prereglerNature(n) {
@@ -508,18 +550,18 @@
       }
       if (pr.lieu && lieu && !lieu.value.trim()) lieu.value = pr.lieu;
       if (pr.titre && titre && !titre.value.trim()) titre.value = pr.titre;
-      nbAcc = pr.accompagnateurs || 0;
+      part = sansAncien(P.reglage({ participation: pr.participation ? Object.assign({}, pr.participation, { nombre: pr.accompagnateurs || 0 }) : undefined, accompagnateurs: pr.accompagnateurs || 0 })); partFixe = !!pr.inscriptionFixe;
       transports = (pr.transports || []).map(function (t) { return { id: 't' + C.hex(C.aleatoire(3)), type: t.type, nombre: t.nombre, precision: t.precision || '' }; });
       validations = (pr.validations || []).map(function (v) { return Object.assign({ id: (v.type === 'permission' ? 'p' : 'v') + C.hex(C.aleatoire(3)) }, v); });
       if (pr.checklist && checklist && !checklist.length) {
         var m = A.checklists(U.config()).filter(function (c) { return c.code === pr.checklist; })[0];
         if (m) m.items.forEach(function (it) { checklist.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: it.libelle, delai: it.delai }); });
       }
-      if (visibles) { visibles.patients = pr.patients !== false; visibles.transports = transports.length > 0; visibles.accompagnateurs = nbAcc > 0; visibles.validations = validations.length > 0; }
+      if (visibles) { visibles.patients = pr.patients !== false; visibles.transports = transports.length > 0; visibles.validations = validations.length > 0; }
     }
     var visibles = null;
     if (nouveau) prereglerNature(natureInitiale);
-    visibles = { patients: !!patients.length || (nouveau ? cat(natureInitiale, serviceInitial).prereglages.patients !== false : ['reunion', 'autre'].indexOf(baseNature(natureInitiale, serviceInitial)) < 0), transports: !!transports.length, accompagnateurs: nbAcc > 0, validations: !!validations.length };
+    visibles = { patients: !!patients.length || (nouveau ? cat(natureInitiale, serviceInitial).prereglages.patients !== false : ['reunion', 'autre'].indexOf(baseNature(natureInitiale, serviceInitial)) < 0), transports: !!transports.length, validations: !!validations.length };
 
     // -- Patients
     var zonePat = h('div', { class: 'pile' }), recherche = '';
@@ -531,24 +573,38 @@
     function dessinerPatients() {
       U.vider(zonePat);
       if (lecture) {
-        var ids = patientsVisibles || patients;
-        zonePat.appendChild(h('p', { text: ids.length ? nomsPatients(ids).join(', ') : 'Aucun patient.' }));
+        var ids = patientsVisibles || patients, ppl = P.patients({ patients: patients, participation: part });
+        zonePat.appendChild(h('p', { text: ids.length ? nomsPatients(ids.filter(function (i) { return ppl.attente.indexOf(i) < 0; })).join(', ') || '—' : 'Aucun patient.' }));
+        var att = ids.filter(function (i) { return ppl.attente.indexOf(i) >= 0; });
+        if (att.length) zonePat.appendChild(h('p', { text: 'Liste d’attente : ' + nomsPatients(att).join(', ') }));
+        if (ppl.min || ppl.max) zonePat.appendChild(h('small', { class: 'muted', text: 'Places : ' + (ppl.min ? 'au moins ' + ppl.min : '') + (ppl.min && ppl.max ? ', ' : '') + (ppl.max ? ppl.max + ' au plus' : '') + (ppl.manque ? ' — il manque ' + ppl.manque + ' patient(s)' : '') }));
         if (patientsVisibles && patientsVisibles.length < patients.length) zonePat.appendChild(h('small', { class: 'muted', text: 'Seuls les patients hospitalisés dans votre service sont affichés.' }));
         return;
       }
       var q = recherche.trim().toLowerCase(), liste = fichesDuService().filter(function (p) { return !q || ((p.nom || '') + ' ' + (p.prenom || '') + ' ' + (p.ipp || '')).toLowerCase().indexOf(q) >= 0; });
+      // Places (0.21.0) : minimum (alerte s'il manque des patients) et maximum (au-delà : liste d'attente, dans l'ordre d'inscription)
+      var pl = P.patients({ patients: patients, participation: part });
+      var pMin = h('input', { type: 'number', min: 0, max: 200, step: 1, value: part.patientsMin || '', class: 'champ-court', placeholder: 'sans', 'aria-label': 'Minimum de patients', onchange: function () { part.patientsMin = Math.max(0, Math.round(+pMin.value || 0)); dessinerPatients(); } });
+      var pMax = h('input', { type: 'number', min: 0, max: 200, step: 1, value: part.patientsMax || '', class: 'champ-court', placeholder: 'sans', 'aria-label': 'Maximum de patients', onchange: function () { part.patientsMax = Math.max(0, Math.round(+pMax.value || 0)); dessinerPatients(); } });
+      zonePat.appendChild(h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Places : au moins', pMin), h('label', { class: 'en-ligne' }, 'au plus', pMax),
+        h('span', { class: 'badge ' + (pl.manque ? 'warn' : 'ok'), text: pl.inscrits.length + (pl.max ? '/' + pl.max : '') + ' patient(s)' + (pl.attente.length ? ' + ' + pl.attente.length + ' en attente' : '') + (pl.manque ? ' — il en manque ' + pl.manque : '') })));
+      if (pl.attente.length) zonePat.appendChild(h('div', { class: 'actions gauche' }, h('small', { class: 'muted', text: 'Liste d’attente : ' + nomsPatients(pl.attente).join(', ') + '. Le premier prend la place si un patient est retiré.' }),
+        pl.attente.map(function (id) { return h('button', { class: 'btn petit', type: 'button', onclick: function () { patients = [id].concat(patients.filter(function (i) { return i !== id; })); dessinerPatients(); } }, 'Donner une place à ' + nomsPatients([id])[0]); })));
       var champ = h('input', { type: 'search', placeholder: 'Rechercher un patient du service', value: recherche, oninput: function () { recherche = champ.value; dessinerPatients(); var c = zonePat.querySelector('input[type=search]'); if (c) { c.focus(); c.setSelectionRange(c.value.length, c.value.length); } } });
       zonePat.appendChild(champ);
       zonePat.appendChild(h('div', { class: 'grille-2 liste-cases' }, liste.slice(0, 40).map(function (p) {
-        var cb = h('input', { type: 'checkbox', checked: patients.indexOf(p.id) >= 0, onchange: function () { patients = cb.checked ? patients.concat([p.id]) : patients.filter(function (i) { return i !== p.id; }); dessinerValidations(); } });
-        return h('label', { class: 'case' }, cb, h('span', { text: (p.nom || '?') + ' ' + (p.prenom || '') + (p.ipp ? ' — IPP ' + p.ipp : '') }));
+        var cb = h('input', { type: 'checkbox', checked: patients.indexOf(p.id) >= 0, onchange: function () { patients = cb.checked ? patients.concat([p.id]) : patients.filter(function (i) { return i !== p.id; }); dessinerValidations(); dessinerPatients(); } });
+        var rang = pl.attente.indexOf(p.id);
+        return h('label', { class: 'case' }, cb, h('span', { text: (p.nom || '?') + ' ' + (p.prenom || '') + (p.ipp ? ' — IPP ' + p.ipp : '') }), rang >= 0 ? h('span', { class: 'badge warn', text: 'attente n° ' + (rang + 1) }) : null);
       })));
       if (liste.length > 40) zonePat.appendChild(h('small', { class: 'muted', text: liste.length - 40 + ' autre(s) : précisez la recherche.' }));
     }
-    // -- Professionnels prévus (accompagnateurs désignés)
+    // -- « Quel(s) professionnel(s) ? » (0.21.0, décisions du porteur du 11 novembre 2026) : désignés, places, façons de
+    //    pourvoir les places (inscription libre ou à confirmer, invitations), puis inscriptions de la date affichée
     var zonePro = h('div', { class: 'pile' });
     function dessinerPros() {
       U.vider(zonePro);
+      zonePro.appendChild(h('b', { class: 'ag-sous-titre', text: 'Désignés (sans confirmation)' }));
       if (lecture) { zonePro.appendChild(h('p', { text: profs.length ? profs.map(function (p) { return p.nom; }).join(', ') : '—' })); return; }
       var comptes = (s.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && (!(c.services || []).length || (c.services || []).indexOf(sv.value) >= 0 || profs.some(function (p) { return p.id === c.id; })); })
         .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
@@ -562,40 +618,121 @@
       var libre = h('input', { type: 'text', placeholder: 'Autre professionnel (nom et fonction)' });
       zonePro.appendChild(h('div', { class: 'barre' }, libre, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (libre.value.trim()) { profs.push({ id: null, nom: libre.value.trim() }); dessinerPros(); } } }, 'Ajouter')));
     }
-    // -- Accompagnateurs non désignés et inscriptions (date affichée)
+    function nomCible(i) {
+      if (i.t === 'role') return 'Rôle : ' + (SIC.model.libRole(U.config(), i.id) || i.nom || i.id);
+      if (i.t === 'groupe') { var g = SIC.groupes ? SIC.groupes.liste(U.config()).filter(function (y) { return y.code === i.id; })[0] : null; return 'Groupe : ' + (g ? g.libelle : i.nom || i.id); }
+      var c = (s.comptes || []).filter(function (y) { return y.id === i.id; })[0]; return c ? c.nom : i.nom || i.id;
+    }
+    function resumePlaces() {
+      var t = [];
+      if (part.nombre) t.push((part.mode === 'min' ? 'au moins ' : 'exactement ') + part.nombre + (part.mode === 'min' && part.max ? ' (' + part.max + ' au plus)' : ''));
+      t.push(part.aConfirmer ? 'inscription à confirmer' : part.libre ? 'inscription libre' : part.invites.length ? 'sur invitation' : 'pas d’inscription');
+      if (part.invites.length) t.push('invités : ' + part.invites.map(nomCible).join(', '));
+      return t.join(' · ');
+    }
     var zoneAcc = h('div', { class: 'pile' });
     function dessinerAccompagnateurs() {
       U.vider(zoneAcc);
-      var champ = h('input', Object.assign({ type: 'number', min: 0, max: 20, step: 1, value: nbAcc, class: 'champ-court', 'aria-label': 'Accompagnateurs à trouver', oninput: function () { nbAcc = Math.max(0, Math.min(20, Math.round(+champ.value || 0))); } }, dis));
-      zoneAcc.appendChild(h('label', { class: 'en-ligne' }, 'Accompagnateurs nécessaires', champ, h('small', { class: 'muted', text: 'sans les nommer : les agents s’inscrivent ; les professionnels prévus comptent' })));
-      // Consigne en texte libre (décision du porteur du 8 novembre 2026) : indicative, n'empêche aucune inscription
-      var consigne = h('input', Object.assign({ type: 'text', maxlength: 120, value: consigneAcc, placeholder: 'Consigne (facultatif) : ex. 1 IDE le matin, 1 AS l’après-midi, un éducateur', 'aria-label': 'Consigne pour les accompagnateurs', oninput: function () { consigneAcc = consigne.value; } }, dis));
-      zoneAcc.appendChild(lecture ? (consigneAcc ? h('p', { text: 'Consigne : ' + consigneAcc }) : h('span')) : h('label', {}, 'Consigne pour les accompagnateurs', consigne));
+      zoneAcc.appendChild(h('b', { class: 'ag-sous-titre', text: 'Places et inscriptions' }));
+      if (lecture) {
+        zoneAcc.appendChild(h('p', { text: resumePlaces() }));
+        if (consigneAcc) zoneAcc.appendChild(h('p', { text: 'Consigne : ' + consigneAcc }));
+      } else {
+        var fx = partFixe ? { disabled: true } : {};
+        var selMode = h('select', { 'aria-label': 'Nombre de professionnels demandé', onchange: function () { if (!selMode.value) part.nombre = 0; else { part.mode = selMode.value; part.nombre = Math.max(1, part.nombre); } dessinerAccompagnateurs(); majVisibles(); } },
+          [['', 'Sans nombre demandé'], ['exact', 'Exactement'], ['min', 'Au moins']].map(function (o) { return h('option', { value: o[0], text: o[1], selected: (part.nombre ? part.mode : '') === o[0] }); }));
+        var nb = h('input', { type: 'number', min: 1, max: 200, step: 1, value: part.nombre || '', class: 'champ-court', 'aria-label': 'Nombre', oninput: function () { part.nombre = Math.max(0, Math.min(200, Math.round(+nb.value || 0))); } });
+        var mx = h('input', { type: 'number', min: 1, max: 200, step: 1, value: part.max || '', class: 'champ-court', 'aria-label': 'Maximum', placeholder: 'sans', oninput: function () { part.max = Math.max(0, Math.min(200, Math.round(+mx.value || 0))); } });
+        zoneAcc.appendChild(h('div', { class: 'actions gauche' }, selMode, part.nombre ? nb : null, part.nombre ? h('span', { text: 'professionnel(s), désignés compris' }) : null,
+          part.nombre && part.mode === 'min' ? h('label', { class: 'en-ligne' }, 'Maximum', mx) : null));
+        if (part.nombre && part.mode === 'exact') zoneAcc.appendChild(h('small', { class: 'muted', text: 'Au-delà de ce nombre, les agents passent en liste d’attente.' }));
+        var selIns = h('select', Object.assign({ 'aria-label': 'Inscription des agents', onchange: function () { part.libre = selIns.value === 'libre'; part.aConfirmer = selIns.value === 'confirmer'; dessinerAccompagnateurs(); } }, fx),
+          [['', 'Pas d’inscription : désignés et invités seulement'], ['libre', 'Inscription libre'], ['confirmer', 'Inscription à confirmer par un organisateur']].map(function (o) { return h('option', { value: o[0], text: o[1], selected: (part.aConfirmer ? 'confirmer' : part.libre ? 'libre' : '') === o[0] }); }));
+        zoneAcc.appendChild(h('label', {}, 'Les autres agents', selIns));
+        if (partFixe) zoneAcc.appendChild(h('small', { class: 'muted', text: 'Façon de s’inscrire fixée pour ce type d’événement (réglage de l’administration).' }));
+        // Invitations : agents, groupes d'agents, rôles
+        var deja = function (t, id) { return part.invites.some(function (i) { return i.t === t && i.id === id; }); };
+        var comptesI = (s.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && !deja('agent', c.id) && !profs.some(function (p) { return p.id === c.id; }); }).sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
+        var groupesI = SIC.groupes ? SIC.groupes.pourService(U.config(), sv.value).filter(function (g) { return !deja('groupe', g.code); }) : [];
+        var rolesI = SIC.model.rolesConfig(U.config()).filter(function (r) { return r.code !== 'ADMIN' && !deja('role', r.code); });
+        var selInv = h('select', Object.assign({ 'aria-label': 'Inviter', onchange: function () {
+          var v = selInv.value.split('|'); if (v.length < 2) return;
+          part.invites.push({ t: v[0], id: v[1], nom: selInv.options[selInv.selectedIndex].text }); dessinerAccompagnateurs();
+        } }, fx), [h('option', { value: '', text: '+ Inviter un agent, un groupe ou un rôle…' }),
+          h('optgroup', { label: 'Agents' }, comptesI.map(function (c) { return h('option', { value: 'agent|' + c.id, text: c.nom }); })),
+          groupesI.length ? h('optgroup', { label: 'Groupes d’agents' }, groupesI.map(function (g) { return h('option', { value: 'groupe|' + g.code, text: g.libelle }); })) : null,
+          h('optgroup', { label: 'Rôles' }, rolesI.map(function (r) { return h('option', { value: 'role|' + r.code, text: r.libelle || r.code }); }))]);
+        zoneAcc.appendChild(h('div', { class: 'actions gauche' }, part.invites.map(function (i) {
+          return h('span', { class: 'badge' }, nomCible(i) + ' ', partFixe ? null : h('button', { class: 'btn lien', type: 'button', 'aria-label': 'Retirer l’invitation', onclick: function () { part.invites = part.invites.filter(function (y) { return y !== i; }); dessinerAccompagnateurs(); } }, '✕'));
+        }), selInv));
+        if (part.invites.length) zoneAcc.appendChild(h('small', { class: 'muted', text: 'Les invités acceptent ou refusent depuis leur agenda.' + (P.plafond(part) ? ' Les places vont aux premiers qui acceptent, les suivants passent en liste d’attente.' : '') }));
+        if (part.aConfirmer) {
+          var selOrg = h('select', { 'aria-label': 'Ajouter un organisateur', onchange: function () { if (selOrg.value) { part.organisateurs.push(selOrg.value); dessinerAccompagnateurs(); } } },
+            [h('option', { value: '', text: '+ Organisateur…' })].concat((s.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && part.organisateurs.indexOf(c.id) < 0; }).sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); }).map(function (c) { return h('option', { value: c.id, text: c.nom }); })));
+          zoneAcc.appendChild(h('div', { class: 'actions gauche' }, h('span', { text: 'Confirment les demandes : l’auteur, le cadre' + (part.organisateurs.length ? ' et' : '') }),
+            part.organisateurs.map(function (id) { return h('span', { class: 'badge' }, nomCible({ t: 'agent', id: id }) + ' ', h('button', { class: 'btn lien', type: 'button', 'aria-label': 'Retirer l’organisateur', onclick: function () { part.organisateurs = part.organisateurs.filter(function (y) { return y !== id; }); dessinerAccompagnateurs(); } }, '✕')); }), selOrg));
+        }
+        var consigne = h('input', { type: 'text', maxlength: 120, value: consigneAcc, placeholder: 'Consigne (facultatif) : ex. 1 IDE le matin, 1 AS l’après-midi, un éducateur', 'aria-label': 'Consigne pour les professionnels', oninput: function () { consigneAcc = consigne.value; } });
+        zoneAcc.appendChild(h('label', {}, 'Consigne', consigne));
+      }
       if (nouveau || !occurrence) return;
+      // Inscriptions de la date affichée
       var etatR = courant(), acc = A.accompagnateurs(etatR, occurrence), peutAutres = peut('INSCRIPTION') && !s.apercu && !externe;
-      zoneAcc.appendChild(h('div', {}, h('b', { text: 'Le ' + occurrence.split('-').reverse().join('/') + ' : ' }), badgeAccompagnateurs({ accompagnateurs: acc })));
-      acc.inscrits.forEach(function (i) {
+      var moiG = Object.assign({}, moi, { groupes: SIC.groupes ? SIC.groupes.de(U.config(), moi.id) : [] });
+      var confirme = P.peutConfirmer(etatR, moiG, A.rolesConfirmation(U.config(), etatR.service)) && !s.apercu && !externe, cadre = (moi.roles || []).indexOf('CADRE') >= 0 && !s.apercu;
+      zoneAcc.appendChild(h('div', {}, h('b', { text: 'Le ' + occurrence.split('-').reverse().join('/') + ' : ' }), badgeAccompagnateurs({ accompagnateurs: acc }) || h('span', { text: acc.total + ' professionnel(s)' })));
+      function ligne(i, suffixe, boutons) {
+        return h('div', { class: 'barre' }, h('span', { text: (i.nom || s.nomAuteur(i.agent)) + (suffixe || '') }), boutons);
+      }
+      function groupe(titreG, l, f) { if (!l.length) return; zoneAcc.appendChild(h('small', { class: 'muted', text: titreG })); l.forEach(function (i, k) { zoneAcc.appendChild(f(i, k)); }); }
+      groupe('Inscrits', acc.inscrits, function (i) {
         var lui = i.agent === moi.id;
-        zoneAcc.appendChild(h('div', { class: 'barre' }, h('span', { text: i.nom + (i.par && i.par !== i.agent ? ' (inscrit(e) par ' + s.nomAuteur(i.par) + ')' : '') }),
-          lui || peutAutres ? h('button', { class: 'btn petit', type: 'button', onclick: function () { inscrire(i.agent, i.nom, true); } }, lui ? 'Me désinscrire' : 'Désinscrire') : null));
+        return ligne(i, i.demandePar && i.demandePar !== i.agent ? ' (proposé(e) par ' + s.nomAuteur(i.demandePar) + ')' : i.par && i.par !== i.agent ? ' (inscrit(e) par ' + s.nomAuteur(i.par) + ')' : '',
+          lui || peutAutres ? h('button', { class: 'btn petit', type: 'button', onclick: function () { inscrire(i.agent, i.nom, { retrait: true }); } }, lui ? 'Me désinscrire' : 'Désinscrire') : null);
       });
-      var dejaMoi = acc.inscrits.some(function (i) { return i.agent === moi.id; }) || (etatR.professionnels || []).some(function (p) { return p.id === moi.id; });
-      var actions = h('div', { class: 'actions gauche' });
-      if (!dejaMoi && !externe && !s.apercu) actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { inscrire(moi.id, moi.nom, false); } }, 'M’inscrire'));
+      groupe('Liste d’attente (le premier prend la place en cas de désistement)', acc.attente, function (i, k) {
+        var lui = i.agent === moi.id;
+        return ligne(i, ' — n° ' + (k + 1), [cadre ? h('button', { class: 'btn petit', type: 'button', onclick: function () { inscrire(i.agent, i.nom, { etat: 'inscrit', prioritaire: true }); } }, 'Passer en tête') : null,
+          lui || peutAutres ? h('button', { class: 'btn petit', type: 'button', onclick: function () { inscrire(i.agent, i.nom, { retrait: true }); } }, lui ? 'Me retirer' : 'Retirer') : null]);
+      });
+      groupe('Proposés par un collègue, en attente de leur réponse', acc.proposes, function (i) {
+        return ligne(i, ' (par ' + s.nomAuteur(i.par) + ')', peutAutres && i.agent !== moi.id ? h('button', { class: 'btn petit', type: 'button', onclick: function () { inscrire(i.agent, i.nom, { retrait: true }); } }, 'Retirer') : null);
+      });
+      groupe('Demandes à confirmer', acc.demandes, function (i) {
+        return ligne(i, '', confirme && i.agent !== moi.id ? [h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { inscrire(i.agent, i.nom, { etat: 'inscrit' }); } }, 'Confirmer'),
+          h('button', { class: 'btn petit', type: 'button', onclick: function () { var m = prompt('Motif du refus (court, sans donnée de santé) :'); if (m && m.trim()) inscrire(i.agent, i.nom, { etat: 'refuse', motif: m.trim() }); } }, 'Refuser…')] : null);
+      });
+      groupe('Refus', acc.refus, function (i) { return ligne(i, i.motif ? ' — ' + i.motif : ''); });
+      // Ce que je peux faire pour moi
+      var sit = P.situation(etatR, occurrence, moiG), actions = h('div', { class: 'actions gauche' });
+      if (!externe && !s.apercu) {
+        if (sit.etat === 'propose') actions.appendChild(h('span', { text: s.nomAuteur(sit.par) + ' vous propose de participer :' }));
+        if (sit.etat === 'invite') actions.appendChild(h('span', { text: 'Vous êtes invité(e) :' }));
+        if (sit.etat === 'demande') actions.appendChild(h('span', { class: 'badge', text: 'Votre demande attend la confirmation d’un organisateur' }));
+        if (sit.etat === 'refuse' && sit.motif) actions.appendChild(h('span', { class: 'muted', text: 'Refus : ' + sit.motif }));
+        sit.actions.forEach(function (a) {
+          if (a === 'inscrire') actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { inscrire(moi.id, moi.nom, { etat: 'inscrit' }); } }, acc.complet ? 'M’inscrire en liste d’attente' : 'M’inscrire'));
+          if (a === 'demander') actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { inscrire(moi.id, moi.nom, { etat: 'demande' }); } }, 'Demander à participer'));
+          if (a === 'accepter') actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { inscrire(moi.id, moi.nom, { etat: 'inscrit' }); } }, acc.complet ? 'Accepter (liste d’attente)' : 'Accepter'));
+          if (a === 'refuser') actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { var m = prompt('Motif du refus (facultatif, court, sans donnée de santé) :'); if (m !== null) inscrire(moi.id, moi.nom, { etat: 'refuse', motif: m.trim() }); } }, 'Refuser…'));
+          if (a === 'retirer' && sit.etat === 'demande') actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { inscrire(moi.id, moi.nom, { retrait: true }); } }, 'Retirer ma demande'));
+        });
+      }
       if (peutAutres) {
-        var choix = (s.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && c.id !== moi.id && !acc.inscrits.some(function (i) { return i.agent === c.id; }) && (!(c.services || []).length || (c.services || []).indexOf(etatR.service) >= 0); })
+        var pris = acc.inscrits.concat(acc.attente, acc.proposes, acc.demandes).map(function (i) { return i.agent; });
+        var choix = (s.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && c.id !== moi.id && pris.indexOf(c.id) < 0 && !(etatR.professionnels || []).some(function (p) { return p.id === c.id; }) && (!(c.services || []).length || (c.services || []).indexOf(etatR.service) >= 0 || (etatR.services || []).some(function (v) { return (c.services || []).indexOf(v) >= 0; })); })
           .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
-        var selCol = h('select', { 'aria-label': 'Collègue à inscrire' }, [h('option', { value: '', text: 'Inscrire un collègue…' })].concat(choix.map(function (c) { return h('option', { value: c.id, text: c.nom }); })));
+        var selCol = h('select', { 'aria-label': 'Collègue à proposer' }, [h('option', { value: '', text: 'Proposer un collègue…' })].concat(choix.map(function (c) { return h('option', { value: c.id, text: c.nom }); })));
         actions.appendChild(selCol);
-        actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { var c = choix.filter(function (y) { return y.id === selCol.value; })[0]; if (c) inscrire(c.id, c.nom, false); } }, 'Inscrire'));
+        actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { var c = choix.filter(function (y) { return y.id === selCol.value; })[0]; if (c) inscrire(c.id, c.nom, { etat: 'propose' }); } }, 'Proposer'));
       }
       zoneAcc.appendChild(actions);
-      if (peutAutres) zoneAcc.appendChild(h('small', { class: 'muted', text: 'Le collègue inscrit ou désinscrit en est informé dans sa session (Agenda et Mon agenda).' }));
+      if (peutAutres) zoneAcc.appendChild(h('small', { class: 'muted', text: 'Le collègue proposé est averti dans sa session : il confirme, ou refuse avec un motif. Pour l’inscrire sans confirmation, cochez-le parmi les désignés.' }));
     }
-    async function inscrire(agent, nom, retrait) {
+    async function inscrire(agent, nom, o) {
       try {
-        await s.enregistrer('INSCRIPTION', { rdv: x.id, occurrence: occurrence, agent: agent, nom: nom, retrait: retrait ? true : undefined, service: x.service });
-        U.toast(retrait ? 'Désinscription enregistrée.' : 'Inscription enregistrée.');
+        await s.enregistrer('INSCRIPTION', { rdv: x.id, occurrence: occurrence, agent: agent, nom: nom, retrait: o.retrait ? true : undefined, etat: o.retrait ? undefined : o.etat, motif: o.motif || undefined, prioritaire: o.prioritaire, service: x.service });
+        U.toast(o.retrait ? 'Retrait enregistré.' : o.etat === 'propose' ? 'Proposition envoyée au collègue.' : o.etat === 'demande' ? 'Demande envoyée aux organisateurs.' : o.etat === 'refuse' ? 'Refus enregistré.' : 'Inscription enregistrée.');
         dessinerAccompagnateurs();
       } catch (e) { alert(e.message); }
     }
@@ -743,27 +880,26 @@
     }
     // Sections ajoutables et barre « Ajouter »
     function section(titreS, contenu) { return h('div', { class: 'pile ag-section' }, h('b', { text: titreS }), contenu); }
-    var secPatients = section('Patients', zonePat), secTransports = section('Transports', zoneTr), secAcc = section('Accompagnateurs à trouver', zoneAcc), secVal = section('Permission et validations', zoneVal);
+    var secPatients = section('Quel(s) patient(s) ?', zonePat), secTransports = section('Transports', zoneTr), secVal = section('Permission et validations', zoneVal);
     var barreAjout = h('div', { class: 'actions gauche ag-ajouter' });
     function majVisibles() {
-      secPatients.hidden = !visibles.patients; secTransports.hidden = !visibles.transports; secAcc.hidden = !visibles.accompagnateurs; secVal.hidden = !visibles.validations;
+      secPatients.hidden = !visibles.patients; secTransports.hidden = !visibles.transports; secVal.hidden = !visibles.validations;
       U.vider(barreAjout);
       if (lecture) { barreAjout.hidden = true; return; }
       barreAjout.appendChild(h('span', { class: 'muted', text: 'Ajouter :' }));
       [['patients', '+ Patients', function () { visibles.patients = true; }],
         ['transports', '+ Transport', function () { visibles.transports = true; if (!transports.length) transports.push({ id: 't' + C.hex(C.aleatoire(3)), type: 'vsl', nombre: 1 }); dessinerTransports(); }],
-        ['accompagnateurs', '+ Accompagnateur', function () { visibles.accompagnateurs = true; if (!nbAcc) nbAcc = 1; dessinerAccompagnateurs(); }],
         ['permission', '+ Permission à faire valider', function () { visibles.validations = true; validations.push({ id: 'p' + C.hex(C.aleatoire(3)), type: 'permission' }); dessinerValidations(); }],
         ['validation', '+ Validation (médicale ou autre)', function () { visibles.validations = true; validations.push({ id: 'v' + C.hex(C.aleatoire(3)), type: 'medicale', delai: 24 }); dessinerValidations(); }]]
-        .forEach(function (b) { if (visibles[b[0]] && b[0] !== 'accompagnateurs') return; barreAjout.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { b[2](); majVisibles(); } }, b[1])); });
-      cbVSL.checked = transports.some(function (t) { return t.type === 'vsl'; }); cbAccomp.checked = nbAcc > 0 || profs.length > 0;
+          .forEach(function (b) { if (visibles[b[0]]) return; barreAjout.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { b[2](); majVisibles(); } }, b[1])); });
+      cbVSL.checked = transports.some(function (t) { return t.type === 'vsl'; }); cbAccomp.checked = part.nombre > 0 || profs.length > 0;
     }
     cbVSL.addEventListener('change', function () {
       if (cbVSL.checked) { if (!transports.some(function (t) { return t.type === 'vsl'; })) transports.push({ id: 't' + C.hex(C.aleatoire(3)), type: 'vsl', nombre: 1 }); visibles.transports = true; }
       else { transports = transports.filter(function (t) { return t.type !== 'vsl'; }); visibles.transports = transports.length > 0; }
       dessinerTransports(); majVisibles();
     });
-    cbAccomp.addEventListener('change', function () { nbAcc = cbAccomp.checked ? Math.max(1, nbAcc) : 0; visibles.accompagnateurs = nbAcc > 0; dessinerAccompagnateurs(); majVisibles(); });
+    cbAccomp.addEventListener('change', function () { part.nombre = cbAccomp.checked ? Math.max(1, part.nombre) : 0; if (cbAccomp.checked && !part.libre && !part.aConfirmer && !part.invites.length) part.libre = true; dessinerAccompagnateurs(); majVisibles(); });
     function majNature(changement) {
       var b = baseCat();
       zoneEnt.hidden = b !== 'entretien'; zoneExamen.hidden = b !== 'examen'; zoneAudience.hidden = b !== 'audience';
@@ -834,8 +970,8 @@
       if (validations.some(function (v) { return v.type !== 'permission' && !String(v.libelle || '').trim(); })) throw new Error('Précisez l’intitulé de chaque validation médicale ou autre (ex. avis du psychiatre).');
       var d = { id: x.id || 'R' + C.hex(C.aleatoire(6)), nature: nv, titre: titre.value.trim(), debut: d0, fin: d1, lieu: lieu.value.trim(), service: sv.value,
         patients: visibles.patients ? patients : [], professionnels: profs, regularite: rg, checklist: checklist,
-        accompagnateurs: visibles.accompagnateurs ? nbAcc : 0,
-        consigneAccompagnateurs: visibles.accompagnateurs ? consigneAcc.trim() : '',
+        accompagnateurs: Math.min(20, part.nombre), consigneAccompagnateurs: consigneAcc.trim(),
+        participation: sansAncien(P.reglage({ participation: Object.assign({}, part, visibles.patients ? {} : { patientsMin: 0, patientsMax: 0 }) })),
         transports: visibles.transports ? transports.map(function (t) { var o = { id: t.id, type: t.type || 'vsl', nombre: Math.max(1, Math.round(+t.nombre || 1)), precision: String(t.precision || '').trim() }; if (o.type === 'vehicule' && t.vehicule) o.vehicule = t.vehicule; return o; }) : [],
         validations: visibles.validations ? validations.map(function (v) { var o = { id: v.id, type: v.type, libelle: String(v.libelle || '').trim() }; if (v.type !== 'permission') o.delai = v.delai === undefined ? 24 : v.delai; return o; }) : [] };
       // Véhicule du service : disponibilité vérifiée avant d'enregistrer (une date : élément simple ou « cette date seulement »)
@@ -857,8 +993,8 @@
       if (parDate) {
         // Cette date seulement : champs modifiés par rapport à cette date, rangés comme réglages propres à la date
         var od = { rdv: x.id, occurrence: occurrence, service: r.service }, n0 = 0;
-        ['titre', 'lieu', 'patients', 'professionnels', 'accompagnateurs', 'consigneAccompagnateurs', 'transports', 'validations', 'checklist'].forEach(function (k) {
-          var av = x[k] === undefined ? (Array.isArray(d[k]) ? [] : (k === 'accompagnateurs' ? 0 : '')) : x[k];
+        ['titre', 'lieu', 'patients', 'professionnels', 'accompagnateurs', 'consigneAccompagnateurs', 'participation', 'transports', 'validations', 'checklist'].forEach(function (k) {
+          var av = k === 'participation' ? partAvant : x[k] === undefined ? (Array.isArray(d[k]) ? [] : (k === 'accompagnateurs' ? 0 : '')) : x[k];
           if (JSON.stringify(d[k]) !== JSON.stringify(av)) { od[k] = d[k]; n0++; }
         });
         if (d0 !== x.debut || d1 !== (x.fin || null)) { od.debut = d0; od.fin = d1; n0++; }
@@ -871,6 +1007,9 @@
       if (!nouveau) Object.keys(d).forEach(function (k) { if (k !== 'id' && k !== 'service' && JSON.stringify(d[k]) === JSON.stringify(x[k])) delete d[k]; });
       if (!nouveau && Array.isArray(d.validations) && !Array.isArray(x.validations) && !d.validations.length && !A.validationsDe(x).length) delete d.validations;
       if (!nouveau && !d.consigneAccompagnateurs && !x.consigneAccompagnateurs) delete d.consigneAccompagnateurs;
+      if (!nouveau && JSON.stringify(d.participation) === JSON.stringify(partAvant)) delete d.participation;
+      if (!nouveau && d.accompagnateurs === Math.min(20, partAvant.nombre)) delete d.accompagnateurs;
+      if (nouveau && JSON.stringify(d.participation) === JSON.stringify(sansAncien(P.reglage({ participation: {} })))) delete d.participation;
       if (nouveau) ['accompagnateurs', 'consigneAccompagnateurs', 'transports', 'validations'].forEach(function (k) { if (!d[k] || (Array.isArray(d[k]) && !d[k].length)) delete d[k]; });
       if (!nouveau && Object.keys(d).length <= 2 && d.service === x.service) return true;
       await s.enregistrer('RDV', d);
@@ -894,7 +1033,7 @@
       parDate ? null : rep.noeuds,
 
       barreAjout, secPatients,
-      section('Professionnels prévus (accompagnateurs désignés)', zonePro), secAcc, secTransports, secVal,
+      section('Quel(s) professionnel(s) ?', h('div', { class: 'pile' }, zonePro, zoneAcc)), secTransports, secVal,
       section('Check-list (à réaliser avant l’événement)', zoneCheck),
       nouveau ? null : section('Commentaires', zoneCom),
       h('small', { class: 'muted', text: 'Aucune donnée clinique : le motif et le contenu de la prise en charge restent dans le dossier du patient.' })), boutons, { large: true });
@@ -902,7 +1041,7 @@
   }
 
   function libRepetition(v) { return A.libelleRepetition(v); }
-  var LIB_CHAMPS = { debut: 'horaires', lieu: 'lieu', titre: 'intitulé', patients: 'patients', professionnels: 'professionnels prévus', accompagnateurs: 'accompagnateurs', consigneAccompagnateurs: 'consigne des accompagnateurs', transports: 'transports', validations: 'validations', checklist: 'check-list' };
+  var LIB_CHAMPS = { debut: 'horaires', lieu: 'lieu', titre: 'intitulé', patients: 'patients', professionnels: 'professionnels prévus', accompagnateurs: 'nombre de professionnels', participation: 'places et inscriptions', consigneAccompagnateurs: 'consigne des accompagnateurs', transports: 'transports', validations: 'validations', checklist: 'check-list' };
   function fermerPuisAgenda(fn) { var dlg = document.querySelector('dialog[open]'); if (dlg) dlg.dispatchEvent(new Event('cancel')); setTimeout(fn, 0); }
 
   // Délai d'alerte d'un point de check-list (jours avant l'événement)
@@ -923,7 +1062,7 @@
         return (vv ? (vv.libelle || A.TYPES_VALIDATION[vv.type]) : 'Validation') + ' — « ' + (rv ? libelleElement(rv) : 'élément') + ' » le ' + String(d.occurrence || '').split('-').reverse().join('/') + ' : ' + (d.statut === 'attente' ? 'remise en attente' : (d.statut === 'refusee' ? 'refusée' : 'validée') + (d.nom ? ' par ' + d.nom : ''));
       case 'TRANSPORT': var rtr = st().rdv[d.rdv], tt = rtr && (rtr.transports || []).filter(function (y) { return y.id === d.transport; })[0];
         return (tt ? A.TRANSPORTS[tt.type] || 'Transport' : 'Transport') + ' — « ' + (rtr ? libelleElement(rtr) : 'élément') + ' » le ' + String(d.occurrence || '').split('-').reverse().join('/') + ' : ' + (d.statut === 'reserve' ? 'réservé' + (d.precision ? ' (' + d.precision + ')' : '') : 'remis à réserver');
-      case 'INSCRIPTION': var ri = st().rdv[d.rdv]; return (e.by && e.by !== d.agent ? U.App.session.nomAuteur(e.by) + ' : ' : '') + (d.retrait ? 'désinscription de ' : 'inscription de ') + (d.nom || U.App.session.nomAuteur(d.agent)) + ' comme accompagnateur : « ' + (ri ? libelleElement(ri) : 'élément') + ' » le ' + String(d.occurrence || '').split('-').reverse().join('/');
+      case 'INSCRIPTION': var ri = st().rdv[d.rdv]; return (e.by && e.by !== d.agent ? U.App.session.nomAuteur(e.by) + ' : ' : '') + (d.retrait ? 'retrait de ' : d.etat === 'propose' ? 'proposition à ' : d.etat === 'demande' ? 'demande de participation de ' : d.etat === 'refuse' ? 'refus' + (d.motif ? ' (' + d.motif + ')' : '') + ' pour ' : (d.prioritaire ? 'passage en tête de ' : 'inscription de ')) + (d.nom || U.App.session.nomAuteur(d.agent)) + ' : « ' + (ri ? libelleElement(ri) : 'élément') + ' » le ' + String(d.occurrence || '').split('-').reverse().join('/');
       case 'COMMENTAIRE': var rr = st().rdv[d.rdv]; return 'Commentaire sur ' + (rr ? '« ' + (rr.titre || '') + ' »' : 'un élément') + (d.service ? ' (' + U.libService(d.service) + ')' : '') + ' : ' + (d.texte || '');
       case 'CHECK': var rk = st().rdv[d.rdv], it = rk && (rk.checklist || []).filter(function (y) { return y.id === d.item; })[0]; return 'Check-list de « ' + (rk ? rk.titre : '') + ' » (' + String(d.occurrence || '').split('-').reverse().join('/') + ') : ' + (it ? it.libelle : 'point') + (d.fait === false ? ' décoché' : ' fait');
       case 'TACHE_AJUSTEMENT': var ta = st().taches[d.tache];
@@ -958,9 +1097,11 @@
   SIC.modules.completerInterface('agenda', {
     vues: { agenda: vueAgenda, taches: vueTaches, alertes: vueAlertes, 'mon-agenda': vueMonAgenda },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'L’élément de l’agenda revient à son état précédent.'; } },
-    admin: { onglets: function () { return [['agenda-categories', 'Catégories d’événements', [panneauCategories()]], ['agenda', 'Réglages de l’agenda', [panneauReglages()]]]; } },
+    admin: { onglets: function () { return [['agenda-categories', 'Catégories d’événements', [panneauCategories()]], ['agenda', 'Réglages de l’agenda', [panneauReglages()]], ['agenda-services', 'Organisation par service', [I.panneauReglagesService()]]]; },
+      // Réglages ouverts au cadre pour ses services : onglet « Agenda du service » de sa fenêtre Administration (0.21.0)
+      cadre: function () { return [I.panneauReglagesService()]; } },
     // Pastille de la barre des modules : informations reçues non vues
-    pastille: function () { try { return mesAvis().length; } catch (e) { return 0; } }
+    pastille: function () { try { var m = mesReponses(); return mesAvis().length + m.repondre.length + m.confirmer.length; } catch (e) { return 0; } }
   });
   U.agenda = { modaleElement: modaleElement, modaleAjout: modaleAjout, sectionPatient: sectionPatient, aVenirPour: aVenirPour, suivreVehicules: suivreVehicules };
 })();

@@ -180,6 +180,12 @@
           zVal.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { pr.validations.push({ type: 'medicale', libelle: '', delai: 24 }); dessinerVal(); } }, '+ Validation'));
         }
         dessinerVal();
+        // Places et inscriptions proposées (0.21.0) : nombre exact ou minimum, inscription libre, à confirmer ou aucune
+        var pp = pr.participation || {};
+        function majPart() { pr.participation = { mode: selModePart.value, nombre: +pr.accompagnateurs || 0, libre: selInsPart.value === 'libre', aConfirmer: selInsPart.value === 'confirmer' }; }
+        var selModePart = h('select', { 'aria-label': 'Nombre exact ou minimum', onchange: majPart }, [['exact', 'exactement'], ['min', 'au moins']].map(function (o) { return h('option', { value: o[0], text: o[1], selected: (pp.mode || 'exact') === o[0] }); }));
+        var selInsPart = h('select', { 'aria-label': 'Inscription des agents', onchange: majPart }, [['libre', 'inscription libre'], ['confirmer', 'inscription à confirmer'], ['', 'pas d’inscription']].map(function (o) { return h('option', { value: o[0], text: o[1], selected: (pr.participation ? (pp.aConfirmer ? 'confirmer' : pp.libre ? 'libre' : '') : 'libre') === o[0] }); }));
+        var cbFixe = h('input', { type: 'checkbox', checked: !!pr.inscriptionFixe, onchange: function () { pr.inscriptionFixe = cbFixe.checked; majPart(); } });
         var selBase = c.fournie ? null : h('select', { 'aria-label': 'Comportement repris', onchange: function () { c.base = selBase.value; } }, Object.keys(A.NATURES).map(function (k) { return h('option', { value: k, text: A.NATURES[k], selected: c.base === k }); }));
         zone.appendChild(teinter(h('details', { class: 'ag-categorie' + (c.actif ? '' : ' inactive') },
           h('summary', {}, h('span', { class: 'ag-cle' }, h('i'), c.libelle || 'Nouvelle catégorie'), c.fournie ? h('small', { class: 'muted', text: ' (fournie)' }) : h('small', { class: 'muted', text: ' (ajoutée, comme « ' + A.NATURES[c.base] + ' »)' }), c.actif ? null : h('span', { class: 'badge', text: 'masquée' })),
@@ -190,7 +196,7 @@
             h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Durée', duree, h('small', { text: 'min' })), h('label', { class: 'en-ligne' }, 'Début proposé', heure),
               h('label', { class: 'en-ligne' }, 'Durée maximale', nombre('dureeMax', 720, 'Durée maximale en heures'), h('small', { text: 'h (alerte au-delà)' }))),
             h('div', { class: 'grille-2' }, h('label', {}, 'Lieu', texte('lieu', 'ex. Salle d’audience')), h('label', {}, 'Intitulé', texte('titre', 'ex. Audience du mercredi'))),
-            h('div', { class: 'actions gauche' }, coche('patients', 'Section Patients affichée'), h('label', { class: 'en-ligne' }, 'Accompagnateurs à trouver', nombre('accompagnateurs', 20, 'Accompagnateurs')),
+            h('div', { class: 'actions gauche' }, coche('patients', 'Section Patients affichée'), h('label', { class: 'en-ligne' }, 'Professionnels demandés', nombre('accompagnateurs', 20, 'Professionnels demandés')), selModePart, selInsPart, h('label', { class: 'case' }, cbFixe, h('span', { text: 'Façon de s’inscrire fixée (non modifiable sur l’événement)' })),
               coche('attente', 'Transparente sans patient prévu'), coche('psychiatrie', 'Services de psychiatrie seulement')),
             h('div', {}, h('small', { class: 'muted', text: 'Transports' }), zTr),
             h('div', {}, h('small', { class: 'muted', text: 'Permission et validations' }), zVal),
@@ -249,6 +255,60 @@
 
   // ------------------------------------------------------------ Journal
 
+  // ------------------------------------------------------------ Réglages par service, ouverts au cadre (0.21.0)
+  /*
+   * Principe du porteur (11 novembre 2026) : les réglages sont modifiables par le cadre dans l'administration quand c'est
+   * possible. `config.agendaReglages` = { '*': établissement, <service>: ce que le service remplace } ; l'administrateur
+   * règle l'établissement et chaque service, le cadre ses services. Chaque rubrique (`RUBRIQUES`) dessine ses champs à
+   * partir des réglages du niveau et rend ce qu'elle veut enregistrer ; les étapes suivantes y ajoutent les leurs.
+   */
+  var niveauService = null, RUBRIQUES = [];
+  function ajouterRubrique(f) { RUBRIQUES.push(f); }
+  function niveauxPermis() {
+    var s = U.App.session, admin = s.roles().indexOf('ADMIN') >= 0, c = s.compteEffectif();
+    var svs = U.tousServices().filter(function (v) { return admin || (c.services || []).indexOf(v.code) >= 0 || !(c.services || []).length; });
+    return (admin ? [{ code: '*', libelle: 'Établissement (tous les services)' }] : []).concat(svs.map(function (v) { return { code: v.code, libelle: 'Service ' + v.libelle }; }));
+  }
+  function panneauReglagesService() {
+    var niveaux = niveauxPermis();
+    if (!niveaux.length) return h('section', { class: 'panneau' }, h('p', { class: 'muted', text: 'Aucun service à régler.' }));
+    if (!niveauService || !niveaux.some(function (n) { return n.code === niveauService; })) niveauService = niveaux[0].code;
+    var tout = JSON.parse(JSON.stringify(U.config().agendaReglages || {})), propre = tout[niveauService] || {};
+    var herite = niveauService === '*' ? {} : (tout['*'] || {});
+    var sel = h('select', { 'aria-label': 'Niveau des réglages', onchange: function () { niveauService = sel.value; U.rendreContenu(); } }, niveaux.map(function (n) { return h('option', { value: n.code, text: n.libelle, selected: n.code === niveauService }); }));
+    var lecteurs = [];
+    var corps = RUBRIQUES.map(function (f) { var r = f({ niveau: niveauService, propre: propre, herite: herite, effectif: Object.assign({}, herite, propre) }); lecteurs.push(r.lire); return h('div', { class: 'pile ag-section' }, h('b', { text: r.titre }), r.noeud); });
+    return h('section', { class: 'panneau' }, h('h2', { text: 'Organisation par service' }),
+      h('p', { class: 'muted', text: 'Réglages de l’établissement, que chaque service peut remplacer : l’administrateur règle l’établissement et les services, le cadre règle ses services. Un réglage laissé « comme l’établissement » suit l’établissement.' }),
+      h('label', { class: 'en-ligne' }, 'Réglages pour', sel), corps,
+      h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
+        try {
+          var v = {};
+          lecteurs.forEach(function (l) { var x = l(); Object.keys(x).forEach(function (k) { if (x[k] !== undefined) v[k] = x[k]; }); });
+          if (Object.keys(v).length) tout[niveauService] = v; else delete tout[niveauService];
+          await U.enregistrerConfig([['agendaReglages', tout]]);
+          U.toast('Réglages enregistrés.');
+        } catch (e) { alert(e.message); }
+      } }, 'Enregistrer')));
+  }
+  /** Cases de rôles, avec « comme l'établissement » pour un service. `defaut` : rôles par défaut. */
+  function choixRoles(ctx, cle, defaut, exclus) {
+    var suit = ctx.niveau !== '*' && !Array.isArray(ctx.propre[cle]);
+    var val = Array.isArray(ctx.effectif[cle]) && ctx.effectif[cle].length ? ctx.effectif[cle].slice() : defaut.slice();
+    var cbSuit = ctx.niveau === '*' ? null : h('input', { type: 'checkbox', checked: suit, onchange: function () { suit = cbSuit.checked; zone.hidden = suit; } });
+    var roles = SIC.model.rolesConfig(U.config()).filter(function (r) { return r.code !== 'ADMIN' && (exclus || []).indexOf(r.code) < 0; });
+    var zone = h('div', { class: 'actions gauche', hidden: suit }, roles.map(function (r) {
+      var cb = h('input', { type: 'checkbox', checked: val.indexOf(r.code) >= 0, onchange: function () { val = cb.checked ? val.concat([r.code]) : val.filter(function (y) { return y !== r.code; }); } });
+      return h('label', { class: 'case' }, cb, h('span', { text: r.libelle || r.code }));
+    }));
+    return { noeud: h('div', { class: 'pile' }, cbSuit ? h('label', { class: 'case' }, cbSuit, h('span', { text: 'Comme l’établissement' })) : null, zone), lire: function () { return suit ? undefined : val.slice(); } };
+  }
+  ajouterRubrique(function (ctx) {
+    var r = choixRoles(ctx, 'rolesConfirmation', SIC.agendaParticipants.ROLES_CONFIRMATION_DEFAUT);
+    return { titre: 'Inscriptions à confirmer : qui confirme, en plus de l’auteur de l’événement et de ses organisateurs', noeud: r.noeud, lire: function () { return { rolesConfirmation: r.lire() }; } };
+  });
+
   I.panneauReglages = panneauReglages;
+  I.panneauReglagesService = panneauReglagesService; I.ajouterRubrique = ajouterRubrique; I.choixRoles = choixRoles;
   I.panneauCategories = panneauCategories;
 })();
