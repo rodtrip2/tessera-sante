@@ -55,12 +55,21 @@ test('Mes tâches : contenu lisible par le seul agent (pas l’administrateur), 
   assert.ok(!ch.includes('pharmacie'));
   a.choisirModule('agenda');
   await a.enregistrer('TACHE_PERSO', { id: 'TP1', agent: a.utilisateur.id, chiffre: ch });
+  // Annulation immédiate (0.26.4) : l'auteur annule sa propre saisie dans les deux minutes ; pas celle d'un autre agent
+  const e2 = await a.enregistrer('TACHE_PERSO', { id: 'TP2', agent: a.utilisateur.id, chiffre: ch });
+  assert.equal(a.annulableParAuteur(e2), true);
+  await a.enregistrer('ANNULATION', { cible: e2.id, motif: 'Annulée par son auteur juste après la saisie', immediate: true });
+  assert.equal(a.annulableParAuteur(e2), false);
+  assert.ok(!SIC.agenda.tachesPerso(a.etatModule('agenda'), a.utilisateur.id).some((t) => t.id === 'TP2'));
+  assert.equal(a.annulableParAuteur(Object.assign({}, e2, { id: 'vieux', at: '2020-01-01T00:00:00.000Z' })), false);
   const a2 = await co(racine, 'ide.a', 'mot de passe ide a');
   assert.equal((await a2.dechiffrerPersonnel('taches', ch)).titre, 'Appeler la pharmacie (fictif)');
   const b = await co(racine, 'ide.b', 'mot de passe ide b');
   assert.equal(await b.dechiffrerPersonnel('taches', ch), null);
   b.choisirModule('agenda');
   await assert.rejects(b.enregistrer('TACHE_PERSO', { id: 'TP1', agent: a.utilisateur.id, chiffre: ch }), /rôle|agent/);
+  const e1 = b.evts.find((x) => x.data && x.data.id === 'TP1');
+  await assert.rejects(b.enregistrer('ANNULATION', { cible: e1.id, motif: 'x', immediate: true }), /rôle/);
   const ad = await co(racine, 'admin', 'mot de passe solide');
   assert.equal(await ad.dechiffrerPersonnel('taches', ch), null);
   const st = SIC.agenda.reduire([{ v: 1, id: 'x1', at: '2026-11-11T08:00:00.000Z', by: 'u', type: 'TACHE_PERSO', data: { id: 'T', agent: 'u', chiffre: 'abc' } },
