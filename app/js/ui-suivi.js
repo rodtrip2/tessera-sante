@@ -16,6 +16,15 @@
   function cfg() { return U.config(); }
   function opts() { return S.options(cfg()); }
   function peut(t) { return U.App.session.peut(t) && !U.App.session.apercu; }
+  // Rôle Médecin (0.28.1) : le médecin relié à son compte saisit ses propres présences, absences et gardes
+  function monMedecin() { try { return U.App.session.apercu ? null : S.medecinDuCompte(cfg(), U.App.session.compteEffectif()); } catch (e) { return null; } }
+  function peutPresence(nomMedecin, p) {
+    if (peut('PRESENCE')) return true;
+    var m = monMedecin();
+    if (!m) return false;
+    if (p) return p.medecinId === m.id || (!p.medecinId && p.medecin === m.nom);
+    return !nomMedecin || nomMedecin === m.nom;
+  }
   function fiches() { return (U.st() && U.st().patients) || {}; }
   function lundiDe(t) { var d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return S.jourISO(d.getTime()); }
   function jourFr(iso) { var d = new Date(S.depuisISO(iso)); return JOURS[d.getDay()] + ' ' + d.getDate() + '/' + String(d.getMonth() + 1).padStart(2, '0'); }
@@ -76,7 +85,8 @@
         bouton('Cette semaine', function () { vue.lundi = lundiDe(Date.now()); U.rendreContenu(); }, 'petit'),
         h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Semaine suivante', onclick: function () { nav(7); } }, '▶'),
         bouton('Imprimer', function () { imprimerPresences(); }),
-        peut('PRESENCE') ? bouton('+ Présence, absence, garde', function () { modalePresence(null, { lieu: vue.lieu, medecin: vue.affichage === 'medecin' ? vue.medecin : '' }); }, 'primaire') : null),
+        peut('PRESENCE') ? bouton('+ Présence, absence, garde', function () { modalePresence(null, { lieu: vue.lieu, medecin: vue.affichage === 'medecin' ? vue.medecin : '' }); }, 'primaire')
+          : monMedecin() ? bouton('+ Ma présence, absence, garde', function () { modalePresence(null, { lieu: vue.lieu, medecin: monMedecin().nom }); }, 'primaire') : null),
       corps);
   }
   function grilleService(maintenant) {
@@ -89,7 +99,7 @@
       return h('tr', {}, h('th', { class: 'medecin' }, h('b', { text: l.medecin.nom }), h('br'), h('small', { class: 'muted', text: MED.FONCTIONS[l.medecin.fonction] + (l.medecin.statut !== 'titulaire' ? ' — ' + MED.STATUTS[l.medecin.statut].toLowerCase() : '') })),
         l.cases.filter(function (c) { return js.indexOf(c.jour) >= 0; }).map(function (c) {
           var e = ETATS[c.etat];
-          return h('td', { class: 'case-presence' + (c.jour === auj ? ' aujourdhui' : ''), onclick: peut('PRESENCE') ? function () { modaleCase(l.medecin.nom, c); } : null, title: peut('PRESENCE') ? 'Voir ou modifier' : '' },
+          return h('td', { class: 'case-presence' + (c.jour === auj ? ' aujourdhui' : ''), onclick: peutPresence(l.medecin.nom) ? function () { modaleCase(l.medecin.nom, c); } : null, title: peutPresence(l.medecin.nom) ? 'Voir ou modifier' : '' },
             e ? h('span', { class: 'badge ' + e[1], text: c.etat === 'absent' && c.remplacant ? 'Remplacé' : e[0] }) : null,
             c.remplacant ? h('div', {}, h('small', { text: 'par ' + c.remplacant })) : null,
             c.precision ? h('div', {}, h('small', { class: 'muted', text: c.precision })) : null,
@@ -144,7 +154,7 @@
   }
   function lignePresence(p) {
     return h('div', { class: 'agenda-point' }, h('span', { text: S.medecinDe(cfg(), p) + ' : ' + libPresence(p) }),
-      peut('PRESENCE') ? bouton('Modifier', function () { modalePresence(p); }, 'petit') : null);
+      peutPresence(null, p) ? bouton('Modifier', function () { modalePresence(p); }, 'petit') : null);
   }
   function libModifs(l) {
     return (l || []).map(function (m) { return 'Série « ' + libPresence(m.serie) + ' » ' + (m.remplacement ? 'remplacée ce jour par : ' + libPresence(m.remplacement) : 'retirée ce jour'); }).join('\n');
@@ -216,6 +226,7 @@
       l.forEach(function (m) { selMed.appendChild(h('option', { value: m.nom, text: m.nom + (m.statut === 'interimaire' ? ' — intérimaire' : ''), selected: m.nom === choix })); });
     }
     remplirMed(x.medecin ? S.medecinDe(cfg(), x) : (ini.medecin || ''));
+    if (!peut('PRESENCE') && monMedecin()) { selMed.value = monMedecin().nom; selMed.disabled = true; }   // ses propres présences seulement
     var selLieu = h('select', { 'aria-label': 'Service ou lieu' }, lieux().map(function (l) { return h('option', { value: l.code, text: l.libelle, selected: l.code === (x.service || ini.lieu) }); }));
     var selGarde = h('select', { 'aria-label': 'Type de garde' }, o.gardes.map(function (g) { return h('option', { value: g.code, text: S.libGarde(g) + (g.lieu ? ' — ' + libLieu(g.lieu) : ''), selected: g.code === x.garde }); }));
     var joursChoisis = (x.jours || (ini.jour ? [new Date(S.depuisISO(ini.jour)).getDay()] : [1, 2, 3, 4, 5])).slice();

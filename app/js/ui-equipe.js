@@ -112,12 +112,15 @@
   }
 
   // ------------------------------------------------------------ Petite fiche de contact (tous les modules)
+  /** Médecin de la liste commune relié à un compte (0.28.1) : sa fiche devient la fiche Équipe de ce compte. */
+  function medecinDe(id) { try { return SIC.medecins ? SIC.medecins.liste(U.config()).filter(function (m) { return m.compte === id; })[0] || null : null; } catch (e) { return null; } }
   function contact(id, nom) {
     var a = agent(id) || { id: id, nom: nom || id, roles: [], services: [], compte: false }, f = E.fiche(st(), id), zonePerso = h('div', { class: 'pile' });
+    var med = medecinDe(id);
     var c = compte(), gere = E.gere(c, id, a.services) && !s().apercu;
     U.modale(a.nom, h('div', { class: 'pile eq-contact' },
       h('div', { class: 'grille-2' },
-        h('div', {}, h('small', { class: 'muted', text: 'Fonction' }), h('div', { text: f.fonction || libRoles(a.roles) || '—' })),
+        h('div', {}, h('small', { class: 'muted', text: 'Fonction' }), h('div', { text: f.fonction || (med ? (SIC.medecins.FONCTIONS || {})[med.fonction] || 'Médecin' : '') || libRoles(a.roles) || '—' })),
         h('div', {}, h('small', { class: 'muted', text: 'Services' }), h('div', { text: a.services.map(U.libService).join(', ') || '—' })),
         h('div', {}, h('small', { class: 'muted', text: 'Téléphone professionnel' }), h('div', {}, boutonCopie(f.telPro, 'Copier le numéro'))),
         h('div', {}, h('small', { class: 'muted', text: 'Courriel professionnel' }), h('div', {}, boutonCopie(f.mailPro, 'Copier l’adresse')))),
@@ -126,6 +129,9 @@
       a.compte && peutEcrire() && id !== moi().id ? { texte: 'Écrire', classe: 'primaire', action: function () { setTimeout(function () { U.messagerie.nouveau({ destinataires: ['agent|' + id] }); }, 0); } } : null,
       gere ? { texte: id === moi().id ? 'Ma fiche' : 'Modifier', action: function () { setTimeout(function () { if (id === moi().id) { U.ouvrirFenetre('equipe'); U.App.onglet = 'ma-fiche'; U.rendreContenu(); } else modaleFiche(a); }, 0); } } : null,
       U.champs && U.champs.ficheAgent && s().roles().some(function (r) { return r === 'CADRE' || r === 'ADMIN'; }) ? { texte: 'Données ajoutées', action: function () { setTimeout(function () { U.champs.ficheAgent(a); }, 0); } } : null].filter(Boolean));
+    if (med) lirePersoMedecin(med).then(function (p) {
+      if (p && p.tel) zonePerso.appendChild(h('div', { class: 'eq-perso' }, h('small', { class: 'muted', text: 'Numéro personnel du médecin — cadre et médecin chef de service, urgences de service seulement' }), h('div', {}, boutonCopie(p.tel))));
+    });
     if (f.perso && f.accord) lirePerso(a).then(function (p) {
       if (!p) return;
       zonePerso.appendChild(h('div', { class: 'eq-perso' }, h('small', { class: 'muted', text: 'Coordonnées personnelles — rappels et urgences de service seulement, avec l’accord de l’agent' }),

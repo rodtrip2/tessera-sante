@@ -379,6 +379,20 @@
     lireAcces: function (r) { return r.accesModules ? r.accesModules.suivi : undefined; },
     appartenance: 'acces'
   });
+  /**
+   * Médecin relié à un compte (liste commune, champ `compte`) : il saisit ses propres présences, absences et gardes
+   * sans l'accès « Présences » (0.28.1, rôle Médecin) ; jamais celles d'un autre médecin.
+   */
+  function medecinDuCompte(config, compte) { var MED = (typeof self !== 'undefined' && self.SIC && self.SIC.medecins) || null; return MED && compte ? MED.liste(config || {}).filter(function (m) { return m.compte === compte.id; })[0] || null : null; }
+  function permisPourSoi(type, data, compte, ctx) {
+    if (type !== 'PRESENCE' || !data) return false;
+    var m = medecinDuCompte(ctx && ctx.config, compte);
+    if (!m) return false;
+    var x = ctx && ctx.etat && ctx.etat.presences && data.id ? ctx.etat.presences[data.id] : null;
+    var sien = function (p) { return !!p && (p.medecinId === m.id || (!p.medecinId && p.medecin === m.nom)); };
+    if (x && !sien(x)) return false;
+    return data.supprime ? !!x : sien(data);
+  }
   function lieuxCodes(config) { return options(config).lieux.map(function (l) { return l.code; }); }
   /** Services sur lesquels agit une saisie : le service de la présence (un lieu sans patient n'en est pas un), celui du patient. */
   function cibles(st, e) {
@@ -428,7 +442,7 @@
     icone: 'SM',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, services: function (st, e) { return cibles(st, e); } },
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [] },
     vues: { onglets: [{ code: 'presences', libelle: 'Présences médicales' }, { code: 'entretiens', libelle: 'Entretiens et contrats de soins' }, { code: 'medecins', libelle: 'Patients par médecin' }, { code: 'liste', libelle: 'Médecins' }, { code: 'planning-psy', libelle: 'Planning des psychologues' }, { code: 'psychologues', libelle: 'Psychologues' }] },
     migrations: [],
@@ -445,7 +459,7 @@
     besoins: [{ fourniture: 'patients.fiches', version: 1, obligatoire: true }]
   };
   registre.declarer(contrat);
-  return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, NATURES: NATURES, MOMENTS: MOMENTS, REPETITIONS: REPETITIONS, QUOI: QUOI, TRANCHES_DEFAUT: TRANCHES_DEFAUT, GARDES_DEFAUT: GARDES_DEFAUT,
+  return { medecinDuCompte: medecinDuCompte, permisPourSoi: permisPourSoi, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, NATURES: NATURES, MOMENTS: MOMENTS, REPETITIONS: REPETITIONS, QUOI: QUOI, TRANCHES_DEFAUT: TRANCHES_DEFAUT, GARDES_DEFAUT: GARDES_DEFAUT,
     options: options, delais: delais, libGarde: libGarde, couvre: couvre, situation: situation, modifications: modifications, grilleLieu: grilleLieu, gardesDuJour: gardesDuJour, semaineMedecin: semaineMedecin,
     medecinsDuLieu: medecinsDuLieu, medecinDe: medecinDe, derniers: derniers, suivisDe: suivisDe, suiviPatient: suiviPatient, jourHospitalisation: jourHospitalisation, identite: identite, hospitalises: hospitalises,
     NATURES_PSY: NATURES_PSY, semainePsy: semainePsy, occupationsSalles: occupationsSalles, psyDe: psyDe,
