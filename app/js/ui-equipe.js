@@ -50,6 +50,67 @@
     return persoCache[k];
   }
 
+  // ------------------------------------------------------------ Données ajoutées des agents (0.28.0)
+  var EDITABLES = { texte: 'text', nombre: 'number', date: 'date', telephone: 'tel', liste: 'select', ouiNon: 'checkbox' };
+  function CHM() { return SIC.champs; }
+  function defsAgent() { try { return CHM().definitions(U.config(), { entite: 'agent' }).filter(function (c) { return c.actif !== false && c.type !== 'formule'; }); } catch (e) { return []; } }
+  function texteValeur(c, v) {
+    if (v == null || v === '') return '—';
+    if (c.type === 'ouiNon') return v === true || v === 'oui' ? 'Oui' : 'Non';
+    if (c.type === 'date' && /^\d{4}-\d{2}-\d{2}/.test(String(v))) return String(v).slice(0, 10).split('-').reverse().join('/');
+    if (typeof v === 'object') return v.nom || v.libelle || JSON.stringify(v);
+    return String(v);
+  }
+  async function lireSoi(agentId, c) {
+    var x = st().soi && st().soi[agentId + '|' + c.id];
+    if (!x || !x.env) return undefined;
+    var k = s().utilisateur.id + '|soi|' + agentId + '|' + c.id + '|' + x.le;
+    if (!(k in persoCache)) persoCache[k] = await s().ouvrirEnveloppe('soi:' + agentId + ':' + c.id, x.env, { admin: true });
+    return persoCache[k] ? persoCache[k].v : undefined;
+  }
+  /** Valeur d'une donnée d'agent : copie ouverte à l'agent (la plus récente écriture passe par elle), sinon valeur du module. */
+  async function valeurAgent(agentId, c) {
+    var v = c.soi ? await lireSoi(agentId, c) : undefined;
+    if (v !== undefined) return v;
+    try { return U.champs && U.champs.lisible(c) ? U.champs.valeurDe(c, 'agent', agentId) : undefined; } catch (e) { return undefined; }
+  }
+  function champSaisie(c, v) {
+    var t = EDITABLES[c.type];
+    if (t === 'select') return h('select', { 'aria-label': c.libelle }, [h('option', { value: '', text: '—' })].concat((c.choix || []).map(function (o) { var val = o.code || o.libelle || o; return h('option', { value: val, text: o.libelle || o, selected: v === val }); })));
+    if (t === 'checkbox') return h('input', { type: 'checkbox', checked: v === true || v === 'oui', 'aria-label': c.libelle });
+    return h('input', { type: t, value: v == null ? '' : String(v), 'aria-label': c.libelle });
+  }
+  function lireSaisie(c, el) { return c.type === 'ouiNon' ? el.checked : c.type === 'nombre' ? (el.value === '' ? '' : +el.value) : el.value.trim(); }
+  /** Écrit une donnée d'agent : copie pour l'agent (si la donnée lui est ouverte), et valeur du module si la clé est détenue. */
+  async function ecrireValeurAgent(a, c, v) {
+    if (c.soi) {
+      var noms = ['d-' + c.id, 't-a.' + a.id].filter(function (n) { return !s().clesEnveloppeManquantes([n]).length; });
+      if (!noms.length) throw new Error('Les clés de « ' + c.libelle + ' » ne sont pas encore créées : elles le seront à la prochaine connexion de l’administrateur.');
+      await s().enregistrer('VALEUR_SOI', { agent: a.id, champ: c.id, env: await s().chiffrerEnveloppe('soi:' + a.id + ':' + c.id, noms, { v: v }) });
+    }
+    if (a.id !== moi().id && U.champs && U.champs.lisible(c) && U.champs.modifiable && U.champs.modifiable(c)) await U.champs.enregistrer(c, 'agent', a.id, { valeur: v });
+  }
+  /** Bloc des données ajoutées d'un agent : `edition` vrai pour les modifier (l'agent : données ouvertes en écriture). */
+  function blocDonnees(a, edition) {
+    var soiMeme = a.id === moi().id, r = s().roles();
+    var defs = defsAgent().filter(function (c) { return soiMeme ? !!c.soi : CHM().peutVoir(c, r); });
+    if (!defs.length) return { noeud: null, enregistrer: async function () {} };
+    var lignes = [], zone = h('div', { class: 'grille-2 eq-donnees' });
+    defs.forEach(function (c) {
+      var modif = edition && EDITABLES[c.type] && (soiMeme ? c.soi === 'ecriture' : (r.indexOf('ADMIN') >= 0 || r.some(function (x) { return (c.saisie || []).indexOf(x) >= 0; })));
+      var cell = h('div', {}, h('span', { class: 'muted', text: '…' })), el = null;
+      zone.appendChild(h('div', {}, h('small', { class: 'muted', text: c.libelle }), cell));
+      valeurAgent(a.id, c).then(function (v) {
+        U.vider(cell);
+        if (modif) { el = champSaisie(c, v); cell.appendChild(el); lignes.push({ c: c, el: el, avant: v }); }
+        else cell.appendChild(h('span', { text: texteValeur(c, v) }));
+      });
+    });
+    return { noeud: h('div', { class: 'pile' }, h('h3', { text: 'Autres informations' }), zone), enregistrer: async function () {
+      for (var i = 0; i < lignes.length; i++) { var v = lireSaisie(lignes[i].c, lignes[i].el); if (String(v) !== String(lignes[i].avant == null ? '' : lignes[i].avant)) await ecrireValeurAgent(a, lignes[i].c, v); }
+    } };
+  }
+
   // ------------------------------------------------------------ Petite fiche de contact (tous les modules)
   function contact(id, nom) {
     var a = agent(id) || { id: id, nom: nom || id, roles: [], services: [], compte: false }, f = E.fiche(st(), id), zonePerso = h('div', { class: 'pile' });
@@ -60,7 +121,7 @@
         h('div', {}, h('small', { class: 'muted', text: 'Services' }), h('div', { text: a.services.map(U.libService).join(', ') || '—' })),
         h('div', {}, h('small', { class: 'muted', text: 'Téléphone professionnel' }), h('div', {}, boutonCopie(f.telPro, 'Copier le numéro'))),
         h('div', {}, h('small', { class: 'muted', text: 'Courriel professionnel' }), h('div', {}, boutonCopie(f.mailPro, 'Copier l’adresse')))),
-      zonePerso),
+      zonePerso, id === moi().id ? null : blocDonnees(a, false).noeud),
     [{ texte: 'Fermer' },
       a.compte && peutEcrire() && id !== moi().id ? { texte: 'Écrire', classe: 'primaire', action: function () { setTimeout(function () { U.messagerie.nouveau({ destinataires: ['agent|' + id] }); }, 0); } } : null,
       gere ? { texte: id === moi().id ? 'Ma fiche' : 'Modifier', action: function () { setTimeout(function () { if (id === moi().id) { U.ouvrirFenetre('equipe'); U.App.onglet = 'ma-fiche'; U.rendreContenu(); } else modaleFiche(a); }, 0); } } : null,
@@ -90,10 +151,10 @@
   }
   function modaleFiche(a) {
     var f = E.fiche(st(), a.id);
-    var tp = champ('Téléphone professionnel', f.telPro, 'tel'), mp = champ('Courriel professionnel', f.mailPro, 'email'), fo = champ('Fonction (facultatif)', f.fonction);
-    U.modale('Fiche de ' + a.nom, h('div', { class: 'pile' }, h('div', { class: 'grille-2' }, h('label', {}, 'Téléphone professionnel', tp), h('label', {}, 'Courriel professionnel', mp), h('label', {}, 'Fonction (facultatif)', fo)),
+    var tp = champ('Téléphone professionnel', f.telPro, 'tel'), mp = champ('Courriel professionnel', f.mailPro, 'email'), fo = champ('Fonction (facultatif)', f.fonction), bd = blocDonnees(a, true);
+    U.modale('Fiche de ' + a.nom, h('div', { class: 'pile' }, h('div', { class: 'grille-2' }, h('label', {}, 'Téléphone professionnel', tp), h('label', {}, 'Courriel professionnel', mp), h('label', {}, 'Fonction (facultatif)', fo)), bd.noeud,
       h('small', { class: 'muted', text: f.accord ? 'L’agent a donné son accord pour ses coordonnées personnelles : il les saisit lui-même dans « Ma fiche ».' : 'Coordonnées personnelles : l’agent les saisit lui-même dans « Ma fiche », avec son accord.' })),
-    [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: async function () { await enregistrerFiche(a, { telPro: tp.value.trim(), mailPro: mp.value.trim(), fonction: fo.value.trim() }); U.toast('Fiche enregistrée.'); } }]);
+    [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: async function () { await enregistrerFiche(a, { telPro: tp.value.trim(), mailPro: mp.value.trim(), fonction: fo.value.trim() }); await bd.enregistrer(); U.toast('Fiche enregistrée.'); } }]);
   }
 
   // ------------------------------------------------------------ Vues
@@ -103,7 +164,8 @@
     var l = agents().filter(function (a) { return voitTout || a.services.some(function (x) { return mes.indexOf(x) >= 0; }) || a.id === moi().id; });
     if (U.App.service !== '*') l = l.filter(function (a) { return a.services.indexOf(U.App.service) >= 0; });
     return h('section', { class: 'panneau' }, h('h2', { text: 'Annuaire de l’équipe' + (U.App.service !== '*' ? ' — ' + U.libService(U.App.service) : '') }),
-      h('p', { class: 'muted', text: 'Coordonnées professionnelles des agents de vos services. Un clic sur un nom ouvre sa fiche de contact ; un clic sur un numéro le copie.' }),
+      h('div', { class: 'barre' }, h('p', { class: 'muted', text: 'Coordonnées professionnelles des agents de vos services. Un clic sur un nom ouvre sa fiche de contact ; un clic sur un numéro le copie.' }), h('div', { class: 'espace' }),
+        U.champs && U.champs.boutonGerer ? U.champs.boutonGerer('agent', function () { U.rendreContenu(); }) : null),
       h('div', { class: 'table-wrap' }, h('table', { class: 'eq-annuaire' },
         h('thead', {}, h('tr', {}, ['Nom', 'Fonction', 'Services', 'Téléphone pro', 'Courriel pro', ''].map(function (t) { return h('th', { text: t }); }))),
         h('tbody', {}, l.map(function (a) {
@@ -117,7 +179,7 @@
     var a = agent(moi().id) || { id: moi().id, nom: moi().nom, roles: moi().roles || [], services: moi().services || [], compte: true }, f = E.fiche(st(), a.id);
     var tp = champ('Téléphone professionnel', f.telPro, 'tel'), mp = champ('Courriel professionnel', f.mailPro, 'email'), fo = champ('Fonction', f.fonction);
     var tpe = champ('Téléphone personnel', '', 'tel'), mpe = champ('Courriel personnel', '', 'email');
-    var accord = h('input', { type: 'checkbox', checked: !!f.accord }), zone = h('div', { class: 'pile' });
+    var accord = h('input', { type: 'checkbox', checked: !!f.accord }), zone = h('div', { class: 'pile' }), bd = blocDonnees(a, true);
     function maj() { zone.hidden = !accord.checked; }
     accord.addEventListener('change', maj); maj();
     if (f.perso && f.accord) lirePerso(a).then(function (p) { if (p) { tpe.value = p.tel || ''; mpe.value = p.mail || ''; } });
@@ -129,11 +191,12 @@
       h('small', { class: 'muted', text: 'Vos coordonnées professionnelles sont visibles de tous les agents de l’établissement.' }),
       h('h3', { text: 'Coordonnées personnelles (facultatif)' }),
       h('label', { class: 'case' }, accord, h('span', { text: 'J’accepte que ' + lecteurs + ' disposent de mes coordonnées personnelles, pour me joindre en cas de rappel ou d’urgence de service. Je peux retirer cet accord à tout moment.' })),
-      zone,
+      zone, bd.noeud,
       h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
         try {
           if (tp.value.trim() && !E.TEL.test(tp.value.trim())) throw new Error('Téléphone professionnel invalide.');
           await enregistrerFiche(a, { telPro: tp.value.trim(), mailPro: mp.value.trim(), fonction: fo.value.trim(), accord: accord.checked, perso: accord.checked ? { tel: tpe.value.trim(), mail: mpe.value.trim() } : null });
+          await bd.enregistrer();
           U.toast('Fiche enregistrée.');
         } catch (e) { alert(e.message); }
       } }, 'Enregistrer')));
@@ -250,10 +313,11 @@
     if (e.type === 'COORDONNEES') { var a = agent(d.agent); return 'Fiche de ' + (a ? a.nom : d.agent) + (d.accord === false ? ' — accord retiré pour les coordonnées personnelles' : d.perso ? ' — coordonnées personnelles (chiffrées)' : ''); }
     if (e.type === 'REFERENTS') { var dr = E.domaines(st(), d.service, true).filter(function (x) { return x.code === d.domaine; })[0]; return 'Référents ' + ((dr && dr.libelle) || d.domaine) + (d.service === E.ETABLISSEMENT ? ' (établissement)' : ' (' + U.libService(d.service) + ')') + ' : ' + ((d.titulaires || []).map(function (p) { return p.nom; }).join(', ') || 'aucun'); }
     if (e.type === 'DOMAINE_REFERENT') return 'Domaine de référence ' + (d.libelle || d.code) + (d.masque ? ' masqué' : d.masque === false && !d.libelle ? ' affiché' : ' ajouté');
+    if (e.type === 'VALEUR_SOI') { var dv = SIC.champs && SIC.champs.definition(U.config(), d.champ), av = agent(d.agent); return (dv ? dv.libelle : 'Donnée') + ' de ' + (av ? av.nom : d.agent) + ' (chiffrée)'; }
     if (e.type === 'COORDONNEES_MEDECIN') { var m = SIC.medecins && SIC.medecins.liste(U.config()).filter(function (x) { return x.id === d.medecin; })[0]; return 'Numéro personnel de ' + (m ? m.nom : d.medecin) + (d.perso ? ' (chiffré)' : ' retiré'); }
     return e.type;
   }
-  var LIB = { REFERENTS: 'Équipe : référents', DOMAINE_REFERENT: 'Équipe : domaine de référence', COORDONNEES: 'Équipe : fiche d’un agent', COORDONNEES_MEDECIN: 'Équipe : numéro personnel d’un médecin' };
+  var LIB = { VALEUR_SOI: 'Équipe : donnée ajoutée d’un agent', REFERENTS: 'Équipe : référents', DOMAINE_REFERENT: 'Équipe : domaine de référence', COORDONNEES: 'Équipe : fiche d’un agent', COORDONNEES_MEDECIN: 'Équipe : numéro personnel d’un médecin' };
 
   SIC.modules.completerInterface('equipe', {
     vues: { annuaire: vueAnnuaire, referents: vueReferents, 'ma-fiche': vueMaFiche, medecins: vueMedecins },

@@ -240,6 +240,18 @@
             lien.addEventListener('click', function (ev) { ev.stopPropagation(); if (l.a) U.champs.ficheAgent(l.a); else U.champs.ficheMedecin(l.m); });
             U.vider(td).appendChild(lien);
           }
+          // Nom d'un patient : ouvre sa fiche (Patients, avec ses séjours), sans quitter la Vue d'ensemble (0.28.0)
+          if (!o.impression && x.col.code === 'patient' && l.p && U.fichePatient && !modifiable(x.col, l)) {
+            var lienP = h('button', { class: 'btn lien', type: 'button', title: 'Ouvrir la fiche du patient', text: cell.lib });
+            lienP.addEventListener('click', function (ev) {
+              ev.stopPropagation();
+              var s0 = U.App.session, ep = null;
+              try { ep = s0.detientCle('patients') ? s0.etatModule('patients') : null; } catch (e) { ep = null; }
+              var full = ((U.st() && U.st().patients) || {})[l.p.id] || ((ep && ep.patients) || {})[l.p.id] || l.p;
+              U.fichePatient.modale(full);
+            });
+            U.vider(td).appendChild(lienP);
+          }
           caseCouleur(td, cell.couleur);
           if (!o.impression && modifiable(x.col, l)) {
             td.classList.add('modifiable'); td.tabIndex = 0;

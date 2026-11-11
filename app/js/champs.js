@@ -67,6 +67,8 @@
     };
     // Donnée d'un agent : le cadre seul par défaut (rôles qui la voient et la modifient)
     if (entite === 'agent') { if (!x.lecture.length) x.lecture = ['CADRE']; if (!x.saisie.length) x.saisie = ['CADRE']; }
+    // L'agent lui-même (0.28.0) : rien, lecture, ou lecture et écriture de sa propre valeur (fenêtre Équipe)
+    x.soi = entite === 'agent' && (c.soi === 'lecture' || c.soi === 'ecriture') ? c.soi : '';
     if (c.type === 'checklist') {
       x.modele = (Array.isArray(c.modele) ? c.modele : []).filter(function (e) { return e && MOTIF_ID.test(e.id || '') && texte(e.libelle); })
         .map(function (e) { return { id: e.id, libelle: texte(e.libelle, 80), actif: e.actif !== false }; });
