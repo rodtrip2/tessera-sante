@@ -41,7 +41,7 @@
     return h('div', { class: 'table-wrap' }, h('table', { class: 'is-contacts' },
       h('thead', {}, h('tr', {}, (avecRubrique ? ['Rubrique'] : []).concat(['Nom', 'Fonction', 'Numéro', 'Courriel', '']).map(function (t) { return h('th', { text: t }); }))),
       h('tbody', {}, liste.map(function (c) {
-        return h('tr', {}, avecRubrique ? h('td', { text: c.rubrique || '' }) : null, h('td', { text: c.nom || '' }), h('td', { text: c.fonction || '' }),
+        return h('tr', {}, avecRubrique ? h('td', { text: c.rubrique || '' }) : null, h('td', {}, c.agent && U.equipe ? U.equipe.lien(c.agent, c.nom) : h('span', { text: c.nom || '' })), h('td', { text: c.fonction || '' }),
           h('td', { class: 'nowrap' }, c.numero ? h('button', { class: 'btn lien is-numero', type: 'button', title: 'Copier le numéro', onclick: function () { copier(c.numero); } }, c.numero) : null),
           h('td', {}, c.courriel ? h('button', { class: 'btn lien', type: 'button', title: 'Copier l’adresse', onclick: function () { copier(c.courriel); } }, c.courriel) : null),
           h('td', { class: 'actions-ligne' }, boutonMessage(c)));

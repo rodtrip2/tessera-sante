@@ -71,7 +71,8 @@
     try {
       ((s() && s().comptes) || []).filter(function (c) { return c.actif && c.id !== 'secours'; }).forEach(function (c) {
         res.push({ module: 'agents', libModule: 'Agent', titre: c.nom, detail: (c.roles || []).join(', ') + ((c.services || []).length ? ' — ' + c.services.map(U.libService).join(', ') : ''),
-          ouvrir: U.messagerie && U.messagerie.peutEnvoyer && U.messagerie.peutEnvoyer() ? function () { U.messagerie.nouveau({ destinataires: ['agent|' + c.id] }); } : null, libOuvrir: 'Écrire' });
+          ouvrir: U.equipe && s().detientCle('equipe') ? function () { U.equipe.contact(c.id, c.nom); } : U.messagerie && U.messagerie.peutEnvoyer && U.messagerie.peutEnvoyer() ? function () { U.messagerie.nouveau({ destinataires: ['agent|' + c.id] }); } : null,
+          libOuvrir: U.equipe && s().detientCle('equipe') ? 'Coordonnées' : 'Écrire' });
       });
     } catch (e) { /* sans comptes */ }
     try {
