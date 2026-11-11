@@ -366,6 +366,8 @@
       sejours, !nouveau && U.sorties ? U.sorties.ligneFiche(f, function () { modaleFiche(((U.st() && U.st().patients) || {})[f.id] || f); }) : null,
       !nouveau && U.agenda && U.agenda.sectionPatient ? U.agenda.sectionPatient(f, fermerPuis) : null), [
       { texte: peut ? 'Annuler' : 'Fermer' },
+      // « Envoyer par message » (messagerie, 0.23.0) : la fiche rattachée n'est détaillée qu'aux agents qui ont accès aux patients
+      !nouveau && U.messagerie ? U.messagerie.boutonModale('patients', 'fiche', f.id, f.service) : null,
       peut || Object.keys(complements).length ? { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         // Données complémentaires modifiées : une saisie par donnée (permise selon les rôles réglés pour chacune)
         var envois = [];

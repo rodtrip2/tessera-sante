@@ -71,7 +71,7 @@
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
   var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
-    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1 };
+    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, messagerie: 1 };
   /** Champs ajoutés (0.18.0) : définitions, droits réglés pour chaque donnée, clés propres (`d-<id>`). */
   function CH() { return socle('champs', './champs.js'); }
   /** Clés propres à une donnée détenues par la session (journaux `modules\d-<id>\`). */
@@ -1230,6 +1230,27 @@
       try { await this.appliquerDroits(); } catch (e) { this.erreurDroits = e.message; }
     }
     return evt;
+  };
+
+  // ---------------------------------------------------------- Pièces jointes (Messagerie, 0.23.0)
+  /**
+   * Enregistre un fichier joint dans le journal d'un module (chiffré par sa clé, `pieces/<id>.enc`), avant la saisie
+   * qui le cite. Le module ne voit ni la clé ni le dossier : il passe son identifiant et les octets. Retourne l'id.
+   */
+  Session.prototype.enregistrerPiece = async function (idModuleCible, octets) {
+    if (this.apercu) throw new Error('Aperçu de l’affichage d’un rôle : aucune saisie n’est enregistrée.');
+    var j = journaux(this).filter(function (x) { return x.nom === idModuleCible; })[0] || (this.formation ? journaux(this)[0] : null);
+    if (!j) throw new Error('Vous n’avez pas la clé de ce module : fichier impossible à enregistrer.');
+    var id = 'PJ' + C.hex(C.aleatoire(12));
+    await (await dossierJournal(this, j, true)).ecrirePiece(j.cle, id, octets);
+    return id;
+  };
+  /** Octets d'un fichier joint (null s'il est introuvable, par exemple supprimé après la durée de conservation). */
+  Session.prototype.lirePiece = async function (idModuleCible, id) {
+    var j = journaux(this).filter(function (x) { return x.nom === idModuleCible; })[0] || (this.formation ? journaux(this)[0] : null);
+    if (!j) throw new Error('Vous n’avez pas la clé de ce module.');
+    var d = await dossierJournal(this, j, false);
+    return d ? d.lirePiece(j.cle, id) : null;
   };
 
   // ---------------------------------------------------------- Exports

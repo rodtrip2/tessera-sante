@@ -9,7 +9,7 @@
 | Stockage sur un partage autre que SMB | Suivi-mesures-isocont, 2 novembre 2026 | Demande, à étudier | Moyenne à grande |
 | Rangement des saisies par jour sur le partage | Test de charge, 11 novembre 2026 | À décider après un essai sur le partage de l’établissement | Moyenne |
 | Agenda : échéances des certificats légaux | Tessera Santé, 7 novembre 2026 | Écartée pour l'instant | Petite à moyenne (règles juridiques à valider) |
-| Module Messagerie | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
+| Module Messagerie | Tessera Santé, 8 novembre 2026 | **Réalisé en 0.23.0** ; chiffrement réservé aux destinataires prévu en 0.24.0 | Moyenne |
 | Module Demandes de travaux et de réparation | Tessera Santé, 8 novembre 2026 | **Réalisé en 0.22.0** | Moyenne |
 | Demandes de travaux : photos jointes | Tessera Santé, 11 novembre 2026 | Piste : stockage chiffré des images, risque de photographier un patient à étudier avec le délégué à la protection des données | Moyenne |
 | Planning d'occupation des bureaux | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Petite à moyenne |
@@ -127,7 +127,9 @@ Demande : pouvoir enregistrer les données (ou le dossier de secours) ailleurs q
 
 Calcul des échéances des certificats médicaux des soins sans consentement (24 heures, 72 heures, huitième jour, mensuels…) à partir du mode d'hospitalisation, affichées dans les alertes « à voir par le médecin ». Écarté pour l'instant (décision du porteur du 7 novembre 2026 : alertes saisies par l'équipe) ; règles à valider avec la direction des affaires juridiques avant tout développement.
 
-## Module Messagerie (demande du porteur, 8 novembre 2026)
+## Module Messagerie (demande du porteur, 8 novembre 2026) — réalisé en 0.23.0
+
+*Réalisé en 0.23.0 avec les décisions du 11 novembre 2026 (`docs/a-documenter.md`) ; chiffrement réservé aux destinataires, consultation tracée et rôle auditeur prévus en 0.24.0.*
 
 Échanger des informations d'organisation avec un ou plusieurs **groupes d'agents** (équipe de nuit, groupe de travail…, voir *Administration → Groupes d'agents*) ou **services**, sans passer par la messagerie de l'établissement. **Aucune donnée clinique**, comme dans les autres modules.
 
