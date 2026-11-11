@@ -34,6 +34,21 @@
     return res.sort(function (a, b) { return a.date - b.date; });
   }
 
+  /**
+   * Mesures en cours (0.29.1, plan du service) : [{ patientId, service, lieu, csi, type, debut }]. Une mesure en soins
+   * somatiques est hors du service : non comptée.
+   */
+  function enCours(st, options) {
+    var res = [];
+    if (!st || !st.mesures) return res;
+    Object.keys(st.mesures).forEach(function (k) {
+      var m = st.mesures[k];
+      if (typeof m.fin === 'number' || m.annulee || m.somatique || (options.services && options.services.indexOf(m.service) < 0)) return;
+      res.push({ patientId: m.patientId, service: m.service, lieu: m.lieu || '', csi: !!m.csi, type: m.type, debut: m.debut });
+    });
+    return res;
+  }
+
   var contrat = {
     // Identité
     id: 'isocont',
@@ -68,7 +83,7 @@
         { code: 'patients', libelle: 'Patients' },
         { code: 'tableau', libelle: 'Tableau de bord' }, { code: 'mesures', libelle: 'Mesures' },
         { code: 'jld', libelle: 'JLD' }, { code: 'surveillance', libelle: 'Surveillance CSI' }, { code: 'registre', libelle: 'Registre' },
-        { code: 'stats', libelle: 'Statistiques' }
+        { code: 'stats', libelle: 'Statistiques' }, { code: 'plan', libelle: 'Plan du service' }
       ].map(function (o) { o.masquable = M.ONGLETS_MASQUABLES.indexOf(o.code) >= 0; return o; })
     },
 
@@ -81,7 +96,8 @@
     // Fournitures : lues à la volée par d'autres modules (calcul à brancher avec l'Agenda, étape 6)
     fournitures: [
       { nom: 'isocont.echeancesJLD', version: 1, acces: 'jld', lire: echeancesJLD,
-        champs: ['date', 'nature', 'typeMesure', 'service', 'mesure', 'patientId', 'statut'] }
+        champs: ['date', 'nature', 'typeMesure', 'service', 'mesure', 'patientId', 'statut'] },
+      { nom: 'isocont.enCours', version: 1, acces: 'lecture', lire: enCours, champs: ['patientId', 'service', 'lieu', 'csi', 'type', 'debut'] }
     ],
 
     // Besoins : la fiche commune du module Patients (étape 5), indispensable

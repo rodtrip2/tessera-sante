@@ -973,3 +973,33 @@ html.taille-tres-grande body { zoom: 1.3; }
 .eq-lien { font-weight: 600; text-align: left; }
 .eq-perso { border-top: 1px dashed var(--line); padding-top: 8px; display: grid; gap: 6px; }
 .eq-donnees { gap: 8px 16px; }
+/* Plan du service : chambres et lits (0.29.1) */
+.ch-plan-cadre { overflow-x: auto; }
+.ch-plan { display: grid; gap: 6px; grid-auto-rows: minmax(1.5rem, auto); }
+.ch-plan.edition { grid-auto-rows: minmax(4.5rem, auto); }
+.ch-plan:not(.edition) .ch-piece { min-height: 5.5rem; }
+.ch-case { border: 1px dashed var(--line); border-radius: var(--radius); }
+.ch-piece { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 8px; display: flex; flex-direction: column; gap: 3px; min-width: 0; z-index: 1; }
+.ch-piece.type-csi { border: 2px solid var(--late); }
+.ch-piece.type-piece { background: var(--surface-2); }
+.ch-piece.en-mesure { box-shadow: 0 0 0 2px var(--bad-soft); }
+.ch-piece.choisie { outline: 2px solid var(--accent); }
+.ch-plan.edition .ch-piece { cursor: grab; }
+.ch-piece.couleur-bleu { background: var(--done-soft); } .ch-piece.couleur-vert { background: var(--ok-soft); }
+.ch-piece.couleur-jaune { background: var(--warn-soft); } .ch-piece.couleur-orange { background: var(--demo-soft); }
+.ch-piece.couleur-rouge { background: var(--bad-soft); } .ch-piece.couleur-violet { background: var(--late-soft); }
+.ch-piece.couleur-gris { background: var(--muted-soft); }
+.ch-tete { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.ch-tete .btn { margin-left: auto; }
+.ch-lit { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: .88rem; }
+.ch-lit.conflit { background: var(--bad-soft); border-radius: 4px; padding: 0 4px; }
+.ch-nom-lit { font-weight: 600; color: var(--ink-2); min-width: 1.2em; }
+.ch-occupant { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.ch-patient { font-size: .88rem; text-align: left; border-radius: 4px; padding: 0 4px; white-space: normal; overflow-wrap: anywhere; }
+.ch-patient.etat-ailleurs { opacity: .55; font-style: italic; }
+.ch-patient.etat-mesure { background: var(--bad-soft); color: var(--bad); font-weight: 600; }
+.ch-patient.etat-chambreOuverte { background: var(--late-soft); color: var(--late); }
+.ch-patient.etat-usage { background: var(--accent-soft); }
+.ch-outils { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.ch-legende span { margin-right: 10px; }
+.ch-barre-outils { min-height: 2.2rem; display: flex; align-items: center; }

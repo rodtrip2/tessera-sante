@@ -87,6 +87,13 @@
         ['iep', 'entree', 'sortie', 'service', 'chambre', 'lit'].forEach(function (k) { if (d[k] !== undefined) sj[k] = d[k]; });
         if ((d.chambre !== undefined || d.lit !== undefined) && (sj.chambre || '') + '|' + (sj.lit || '') !== avantLit && (sj.chambre || sj.lit))
           (sj.mouvements = sj.mouvements || []).push({ du: e.at, chambre: sj.chambre || '', lit: sj.lit || '', par: e.by });
+        // Placement temporaire, chambre gardée (0.29.1) : CSI en chambre ouverte (après une mesure…), pièce utilisée par
+        // les patients ; null ou pièce vide : retour en chambre. Gardé dans l'historique des lits
+        if (d.placement !== undefined) {
+          var pl = d.placement && typeof d.placement === 'object' && String(d.placement.piece || '').trim() ? { piece: String(d.placement.piece).trim().slice(0, 40), du: e.at, par: e.by } : null;
+          if (pl) sj.placement = pl; else delete sj.placement;
+          (sj.mouvements = sj.mouvements || []).push({ du: e.at, piece: pl ? pl.piece : '', retour: !pl, par: e.by });
+        }
         // Sortie prévisionnelle (0.18.0, décision du porteur du 9 novembre 2026) : date ou période, précision courte ;
         // chaque changement est gardé, daté
         if (d.sortiePrevue !== undefined) {
@@ -218,7 +225,7 @@
     // Réglages que le cadre écrit pour ses services (contrôle appelé par la session avant l'enregistrement)
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { chambres: cadreChambres, champsAjoutes: cadreChamps, reglagesDonnees: cadreReglagesDonnees, capacites: cadreCapacites, largeursColonnes: cadreLargeurs, intervenants: cadreIntervenants } },
     // Fenêtre du module Patients (décision du porteur du 7 novembre 2026) : liste réglable des patients (ui-liste-patients.js)
-    vues: { onglets: [{ code: 'fiches', libelle: 'Liste des patients' }] },
+    vues: { onglets: [{ code: 'fiches', libelle: 'Liste des patients' }, { code: 'plan', libelle: 'Plan du service' }] },
     migrations: [],
     fournitures: [
       { nom: 'patients.fiches', version: 1, acces: 'lecture', calculer: fiches,
