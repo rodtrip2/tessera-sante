@@ -874,3 +874,4 @@ tr.chambre-travaux th { background: color-mix(in srgb, var(--warn, #b97a00) 12%,
 .ms-resultat-n { text-align: right; font-variant-numeric: tabular-nums; }
 .ms-option input[type=text] { flex: 1 1 12em; }
 .ms-option input { width: auto; }
+.ms-chiffrer { padding: 10px 12px; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); }

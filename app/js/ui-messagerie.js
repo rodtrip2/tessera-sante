@@ -12,7 +12,58 @@
   var selection = { recus: null, envoyes: null, archives: null }, filtre = 'tous', recherche = '', luEnCours = {};
 
   function s() { return U.App.session; }
-  function st() { return (s() && s().etatModule('messagerie')) || { messages: {} }; }
+  function brut() { return (s() && s().etatModule('messagerie')) || { messages: {} }; }
+  // Messages chiffrés pour leurs seuls destinataires (0.24.0) : contenu ouvert par la session (clés de l'agent), gardé
+  // en mémoire le temps de la session ; `false` : aucune clé de l'agent n'ouvre le message
+  var ouverts = {}, reps = {}, cacheDe = null, ouvertureEnCours = false;
+  function viderCache() { ouverts = {}; reps = {}; }
+  async function dechiffrer() {
+    if (ouvertureEnCours) return;
+    ouvertureEnCours = true;
+    var change = false;
+    try {
+      var b = brut(), ids = Object.keys(b.messages).filter(function (k) { return b.messages[k].chiffre; });
+      for (var i = 0; i < ids.length; i++) {
+        var m = b.messages[ids[i]];
+        if (ouverts[m.id] === undefined) { var p = null; try { p = await s().ouvrirMessage(m.id, m.chiffre); } catch (e) { p = null; } ouverts[m.id] = p || false; change = true; }
+        if (!ouverts[m.id]) continue;
+        for (var j = 0; j < m.reponsesListe.length; j++) {
+          var r = m.reponsesListe[j], cle = m.id + '|' + r.id;
+          if (!r.chiffre || reps[cle] !== undefined) continue;
+          var t = null; try { t = await s().dechiffrerPourMessage(m.id, r.chiffre, 'r:' + r.id); } catch (e) { t = null; }
+          reps[cle] = t ? t.texte || '' : false; change = true;
+        }
+      }
+    } finally { ouvertureEnCours = false; }
+    if (change) U.rendreContenu();
+  }
+  /** Fusionne un contenu ouvert dans un message (objet, texte, éléments, pièces, libellés du sondage). */
+  function fusionner(m, p) {
+    var x = Object.assign({}, m, { chiffreLisible: !!p });
+    if (p) {
+      x.objet = p.objet || ''; x.texte = p.texte || ''; x.rattaches = p.rattaches || []; x.pieces = p.pieces || [];
+      if (m.sondage && p.sondage) x.sondage = Object.assign({}, m.sondage, { question: p.sondage.question || '', options: m.sondage.options.map(function (o) { return Object.assign({}, o, (p.sondage.options || []).filter(function (y) { return y.id === o.id; })[0] || {}); }) });
+    } else { x.objet = p === false ? 'Message chiffré' : 'Message chiffré (ouverture…)'; x.texte = ''; x.illisible = p === false; }
+    x.reponsesListe = m.reponsesListe.map(function (r) {
+      if (!r.chiffre) return r;
+      var t = reps[m.id + '|' + r.id];
+      return Object.assign({}, r, { texte: typeof t === 'string' ? t : t === false ? '(réponse chiffrée illisible)' : '…' });
+    });
+    return x;
+  }
+  /** État du module avec le contenu des messages chiffrés que l'agent peut ouvrir. */
+  function st() {
+    var b = brut(), res = { messages: {} }, manque = false, qui = s() && s().utilisateur ? s().utilisateur.id : null;
+    if (qui !== cacheDe) { viderCache(); cacheDe = qui; }
+    Object.keys(b.messages).forEach(function (k) {
+      var m = b.messages[k];
+      if (!m.chiffre) { res.messages[k] = m; return; }
+      if (ouverts[k] === undefined || (ouverts[k] && m.reponsesListe.some(function (r) { return r.chiffre && reps[k + '|' + r.id] === undefined; }))) manque = true;
+      res.messages[k] = fusionner(m, ouverts[k]);
+    });
+    if (manque) setTimeout(dechiffrer, 0);
+    return res;
+  }
   function moi() { return s().compteEffectif(); }
   function mesGroupes() { try { return G.de(U.config(), moi().id); } catch (e) { return []; } }
   function compte() { return Object.assign({ groupes: mesGroupes() }, MS.normaliser(moi(), U.config())); }
@@ -172,6 +223,7 @@
     try {
       var o = await s().lirePiece('messagerie', p.id);
       if (!o) throw new Error('Fichier introuvable (supprimé après la durée de conservation, ou pas encore copié depuis un autre poste).');
+      if (m.chiffre) { o = await s().dechiffrerPourMessage(m.id, o, 'pj:' + p.n); if (!o) throw new Error('Pièce jointe chiffrée : ouvrez d’abord le message.'); }
       if (!affiche) { U.telechargerOctets(p.nom, o, 'application/octet-stream'); return; }
       if (affiche === 'application/pdf') { var url = URL.createObjectURL(new Blob([o], { type: affiche })); if (w) w.location = url; else U.telechargerOctets(p.nom, o, affiche); return; }
       // Image : affichée dans une fenêtre de l'application (adresse data:, permise par la politique de sécurité)
@@ -201,6 +253,7 @@
     var si = m.situation;
     return h('div', { class: 'ms-badges' },
       m.retire ? h('span', { class: 'badge bad', text: 'Retiré' }) : null,
+      m.chiffre ? h('span', { class: 'badge iso', text: 'Chiffré pour les destinataires' }) : null,
       m.important ? h('span', { class: 'badge bad', text: 'Important' }) : null,
       m.accuse === 'confirmer' ? h('span', { class: 'badge', text: si.aConfirmer ? 'Lecture à confirmer' : 'Accusé de lecture demandé' }) : null,
       si.relance ? h('span', { class: 'badge warn', text: 'Relancé' }) : null,
@@ -242,6 +295,7 @@
         aRelancer > 1 ? 'Relancer les ' + aRelancer + ' agents' : 'Relancer l’agent')) : null,
       m.relances.length ? h('small', { class: 'muted', text: 'Relancé ' + m.relances.map(function (x) { return 'le ' + dateHeure(x.le); }).join(', ') }) : null);
   }
+  function envoyerReponse(d) { ecrire('MESSAGE_REPONSE', d, d.a ? 'Réponse envoyée à ' + (d.nomA || 'l’agent') + ' seulement.' : 'Réponse envoyée.'); }
   function sectionReponses(m) {
     var c = moi(), auteur = m.par === c.id, rs = MS.reponsesVisibles(m, c), z = h('section', { class: 'pile ms-reponses', 'aria-label': 'Réponses' });
     if (m.reponses === 'aucune') return rs.length ? z : null;
@@ -266,7 +320,9 @@
         if (!t.value.trim()) return;
         var d = { message: m.id, id: 'R' + SIC.crypto.hex(SIC.crypto.aleatoire(5)), texte: t.value.trim(), nom: moi().nom };
         if (dest && dest.value) { d.a = dest.value; var r0 = repondants.filter(function (r) { return r.par === dest.value; })[0]; d.nomA = r0 ? r0.nom || '' : ''; }
-        ecrire('MESSAGE_REPONSE', d, d.a ? 'Réponse envoyée à ' + (d.nomA || 'l’agent') + ' seulement.' : 'Réponse envoyée.');
+        // Message chiffré : la réponse l'est avec la clé du message (ouverte par l'agent)
+        if (m.chiffre) { var clair = d.texte; d.texte = ''; reps[m.id + '|' + d.id] = clair; s().chiffrerPourMessage(m.id, { texte: clair }, 'r:' + d.id).then(function (c0) { d.chiffre = c0; envoyerReponse(d); }).catch(function (e) { alert(e.message); }); return; }
+        envoyerReponse(d);
       } }, 'Envoyer')));
     }
     return z;
@@ -338,6 +394,10 @@
       h('h2', { class: 'ms-objet', text: m.objet }),
       h('dl', { class: 'ms-entete' }, h('dt', { text: 'De' }), h('dd', { text: m.nom || s().nomAuteur(m.par) }), h('dt', { text: 'À' }), h('dd', { text: libDestinataires(m) }),
         h('dt', { text: 'Envoyé' }), h('dd', { text: 'le ' + dateHeure(m.cree) + (m.jusquau ? ' · affiché jusqu’au ' + jourFr(m.jusquau) : '') })),
+      m.illisible ? h('p', { class: 'alerte', text: 'Message chiffré pour ses seuls destinataires : votre clé n’ouvre pas ce message, ou elle ne vous a pas encore été remise (à la prochaine connexion d’un administrateur après votre arrivée dans le groupe ou le service).' }) : null,
+      (m.consultations || []).filter(function (x) { return x.informer; }).map(function (x) {
+        return h('p', { class: 'info', text: 'Message consulté par ' + (x.nom || s().nomAuteur(x.par)) + ' le ' + dateHeure(x.le) + ' — motif : ' + x.motif + (x.precision ? ' (' + x.precision + ')' : '') + '.' });
+      }),
       m.retire ? h('p', { class: 'alerte', text: 'Message retiré le ' + dateHeure(m.retire.le) + (m.retire.motif ? ' : ' + m.retire.motif : '') + '.' }) : null,
       h('div', { class: 'ms-texte', text: m.texte }),
       m.rattaches.length ? h('section', { class: 'pile ms-section', 'aria-label': 'Éléments rattachés' }, h('b', { text: 'Éléments rattachés (' + m.rattaches.length + ')' }), m.rattaches.map(function (r) { return ligneRattache(r); })) : null,
@@ -372,6 +432,57 @@
           l.length ? h('div', { class: 'ms-lignes' }, l.map(function (m) { return ligneListe(m, onglet); }))
             : h('p', { class: 'muted', text: recherche || filtre !== 'tous' ? 'Aucun message pour cette recherche.' : onglet === 'envoyes' ? 'Aucun message envoyé.' : onglet === 'archives' ? 'Aucun message archivé.' : 'Aucun message reçu.' })),
         h('div', { class: 'ms-lecture' }, choisi ? lecteurMessage(choisi, onglet) : h('p', { class: 'muted', text: 'Choisissez un message.' }))));
+  }
+
+  // ------------------------------------------------------------ Consultation tracée d'un message chiffré (cadre, auditeur)
+  /** Messages chiffrés qui ne sont pas adressés à l'agent et dont il tient la clé de consultation d'un service. */
+  function consultables() {
+    var c = compte(), b = brut();
+    return Object.keys(b.messages).map(function (k) { return b.messages[k]; }).filter(function (m) {
+      return m.chiffre && !MS.concerne(m, c, c.groupes) && Object.keys(m.chiffre.cles).some(function (n) { return /^m-c\./.test(n) && (c.services || []).indexOf(n.slice(4)) >= 0; });
+    }).sort(function (a, b) { return String(b.cree).localeCompare(String(a.cree)); });
+  }
+  function vueConsultation() {
+    var o = opts();
+    if (o.chiffrement === 'desactive') return h('section', { class: 'panneau' }, h('h2', { text: 'Consultation' }), h('p', { class: 'muted', text: 'Le chiffrement réservé aux destinataires n’est pas activé dans cet établissement : les messages sont lisibles par leurs destinataires, sans consultation.' }));
+    if (!o.consultation) return h('section', { class: 'panneau' }, h('h2', { text: 'Consultation' }), h('p', { class: 'muted', text: 'La consultation par le cadre est désactivée dans cet établissement.' }));
+    var l = consultables();
+    return h('section', { class: 'panneau' }, h('h2', { text: 'Consulter un message chiffré qui ne vous est pas adressé' }),
+      h('p', { class: 'muted', text: 'Réservé aux cas qui le justifient (signalement, enquête, demande d’un agent concerné). Chaque consultation est inscrite au journal avec son motif ; vous choisissez d’en informer ou non l’auteur et les destinataires.' }),
+      l.length ? h('table', { class: 'sans-largeurs' }, h('thead', {}, h('tr', {}, ['Envoyé le', 'De', 'À', 'Consultations', ''].map(function (t) { return h('th', { text: t }); }))),
+        h('tbody', {}, l.map(function (m) {
+          return h('tr', {}, h('td', { text: dateHeure(m.cree) }), h('td', { text: m.nom || s().nomAuteur(m.par) }), h('td', { text: libDestinataires(m) }),
+            h('td', { text: m.consultations.length ? m.consultations.map(function (x) { return (x.nom || s().nomAuteur(x.par)) + ' le ' + dateHeure(x.le); }).join(' ; ') : '—' }),
+            h('td', {}, h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleConsultation(m); } }, 'Consulter…')));
+        }))) : h('p', { class: 'muted', text: 'Aucun message chiffré de vos services.' }));
+  }
+  function modaleConsultation(m) {
+    var motif = h('select', { 'aria-label': 'Motif' }, MS.MOTIFS_CONSULTATION.map(function (x) { return h('option', { value: x, text: x }); }));
+    var precision = h('textarea', { rows: 3, maxlength: 500, 'aria-label': 'Précision du motif' }), informer = h('input', { type: 'checkbox' });
+    U.modale('Consulter un message qui ne vous est pas adressé', h('div', { class: 'pile' },
+      h('p', { class: 'info', text: 'Message chiffré du ' + dateHeure(m.cree) + ' — de ' + (m.nom || s().nomAuteur(m.par)) + ' à ' + libDestinataires(m) + '. Objet et texte masqués jusqu’à la consultation.' }),
+      h('label', {}, 'Motif (obligatoire)', motif), h('label', {}, 'Précision (obligatoire)', precision),
+      h('label', { class: 'case' }, informer, h('span', {}, h('b', { text: 'Informer l’auteur et les destinataires' }), h('br'), h('small', { class: 'muted', text: 'Facultatif. Ne pas cocher si cela pourrait gêner une enquête.' }))),
+      h('p', { class: 'alerte', text: 'La consultation est toujours inscrite au journal (qui, quand, quel message, motif, information donnée ou non).' })),
+    [{ texte: 'Annuler' }, { texte: 'Consulter et tracer', classe: 'primaire', action: async function () {
+      if (!precision.value.trim()) throw new Error('Précisez le motif.');
+      await s().enregistrer('CONSULTATION', { message: m.id, motif: motif.value, precision: precision.value.trim(), informer: informer.checked, nom: moi().nom });
+      var p = await s().ouvrirMessage(m.id, m.chiffre, { consultation: true });
+      if (!p) throw new Error('Consultation inscrite au journal, mais votre clé de consultation n’ouvre pas ce message (clé pas encore remise).');
+      ouverts[m.id] = p;
+      setTimeout(function () { afficherConsulte(m.id); }, 0);
+    } }]);
+  }
+  async function afficherConsulte(id) {
+    await dechiffrer();
+    var m = st().messages[id];
+    if (!m) return;
+    U.modale('Message consulté', h('div', { class: 'pile' },
+      h('dl', { class: 'ms-entete' }, h('dt', { text: 'De' }), h('dd', { text: m.nom || s().nomAuteur(m.par) }), h('dt', { text: 'À' }), h('dd', { text: libDestinataires(m) }), h('dt', { text: 'Envoyé' }), h('dd', { text: 'le ' + dateHeure(m.cree) })),
+      h('h3', { text: m.objet }), h('div', { class: 'ms-texte', text: m.texte }),
+      m.reponsesListe.length ? h('div', { class: 'pile' }, h('b', { text: 'Réponses (' + m.reponsesListe.length + ')' }), m.reponsesListe.map(function (r) { return h('div', { class: 'ms-reponse' }, h('small', { class: 'muted', text: (r.nom || s().nomAuteur(r.par)) + (r.a ? ' → ' + (r.nomA || s().nomAuteur(r.a)) : '') + ' — ' + dateHeure(r.le) }), h('p', { class: 'ms-texte', text: r.texte })); })) : null,
+      m.pieces.length ? h('div', { class: 'ms-pieces' }, m.pieces.map(function (p) { return puce(p, null, m); })) : null,
+      h('small', { class: 'muted', text: 'Consultation inscrite au journal. Ce contenu n’est plus affiché quand vous fermez cette fenêtre.' })), [{ texte: 'Fermer', action: function () { delete ouverts[id]; } }], { large: true });
   }
 
   // ------------------------------------------------------------ Onglet Informations
@@ -447,6 +558,9 @@
     var reponses = h('select', { 'aria-label': 'Réponses' }, Object.keys(MS.REPONSES).map(function (k) { return h('option', { value: k, text: MS.REPONSES[k] }); }));
     var jusquau = h('input', { type: 'date', value: MS.plusJours(MS.jourISO(Date.now()), opts(svDefaut).affichageJours), 'aria-label': 'Affiché jusqu’au' });
     var zoneR = h('div', { class: 'pile' }), zoneP = h('div', { class: 'ms-pieces' });
+    // Chiffrement réservé aux destinataires (0.24.0) : selon le réglage de l'établissement
+    var chiffrable = o.chiffrement !== 'desactive' && !s().formation, impose = o.chiffrement === 'impose';
+    var cbChiffre = h('input', { type: 'checkbox', checked: impose || o.chiffrement === 'choixCoche', disabled: impose });
     // Sondage (rôles autorisés : cadre et administrateur par défaut)
     var peutSondage = s().peut('SONDAGE_CLOTURE'), avecSondage = h('input', { type: 'checkbox' }), zoneS = h('div', { class: 'pile ms-sondage-saisie', hidden: true });
     var sGenre = h('select', { 'aria-label': 'Type de sondage' }, Object.keys(MS.GENRES_SONDAGE).map(function (k) { return h('option', { value: k, text: MS.GENRES_SONDAGE[k] }); }));
@@ -522,6 +636,8 @@
           entree ? h('label', { class: 'btn petit ms-joindre' }, 'Joindre un fichier…', entree) : null),
         entree ? h('small', { class: 'muted', text: 'Fichiers : ' + o.typesPieces.join(', ') + ' ; ' + o.tailleMaxMo + ' Mo au plus chacun. Ils sont chiffrés et conservés avec le message.' }) : null),
       peutSondage ? h('div', { class: 'pile' }, h('label', { class: 'case' }, avecSondage, h('b', { text: 'Ajouter un sondage' })), zoneS) : null,
+      chiffrable ? h('label', { class: 'case ms-chiffrer' }, cbChiffre, h('span', {}, h('b', { text: 'Chiffrer pour les seuls destinataires' }), h('br'),
+        h('small', { text: 'Seuls vous et les destinataires lisent l’objet, le texte, les réponses, les éléments rattachés et les pièces jointes. ' + (o.consultation ? 'Le cadre du service ou un auditeur peut le consulter en cas de besoin, avec un motif inscrit au journal. ' : '') + 'Réglage de l’établissement : ' + MS.CHIFFREMENTS[o.chiffrement].toLowerCase() + '.' }))) : null,
       h('p', { class: 'alerte', text: 'Information d’organisation : pas de message personnel ni de donnée clinique' + (entree ? ', y compris dans les pièces jointes.' : '.') }),
       h('div', { class: 'grille-2' },
         h('label', { class: 'case' }, important, h('span', {}, h('b', { text: 'Message important' }), h('br'), h('small', { class: 'muted', text: 'reste en tête jusqu’à la lecture' }))),
@@ -537,9 +653,28 @@
       // Contrôle avant d'écrire les fichiers (aucun fichier orphelin si le message est refusé)
       MS.controler('MESSAGE', Object.assign({}, d, { pieces: fichiers.map(function (f) { return { id: 'PJ0000000000000000', nom: f.name, taille: f.size }; }) }), { etat: st(), compte: c, config: U.config(), peut: function (t) { return s().peut(t); } });
       if (fichiers.length && !confirm('Les pièces jointes ne doivent contenir aucune donnée clinique ni nominative sur un patient. Envoyer ?')) return false;
+      var chiffrer = chiffrable && cbChiffre.checked;
+      if (chiffrer) {
+        var noms = MS.clesPourMessage(dest, c, U.config(), comptes()), manquantes = s().clesMessagerieManquantes(noms);
+        if (manquantes.length) throw new Error('Chiffrement impossible pour l’instant : les clés de certains destinataires ne sont pas encore créées (elles le sont à la prochaine connexion d’un administrateur). ' + (impose ? '' : 'Décochez « Chiffrer » pour envoyer en clair.'));
+        d.chiffre = await s().chiffrerMessage(d.id, noms);
+      }
       for (var i = 0; i < fichiers.length; i++) {
         var oct = new Uint8Array(await fichiers[i].arrayBuffer());
-        d.pieces.push({ id: await s().enregistrerPiece('messagerie', oct), nom: fichiers[i].name, taille: fichiers[i].size });
+        if (chiffrer) oct = await s().chiffrerPourMessage(d.id, oct, 'pj:' + i);
+        d.pieces.push({ id: await s().enregistrerPiece('messagerie', oct), nom: fichiers[i].name, taille: fichiers[i].size, n: i });
+      }
+      if (chiffrer) {
+        // Contenu, éléments, pièces et libellés du sondage dans la partie chiffrée ; restent en clair : destinataires,
+        // dates, réglages de lecture et de réponse, identifiants des réponses du sondage (pour compter les votes)
+        var contenu = { objet: d.objet, texte: d.texte, rattaches: d.rattaches, pieces: d.pieces };
+        if (d.sondage) {
+          contenu.sondage = { question: d.sondage.question, options: d.sondage.options };
+          d.sondage = Object.assign({}, d.sondage, { question: '', options: d.sondage.options.map(function (x) { return { id: x.id, libelle: '' }; }) });
+        }
+        d.chiffre.ct = await s().contenuMessage(d.id, contenu);
+        ouverts[d.id] = contenu;
+        d.objet = ''; d.texte = ''; d.rattaches = []; d.pieces = [];
       }
       var e = await s().enregistrer('MESSAGE', d);
       U.toast('Message envoyé.');
@@ -568,6 +703,8 @@
       var pj = h('input', { type: 'checkbox', checked: eff.piecesJointes });
       var tMax = h('select', { 'aria-label': 'Taille maximale' }, [1, 2, 5, 10, 20].map(function (n) { return h('option', { value: String(n), text: n + ' Mo', selected: eff.tailleMaxMo === n }); }));
       var types = h('input', { type: 'text', value: eff.typesPieces.join(', '), 'aria-label': 'Types de fichiers autorisés' });
+      var chif = h('select', { 'aria-label': 'Chiffrement réservé aux destinataires' }, Object.keys(MS.CHIFFREMENTS).map(function (k) { return h('option', { value: k, text: MS.CHIFFREMENTS[k], selected: eff.chiffrement === k }); }));
+      var consult = h('input', { type: 'checkbox', checked: eff.consultation });
       var cons = h('select', { 'aria-label': 'Conservation' }, [6, 12, 24, 36].map(function (n) { return h('option', { value: String(n), text: n + ' mois', selected: eff.conservationMois === n }); }));
       corps.push(
         h('div', { class: 'pile ag-section' }, h('b', { text: 'Onglet Informations' }), h('small', { class: 'muted', text: 'Les rappels des modules cochés s’affichent aussi dans la messagerie ; ils restent toujours dans chaque module.' }),
@@ -576,7 +713,11 @@
           h('label', { class: 'case' }, pj, h('span', { text: 'Autoriser les pièces jointes (désactivé par défaut ; à faire valider par le délégué à la protection des données et le responsable de la sécurité informatique)' })),
           h('div', { class: 'grille-2' }, h('label', {}, 'Taille maximale par fichier', tMax), h('label', {}, 'Types autorisés (extensions séparées par des virgules)', types)),
           h('small', { class: 'muted', text: 'Fichiers chiffrés par la clé de la messagerie, rangés avec les données. Images et PDF affichés dans l’application ; les autres fichiers téléchargés après avertissement.' })),
-        h('label', {}, 'Conservation des messages', cons));
+        h('label', {}, 'Conservation des messages', cons),
+        h('div', { class: 'pile ag-section' }, h('b', { text: 'Chiffrement réservé aux destinataires' }),
+          h('label', {}, 'Réglage de l’établissement', chif),
+          h('label', { class: 'case' }, consult, h('span', { text: 'Consultation par le cadre du service ou un auditeur, avec motif inscrit au journal (activée par défaut)' })),
+          h('small', { class: 'muted', text: 'Les clés des services, rôles, groupes et agents sont créées et remises par la session de l’administrateur ; un nouvel agent ou un nouveau membre de groupe reçoit les siennes à la prochaine connexion d’un administrateur. Pour un auditeur : créer un rôle dans Rôles et accès avec l’accès « Consulter un message chiffré » de la messagerie. Limite : l’administrateur détient techniquement toutes les clés, comme pour chaque module ; l’application ne lui ouvre que ce qui lui est adressé ou une consultation tracée.' })));
       lecteurs.push(function (v) {
         v.informations = {}; cbs.forEach(function (x) { if (x.cb.checked) v.informations[x.k] = true; });
         if (pj.checked) v.piecesJointes = true;
@@ -584,6 +725,8 @@
         var t = types.value.split(/[,\s;]+/).map(function (x) { return x.toLowerCase().replace(/^\./, ''); }).filter(function (x) { return /^[a-z0-9]{1,8}$/.test(x); });
         if (t.length && t.join(',') !== MS.TYPES_PIECES_DEFAUT.join(',')) v.typesPieces = t;
         if (+cons.value !== 12) v.conservationMois = +cons.value;
+        if (chif.value !== 'desactive') v.chiffrement = chif.value;
+        if (!consult.checked) v.consultation = false;
       });
     }
     return h('section', { class: 'panneau' }, h('h2', { text: 'Messagerie' }),
@@ -599,7 +742,7 @@
   }
 
   // ------------------------------------------------------------ Journal (sans le contenu des messages)
-  var LIB = { MESSAGE: 'Messagerie : message', MESSAGE_REPONSE: 'Messagerie : réponse', MESSAGE_LU: 'Messagerie : lecture', MESSAGE_RETRAIT: 'Messagerie : retrait', MESSAGE_ARCHIVE: 'Messagerie : archive', MESSAGE_RELANCE: 'Messagerie : relance', VOTE: 'Messagerie : vote', SONDAGE_CLOTURE: 'Messagerie : clôture d’un sondage' };
+  var LIB = { MESSAGE: 'Messagerie : message', MESSAGE_REPONSE: 'Messagerie : réponse', MESSAGE_LU: 'Messagerie : lecture', MESSAGE_RETRAIT: 'Messagerie : retrait', MESSAGE_ARCHIVE: 'Messagerie : archive', MESSAGE_RELANCE: 'Messagerie : relance', VOTE: 'Messagerie : vote', SONDAGE_CLOTURE: 'Messagerie : clôture d’un sondage', CONSULTATION: 'Messagerie : consultation tracée' };
   function resume(e) {
     var d = e.data || {}, m = st().messages[d.id || d.message], c = compte(), lisible = m && MS.concerne(m, c, c.groupes);
     var nom = lisible ? '« ' + m.objet + ' »' : 'un message';
@@ -612,6 +755,7 @@
       case 'MESSAGE_RELANCE': return 'Relance de ' + nom;
       case 'VOTE': return 'Vote au sondage de ' + nom;
       case 'SONDAGE_CLOTURE': return 'Clôture du sondage de ' + nom;
+      case 'CONSULTATION': return 'Consultation de ' + (m ? 'un message chiffré de ' + (m.nom || s().nomAuteur(m.par)) + ' à ' + libDestinataires(m) : 'un message chiffré') + ' — motif : ' + (d.motif || '') + (d.precision ? ' (' + d.precision + ')' : '') + (d.informer ? ' ; auteur et destinataires informés' : ' ; sans information de l’auteur et des destinataires');
     }
     return e.type;
   }
@@ -636,7 +780,7 @@
   }
 
   SIC.modules.completerInterface('messagerie', {
-    vues: { recus: function () { return vueListe('recus'); }, envoyes: function () { return vueListe('envoyes'); }, archives: function () { return vueListe('archives'); }, informations: vueInformations },
+    vues: { recus: function () { return vueListe('recus'); }, envoyes: function () { return vueListe('envoyes'); }, archives: function () { return vueListe('archives'); }, informations: vueInformations, consultation: vueConsultation },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'Le message revient à son état précédent.'; } },
     admin: { onglets: function () { return [['messagerie', 'Messagerie', [panneauReglages()]]]; }, cadre: function () { return [panneauReglages()]; } },
     // Pastille : messages qui vous attendent et informations non vues
