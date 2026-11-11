@@ -115,6 +115,15 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.26.5 (Mes tâches : clé de liste tenue par le trousseau ; décision du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Perte de la liste après un mot de passe oublié | Inacceptable ; **option 1** retenue : clé de liste tenue par le trousseau | Une clé par agent, `t-a.<compte>`, créée avec les clés des modules (connexion d'un administrateur, création de comptes) et remise à l'agent seul (l'administrateur détient les clés maîtresses, comme pour toutes les clés). Elle survit à la réinitialisation du mot de passe et à « Tout renouveler » (générations du trousseau). Format « t2: » ; l'application n'ouvre la liste que pour son agent (même garantie que les messages chiffrés, 0.24.0) |
+| Reprise des tâches existantes | Sans perte | L'ancien format (0.26.3, clé dérivée de la clé personnelle) reste lu ; à la première ouverture, chaque tâche est réenregistrée au nouveau format |
+
+Tests : `tests/mes-taches.test.js` (remise à l'agent seul, réinitialisation du mot de passe, « Tout renouveler », ancien format). À documenter : fiche technique (famille de clés `t-a.`, garantie applicative vis-à-vis de l'administrateur), kit RGPD (même mention que la messagerie chiffrée), guide utilisateur. La ligne « une clé personnelle renouvelée rend les anciennes tâches illisibles » de la version 0.26.3 est caduque.
+
 ## Version 0.26.4 (lot A, étape 5 : ergonomie ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |
@@ -136,7 +145,7 @@ Point à valider : délai de deux minutes de l'annulation par l'auteur.
 | --- | --- | --- |
 | Place | Onglet « Mes tâches » à côté de Mon agenda | Onglet `mes-taches` de la fenêtre Agenda du service (`ui-mes-taches.js`) |
 | Rubriques | Mes tâches (titre, échéance, rappel, note, élément rattaché) ; ce que les modules me demandent (à cocher dans leur module) ; faites, gardées un mois à l'écran | Tâches à faire triées par échéance (retard signalé) ; informations de tous les modules dont l'agent a la clé, avec « Ouvrir », et messages qui attendent ; faites des 30 derniers jours (bouton « Toutes ») |
-| Confidentialité | Chiffrée par la clé personnelle : personne d'autre ne la lit, administrateur compris | Saisie `TACHE_PERSO` du module Agenda (permise à chacun pour lui-même, `permisPourSoi` ; contrôle : une tâche n'appartient qu'à son agent) ; contenu chiffré par une clé dérivée de la partie privée de la clé personnelle (`C.cleUsagePersonnel`, HKDF-SHA-256 ; `session.chiffrerPersonnel` / `dechiffrerPersonnel`) ; le journal ne garde qu'une saisie opaque. **Une clé personnelle renouvelée (mot de passe oublié) rend les anciennes tâches illisibles** (affichées « illisible ») |
+| Confidentialité | Chiffrée par la clé personnelle : personne d'autre ne la lit, administrateur compris | Saisie `TACHE_PERSO` du module Agenda (permise à chacun pour lui-même, `permisPourSoi` ; contrôle : une tâche n'appartient qu'à son agent) ; contenu chiffré par une clé dérivée de la partie privée de la clé personnelle (`C.cleUsagePersonnel`, HKDF-SHA-256 ; `session.chiffrerPersonnel` / `dechiffrerPersonnel`) ; le journal ne garde qu'une saisie opaque. (remplacé en 0.26.5 par la clé de liste du trousseau : plus aucune perte après un mot de passe oublié) |
 | « + Ma liste » | Depuis n'importe quel élément des autres modules, à côté de « Envoyer par message » | Événement de l'agenda, demande de travaux, fiche patient, réservation de véhicule (`U.mesTaches.boutonModale`) ; rattachement aussi depuis le formulaire (choix d'un élément, comme la messagerie) |
 | Confier une tâche | Par la messagerie, sans liste partagée | Rappelé dans le formulaire |
 | Rappels | Onglet Informations et pastille | Rappel le jour de l'échéance, la veille, 2 jours ou une semaine avant : pastille de l'Agenda ; onglet Informations de la messagerie si les informations de l'Agenda y sont activées (réglage existant) |
