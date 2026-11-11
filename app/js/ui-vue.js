@@ -23,6 +23,7 @@
   function mesVues() { try { return session() && session().etat ? V.vuesPour(cfg(), compte()) : []; } catch (e) { return []; } }
   Object.defineProperty(contrat.vues, 'onglets', { configurable: true, get: function () {
     var l = mesVues().map(function (v) { return { code: 'v:' + v.id, libelle: v.nom }; });
+    l.push({ code: 'plan', libelle: 'Plan du service' });   // chambres et lits (0.29.1)
     l.push({ code: 'instantanes', libelle: 'Instantanés' });
     return l;
   } });
@@ -629,6 +630,7 @@
   }
   var vuesProxy = new Proxy({}, { get: function (t, code) {
     if (code === 'instantanes') return vueInstantanes;
+    if (code === 'plan') return U.chambres.vuePlan;
     if (typeof code === 'string' && code.indexOf('v:') === 0) return function () { return vueTableau(code.slice(2)); };
     if (code === 'vues') return function () { var l = mesVues(); return l.length ? vueTableau(l[0].id) : h('div', { class: 'panneau vide', text: 'Aucune vue ne vous est ouverte.' }); };
     return undefined;

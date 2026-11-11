@@ -573,6 +573,14 @@
       var al = [];
       if (selLieu.value === '__hors' && type.value === 'Contention' && !exception.checked) al.push('Contention hors espace d’isolement (catégorie D du registre) : à n’utiliser qu’à titre exceptionnel.');
       if (!(SIC.chambres.lieuxCSI(config(), selSv.value)).length) al.push(lieu('Aucun lieu de type « chambre de soins intensifs » n’est paramétré pour ce service.'));
+      // Plan du service (0.29.1) : CSI occupée en chambre ouverte, ou par une autre mesure en cours
+      if (selLieu.value && selLieu.value !== '__hors' && SIC.ui.chambres) {
+        var idP = selPatient.value === '__nouveau' ? null : selPatient.value;
+        var occ = SIC.chambres.csiOccupee(config(), SIC.ui.chambres.fiches(), selSv.value, selLieu.value, idP);
+        if (occ) al.push(selLieu.value + ' est occupée en chambre ouverte par ' + SIC.ui.chambres.nom(occ.patient) + ' : prévoyez une autre chambre pour ce patient (Patients → Plan du service).');
+        var autre = SIC.ui.chambres.mesures(selSv.value).filter(function (m) { return m.lieu === selLieu.value && m.patientId !== idP; })[0];
+        if (autre) al.push('Une mesure est déjà en cours en ' + selLieu.value + ' (' + SIC.ui.chambres.nom(autre.patientId) + ').');
+      }
       aLieu.afficher(al);
 
       // Alertes de l'établissement (Administration → Alertes)

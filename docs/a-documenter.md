@@ -115,6 +115,17 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.29.1 (branche `plan-chambres`, 12 novembre 2026) : plan du service
+
+| Sujet | Décisions du porteur (11 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Plan du service | Représentation graphique des chambres, lits, CSI et autres pièces, avec le nom des patients (identité selon le rôle : initiales pour l'administrateur de garde) ; clic sur un patient : sa fiche. Onglet « Plan du service » des fenêtres Patients, Vue d'ensemble et Isolement et contention | `SIC.chambres.plan`, `disposer` ; `U.chambres.vuePlan` ; onglets `plan` (module Patients, Isocont ; Vue d'ensemble dans `ui-vue.js`) |
+| Disposition réglée par le cadre | Glisser-déposer, ou flèches pour se passer de la souris ; largeur, hauteur, couleur, nombre de colonnes ; pièces non placées rangées à la suite | « Modifier le plan » (cadre de ses services, administrateur) ; `x`, `y`, `w`, `h`, `couleur` des pièces et `colonnes` dans le réglage commun `chambres` (même contrôle que la liste) |
+| Isolement et contention sur le plan | Patient en mesure : dans la CSI, et toujours visible, estompé, dans sa chambre hôtelière gardée. Mesures lues dans Isocont seulement par qui en détient la clé (sinon le plan le signale) | Fourniture `isocont.enCours` (lecture à la volée) ; mesure en soins somatiques non comptée |
+| CSI en chambre ouverte, pièces utilisées | CSI hôtelière (surcapacité) : séjour sur le lit de la CSI. Placement temporaire, chambre gardée : CSI en chambre ouverte (en fin de mesure, en attendant de regagner sa chambre), pièce utilisée par les patients (espace d'apaisement…) ; bouton « + » de la pièce, retour par « ↩ » | Champ `placement` { piece } de la saisie `SEJOUR` (null : retour), gardé dans l'historique des lits (`mouvements` avec `piece`, `retour`) ; droit de la saisie `SEJOUR` |
+| Points à régler | Deux patients sur un lit ; mesure dans une CSI occupée en chambre ouverte ; plusieurs mesures dans une même CSI ; mesure dans un lieu absent de la liste (« Hors du plan »). À la saisie d'une mesure : avertissement si la CSI est occupée en chambre ouverte ou par une autre mesure | `plan().alertes`, `horsPlan` ; `SIC.chambres.csiOccupee` ; contrôle du lieu dans la saisie d'une mesure (`ui-isocont.js`) |
+| Démonstration | Patients en mesure dans les CSI de l'Unité 1, chambres gardées ; patient dans l'espace d'apaisement ; CSI de l'Unité 2 en chambre ouverte alors qu'une mesure y est en cours (point à régler) | `demo.js` |
+
 ## Version 0.29.0 (branche `chambres`, 12 novembre 2026) : chambres et lits
 
 | Sujet | Décisions du porteur (11 novembre 2026) | Fichiers, saisies, réglages |
@@ -333,7 +344,7 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 - **Messagerie, chiffrement** : relecture par le responsable de la sécurité informatique (RSSI) du chiffrement réservé aux destinataires (parties publiques attestées, clés par groupe, consultation tracée garantie par l'application seulement) ; motifs de consultation et information des agents à valider avec le délégué à la protection des données et la direction des ressources humaines.
 - **Messagerie** : avis du délégué à la protection des données (DPO, référent RGPD) et du responsable de la sécurité informatique (RSSI) sur les pièces jointes (désactivées par défaut ; aucun contrôle antivirus par l'application), sur la durée de conservation (12 mois proposés) et sur l'inscription au registre des traitements.
 
-- **Chambres et lits** : la liste des chambres et l'historique des lits rejoignent la fiche commune ; pas de nouvelle donnée personnelle hors séjour (à confirmer au registre des traitements).
+- **Chambres et lits** : la liste des chambres et l'historique des lits rejoignent la fiche commune ; pas de nouvelle donnée personnelle hors séjour (à confirmer au registre des traitements). Plan du service : présence d'un patient dans une pièce (placements temporaires) gardée dans l'historique du séjour, à mentionner au registre ; affichage des mesures en cours sur le plan, réservé aux agents qui ont accès à Isocont.
 
 ## Restes connus
 
