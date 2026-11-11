@@ -115,6 +115,19 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.26.0 (lot A, étape 1 : tableaux et affichage ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Tri des colonnes | Tous les tableaux sauf ceux qui ont un ordre voulu ; croissant, décroissant, ordre d'origine ; flèche, clavier ; tri retenu, écran par écran ; dans la Vue d'ensemble et la liste des patients, le tri de l'agent ne change pas le réglage commun | `app/js/tri.js` (`SIC.tri` : valeurs date, heure, nombre, texte ; vides à la fin ; préférence `tris` de l'agent, qui le suit d'un poste à l'autre) ; `ui.js` `activerTris` (après chaque affichage et pour les tableaux affichés après coup) ; écartés : grilles, documents officiels (registre, décomptes), tableaux qui ont leur propre tri (liste des patients), dialogues, classe `sans-tri` ; lignes de groupe gardées, tri à l'intérieur de chaque groupe |
+| Export et impression | **Choix au moment de l'export ou de l'impression** (ordre affiché ou ordre d'origine) | Question posée seulement si un tableau de l'écran est trié : exports CSV qui contiennent la colonne triée (réordonnés, à l'intérieur des groupes de la Vue d'ensemble), impressions (`U.imprimer`, `U.imprimerPage`) |
+| Filtre rapide | Au-dessus des longs tableaux | À partir de 12 lignes, sauf si l'écran a déjà sa recherche ; tous les mots, sans accents ni casse ; lignes de groupe masquées si vides ; nombre de lignes affichées |
+| Taille d'affichage | Réglable par l'agent | Bouton « Aa » de l'en-tête : normale, grande, très grande (préférence `affichage`, gardée aussi sur le poste) ; impression à la taille habituelle |
+| Hauteur des lignes des tableaux | Demande du porteur | Même fenêtre « Aa » : compactes, normales, aérées, très aérées |
+| Raccourcis clavier | Accepté | Ctrl + Entrée : bouton principal du dialogue ; ← → : jour ou semaine précédente ou suivante des plannings (hors champ) ; Alt + 1 à 9 : fenêtres de la barre des modules ; Échap : fermer le dialogue ; « ? » : aide |
+
+Tests : `tests/tri.test.js` ; parcours des écrans (tri, filtre, hauteur des lignes, aide des raccourcis). À documenter : guide utilisateur (tri, filtre, Aa, raccourcis), guide IDE / AS (captures inchangées sauf le bouton « Aa »), fiche technique (`tri.js`, préférences `tris` et `affichage`), `docs/evolutions-futures.md` (tri des colonnes réalisé).
+
 ## Version 0.25.2 (Salles et bureaux : occupations « occupé », réouverture après travaux ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |
