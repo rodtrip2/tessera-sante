@@ -1229,6 +1229,7 @@
       }
       await s.enregistrer('RDV', d);
       if (demandesSalle.length) await U.salles.envoyer(demandesSalle);
+      if (U.salles) U.salles.synchroniser(true);
       U.toast(nouveau ? 'Ajouté à l’agenda.' : 'Élément modifié.');
       signalerEchecs(await suivreVehicules(d.id, { dates: rg.type === 'aucune' ? [jourISO(d0)] : [], forcer: forcerVehicules }));
     } });

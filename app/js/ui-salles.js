@@ -25,21 +25,59 @@
   function minutes(hm) { var p = String(hm).split(':'); return +p[0] * 60 + +p[1]; }
 
   // ------------------------------------------------------------ Occupations venues des autres plannings
-  /** Occupations sur [debut, fin[ : salles, agenda et suivi médical lus à la volée (modules dont l'agent a la clé). */
-  function occupations(debut, fin) {
-    var sources = [], o = opts();
-    try { var a = s().detientCle('agenda') ? s().etatModule('agenda') : null; if (a) sources = sources.concat(SIC.modules.lire('agenda.occupations', a, { debut: debut, fin: fin }) || []); } catch (e) { /* agenda absent */ }
-    try { var m = s().detientCle('suivi') ? s().etatModule('suivi') : null; if (m) sources = sources.concat(SIC.modules.lire('suivi.occupations', m, { config: U.config(), debut: debut, fin: fin, horaires: { matin: o.matin, apresmidi: o.apresmidi } }) || []); } catch (e) { /* suivi absent */ }
-    // Salles fermées pendant des travaux (Demandes de travaux, case cochée) : journées entières, jusqu'à la fin des travaux
+  /** Occupations d'un autre module sur [debut, fin[, lues à la volée (l'agent a la clé du module), ou null. */
+  function sourcesDe(m, debut, fin) {
+    var o = opts(), res = [];
     try {
-      var tv = s().detientCle('travaux') ? s().etatModule('travaux') : null;
-      if (tv) (SIC.modules.lire('travaux.salles', tv, { config: U.config() }) || []).forEach(function (x) {
-        for (var j = S.jourISO(Math.max(debut, Date.parse(x.depuis) || debut)), n = 0; S.instant(j, '00:00') < fin && n < 400; j = S.plusJours(j, 1), n++) {
-          sources.push({ ref: 'travaux|' + x.demande + '|' + j, salle: x.salle, debut: S.instant(j, '00:00'), fin: S.instant(S.plusJours(j, 1), '00:00'), titre: 'Travaux : ' + x.titre, genre: 'ferme', service: x.service, par: '' });
+      if (!s().detientCle(m)) return null;
+      var e = s().etatModule(m);
+      if (!e) return null;
+      if (m === 'agenda') return SIC.modules.lire('agenda.occupations', e, { debut: debut, fin: fin }) || [];
+      if (m === 'suivi') return SIC.modules.lire('suivi.occupations', e, { config: U.config(), debut: debut, fin: fin, horaires: { matin: o.matin, apresmidi: o.apresmidi } }) || [];
+      // Salles fermées pendant des travaux (Demandes de travaux, case cochée) : journées entières, jusqu'à la fin des travaux ou au jour indiqué
+      (SIC.modules.lire('travaux.salles', e, { config: U.config() }) || []).forEach(function (x) {
+        for (var j = S.jourISO(Math.max(debut, Date.parse(x.depuis) || debut)), n = 0; S.instant(j, '00:00') < fin && n < 400 && (!x.jusquau || j <= x.jusquau); j = S.plusJours(j, 1), n++) {
+          res.push({ ref: 'travaux|' + x.demande + '|' + j, salle: x.salle, debut: S.instant(j, '00:00'), fin: S.instant(S.plusJours(j, 1), '00:00'), titre: 'Travaux : ' + x.titre, genre: 'ferme', service: x.service, par: '' });
         }
       });
-    } catch (e) { /* travaux absent */ }
+      return res;
+    } catch (err) { return null; }   // module absent
+  }
+  /**
+   * Occupations sur [debut, fin[ : salles, et autres plannings lus à la volée quand l'agent en a la clé ; sinon, le
+   * dernier relevé « occupé » (salle et horaires seulement, nom de l'auteur si le réglage le prévoit).
+   */
+  function occupations(debut, fin) {
+    var sources = [], nom = opts().nomOccupe;
+    S.REFLETS.forEach(function (m) {
+      var x = sourcesDe(m, debut, fin);
+      if (x) { sources = sources.concat(x); return; }
+      sources = sources.concat(S.reflet(st(), m, debut, fin).map(function (y) { return Object.assign(y, { nom: nom && y.par ? s().nomAuteur(y.par) : '' }); }));
+    });
     return S.occupations(st(), sources, debut, fin);
+  }
+  /**
+   * Relevé des plannings dont l'agent a la clé (aujourd'hui − 1 jour à + 8 semaines), enregistré seulement s'il a changé :
+   * les agents sans la clé y voient la salle « occupée ». Après une saisie dans l'Agenda, le Suivi médical, les Demandes
+   * de travaux (`force`), ou à l'ouverture des plannings (une fois par minute au plus).
+   */
+  var dernierReleve = {}, releveEnCours = false;
+  async function synchroniser(force) {
+    if (releveEnCours) return;
+    try {
+      if (!SIC.salles || s().apercu || !s().detientCle('salles') || !s().peut('SALLE_REFLET')) return;
+      releveEnCours = true;
+      var auj = S.jourISO(Date.now()), du = S.plusJours(auj, -1), au = S.plusJours(auj, 56), debut = S.instant(du, '00:00'), fin = S.instant(au, '00:00');
+      for (var i = 0; i < S.REFLETS.length; i++) {
+        var m = S.REFLETS[i];
+        if (!force && Date.now() - (dernierReleve[m] || 0) < 6e4) continue;
+        var x = sourcesDe(m, debut, fin);
+        if (!x) continue;
+        dernierReleve[m] = Date.now();
+        if (S.refletChange(st(), m, x, debut)) await s().enregistrer('SALLE_REFLET', { module: m, du: du, au: au, occupations: S.contenuReflet(x) });
+      }
+    } catch (e) { console.warn('Relevé des salles :', e.message); }
+    finally { releveEnCours = false; }
   }
   function journee(j) { return [S.instant(j, '00:00'), S.instant(S.plusJours(j, 1), '00:00')]; }
 
@@ -98,6 +136,7 @@
     return demandes.map(function (d) { return Object.assign(d, { id: 'SD' + C.hex(C.aleatoire(5)), salle: o.salle, titre: o.titre, genre: o.genre, service: o.service, motif: d.validation ? '' : motif.trim(), nom: moi().nom }); });
   }
   async function envoyer(demandes) {
+    setTimeout(function () { synchroniser(true); }, 0);
     for (var i = 0; i < (demandes || []).length; i++) await s().enregistrer('SALLE_DEMANDE', demandes[i]);
     if ((demandes || []).length) U.toast(demandes.some(function (d) { return !d.validation; }) ? 'Demande en conflit envoyée au gestionnaire de la salle.' : 'Réservation soumise à la validation du cadre.');
   }
@@ -112,7 +151,7 @@
   }
 
   // ------------------------------------------------------------ Grilles
-  var CLASSE = { agenda: 'sb-agenda', medical: 'sb-medical', psy: 'sb-psy', entretien: 'sb-psy', simple: 'sb-simple', ferme: 'sb-ferme' };
+  var CLASSE = { agenda: 'sb-agenda', medical: 'sb-medical', psy: 'sb-psy', entretien: 'sb-psy', simple: 'sb-simple', ferme: 'sb-ferme', occupe: 'sb-occupe' };
   function bloc(o, base, pxH, plage, extra) {
     var d0 = Math.max(o.debut, base + minutes(plage[0]) * 6e4), d1 = Math.min(o.fin, base + minutes(plage[1]) * 6e4);
     if (d1 <= d0) return null;
@@ -170,6 +209,7 @@
       h('p', { class: 'muted', text: (extra === 'sb-conflit' ? 'Demande en conflit, en attente d’arbitrage' : extra === 'sb-attente' ? 'Réservation à valider par le cadre' : S.GENRES[o.genre] || '') + (o.service ? ' · ' + U.libService(o.service) : '') }),
       dm && dm.motif ? h('p', { text: 'Motif : ' + dm.motif }) : null,
       o.deplacee ? h('p', { class: 'info', text: 'Déplacé par arbitrage depuis ' + nomSalle(o.deplacee) + '.' }) : null,
+      o.genre === 'occupe' ? h('small', { class: 'muted', text: 'Occupation venue d’un planning auquel vous n’avez pas accès' + (o.nom ? ' : réservée par ' + o.nom : '') + '. Pour l’obtenir, faites une demande : le gestionnaire de la salle arbitrera.' }) : null,
       o.genre === 'agenda' || o.genre === 'medical' || o.genre === 'psy' || o.genre === 'entretien' ? h('small', { class: 'muted', text: 'Le détail et les modifications se font dans son module (' + (o.genre === 'agenda' ? 'Agenda du service' : 'Suivi médical') + ').' }) : null), actions);
   }
   function barreJour(titre, moins, plus) {
@@ -177,7 +217,7 @@
       h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Suivant', onclick: plus }, '▶'));
   }
   function legende() {
-    return h('div', { class: 'sb-legende' }, [['sb-agenda', 'Événement de l’agenda'], ['sb-medical', 'Présence médicale'], ['sb-psy', 'Psychologue'], ['sb-simple', 'Réservation simple'], ['sb-attente', 'À valider'], ['sb-conflit', 'Demande en conflit'], ['sb-ferme', 'Indisponible']]
+    return h('div', { class: 'sb-legende' }, [['sb-agenda', 'Événement de l’agenda'], ['sb-medical', 'Présence médicale'], ['sb-psy', 'Psychologue'], ['sb-simple', 'Réservation simple'], ['sb-occupe', 'Occupé (autre planning)'], ['sb-attente', 'À valider'], ['sb-conflit', 'Demande en conflit'], ['sb-ferme', 'Indisponible']]
       .map(function (x) { return h('span', {}, h('i', { class: x[0] }), x[1]); }));
   }
   function bandeauAvis() {
@@ -195,6 +235,7 @@
 
   // ------------------------------------------------------------ Onglet Journée
   function vueJournee() {
+    setTimeout(function () { synchroniser(false); }, 0);
     var sv = service(), salles = S.sallesDuService(st(), sv), o = opts(sv), j = vue.jour, b = journee(j), occ = occupations(b[0], b[1]), pxH = 44;
     var deI = h('input', { type: 'time', step: 900, value: vue.de, 'aria-label': 'Libre de' }), aI = h('input', { type: 'time', step: 900, value: vue.a, 'aria-label': 'Libre jusqu’à' });
     var grille = h('div', { class: 'sb-grille' });
@@ -222,6 +263,7 @@
 
   // ------------------------------------------------------------ Onglet Par salle (semaine)
   function vueSalle() {
+    setTimeout(function () { synchroniser(false); }, 0);
     var sv = service(), salles = S.sallesDuService(st(), sv);
     if (!salles.length) return h('p', { class: 'muted', text: 'Aucune salle pour ce service.' });
     if (!vue.salle || !salles.some(function (x) { return x.id === vue.salle; })) vue.salle = salles[0].id;
@@ -423,16 +465,20 @@
     function heure(cle, lib, v) { var i = h('input', { type: 'time', step: 900, value: propre[cle] || '', placeholder: v, 'aria-label': lib }); return { cle: cle, i: i, el: h('label', {}, lib + ' (' + v + ' par défaut)', i) }; }
     var champs = [heure('debut', 'Début de la plage affichée', eff.debut), heure('fin', 'Fin de la plage affichée', eff.fin), heure('matinDebut', 'Présences du matin : début', eff.matin[0]), heure('matinFin', 'Présences du matin : fin', eff.matin[1]),
       heure('apresmidiDebut', 'Présences de l’après-midi : début', eff.apresmidi[0]), heure('apresmidiFin', 'Présences de l’après-midi : fin', eff.apresmidi[1])];
+    var nomOcc = h('select', { 'aria-label': 'Nom sur les occupations des autres plannings' }, [['', 'Réglage de l’établissement'], ['non', 'Non : « Occupé » seulement'], ['oui', 'Oui : nom de la personne qui a réservé']]
+      .filter(function (x) { return x[0] || vue.niveau !== '*'; }).map(function (x) { return h('option', { value: x[0], text: x[1], selected: (propre.nomOccupe === true ? 'oui' : propre.nomOccupe === false ? 'non' : '') === x[0] }); }));
+    if (vue.niveau === '*' && !nomOcc.value) nomOcc.value = 'non';
     return h('section', { class: 'panneau' }, h('h2', { text: 'Salles et bureaux' }),
       h('p', { class: 'muted', text: 'Plage affichée des plannings, horaires des demi-journées des présences médicales (salles occupées). Vide : réglage de l’établissement. Le cadre règle ses services.' }),
       h('label', { class: 'en-ligne' }, 'Réglages pour', sel), h('div', { class: 'grille-2' }, champs.map(function (x) { return x.el; })),
+      h('label', {}, 'Salle occupée par un planning que l’agent ne peut pas consulter : afficher le nom de la personne qui a réservé (désactivé par défaut)', nomOcc),
       h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
-        try { var v = {}; champs.forEach(function (x) { if (x.i.value) v[x.cle] = x.i.value; }); if (Object.keys(v).length) tout[vue.niveau] = v; else delete tout[vue.niveau]; await U.enregistrerConfig([['salles', tout]]); U.toast('Réglages enregistrés.'); } catch (e) { alert(e.message); }
+        try { var v = {}; champs.forEach(function (x) { if (x.i.value) v[x.cle] = x.i.value; }); if (nomOcc.value === 'oui') v.nomOccupe = true; else if (nomOcc.value === 'non' && vue.niveau !== '*') v.nomOccupe = false; if (Object.keys(v).length) tout[vue.niveau] = v; else delete tout[vue.niveau]; await U.enregistrerConfig([['salles', tout]]); U.toast('Réglages enregistrés.'); } catch (e) { alert(e.message); }
       } }, 'Enregistrer')));
   }
 
   // ------------------------------------------------------------ Journal
-  var LIB = { SALLE: 'Salles : salle', SALLE_PRET: 'Salles : prêt', SALLE_FERMETURE: 'Salles : fermeture', SALLE_RESERVATION: 'Salles : réservation', SALLE_DEMANDE: 'Salles : demande', SALLE_DECISION: 'Salles : arbitrage' };
+  var LIB = { SALLE: 'Salles : salle', SALLE_PRET: 'Salles : prêt', SALLE_FERMETURE: 'Salles : fermeture', SALLE_RESERVATION: 'Salles : réservation', SALLE_DEMANDE: 'Salles : demande', SALLE_DECISION: 'Salles : arbitrage', SALLE_REFLET: 'Salles : relevé des autres plannings' };
   function resume(e) {
     var d = e.data || {}, m = st();
     switch (e.type) {
@@ -441,6 +487,7 @@
       case 'SALLE_FERMETURE': return 'Fermeture de ' + nomSalle(d.salle) + (d.motif ? ' : ' + d.motif : '');
       case 'SALLE_RESERVATION': return (d.annulee ? 'Réservation annulée : ' : 'Réservation de ') + nomSalle(d.salle || (m.reservations[d.id] || {}).salle) + (d.titre ? ' — ' + d.titre : '');
       case 'SALLE_DEMANDE': return (d.validation ? 'Réservation à valider : ' : 'Demande en conflit : ') + nomSalle(d.salle) + ' — ' + (d.titre || '') + (d.motif ? ' (motif : ' + d.motif + ')' : '');
+      case 'SALLE_REFLET': return 'Relevé des salles occupées — ' + ({ agenda: 'Agenda du service', suivi: 'Suivi médical', travaux: 'Demandes de travaux' })[d.module] + ' : ' + (d.occupations || []).length + ' occupation' + ((d.occupations || []).length > 1 ? 's' : '');
       case 'SALLE_DECISION': var dm = m.demandes[d.demande]; return d.retirer ? 'Demande retirée' : (d.accepte ? 'Salle attribuée à la demande' : 'Demande refusée') + (dm ? ' : ' + nomSalle(dm.salle) + ' — ' + dm.titre : '') + (d.proposition ? ' ; autre salle : ' + nomSalle(d.proposition) : '');
     }
     return e.type;
@@ -471,5 +518,5 @@
       .concat(o.refusees.filter(function (x) { return x.par === c.id; }).map(function (x) { return Object.assign({ etat: 'demande refusée' }, x); }))
       .sort(function (a, b) { return a.debut - b.debut; });
   }
-  U.salles = { miennes: miennes, nomSalle: nomSalle, selecteur: selecteur, verifier: verifier, envoyer: envoyer, libelle: libelle, occupations: occupations, modaleReserver: modaleReserver };
+  U.salles = { synchroniser: synchroniser, miennes: miennes, nomSalle: nomSalle, selecteur: selecteur, verifier: verifier, envoyer: envoyer, libelle: libelle, occupations: occupations, modaleReserver: modaleReserver };
 })();

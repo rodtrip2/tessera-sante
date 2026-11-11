@@ -115,6 +115,17 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.25.2 (Salles et bureaux : occupations « occupé », réouverture après travaux ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Salle fermée pendant des travaux | Fermée **jusqu'à ce que le problème soit réglé, par défaut**, si la fermeture a été cochée | Inchangé : fermée jusqu'à la confirmation (ou la clôture) de la demande, rouverte si la demande est rouverte ; ajout d'une date « jusqu'au » facultative (`TRAVAUX.salleJusquau`, contrôlée ; badge « Salle indisponible jusqu'au … » ; champ `jusquau` de la fourniture `travaux.salles`) |
+| Occupation d'un planning non accessible | Marquée « occupé » ; option de la console d'administration pour afficher le nom de la personne qui a réservé (**désactivée par défaut**) | Saisie `SALLE_REFLET` du module Salles (`{ module: agenda \| suivi \| travaux, du, au, occupations: [{ ref, salle, debut, fin, service, par, genre? }] }`) : relevé des occupations, **sans l'objet** (titre, patients, médecin jamais recopiés), d'hier à + 8 semaines, enregistré par un agent qui détient les deux clés et le droit, seulement s'il a changé (après une saisie dans l'Agenda, le Suivi médical, le planning des psychologues ou les Demandes de travaux, et à l'ouverture des plannings des salles, une fois par minute au plus) ; le relevé suivant remplace le précédent. Un agent sans la clé du module voit « Occupé » (pointillés gris), les conflits et les arbitrages s'appliquent. Réglage `config.salles[service].nomOccupe` (établissement ou service, réglable par le cadre). Droit : accès « Réserver » (`SALLE_REFLET` ajouté pour IDE, AS, secrétaires ; cadre) |
+
+Le module Salles n'écrit que dans son propre journal (règle du socle respectée) : le relevé est une saisie du module Salles. Démonstration : relevés créés à l'ouverture des plannings. Tests : `tests/salles.test.js`, `tests/travaux.test.js` ; parcours des écrans (agent sans la clé du Suivi médical simulé). À documenter : architecture (§ 7 octies : relevé, réglage), fiche technique (nouvelle saisie, données recopiées : salle, horaires, auteur), kit RGPD (le relevé contient l'identifiant de l'auteur d'une réservation, lisible par les agents des salles ; nom affiché seulement si le réglage est activé), guide utilisateur (« Occupé », date de réouverture).
+
+Point à valider : affichage du nom de l'auteur dans « Occupé » (désactivé par défaut) avec le délégué à la protection des données.
+
 ## Version 0.25.1 (Salles et bureaux : suite ; demandes du porteur du 11 novembre 2026)
 
 | Sujet | Réalisation |

@@ -68,7 +68,7 @@
         if (!d.id) break;
         t = st.demandes[d.id];
         if (!t) t = st.demandes[d.id] = { id: d.id, cree: e.at, par: e.by, etat: 'transmettre', etapes: [], commentaires: [], evts: [] };
-        ['service', 'type', 'lieu', 'chambre', 'salle', 'salleNom', 'salleIndisponible', 'precisionLieu', 'gravite', 'urgence', 'description', 'chambreIndisponible', 'lits', 'nom'].forEach(function (k) { if (d[k] !== undefined) t[k] = d[k]; });
+        ['service', 'type', 'lieu', 'chambre', 'salle', 'salleNom', 'salleIndisponible', 'salleJusquau', 'precisionLieu', 'gravite', 'urgence', 'description', 'chambreIndisponible', 'lits', 'nom'].forEach(function (k) { if (d[k] !== undefined) t[k] = d[k]; });
         t.modifie = e.at; t.evts.push(e.id);
         break;
       case 'TRAVAUX_ETAPE':
@@ -156,7 +156,8 @@
   function sallesIndisponibles(st, config) {
     return Object.keys(st.demandes).map(function (k) { return st.demandes[k]; })
       .filter(function (t) { return t.lieu === 'salle' && t.salle && t.salleIndisponible && ouverte(t) && (!config || options(config, t.service).salleIndisponible); })
-      .map(function (t) { return { salle: t.salle, demande: t.id, type: t.type, service: t.service, depuis: t.cree, titre: lib(options(config || {}, t.service).types, t.type) || 'Travaux' }; });
+      // Fermée jusqu'à la fin des travaux (par défaut), ou jusqu'au jour indiqué dans la demande
+      .map(function (t) { return { salle: t.salle, demande: t.id, type: t.type, service: t.service, depuis: t.cree, jusquau: /^\d{4}-\d{2}-\d{2}$/.test(t.salleJusquau || '') ? t.salleJusquau : '', titre: lib(options(config || {}, t.service).types, t.type) || 'Travaux' }; });
   }
   /** Lieu en clair : « Chambre 12 », « Salle de soins — robinet du fond ». */
   function libLieu(t, config) {
@@ -172,7 +173,7 @@
       t = st.demandes[d.id];
       if (!t && !d.service) throw new Error('Indiquez le service.');
       if (!t || d.type !== undefined) { if (!texte(d.type)) throw new Error('Choisissez le type de travaux.'); }
-      if (!t || d.lieu !== undefined) { if (!texte(d.lieu)) throw new Error('Indiquez le lieu.'); if (d.lieu === 'salle' && !texte(d.salle)) throw new Error('Choisissez la salle ou le bureau.'); if (d.lieu === 'chambre' && !texte(d.chambre)) throw new Error('Indiquez le numéro de la chambre.'); }
+      if (!t || d.lieu !== undefined) { if (!texte(d.lieu)) throw new Error('Indiquez le lieu.'); if (d.lieu === 'salle' && !texte(d.salle)) throw new Error('Choisissez la salle ou le bureau.'); if (d.salleJusquau && !/^\d{4}-\d{2}-\d{2}$/.test(d.salleJusquau)) throw new Error('Date de réouverture de la salle invalide.'); if (d.lieu === 'chambre' && !texte(d.chambre)) throw new Error('Indiquez le numéro de la chambre.'); }
       if (!t || d.urgence !== undefined) { if (!texte(d.urgence)) throw new Error('Indiquez l’urgence.'); }
       if (!t || d.description !== undefined) { if (!texte(d.description, 2000)) throw new Error('Décrivez le problème en quelques mots.'); }
       if (d.description !== undefined && String(d.description).length > 2000) throw new Error('Description trop longue (2 000 caractères au plus).');
@@ -260,7 +261,7 @@
         lire: function (st, o) { return chambresIndisponibles(st, o && o.services, o && o.config); } },
       // Lue par l'Agenda : interventions programmées
       // Lue par Salles et bureaux (0.25.1) : salles indisponibles pendant des travaux
-      { nom: 'travaux.salles', version: 1, acces: 'lecture', champs: ['salle', 'demande', 'type', 'service', 'depuis', 'titre'], lire: function (st, o) { return sallesIndisponibles(st, o && o.config); } },
+      { nom: 'travaux.salles', version: 1, acces: 'lecture', champs: ['salle', 'demande', 'type', 'service', 'depuis', 'jusquau', 'titre'], lire: function (st, o) { return sallesIndisponibles(st, o && o.config); } },
       { nom: 'travaux.interventions', version: 1, acces: 'lecture', champs: ['demande', 'service', 'jour', 'type', 'lieu', 'chambre', 'precisionLieu'],
         lire: function (st, o) { return interventions(st, o.services, o.debut, o.fin); } }
     ],

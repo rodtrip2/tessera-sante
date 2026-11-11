@@ -286,6 +286,7 @@
       }
       await U.App.session.enregistrer('PRESENCE', d);
       if (demandesSalle.length) await U.salles.envoyer(demandesSalle);
+      if (U.salles) U.salles.synchroniser(true);
       U.toast(seul ? 'Ce jour est modifié ; la série ne change pas les autres jours.' : 'Enregistré.');
     } });
     U.modale(seul ? 'Modifier ce jour seulement (' + jourFr(seul.jour) + ')' : p ? 'Modifier toute la série' : 'Présence, absence ou garde', h('div', { class: 'pile' }, radios, zone), boutons, { large: true });
