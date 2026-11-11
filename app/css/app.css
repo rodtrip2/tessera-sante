@@ -969,4 +969,7 @@ html.taille-tres-grande body { zoom: 1.3; }
 .toast.avec-action { display: flex; align-items: center; gap: 12px; }
 .toast.avec-action .btn { background: var(--bg); color: var(--ink); }
 .plus-options > summary { cursor: pointer; color: var(--accent); font-weight: 600; margin: 4px 0; }
+/* Équipe (0.27.0) */
+.eq-lien { font-weight: 600; text-align: left; }
+.eq-perso { border-top: 1px dashed var(--line); padding-top: 8px; display: grid; gap: 6px; }
 
