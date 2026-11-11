@@ -173,8 +173,12 @@
   function clesDeclarees(s) {
     return modulesDeclares().concat(CH() && s.etat ? CH().clesPropres(config(s)).map(function (x) { return x.nom; }) : [])
       // Chiffrement réservé aux destinataires (0.24.0) : clés des services, rôles, groupes, agents et de la consultation
-      .concat(MSG() && s.etat && SIC.modules && SIC.modules.obtenir('messagerie') ? MSG().clesNecessaires(config(s), s.comptes || []) : []);
+      .concat(MSG() && s.etat && SIC.modules && SIC.modules.obtenir('messagerie') ? MSG().clesNecessaires(config(s), s.comptes || []) : [])
+      // Mes tâches (0.26.5, décision du porteur du 11 novembre 2026) : une clé de liste par agent (`t-a.<compte>`), tenue par
+      // le trousseau : elle survit à une réinitialisation du mot de passe et à « Tout renouveler »
+      .concat(SIC.modules && SIC.modules.obtenir('agenda') ? clesTaches(s.comptes || []) : []);
   }
+  function clesTaches(comptes) { return comptes.filter(function (c) { return c && c.actif !== false && c.id !== 'secours'; }).map(function (c) { return 't-a.' + c.id; }); }
   /** Trousseau ouvert : `cle` = jeu de la plateforme (comptes, journal du socle, préférences, traces). */
   function installerTrousseau(s, trousseau, privee8, cleV1) {
     s.trousseau = trousseau; s.privee8 = privee8 || null; s.cleV1 = cleV1 || null;
@@ -380,6 +384,8 @@
       if (regles[nom]) return regles[nom](compte);
       // Clé propre d'une donnée (0.18.0) : remise aux seuls rôles qui la voient ou la saisissent (administrateur toujours)
       if (/^d-/.test(nom)) { var dc = CH() && CH().definition(cfg, nom.slice(2)); return !!(dc && dc.protection === 'cle' && dc.actif && CH().aDroitCle(dc, compte.roles)); }
+      // Mes tâches (0.26.5) : la clé de liste d'un agent ne lui est remise qu'à lui (l'administrateur l'a toujours, ci-dessus)
+      if (/^t-a\./.test(nom)) return compte.id === nom.slice(4);
       // Messagerie (0.24.0) : clés des destinataires (services, rôles, groupes, agent) et de la consultation tracée
       if (/^m-/.test(nom) && MSG()) {
         var md = SIC.modules.obtenir('messagerie').droits, rs = compte.roles || [];
@@ -705,6 +711,7 @@
       }
     });
     await clesMessagerieAJour(this);
+    try { if (v2(this) && !this.formation) await apresSynchro(this); } catch (e) { /* clés de liste créées à la prochaine connexion d'un administrateur */ }
     if (prepares.length === 1) await this.tracer('CREATION', { login: prepares[0].compte.login, roles: prepares[0].compte.roles, services: prepares[0].compte.services, finValidite: prepares[0].compte.finValidite || undefined });
     else await this.tracer('CREATION_LOT', { comptes: prepares.map(function (p) { return { login: p.compte.login, roles: p.compte.roles, services: p.compte.services }; }) });
   };
@@ -1285,25 +1292,38 @@
     return d ? d.lirePiece(j.cle, id) : null;
   };
 
-  // ---------------------------------------------------------- Données personnelles de l'agent (0.26.3, Mes tâches)
-  /**
-   * Clé personnelle d'usage (`usage`, ex. « taches ») dérivée de la partie privée de la clé personnelle de l'agent
-   * (HKDF-SHA-256) : seul l'agent la reconstitue, administrateur compris ; elle change si sa clé personnelle est
-   * renouvelée (mot de passe oublié), et ce qu'elle chiffrait devient alors illisible.
+  // ---------------------------------------------------------- Données personnelles de l'agent (Mes tâches, 0.26.3 et 0.26.5)
+  /*
+   * Décision du porteur du 11 novembre 2026 (option 1) : la liste est chiffrée par la clé de liste de l'agent (`t-a.<id>`),
+   * tenue par le trousseau comme les clés des modules : elle est remise à l'agent seul, survit à la réinitialisation de
+   * son mot de passe et à « Tout renouveler ». L'administrateur détient les clés maîtresses : l'application n'ouvre la
+   * liste que pour son agent (même garantie que les messages chiffrés, 0.24.0). Format « t2: » ; l'ancien format
+   * (0.26.3, clé dérivée de la clé personnelle) reste lu, puis la liste est réenregistrée au nouveau format.
    */
-  async function clePersonnelle(s, usage) {
-    if (!s.utilisateur || !s.privee8 || s.utilisateur.id === 'secours') throw new Error('Clé personnelle indisponible pour ce compte.');
+  var FORMAT_LISTE = 't2:';
+  function cleListe(s) { var n = s.utilisateur && s.utilisateur.id !== 'secours' ? 't-a.' + s.utilisateur.id : null; return n && s.trousseau && s.trousseau[n] ? { jeu: s.trousseau[n], aad: 'liste:' + n } : null; }
+  async function cleAncienne(s, usage) {
+    if (!s.utilisateur || !s.privee8 || s.utilisateur.id === 'secours') return null;
     s.clesPerso = s.clesPerso || {};
     var k = 'perso:' + usage + ':' + s.utilisateur.id;
     if (!s.clesPerso[k]) s.clesPerso[k] = await C.cleUsagePersonnel(s.privee8, k);
     return { cle: s.clesPerso[k], aad: k };
   }
-  Session.prototype.chiffrerPersonnel = async function (usage, objet) { var k = await clePersonnelle(this, usage); return C.b64(await C.chiffrerJSON(k.cle, objet, k.aad)); };
-  /** Contenu déchiffré, ou null s'il ne s'ouvre pas avec la clé personnelle actuelle (autre agent, clé renouvelée). */
-  Session.prototype.dechiffrerPersonnel = async function (usage, texte) {
-    try { var k = await clePersonnelle(this, usage); return await C.dechiffrerJSON(k.cle, C.deb64(texte), k.aad); } catch (e) { return null; }
+  Session.prototype.chiffrerPersonnel = async function (usage, objet) {
+    var k = cleListe(this);
+    if (!k) throw new Error('Votre clé de liste n’est pas encore créée : elle le sera à la prochaine connexion de l’administrateur.');
+    return FORMAT_LISTE + C.b64(await C.chiffrerJSON(k.jeu, objet, k.aad + ':' + usage));
   };
-  Session.prototype.aClePersonnelle = function () { return !!(this.utilisateur && this.privee8 && this.utilisateur.id !== 'secours'); };
+  /** Contenu déchiffré, ou null s'il ne s'ouvre pas (autre agent). `ancien` vrai : à réenregistrer au nouveau format. */
+  Session.prototype.dechiffrerPersonnel = async function (usage, texte) {
+    try {
+      if (String(texte).indexOf(FORMAT_LISTE) === 0) { var k = cleListe(this); return k ? await C.dechiffrerJSON(k.jeu, C.deb64(texte.slice(FORMAT_LISTE.length)), k.aad + ':' + usage) : null; }
+      var a = await cleAncienne(this, usage);
+      return a ? await C.dechiffrerJSON(a.cle, C.deb64(texte), a.aad) : null;
+    } catch (e) { return null; }
+  };
+  Session.prototype.formatPersonnelAncien = function (texte) { return String(texte || '').indexOf(FORMAT_LISTE) !== 0; };
+  Session.prototype.aClePersonnelle = function () { return !!cleListe(this); };
 
   // ---------------------------------------------------------- Messages chiffrés pour leurs seuls destinataires (0.24.0)
   /**
