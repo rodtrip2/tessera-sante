@@ -541,7 +541,7 @@
       var retire = msg(-24 * 2, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Réunion de service jeudi', texte: 'Réunion à 14 h. (fictif)', destinataires: [{ genre: 'service', code: U1 }] });
       ajouter(t(-24 * 2 + 1), 'MESSAGE_RETRAIT', { message: retire, motif: 'Réunion reportée (fictif)' }, 'demo-cadre');
     })();
-    if (!reel) cfg('messagerie', { '*': { informations: { agenda: true, vehicules: true, travaux: true, suivi: true }, piecesJointes: true }, U1: { affichageJours: 15 } });
+    if (!reel) cfg('messagerie', { '*': { informations: { agenda: true, vehicules: true, travaux: true, suivi: true }, piecesJointes: true, chiffrement: 'choixCoche' }, U1: { affichageJours: 15 } });
 
     file.sort(function (a, b) { return a.at - b.at || a.n - b.n; });
     return file.map(function (x, i) { return { at: new Date(Math.min(x.at, now) + i).toISOString(), by: x.by || 'demo', type: x.type, data: x.data }; });
@@ -578,7 +578,26 @@
           { at: at(-40), by: 'demo', type: 'VALEUR', data: { entite: 'agent', id: 'demo-a', champ: 'habilitations', valeur: ['Conduite d’un véhicule', 'Tuteur de stage'] } },
           { at: at(-40), by: 'demo', type: 'VALEUR', data: { entite: 'agent', id: 'demo-c', champ: 'habilitations', valeur: ['Accompagnement des sorties'] } }];
         await session.enregistrerLot(v, { libelle: 'Données fictives sous clé propre', by: 'demo', sansControle: true });
-      } catch (e) { /* démonstration sans ces valeurs */ }
+        // Messagerie chiffrée pour les seuls destinataires (0.24.0) : un message au service avec une réponse chiffrée,
+        // un message à l'équipe de nuit (dont l'agent connecté n'est pas membre) : il ne peut que le consulter, tracé
+        var MSG = SIC.messagerie, cfgD = session.etat && session.etat.config;
+        if (MSG && session.chiffrerMessage && cfgD && MSG.options(cfgD).chiffrement !== 'desactive') {
+          var lot = [], moiC = session.compteEffectif();
+          var chiffre = async function (id, by, nom, dest, contenu, h0) {
+            var auteur = { id: by, roles: ['IDE'], services: ['U1'] }, d = { id: id, nom: nom, destinataires: dest, services: MSG.servicesDe(dest, cfgD), important: false, accuse: 'auto', reponses: 'tous',
+              jusquau: jC(15), objet: '', texte: '', rattaches: [], pieces: [] };
+            // Auteurs fictifs sans compte : pas de clé d'agent (seules les clés existantes servent)
+            d.chiffre = await session.chiffrerMessage(id, MSG.clesPourMessage(dest, auteur, cfgD, []).filter(function (n) { return !session.clesMessagerieManquantes([n]).length; }));
+            d.chiffre.ct = await session.contenuMessage(id, contenu);
+            lot.push({ at: at(h0), by: by, type: 'MESSAGE', data: d });
+          };
+          await chiffre('MS950', 'demo-cadre', 'Cadre de santé (fictif)', [{ genre: 'service', code: 'U1' }], { objet: 'Entretiens annuels : planning confidentiel', texte: 'Le planning des entretiens annuels est affiché au bureau du cadre. Merci de ne pas le diffuser. (fictif)', rattaches: [], pieces: [] }, -6);
+          lot.push({ at: at(-5), by: 'demo-a', type: 'MESSAGE_REPONSE', data: { message: 'MS950', id: 'R950', nom: 'Agent A (fictif)', texte: '', chiffre: await session.chiffrerPourMessage('MS950', { texte: 'Je passerai jeudi matin. (fictif)' }, 'r:R950') } });
+          await chiffre('MS951', 'demo-b', 'Agent B (fictif)', [{ genre: 'groupe', code: 'equipe-nuit-u1' }], { objet: 'Désaccord sur le planning de nuit', texte: 'Échange entre agents de nuit, chiffré pour l’équipe seulement. (fictif)', rattaches: [], pieces: [] }, -30);
+          if (moiC) await session.enregistrerLot(lot, { libelle: 'Messages chiffrés fictifs', by: 'demo', sansControle: true });
+          session.clesMessages = {};   // l'agent connecté n'est pas l'auteur : il ouvre ce qui lui est adressé, consulte le reste
+        }
+      } catch (e) { if (typeof console !== 'undefined') console.warn('Démonstration incomplète : ' + e.message); /* démonstration sans ces valeurs */ }
     }
   };
 })(typeof self !== 'undefined' ? self : this);

@@ -169,7 +169,12 @@
   function idModule() { return moduleActif().id || 'isocont'; }
   function modulesDeclares() { return SIC.modules ? SIC.modules.liste().map(function (m) { return m.id; }) : [idModule()]; }
   /** Clés à créer par l'administrateur : modules déclarés et clés propres des données protégées (0.18.0). */
-  function clesDeclarees(s) { return modulesDeclares().concat(CH() && s.etat ? CH().clesPropres(config(s)).map(function (x) { return x.nom; }) : []); }
+  function MSG() { return SIC.messagerie || null; }
+  function clesDeclarees(s) {
+    return modulesDeclares().concat(CH() && s.etat ? CH().clesPropres(config(s)).map(function (x) { return x.nom; }) : [])
+      // Chiffrement réservé aux destinataires (0.24.0) : clés des services, rôles, groupes, agents et de la consultation
+      .concat(MSG() && s.etat && SIC.modules && SIC.modules.obtenir('messagerie') ? MSG().clesNecessaires(config(s), s.comptes || []) : []);
+  }
   /** Trousseau ouvert : `cle` = jeu de la plateforme (comptes, journal du socle, préférences, traces). */
   function installerTrousseau(s, trousseau, privee8, cleV1) {
     s.trousseau = trousseau; s.privee8 = privee8 || null; s.cleV1 = cleV1 || null;
@@ -375,6 +380,11 @@
       if (regles[nom]) return regles[nom](compte);
       // Clé propre d'une donnée (0.18.0) : remise aux seuls rôles qui la voient ou la saisissent (administrateur toujours)
       if (/^d-/.test(nom)) { var dc = CH() && CH().definition(cfg, nom.slice(2)); return !!(dc && dc.protection === 'cle' && dc.actif && CH().aDroitCle(dc, compte.roles)); }
+      // Messagerie (0.24.0) : clés des destinataires (services, rôles, groupes, agent) et de la consultation tracée
+      if (/^m-/.test(nom) && MSG()) {
+        var md = SIC.modules.obtenir('messagerie').droits, rs = compte.roles || [];
+        return MSG().aDroitCle(nom, compte, cfg, { messagerie: !!(regles.messagerie && regles.messagerie(compte)), consulter: md.peut(rs, 'CONSULTATION', cfg) });
+      }
       // Module de référence (Patients) : sa clé suit les droits aux modules qui en dépendent
       var m = SIC.modules && SIC.modules.obtenir(nom);
       if (m && m.reference) return SIC.modules.dependants(nom).some(function (x) { return regles[x.id] && regles[x.id](compte); });
@@ -587,6 +597,7 @@
   Session.prototype.verrouiller = function () {
     // Trousseau effacé de la mémoire (octets des clés et partie privée remis à zéro)
     T.effacer(this.trousseau); if (this.privee8) this.privee8.fill(0);
+    this.clesMessages = null;   // clés des messages chiffrés ouverts (messagerie, 0.24.0)
     this.trousseau = null; this.privee8 = null; this.cleV1 = null; this.moduleChoisi = undefined;
     A.effacerCles(this.attest); this.attest = null; this.ancre = null; this.controle = null;
     this.cle = null; this.utilisateur = null; this.comptes = [];
@@ -693,6 +704,7 @@
         if (p.agent) coffre.enveloppes = coffre.enveloppes.concat(await T.enveloppesPour(s.trousseau, coffre, p.compte.id, p.agent.cle, T.droitsDe(coffre, p.compte, aDroitPour(s))));
       }
     });
+    await clesMessagerieAJour(this);
     if (prepares.length === 1) await this.tracer('CREATION', { login: prepares[0].compte.login, roles: prepares[0].compte.roles, services: prepares[0].compte.services, finValidite: prepares[0].compte.finValidite || undefined });
     else await this.tracer('CREATION_LOT', { comptes: prepares.map(function (p) { return { login: p.compte.login, roles: p.compte.roles, services: p.compte.services }; }) });
   };
@@ -1227,6 +1239,7 @@
     }
     // Réglages qui changent les droits (rôles, services, activation des modules), annulations, imports : clés à jour
     if (v2(this) && !this.formation && (type === 'CONFIG' || type === 'ANNULATION' || type === 'LOT') && this.trousseau[T.PLATEFORME].maitresse) {
+      if (type === 'CONFIG' && data && ['messagerie', 'groupes', 'services', 'roles'].indexOf(data.cle) >= 0) await clesMessagerieAJour(this);
       try { await this.appliquerDroits(); } catch (e) { this.erreurDroits = e.message; }
     }
     return evt;
@@ -1251,6 +1264,82 @@
     if (!j) throw new Error('Vous n’avez pas la clé de ce module.');
     var d = await dossierJournal(this, j, false);
     return d ? d.lirePiece(j.cle, id) : null;
+  };
+
+  // ---------------------------------------------------------- Messages chiffrés pour leurs seuls destinataires (0.24.0)
+  /**
+   * Un message chiffré a sa propre clé (aléatoire, gardée en mémoire de la session) : elle chiffre son contenu, ses
+   * réponses et ses pièces jointes, et elle est emballée pour chaque clé de destinataire avec la partie publique attestée
+   * de sa génération courante (l'auteur n'a pas besoin d'être membre du groupe). Seuls les détenteurs d'une de ces
+   * clés l'ouvrent. Le module ne voit ni les clés de droit ni le trousseau.
+   */
+  function publiquesAttestees(s) { return (s.controle && s.controle.etat && s.controle.etat.publiques) || null; }
+  /** Clés de destinataire absentes (pas encore créées par l'administrateur, ou partie publique pas encore attestée). */
+  Session.prototype.clesMessagerieManquantes = function (noms) {
+    var p = publiquesAttestees(this), cf = this.coffre || {};
+    return (noms || []).filter(function (n) { return !(cf.cles && cf.cles[n] && p && p[n] && p[n][cf.cles[n].courante]); });
+  };
+  Session.prototype.chiffrerMessage = async function (id, noms, contenu) {
+    var manquantes = this.clesMessagerieManquantes(noms);
+    if (manquantes.length) throw new Error('Chiffrement impossible : les clés de certains destinataires ne sont pas encore créées (elles le seront à la prochaine connexion d’un administrateur).');
+    var p = publiquesAttestees(this), k8 = C.aleatoire(32), cles = {};
+    for (var i = 0; i < noms.length; i++) {
+      var g = this.coffre.cles[noms[i]].courante;
+      cles[noms[i]] = { g: g, env: await C.envelopper(k8, await C.importerPublique(p[noms[i]][g]), 'msg:' + id + ':' + noms[i] + ':' + g) };
+    }
+    var k = await C.importerCleOctets(k8); k8.fill(0);
+    (this.clesMessages = this.clesMessages || {})[id] = k;
+    // Sans contenu : clé préparée (pièces jointes chiffrées d'abord), contenu chiffré ensuite par `contenuMessage`
+    return contenu === undefined ? { cles: cles } : { cles: cles, ct: C.b64(await C.chiffrerJSON(k, contenu, 'msg:' + id)) };
+  };
+  Session.prototype.contenuMessage = async function (id, contenu) {
+    var k = this.clesMessages && this.clesMessages[id];
+    if (!k) throw new Error('Clé du message absente.');
+    return C.b64(await C.chiffrerJSON(k, contenu, 'msg:' + id));
+  };
+  /** Clés de la messagerie manquantes après la création de comptes ou un changement des groupes (administrateur). */
+  async function clesMessagerieAJour(s) {
+    if (!MSG() || !SIC.modules || !SIC.modules.obtenir('messagerie') || !s.etat || MSG().options(config(s)).chiffrement === 'desactive') return;
+    try { await apresSynchro(s); } catch (e) { /* créées à la prochaine connexion d'un administrateur */ }
+  }
+  /**
+   * Ouvre un message chiffré : contenu (objet, texte…) ou null si l'agent n'a aucune clé de ses destinataires.
+   * `options.consultation` : aussi par la clé de consultation de ses services, seulement après une consultation tracée
+   * au journal par cet agent. Sans elle, seules les clés que l'agent tient de ses propres droits servent (l'administrateur,
+   * qui détient techniquement toutes les clés, n'ouvre ainsi que ce qui lui est adressé).
+   */
+  Session.prototype.ouvrirMessage = async function (id, chiffre, options) {
+    if (!chiffre || !chiffre.cles) return null;
+    var s = this, k = this.clesMessages && this.clesMessages[id];
+    if (!k) {
+      var c = this.compteEffectif && this.compteEffectif(), cfg = config(this), sansAdmin = c ? Object.assign({}, c, { services: MSG() ? MSG().normaliser(c, cfg).services : c.services, roles: (c.roles || []).filter(function (r) { return r !== 'ADMIN'; }) }) : null;
+      var st = this.etatModule ? this.etatModule('messagerie') : null, m = st && st.messages && st.messages[id];
+      var consult = !!(options && options.consultation && m && (m.consultations || []).some(function (x) { return x.par === s.utilisateur.id; }));
+      var regle = aDroitPour(this);
+      var noms = Object.keys(chiffre.cles).filter(function (n) { return s.trousseau && s.trousseau[n] && sansAdmin && (/^m-c\./.test(n) ? consult : true) && regle(n, sansAdmin); });
+      for (var i = 0; i < noms.length && !k; i++) {
+        var e = chiffre.cles[noms[i]], o = await this.trousseau[noms[i]].octetsDe(e.g);
+        if (!o) continue;
+        try {
+          var paire = await C.paireDepuisOctets(o, noms[i] + ':' + e.g), k8 = await C.ouvrirEnveloppe(e.env, paire.privee, 'msg:' + id + ':' + noms[i] + ':' + e.g);
+          k = await C.importerCleOctets(k8); k8.fill(0);
+        } catch (err) { k = null; }
+      }
+      if (!k) return null;
+      (this.clesMessages = this.clesMessages || {})[id] = k;
+    }
+    return C.dechiffrerJSON(k, C.deb64(chiffre.ct), 'msg:' + id);
+  };
+  /** Chiffre (ou déchiffre) avec la clé d'un message déjà ouvert : réponses (objet) et pièces jointes (octets). */
+  Session.prototype.chiffrerPourMessage = async function (id, valeur, aad) {
+    var k = this.clesMessages && this.clesMessages[id];
+    if (!k) throw new Error('Message pas encore ouvert : chiffrement impossible.');
+    return valeur instanceof Uint8Array ? C.chiffrerOctets(k, valeur, 'msg:' + id + ':' + aad) : C.b64(await C.chiffrerJSON(k, valeur, 'msg:' + id + ':' + aad));
+  };
+  Session.prototype.dechiffrerPourMessage = async function (id, valeur, aad) {
+    var k = this.clesMessages && this.clesMessages[id];
+    if (!k) return null;
+    return valeur instanceof Uint8Array ? C.dechiffrerOctets(k, valeur, 'msg:' + id + ':' + aad) : C.dechiffrerJSON(k, C.deb64(valeur), 'msg:' + id + ':' + aad);
   };
 
   // ---------------------------------------------------------- Exports

@@ -88,7 +88,7 @@
    * info : { n, par }.
    */
   async function signer(cles, trousseau, coffre, comptes, info) {
-    var empreintes = {}, maitresses = {}, noms = Object.keys(coffre.cles).sort();
+    var empreintes = {}, maitresses = {}, publiques = {}, noms = Object.keys(coffre.cles).sort();
     for (var i = 0; i < noms.length; i++) {
       var nom = noms[i], jeu = trousseau[nom];
       if (!jeu || !jeu.maitresse) throw new Error('Attestation impossible : clé maîtresse « ' + nom + ' » absente.');
@@ -98,6 +98,9 @@
         var o = await jeu.octetsDe(g);
         if (!o) throw new Error('Attestation impossible : génération ' + g + ' de la clé « ' + nom + ' » absente.');
         empreintes[nom][g] = await empreinteGeneration(nom, g, o);
+        // Clés de la messagerie (0.24.0) : partie publique de chaque génération, signée avec l'état, pour écrire aux
+        // destinataires sans détenir leur clé
+        if (/^m-/.test(nom)) (publiques[nom] = publiques[nom] || {})[g] = (await C.paireDepuisOctets(o, nom + ':' + g)).publique;
       }
       maitresses[nom] = await empreinteGeneration(nom, 'm', jeu.maitresse);
     }
@@ -114,6 +117,7 @@
       secours: coffre.agents.secours ? coffre.agents.secours.publique : null, temoin: cles.temoin, agents: agents, cles: cl,
       empreintes: empreintes, maitresses: maitresses, comptes: await macComptes(cles, comptes)
     };
+    if (Object.keys(publiques).length) etat.publiques = publiques;   // absent sans clé de messagerie : état inchangé
     var texte = canonique(etat);
     coffre.attestation = {
       publique: cles.publique, temoin: cles.temoin,
