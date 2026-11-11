@@ -103,3 +103,14 @@ test('Salle indisponible pendant les travaux (0.25.1) : case proposée par le r�
   assert.equal(T.libLieu(st.demandes.TRS, {}), 'Salon');
   assert.throws(() => T.contrat.saisies.controler('TRAVAUX', { id: 'TRZ', service: 'U1', type: 'electricite', lieu: 'salle', gravite: 'gene', urgence: 'non', description: 'x' }, { etat: st, config: {} }), /salle/);
 });
+
+test('Salle fermée pendant des travaux (0.25.2) : jusqu’à la fin des travaux, ou jusqu’au jour indiqué', () => {
+  const T = require('../app/js/module-travaux.js');
+  const d = { id: 'TRJ', service: 'U1', type: 'electricite', lieu: 'salle', salle: 'SA-1', salleNom: 'Salon', salleIndisponible: true, gravite: 'gene', urgence: 'non', description: 'x' };
+  const cfg = { travaux: { U1: { salleIndisponible: true } } };
+  let st = T.reduire([{ v: 1, id: 'y1', at: '2026-11-10T08:00:00.000Z', by: 'a', type: 'TRAVAUX', data: d }]);
+  assert.equal(T.sallesIndisponibles(st, cfg)[0].jusquau, '');
+  st = T.reduire([{ v: 1, id: 'y1', at: '2026-11-10T08:00:00.000Z', by: 'a', type: 'TRAVAUX', data: Object.assign({}, d, { salleJusquau: '2026-11-20' }) }]);
+  assert.equal(T.sallesIndisponibles(st, cfg)[0].jusquau, '2026-11-20');
+  assert.throws(() => T.contrat.saisies.controler('TRAVAUX', Object.assign({}, d, { id: 'TRK', salleJusquau: '20/11' }), { etat: st, config: cfg }), /réouverture/);
+});
