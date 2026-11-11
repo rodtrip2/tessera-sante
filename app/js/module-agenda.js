@@ -174,7 +174,7 @@
   }
   // Réglages propres à une date d'un élément répété (décision du porteur du 8 novembre 2026 : patients, accompagnateurs,
   // transports, check-list… peuvent changer à chaque date ; une date peut être décalée ou annulée)
-  var CHAMPS_OCCURRENCE = ['debut', 'fin', 'lieu', 'titre', 'patients', 'professionnels', 'accompagnateurs', 'consigneAccompagnateurs', 'participation', 'transports', 'validations', 'checklist', 'annulee', 'motifAnnulation'];
+  var CHAMPS_OCCURRENCE = ['debut', 'fin', 'lieu', 'salle', 'titre', 'patients', 'professionnels', 'accompagnateurs', 'consigneAccompagnateurs', 'participation', 'transports', 'validations', 'checklist', 'annulee', 'motifAnnulation'];
   /**
    * Élément tel qu'il est à une date : réglages de toutes les dates, remplacés par ceux propres à cette date
    * (`surcharges[occurrence]`). `surchargee` : liste des champs propres à la date (vide : aucun).
@@ -661,6 +661,24 @@
    * d'un autre service qui concernent un patient hospitalisé dans l'un d'eux (décision du porteur du 7 novembre 2026 :
    * affichés en lecture seule, avec les seuls patients concernés). Triés par heure de début.
    */
+  /**
+   * Salles occupées par les événements (0.25.0), lues par Salles et bureaux : chaque date d'un événement qui a une salle
+   * (réglage de la date compris). [{ ref: 'agenda|<id>|<date>', salle, debut, fin, titre, genre, service, par }].
+   */
+  function occupationsSalles(st, debut, fin) {
+    var res = [];
+    Object.keys(st.rdv).forEach(function (k) {
+      var base = st.rdv[k];
+      if (base.supprime) return;
+      occurrences(base, debut, fin).forEach(function (o) {
+        if (o.annulee) return;
+        var r = rdvOccurrence(base, o.occurrence);
+        if (!r.salle) return;
+        res.push({ ref: 'agenda|' + base.id + '|' + o.occurrence, salle: r.salle, debut: o.debut, fin: o.fin || o.debut + 36e5, titre: r.titre || (NATURES[r.nature] || 'Événement'), genre: 'agenda', service: r.service, par: base.par, nature: r.nature });
+      });
+    });
+    return res;
+  }
   function elements(st, fiches, services, debut, fin, avecAnnulees) {
     var res = [], absPeriode = null;
     function absDe() { return absPeriode || (absPeriode = absences(st, debut - 15 * 864e5, fin + 15 * 864e5)); }   // marge : éléments de 14 jours au plus
@@ -724,7 +742,7 @@
       case 'RDV':
         if (!d.id) break;
         var r = st.rdv[d.id] || { id: d.id, cree: e.at, par: e.by, evts: [] };
-        ['nature', 'titre', 'debut', 'fin', 'lieu', 'service', 'patients', 'professionnels', 'motif', 'supprime', 'regularite', 'exceptions', 'checklist',
+        ['nature', 'titre', 'debut', 'fin', 'lieu', 'salle', 'service', 'patients', 'professionnels', 'motif', 'supprime', 'regularite', 'exceptions', 'checklist',
           'entretien', 'accompagnateurs', 'consigneAccompagnateurs', 'participation', 'services', 'partage', 'statut', 'validation', 'examen', 'transports', 'validations'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
         r.evts.push(e.id);
         st.rdv[d.id] = r;
@@ -940,7 +958,11 @@
     // Onglet « Tâches du service » : affiché à qui peut régler les tâches (décision du porteur du 7 novembre 2026)
     vues: { onglets: [{ code: 'agenda', libelle: 'Agenda' }, { code: 'alertes', libelle: 'Alertes' }, { code: 'mon-agenda', libelle: 'Mon agenda' }, { code: 'taches', libelle: 'Tâches récurrentes', droit: ['TACHE', 'TACHE_AJUSTEMENT'] }] },
     migrations: [],
-    fournitures: [],
+    fournitures: [
+      // Lue par Salles et bureaux (0.25.0) : salles occupées par les événements
+      { nom: 'agenda.occupations', version: 1, acces: 'lecture', champs: ['ref', 'salle', 'debut', 'fin', 'titre', 'genre', 'service', 'par'],
+        lire: function (st, o) { return occupationsSalles(st, o.debut, o.fin); } }
+    ],
     besoins: [{ fourniture: 'patients.fiches', version: 1, obligatoire: true }, { fourniture: 'isocont.echeancesJLD', version: 1, obligatoire: false }]
   };
 
@@ -951,6 +973,6 @@
     libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, suggestions: suggestions, tachesSuggerees: tachesSuggerees, SUGGESTIONS_DEFAUT: SUGGESTIONS_DEFAUT, EVENEMENTS_SUGGESTION: EVENEMENTS_SUGGESTION, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
     enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
-    alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
+    alertesEquipe: alertesEquipe, alertePour: alertePour, occupationsSalles: occupationsSalles, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
     etatChecklist: etatChecklist, checklists: checklists, alertesChecklists: alertesChecklists, optionsTaches: optionsTaches, AJUSTABLES: AJUSTABLES, affectation: affectation, controler: controler, tachePour: tachePour, tachesDues: tachesDues, absences: absences, prevusAbsents: prevusAbsents, jourISO: jourISO, depuisISO: depuisISO };
 });
