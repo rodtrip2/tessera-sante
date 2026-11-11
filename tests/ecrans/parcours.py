@@ -252,6 +252,19 @@ with sync_playwright() as p:
     verifier(a.locator('.sb-bloc').count() >= 4 and a.locator('.psy-ent').count() >= 2, 'planning des psychologues : présences avec entretiens prévus, absence, entretien seul')
     capture(a, 'planning-psychologues')
 
+    print('Informations du service (0.26.2)')
+    fenetre(a, 'Informations du service')
+    verifier(a.locator('.is-rubrique').count() >= 4 and a.locator('.is-masquee').count() == 1, 'informations : établissement et service, rubrique masquée en préparation')
+    verifier(a.locator('.is-rubrique', has_text='Coordonnées du service').get_by_role('button', name='Écrire').count() == 1, 'informations : contact relié à un compte, message d’un clic')
+    capture(a, 'informations-service')
+    a.locator('.is-rubrique', has_text='Horaires').get_by_role('button', name='Modifier').click(); time.sleep(0.6)
+    d = a.locator('dialog[open]'); d.get_by_role('button', name='+ Contact').click(); time.sleep(0.2)
+    d.get_by_label('Nom (contact 1)').fill('Standard (fictif)'); d.get_by_label('Numéro (contact 1)').fill('4000')
+    d.get_by_role('button', name='Enregistrer').click(); time.sleep(1.2)
+    verifier(a.locator('.is-rubrique', has_text='Horaires').locator('.is-numero', has_text='4000').count() == 1, 'informations : contact ajouté par le cadre')
+    a.locator('nav.onglets button', has_text='Contacts').click(); time.sleep(1)
+    verifier(a.locator('table.is-contacts tbody tr').count() >= 8, 'informations : contacts de l’établissement et du service')
+
     print('Administration : organisation par service')
     fenetre(a, 'Administration')
     a.locator('nav.onglets button', has_text='Agenda').first.click(); time.sleep(1)
@@ -319,6 +332,9 @@ with sync_playwright() as p:
     a.get_by_role('button', name='+ Nouveau message').click(); time.sleep(0.8)
     verifier(a.locator('dialog[open]').get_by_text('Ajouter un sondage').count() == 0, 'sondage : création réservée au cadre et à l’administrateur par défaut')
     a.locator('dialog[open]').get_by_role('button', name='Annuler').click(); time.sleep(0.5)
+    fenetre(a, 'Informations du service')
+    verifier(a.locator('.is-rubrique', has_text='Numéros utiles de l’établissement').count() == 1 and a.get_by_role('button', name='+ Nouvelle rubrique').count() == 0, 'informations : page de l’établissement lue par l’IDE, sans modification')
+    verifier('pas encore rempli' in a.locator('main').inner_text(), 'informations : page du service pas encore remplie')
     nav.close()
 
 if erreurs: print('\nErreurs du navigateur :'); [print('  ' + e) for e in erreurs[:20]]

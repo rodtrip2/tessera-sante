@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -518,6 +518,21 @@
       ep({ id: 'EP-1', psychologue: 'Mme Martin (fictif)', psychologueId: 'p-martin', patient: 'P01', jour: lun(7), de: '09:30', a: '10:15', presence: pm, salle: 'SA-E2', service: U1 });
       ep({ id: 'EP-2', psychologue: 'Mme Martin (fictif)', psychologueId: 'p-martin', patient: 'P02', jour: lun(7), de: '11:00', a: '11:45', presence: pm, salle: 'SA-E2', service: U1 });
       ep({ id: 'EP-3', psychologue: 'Mme Martin (fictif)', psychologueId: 'p-martin', patient: 'P03', jour: lun(9), de: '14:00', a: '15:00', salle: 'SA-E1', service: U1 });
+    })();
+    // Informations du service (0.26.2) : page de l'établissement (numéros utiles), page de l'Unité 1 remplie (coordonnées
+    // avec un contact relié au compte connecté, horaires, consignes, rubrique masquée en préparation) ; Unité 2 vide
+    (function () {
+      var moiI = options.moi && options.moi.id;
+      var ir = function (d, by) { ajouter(t(-24 * 20), 'INFO_RUBRIQUE', d, by || moiI || 'demo'); };
+      ir({ id: 'IR-E1', service: '*', titre: 'Numéros utiles de l’établissement', ordre: 1, texte: 'Numéros internes fictifs de démonstration.',
+        contacts: [{ nom: 'Services techniques (fictif)', fonction: 'Dépannage, travaux', numero: '4210' }, { nom: 'Sécurité incendie (fictif)', fonction: 'Urgence', numero: '18 18' },
+          { nom: 'Pharmacie (fictif)', fonction: 'Du lundi au vendredi, 8 h 30 – 17 h', numero: '4350' }, { nom: 'Administrateur de garde (fictif)', fonction: 'Nuits, week-ends et jours fériés', numero: '06 00 00 00 00' }] }, 'demo');
+      ir({ id: 'IR-U1', service: U1, titre: 'Coordonnées du service', ordre: 1, texte: 'Unité 1 (fictive) — bâtiment B, 2e étage.\nPoste de soins ouvert jour et nuit.',
+        contacts: [{ nom: 'Poste de soins (fictif)', fonction: 'IDE de jour et de nuit', numero: '4501' }, { nom: 'Secrétariat médical (fictif)', fonction: '9 h – 17 h', numero: '4502', courriel: 'secretariat.u1@exemple.invalid' }]
+          .concat(moiI ? [{ nom: (options.moi.nom || 'Cadre de santé') , fonction: 'Cadre de santé', numero: '4500', agent: moiI }] : []) });
+      ir({ id: 'IR-U2', service: U1, titre: 'Horaires (visites, repas, relèves)', ordre: 2, texte: 'Visites : 13 h 30 – 19 h (fictif).\nRepas : 12 h et 18 h 30.\nRelèves : 6 h 45, 13 h 45, 20 h 45.' });
+      ir({ id: 'IR-U3', service: U1, titre: 'Consignes et procédures du service', ordre: 3, texte: 'Inventaire du chariot d’urgence chaque lundi (fictif).\nClés de la CSI au poste de soins, jamais dans une poche.' });
+      ir({ id: 'IR-U4', service: U1, titre: 'Livret d’accueil des nouveaux agents', ordre: 4, texte: 'En préparation (fictif).', masquee: true });
     })();
     // Rôle « Psychologue » (rôle créé par l'administrateur) : planning des psychologues, salles, messagerie (fictif)
     if (!reel) cfg('roles', { PSYCHOLOGUE: { libelle: 'Psychologue', services: true, accesModules: { suivi: ['suivi.consulter', 'suivi.psychologues'], salles: ['salles.consulter', 'salles.reserver'], messagerie: ['messagerie.lire', 'messagerie.ecrire'], agenda: [] } } });

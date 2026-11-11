@@ -21,7 +21,7 @@
 | Tri des colonnes d'un tableau par clic sur le titre | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.0** (avec filtre rapide, taille d'affichage, hauteur des lignes, raccourcis clavier) | Petite |
 | Liste de tâches personnelle, reliée aux autres modules | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Moyenne |
 | Page d'accueil de l'administration : modules activés ou désactivés | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.1** | Petite |
-| Informations du service | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Petite à moyenne |
+| Informations du service | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.2** (livret d'accueil : plus tard) | Petite à moyenne |
 | Rôles de référents (escarres, pharmacie, restriction des libertés…) | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Moyenne |
 | Rôles d'intervenants extérieurs, informations limitées | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; touche aux clés et aux droits (avis du responsable de la sécurité informatique) | Moyenne |
 | « Information d'un tiers » dans la messagerie et les données patient ; vérification avant l'export du droit d'accès | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **règle d'exclusion à valider** (délégué à la protection des données) | Moyenne |
