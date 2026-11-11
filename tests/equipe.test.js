@@ -84,3 +84,24 @@ test('Équipe : l’agent chiffre ses coordonnées personnelles pour le cadre de
   assert.equal(await lireM('cadre2', 'mot de passe cadre'), null);
   await assert.rejects(b.enregistrer('COORDONNEES_MEDECIN', { medecin: 'm1', perso: null }), /rôle/);
 });
+
+test('Référents : domaines proposés, ajoutés, masqués ; titulaires et suppléants ; tenus par le cadre du service', () => {
+  const E = SIC.equipe;
+  let n = 0;
+  const ev = (by, type, data) => ({ v: 1, id: 'r' + (++n), at: new Date(Date.UTC(2026, 10, 11, 9, n)).toISOString(), by, type, data });
+  const st = E.reduire([
+    ev('c', 'REFERENTS', { service: 'U1', domaine: 'plaies', titulaires: [{ id: 'a', nom: 'Agent A (fictif)' }], suppleants: [] }),
+    ev('c', 'DOMAINE_REFERENT', { service: 'U1', code: 'p-sport', libelle: 'Activité physique adaptée' }),
+    ev('c', 'REFERENTS', { service: 'U1', domaine: 'p-sport', titulaires: [], suppleants: [{ id: 'b', nom: 'Agent B (fictif)' }] }),
+    ev('c', 'DOMAINE_REFERENT', { service: 'U1', code: 'douleur', masque: true }),
+    ev('c', 'REFERENTS', { service: 'U1', domaine: 'douleur', titulaires: [{ id: 'a', nom: 'Agent A (fictif)' }] })]);
+  assert.deepEqual(E.referents(st, 'U1').map((r) => r.domaine), ['plaies', 'p-sport']);   // domaine masqué : non affiché
+  assert.ok(E.domaines(st, 'U1', true).some((d) => d.code === 'douleur' && d.masque));
+  assert.equal(E.referents(st, 'U2').length, 0);
+  assert.deepEqual(E.referentDe(st, 'b'), [{ service: 'U1', libelle: 'Activité physique adaptée', suppleant: true }]);
+  const ctl = (compte, d) => E.controler('REFERENTS', d, { etat: st, compte });
+  assert.doesNotThrow(() => ctl({ id: 'c', roles: ['CADRE'], services: ['U1'] }, { service: 'U1', domaine: 'hygiene' }));
+  assert.throws(() => ctl({ id: 'c', roles: ['CADRE'], services: ['U1'] }, { service: 'U2', domaine: 'hygiene' }), /cadre du service/);
+  assert.throws(() => ctl({ id: 'c', roles: ['CADRE'], services: ['U1'] }, { service: '*', domaine: 'identito' }), /administrateur/);
+  assert.throws(() => ctl({ id: 'i', roles: ['IDE'], services: ['U1'] }, { service: 'U1', domaine: 'hygiene' }), /cadre/);
+});
