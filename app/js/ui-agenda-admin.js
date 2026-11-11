@@ -312,6 +312,50 @@
     var sel = h('select', { 'aria-label': 'Place proposée pour les autres services' }, (ctx.niveau === '*' ? [] : [h('option', { value: '', text: 'Comme l’établissement', selected: suit })]).concat(Object.keys(A.PARTAGES).map(function (k) { return h('option', { value: k, text: A.PARTAGES[k], selected: !suit && v === k }); })));
     return { titre: 'Événements de plusieurs services : choix proposé à la création', noeud: sel, lire: function () { return { partageDefaut: sel.value || undefined }; } };
   });
+  // Permissions : processus de validation par mode d'hospitalisation (étapes, couleurs, délais, tâches, rôles)
+  ajouterRubrique(function (ctx) {
+    var PM = SIC.agendaPermissions, propres = JSON.parse(JSON.stringify(ctx.propre.processPermissions || {})), zone = h('div', { class: 'pile' });
+    var roles = SIC.model.rolesConfig(U.config()).filter(function (r) { return r.code !== 'ADMIN'; });
+    function dessiner() {
+      U.vider(zone);
+      Object.keys(PM.FAMILLES).forEach(function (f) {
+        var herite = (ctx.herite.processPermissions || {})[f], base = (herite && PM.etapes(herite.etapes)) || PM.DEFAUT[f];
+        var regle = !!propres[f], es = regle ? propres[f].etapes : base;
+        var cb = h('input', { type: 'checkbox', checked: regle, onchange: function () { if (cb.checked) propres[f] = { etapes: JSON.parse(JSON.stringify(base)) }; else delete propres[f]; dessiner(); } });
+        var lignes = es.map(function (e, i) {
+          if (!regle) return h('li', {}, teinter(h('span', { class: 'ag-etape faite', text: e.libelle }), e.couleur), h('small', { class: 'muted', text: (e.tache ? ' ' + e.tache : '') + (e.delai !== undefined ? ' — ' + (e.delai ? e.delai + ' h avant le début' : 'au plus tard au début') : '') + (e.retour ? ' — attend une réponse (accord, refus, demande)' : '') }));
+          var lib = h('input', { type: 'text', maxlength: 80, value: e.libelle, 'aria-label': 'Nom de l’étape', oninput: function () { e.libelle = lib.value; } });
+          var coul = h('input', { type: 'color', value: e.couleur || '#6b7280', 'aria-label': 'Couleur de l’étape', oninput: function () { e.couleur = coul.value; } });
+          var del = h('input', { type: 'number', min: 0, max: 720, value: e.delai === undefined ? '' : e.delai, class: 'champ-court', placeholder: 'sans', 'aria-label': 'Délai minimum en heures avant le début', oninput: function () { if (del.value === '') delete e.delai; else e.delai = Math.max(0, Math.round(+del.value || 0)); } });
+          var tache = h('input', { type: 'text', maxlength: 120, value: e.tache || '', placeholder: 'Tâche associée (ex. Certificat à envoyer)', 'aria-label': 'Tâche associée', oninput: function () { e.tache = tache.value; } });
+          var ret = h('input', { type: 'checkbox', checked: !!e.retour, onchange: function () { e.retour = ret.checked; } });
+          var rs = e.roles && e.roles.length ? e.roles : PM.ROLES_DEFAUT.slice();
+          return h('li', { class: 'pile ag-validation' },
+            h('div', { class: 'actions gauche' }, h('b', { text: (i + 1) + '.' }), lib, coul, h('label', { class: 'en-ligne nowrap' }, 'Délai', del, h('small', { text: 'h avant' })),
+              i > 0 ? h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Monter l’étape', onclick: function () { es.splice(i - 1, 0, es.splice(i, 1)[0]); dessiner(); } }, '↑') : null,
+              es.length > 2 ? h('button', { class: 'btn petit danger', type: 'button', onclick: function () { es.splice(i, 1); dessiner(); } }, 'Retirer') : null),
+            i > 0 ? h('div', { class: 'actions gauche' }, tache, h('label', { class: 'case' }, ret, h('span', { text: 'Attend une réponse extérieure (accord, refus, demande)' }))) : null,
+            i > 0 ? h('div', { class: 'actions gauche' }, h('small', { class: 'muted', text: 'Enregistrée par :' }), roles.map(function (r) {
+              var c = h('input', { type: 'checkbox', checked: rs.indexOf(r.code) >= 0, onchange: function () { rs = c.checked ? rs.concat([r.code]) : rs.filter(function (y) { return y !== r.code; }); e.roles = rs.slice(); } });
+              return h('label', { class: 'case' }, c, h('span', { text: r.libelle || r.code }));
+            })) : null);
+        });
+        zone.appendChild(h('div', { class: 'pile' }, h('div', { class: 'actions gauche' }, h('b', { text: PM.FAMILLES[f] }), h('label', { class: 'case' }, cb, h('span', { text: 'Processus propre à ' + (ctx.niveau === '*' ? 'l’établissement' : 'ce service') }))),
+          h('ol', { class: 'liste-simple' }, lignes),
+          regle ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { es.push({ code: 'e' + Date.now().toString(36).slice(-6), libelle: 'Nouvelle étape', couleur: '#6b7280' }); dessiner(); } }, '+ Étape'),
+            h('small', { class: 'muted', text: 'La dernière étape vaut validation de la permission.' })) : null));
+      });
+    }
+    dessiner();
+    var suit = ctx.niveau !== '*' && ctx.propre.tachesPermission === undefined, tv = ctx.effectif.tachesPermission === 'office' ? 'office' : 'suggerees';
+    var selT = h('select', { 'aria-label': 'Tâches des étapes' }, (ctx.niveau === '*' ? [] : [h('option', { value: '', text: 'Comme l’établissement', selected: suit })]).concat([['suggerees', 'Tâches suggérées sur la permission (à ajouter à la check-list)'], ['office', 'Tâches ajoutées d’office à la check-list à la création']].map(function (o) { return h('option', { value: o[0], text: o[1], selected: !suit && tv === o[0] }); })));
+    return { titre: 'Permissions de sortie : étapes de validation selon le mode d’hospitalisation', noeud: h('div', { class: 'pile' },
+      h('small', { class: 'muted', text: 'Processus fournis à faire relire par l’établissement (médecins, secrétariat). Les couleurs des étapes sont reprises dans l’agenda. Délai : nombre d’heures avant le début de la permission où l’étape doit être atteinte.' }), zone, h('label', {}, 'Tâches associées aux étapes', selT)),
+      lire: function () {
+        Object.keys(propres).forEach(function (k) { var v = PM.etapes(propres[k].etapes); if (!v) throw new Error('Un processus de permission a au moins deux étapes nommées.'); propres[k] = { etapes: v }; });
+        return { processPermissions: Object.keys(propres).length ? propres : undefined, tachesPermission: selT.value || undefined };
+      } };
+  });
 
   I.panneauReglages = panneauReglages;
   I.panneauReglagesService = panneauReglagesService; I.ajouterRubrique = ajouterRubrique; I.choixRoles = choixRoles;

@@ -10,9 +10,9 @@
  * Sous-étape 6.1 : contrat, droits et reconstitution de l'état ; les écrans viennent aux sous-étapes suivantes.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./droits.js'), require('./model.js'), require('./modules.js'), require('./agenda-participants.js'));
-  else (root.SIC = root.SIC || {}).agenda = factory(root.SIC.noyauJournal, root.SIC.droits, root.SIC.model, root.SIC.modules, root.SIC.agendaParticipants);
-})(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, P) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./droits.js'), require('./model.js'), require('./modules.js'), require('./agenda-participants.js'), require('./agenda-permissions.js'));
+  else (root.SIC = root.SIC || {}).agenda = factory(root.SIC.noyauJournal, root.SIC.droits, root.SIC.model, root.SIC.modules, root.SIC.agendaParticipants, root.SIC.agendaPermissions);
+})(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, P, Pm) {
   'use strict';
 
   var TYPES = ['RDV', 'OCCURRENCE', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'PATIENT_INSCRIT', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
@@ -306,6 +306,19 @@
     return def && def.contrainte ? 24 : 0;
   }
   /**
+   * Processus de validation d'une permission (0.21.0) pour les modes d'hospitalisation de ses patients, selon les
+   * réglages du service. Tant que le processus fourni n'est pas remplacé, le délai réglé par mode (`delaisPermission`,
+   * réglage d'avant la 0.21.0) reste celui de son étape à délai : envoi à l'ARS, signature du médecin, bon signé.
+   */
+  var ETAPE_A_DELAI = { sdre: 'envoye', contrainte: 'medecin', libre: 'signe' };
+  function processusPermission(config, service, modes) {
+    var pr = Pm.processusPour(config, reglagesService(config, service), modes);
+    if (!pr.regle) pr.etapes.forEach(function (e) { if (e.code === ETAPE_A_DELAI[pr.famille]) e.delai = delaiPermission(config, pr.mode); });
+    return pr;
+  }
+  /** Tâches des étapes : 'suggerees' (par défaut : proposées sur la permission) ou 'office' (ajoutées à la check-list à la création). */
+  function tachesPermission(config, service) { return reglagesService(config, service).tachesPermission === 'office' ? 'office' : 'suggerees'; }
+  /**
    * Validations d'un élément : celles ajoutées (`validations`), ou, pour une permission de sortie enregistrée sans elles,
    * la validation de la permission. [{ id, type: permission | medicale | autre, libelle, delai (heures, hors permission) }].
    */
@@ -327,8 +340,15 @@
       var f = (r.validees || {})[occurrence + '|' + v.id];
       if (!f && v.id === 'permission' && !Array.isArray(r.validations) && r.statut === 'validee') f = { statut: 'validee', nom: (r.validation && r.validation.par) || '', le: r.validation && r.validation.le };   // 0.10.0
       var ech = debut - delai * 36e5;
-      return { id: v.id, type: v.type, libelle: v.libelle || TYPES_VALIDATION[v.type], delai: delai, modes: modes, echeance: ech, fait: f || null,
+      var res = { id: v.id, type: v.type, libelle: v.libelle || TYPES_VALIDATION[v.type], delai: delai, modes: modes, echeance: ech, fait: f || null,
         niveau: f ? f.statut : (maintenant === undefined ? 'attente' : (maintenant > ech ? 'retard' : (ech - maintenant < 864e5 ? 'proche' : 'attente'))) };
+      // Permission : étapes du processus du mode (0.21.0) ; l'échéance est celle de la prochaine étape à délai
+      if (v.type === 'permission') {
+        var ep = Pm.etat(processusPermission(config, r.service, modes), (r.suivis || {})[occurrence + '|' + v.id], f || null, debut, maintenant);
+        res.permission = ep;
+        if (!f) { res.niveau = ep.niveau; if (ep.prochaineEcheance) { res.echeance = ep.prochaineEcheance.quand; res.delai = ep.prochaineEcheance.etape.delai; } }
+      }
+      return res;
     });
   }
   /** Statut d'une permission de sortie pour une occurrence : 'validee', 'refusee' ou 'demande'. */
@@ -723,7 +743,15 @@
         var rv = st.rdv[d.rdv];
         if (!rv || !d.validation || !d.occurrence) break;
         rv.validees = rv.validees || {};
-        if (d.statut === 'attente') delete rv.validees[d.occurrence + '|' + d.validation];
+        var kv = d.occurrence + '|' + d.validation;
+        // Étape d'une permission (0.21.0) : suivi de la date ; la dernière étape vaut validation
+        if (d.statut === 'etape') {
+          rv.suivis = rv.suivis || {};
+          rv.suivis[kv] = Pm.appliquer(rv.suivis[kv], d, e);
+          if (d.finale) rv.validees[kv] = { statut: 'validee', nom: d.nom || '', par: e.by, le: e.at, evt: e.id }; else delete rv.validees[kv];
+          break;
+        }
+        if (d.statut === 'attente') { delete rv.validees[kv]; if (rv.suivis) delete rv.suivis[kv]; }
         else rv.validees[d.occurrence + '|' + d.validation] = { statut: d.statut === 'refusee' ? 'refusee' : 'validee', nom: d.nom || '', par: e.by, le: e.at, evt: e.id };
         break;
       case 'TRANSPORT':
@@ -818,6 +846,13 @@
    */
   function controler(type, d, ctx) {
     var st = ctx.etat || { taches: {} }, t = d && (st.taches[d.id] || st.taches[d.tache]), o = optionsTaches(ctx.config);
+    // Étape d'une permission (0.21.0) : étape du processus indiqué, enregistrée par un rôle permis
+    if (type === 'VALIDATION' && d.statut === 'etape') {
+      var rvp = st.rdv && st.rdv[d.rdv], rg = reglagesService(ctx.config, rvp && rvp.service), cle = String(d.processus || '');
+      var prc = Pm.processus(ctx.config, rg, cle.indexOf('mode:') === 0 ? cle.slice(5) : cle === 'sdre' ? 'SDRE' : '');
+      if (cle && cle.indexOf('mode:') !== 0 && Pm.DEFAUT[cle]) prc = { etapes: (rg.processPermissions && rg.processPermissions[cle] && Pm.etapes(rg.processPermissions[cle].etapes)) || Pm.DEFAUT[cle] };
+      Pm.controler(prc, d, (ctx.compte && ctx.compte.roles) || []);
+    }
     // Événement de plusieurs services (0.21.0) : un agent d'un autre service ne le modifie que si son service est
     // co-organisateur (ou si l'établissement permet de modifier les éléments des autres services) ; un service invité
     // inscrit ses patients et ses agents, sans modifier l'événement
@@ -869,7 +904,7 @@
   return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
-    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, partageDefaut: partageDefaut, PARTAGES: PARTAGES, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
+    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
     enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
     alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
