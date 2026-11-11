@@ -203,7 +203,7 @@
       var avertAgent = h('div', { class: 'alerte', text: CH.AVERTISSEMENT_AGENT });
       function selonEntite() {
         var ag = ent.value === 'agent';
-        avertAgent.hidden = !ag; mod.disabled = !!existant || ag;
+        avertAgent.hidden = !ag; mod.disabled = !!existant || ag; if (typeof ligneSoi !== 'undefined') ligneSoi.hidden = !ag;
         if (ligneTiers) ligneTiers.hidden = ag;
         if (ligneClin) ligneClin.hidden = ag;
         if (ag) { prot.value = 'cle'; prot.disabled = true; if (!x.lecture.length) x.lecture.push('CADRE'); if (!x.saisie.length) x.saisie.push('CADRE'); }
@@ -212,6 +212,8 @@
       ent.addEventListener('change', function () { remplirModules(); selonEntite(); }); remplirModules();
       var prot = h('select', { disabled: !!existant || x.clinique }, Object.keys(CH.PROTECTIONS).map(function (k) { return h('option', { value: k, text: CH.PROTECTIONS[k], selected: (x.protection || 'interface') === k }); }));
       var tiers = h('input', { type: 'checkbox', checked: !!x.tiers });
+      var soi = h('select', { 'aria-label': 'L’agent lui-même' }, [['', 'Ne la voit pas'], ['lecture', 'La voit (lecture)'], ['ecriture', 'La voit et la modifie']].map(function (o) { return h('option', { value: o[0], text: o[1], selected: (x.soi || '') === o[0] }); }));
+      var ligneSoi = h('label', {}, 'L’agent lui-même (sa propre valeur, dans « Ma fiche » de la fenêtre Équipe)', soi);
       var clin = h('input', { type: 'checkbox', checked: !!x.clinique, disabled: !admin || (existant && x.clinique) });
       clin.addEventListener('change', function () {
         if (clin.checked && !confirm('Option « donnée clinique ».\n\nTessera ne doit contenir aucune donnée clinique : elle relève du dossier patient informatisé. Activer cette option engage l’établissement : avis du délégué à la protection des données (DPO, référent RGPD), inscription au registre des traitements, durée de conservation. La donnée aura une clé propre, remise aux seuls rôles réglés, et l’activation est tracée au journal.\n\nActiver ?')) { clin.checked = false; return; }
@@ -249,7 +251,7 @@
           h('label', {}, 'Services', multi(x.services, svOptions, cadre ? 'Choisir' : 'Tous les services', 'Services')),
           h('label', {}, 'Modifiée par', multi(x.saisie, rs.map(function (r) { return { code: r.code, libelle: r.libelle }; }), 'Rôles qui écrivent dans le module', 'Modifiée par')),
           h('label', {}, 'Visible par', multi(x.lecture, rs.map(function (r) { return { code: r.code, libelle: r.libelle }; }), 'Tous', 'Visible par'))),
-        h('label', {}, 'Protection', prot),
+        h('label', {}, 'Protection', prot), ligneSoi,
         h('small', { class: 'muted', text: 'Clé propre : seuls les rôles cochés (« Visible par », « Modifiée par ») reçoivent la clé qui déchiffre la donnée ; indiquez-les. La protection ne change plus une fois la donnée enregistrée.' }),
         ligneTiers, ligneClin,
         h('div', { class: 'alerte', text: 'Aucune donnée clinique par défaut : ni traitement, ni diagnostic, ni symptôme, ni antécédent. Chaque donnée ajoutée est à inscrire au registre des traitements (délégué à la protection des données).' }));
@@ -260,6 +262,7 @@
         var mots = CH.libelleClinique(n);
         if (mots.length && !clin.checked && !confirm('« ' + n + ' » évoque une donnée clinique (' + mots.join(', ') + '), qui relève du dossier patient informatisé. Continuer ?')) return false;
         var o = { id: x.id, libelle: n, type: typ.value, entite: ent.value, module: mod.value, services: x.services, saisie: x.saisie, lecture: x.lecture };
+        if (ent.value === 'agent' && soi.value) o.soi = soi.value;
         if (choix) { o.choix = choix.value.split(';').map(function (y) { return y.trim(); }).filter(Boolean); if (!o.choix.length) throw new Error('Indiquez les choix proposés.'); }
         if (modele) {
           var anciens = x.modele || [], lignes = modele.value.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);

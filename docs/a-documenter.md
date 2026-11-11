@@ -115,6 +115,16 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.28.0 (Vue d'ensemble : fiche du patient ; données ajoutées dans l'Équipe ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Vue d'ensemble | Un clic sur un patient ouvre sa fiche | Colonne « Patient » (non modifiable sur place) : bouton qui ouvre la fiche Patients avec ses séjours, sans quitter la vue |
+| Données ajoutées des agents | Ajouter des champs et préciser leur accès dans les fiches agents | Mécanisme existant (accès par rôle en lecture et en écriture, clé propre `d-<donnée>`) affiché dans la fenêtre Équipe : fiche de contact (lecture), « Modifier » du cadre (écriture), bouton « Gérer les données ajoutées… » de l'annuaire |
+| L'agent lui-même | Nouvel accès : lecture, ou lecture et écriture de sa propre valeur | Réglage `soi` de la donnée (`''`, `lecture`, `ecriture` ; agents seulement) ; saisie `VALEUR_SOI` du module Équipe : enveloppe pour la clé propre de la donnée et la clé de liste de l'agent (l'agent écrit sans détenir la clé propre ; ses lecteurs la relisent) ; « Ma fiche » : rubrique « Autres informations » ; contrôle : l'agent n'écrit que si la donnée est ouverte en écriture, les autres seulement avec un rôle qui la modifie ; parties publiques attestées aussi pour les clés `d-` |
+
+Limite : une valeur saisie par l'agent lui-même est lue dans la fenêtre Équipe ; les colonnes de la Vue d'ensemble montrent la dernière valeur saisie par un rôle qui détient la clé de la donnée. Démonstration : taille de tenue (ouverte en écriture), AFGSU (ouverte en lecture). Tests : `tests/equipe.test.js` ; parcours complété. À documenter : guide du cadre (données ajoutées des agents), fiche technique (`VALEUR_SOI`), kit RGPD (données du personnel saisies par l'agent).
+
 ## Version 0.27.3 (lot C, étape 4 : médecins chefs, administrateur de garde, directeur des soins ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |

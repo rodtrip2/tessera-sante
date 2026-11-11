@@ -105,3 +105,23 @@ test('Référents : domaines proposés, ajoutés, masqués ; titulaires et suppl
   assert.throws(() => ctl({ id: 'c', roles: ['CADRE'], services: ['U1'] }, { service: '*', domaine: 'identito' }), /administrateur/);
   assert.throws(() => ctl({ id: 'i', roles: ['IDE'], services: ['U1'] }, { service: 'U1', domaine: 'hygiene' }), /cadre/);
 });
+
+test('Données ajoutées d’un agent ouvertes à l’agent lui-même (0.28.0) : lecture, écriture, contrôles', () => {
+  const E = SIC.equipe;
+  SIC.champs = require('../app/js/champs.js');
+  const config = { champsAjoutes: [{ id: 'tenue', libelle: 'Taille de tenue', type: 'texte', entite: 'agent', saisie: ['CADRE'], lecture: ['CADRE'], soi: 'ecriture' },
+    { id: 'afgsu', libelle: 'AFGSU', type: 'date', entite: 'agent', saisie: ['CADRE'], lecture: ['CADRE'], soi: 'lecture' },
+    { id: 'prive', libelle: 'Note du cadre', type: 'texte', entite: 'agent', saisie: ['CADRE'], lecture: ['CADRE'] }] };
+  assert.equal(SIC.champs.definition(config, 'tenue').soi, 'ecriture');
+  const env = { cles: { x: {} }, ct: 'abc' };
+  const ctl = (compte, d) => E.controler('VALEUR_SOI', d, { etat: E.reduire([]), compte, config });
+  const ide = { id: 'a', roles: ['IDE'], services: ['U1'] }, cadre = { id: 'c', roles: ['CADRE'], services: ['U1'] };
+  assert.doesNotThrow(() => ctl(ide, { agent: 'a', champ: 'tenue', env }));
+  assert.throws(() => ctl(ide, { agent: 'a', champ: 'afgsu', env }), /ne se modifie pas/);
+  assert.throws(() => ctl(ide, { agent: 'b', champ: 'tenue', env }), /ne modifiez pas/);
+  assert.doesNotThrow(() => ctl(cadre, { agent: 'a', champ: 'afgsu', env }));
+  assert.throws(() => ctl(cadre, { agent: 'a', champ: 'prive', env }), /pas ouverte/);
+  assert.equal(E.permisPourSoi('VALEUR_SOI', { agent: 'a', champ: 'tenue' }, ide, { config }), true);
+  assert.equal(E.permisPourSoi('VALEUR_SOI', { agent: 'b', champ: 'tenue' }, ide, { config }), false);
+  assert.equal(E.permisPourSoi('VALEUR_SOI', { agent: 'b', champ: 'tenue' }, cadre, { config }), true);
+});

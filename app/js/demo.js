@@ -73,7 +73,9 @@
         { id: 'vigilance-orga', libelle: 'Vigilance organisationnelle', type: 'notes', entite: 'patient', module: 'patients', protection: 'cle', services: [], saisie: ['IDE', 'CADRE'], lecture: ['IDE', 'CADRE'] },
         { id: 'jours-avant-sortie', libelle: 'Jours avant la sortie', type: 'formule', formule: 'SIERREUR(-JOURS([Sortie prévisionnelle]); "")', entite: 'patient', module: 'patients', services: ['U1'], saisie: [], lecture: [], par: { role: 'CADRE', services: ['U1'] } },
         // Données des agents (0.20.0) : données du personnel, clé propre, cadre seul par défaut (fictives)
-        { id: 'afgsu', libelle: 'Formation aux gestes d’urgence (AFGSU) valable jusqu’au', type: 'date', entite: 'agent', services: [], saisie: ['CADRE'], lecture: ['CADRE'] },
+        { id: 'afgsu', libelle: 'Formation aux gestes d’urgence (AFGSU) valable jusqu’au', type: 'date', entite: 'agent', services: [], saisie: ['CADRE'], lecture: ['CADRE'], soi: 'lecture' },
+        // Ouverte à l'agent lui-même en écriture (0.28.0) : il la tient dans « Ma fiche »
+        { id: 'tenue', libelle: 'Taille de tenue', type: 'liste', choix: ['XS', 'S', 'M', 'L', 'XL', 'XXL'], entite: 'agent', services: [], saisie: ['CADRE'], lecture: ['CADRE'], soi: 'ecriture' },
         { id: 'habilitations', libelle: 'Habilitations', type: 'choixMultiple', choix: ['Conduite d’un véhicule', 'Accompagnement des sorties', 'Référent hygiène', 'Tuteur de stage'], entite: 'agent', services: [], saisie: ['CADRE'], lecture: ['CADRE'] },
         { id: 'tel-pro', libelle: 'Téléphone professionnel', type: 'telephone', entite: 'medecin', module: 'suivi', services: [], saisie: ['CADRE', 'SECRETAIRE'], lecture: [] },
         { id: 'jours-presence', libelle: 'Jours de présence habituels', type: 'choixMultiple', choix: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'], entite: 'medecin', module: 'suivi', services: [], saisie: ['CADRE', 'SECRETAIRE'], lecture: [] }]);
@@ -684,6 +686,10 @@
           await fiche('demo', { agent: 'demo-b', telPro: '4512', mailPro: 'agent.b@exemple.invalid', fonction: 'IDE de nuit', accord: true }, { tel: '06 00 00 00 01', mail: 'agent.b.perso@exemple.invalid' }, ['U1']);
           await fiche('demo', { agent: 'demo-c', telPro: '4513', fonction: 'Aide-soignante' });
           await fiche(moiT.id, { agent: moiT.id, telPro: '4500', mailPro: 'cadre.u1@exemple.invalid', fonction: 'Cadre de santé', accord: true }, { tel: '06 00 00 00 02', mail: '' }, moiT.services && moiT.services.length ? moiT.services : ['U1', 'U2']);
+          // Donnée ajoutée tenue par l'agent lui-même (taille de tenue) : copie chiffrée pour la clé de la donnée et sa clé de liste
+          var envSoi = async function (ag, champ, v) { var n = dispo(['d-' + champ, 't-a.' + ag]); if (n.length) lotE.push({ at: at(-20), by: ag === moiT.id ? moiT.id : 'demo', type: 'VALEUR_SOI', data: { agent: ag, champ: champ, env: await session.chiffrerEnveloppe('soi:' + ag + ':' + champ, n, { v: v }) } }); };
+          await envSoi(moiT.id, 'tenue', 'M');
+          await envSoi('demo-b', 'tenue', 'L');
           var noms = dispo(['e-m.U1']);
           if (noms.length) lotE.push({ at: at(-30), by: 'demo', type: 'COORDONNEES_MEDECIN', data: { medecin: 'm-arnaud', perso: await session.chiffrerEnveloppe('medecin:m-arnaud', noms, { tel: '06 00 00 00 10' }) } });
           await session.enregistrerLot(lotE, { libelle: 'Fiches fictives de l’équipe', by: 'demo', sansControle: true });
