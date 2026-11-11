@@ -516,6 +516,28 @@
         destinataires: [{ genre: 'role', code: 'IDE', service: U1 }, { genre: 'role', code: 'CADRE', service: U1 }], rattaches: [{ module: 'patients', genre: 'fiche', id: 'P01', service: U1 }] });
       var ancien = msg(-24 * 40, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Planning des congés d’été', texte: 'Les demandes sont à rendre avant la fin du mois. (fictif)', destinataires: [{ genre: 'service', code: U1 }], jusquau: jM(-10) });
       if (moiM) lu(-24 * 39, ancien, moiM);
+      // Sondages (0.23.0) : dates à remplir par l'agent connecté, choix unique public déjà voté (résultats visibles),
+      // choix multiples privé à noms masqués avec réponse « Autre » envoyé par l'agent connecté, sondage clos
+      function vote(h0, id, by, nom, choix, autre) { ajouter(t(h0), 'VOTE', { message: id, choix: choix, autre: autre || '', nom: nom }, by); }
+      var dateQ = msg(-10, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Date de la prochaine réunion du groupe qualité', texte: 'Cochez les dates qui vous conviennent. (fictif)',
+        destinataires: [{ genre: 'groupe', code: 'groupe-qualite' }], reponses: 'aucune',
+        sondage: { genre: 'dates', resultats: 'public', cloture: jM(5), options: [{ id: 'o1', jour: jM(8), heure: '14:00', libelle: '' }, { id: 'o2', jour: jM(9), heure: '10:00', libelle: '' }, { id: 'o3', jour: jM(10), heure: '14:00', libelle: 'Salle du pôle' }] } });
+      vote(-9, dateQ, 'demo-b', 'Agent B (fictif)', ['o1', 'o3']);
+      var horaire = msg(-24 * 2, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Horaire de la réunion de service', texte: 'Quel horaire préférez-vous pour la réunion mensuelle ? (fictif)',
+        destinataires: [{ genre: 'service', code: U1 }], reponses: 'aucune',
+        sondage: { genre: 'unique', question: 'Horaire préféré', resultats: 'public', cloture: jM(3), options: [{ id: 'o1', libelle: '13 h 30 (relève)' }, { id: 'o2', libelle: '14 h 30' }, { id: 'o3', libelle: '16 h' }] } });
+      vote(-40, horaire, 'demo-a', 'Agent A (fictif)', ['o1']); vote(-30, horaire, 'demo-c', 'Agent C (fictif)', ['o1']);
+      if (moiM) vote(-20, horaire, moiM, options.moi.nom || '', ['o2']);
+      if (moiM) {
+        var themes = msg(-24 * 3, moiM, { nom: options.moi.nom || '', objet: 'Thèmes de la prochaine formation de l’équipe de nuit', texte: 'Plusieurs choix possibles. Les noms sont masqués. (fictif)',
+          destinataires: [{ genre: 'groupe', code: 'equipe-nuit-u1' }], reponses: 'aucune',
+          sondage: { genre: 'multiple', resultats: 'prive', anonyme: true, autre: true, cloture: '', options: [{ id: 'o1', libelle: 'Gestion de l’agressivité' }, { id: 'o2', libelle: 'Gestes d’urgence' }, { id: 'o3', libelle: 'Isolement et contention : cadre légal' }] } });
+        vote(-60, themes, 'demo-b', 'Agent B (fictif)', ['o1', 'o3']); vote(-50, themes, 'demo-d', 'Agent D (fictif)', ['o3'], 'Sommeil et travail de nuit (fictif)');
+      }
+      var clos = msg(-24 * 12, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Repas de fin d’année : quel jour ?', texte: 'Merci pour vos réponses. (fictif)', destinataires: [{ genre: 'service', code: U1 }], reponses: 'aucune', jusquau: jM(10),
+        sondage: { genre: 'unique', resultats: 'public', cloture: '', options: [{ id: 'o1', libelle: 'Jeudi 18 décembre' }, { id: 'o2', libelle: 'Vendredi 19 décembre' }] } });
+      vote(-24 * 11, clos, 'demo-a', 'Agent A (fictif)', ['o2']); vote(-24 * 11 + 3, clos, 'demo-c', 'Agent C (fictif)', ['o2']); vote(-24 * 10, clos, 'demo-b', 'Agent B (fictif)', ['o1']);
+      ajouter(t(-24 * 9), 'SONDAGE_CLOTURE', { message: clos }, 'demo-cadre');
       var retire = msg(-24 * 2, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Réunion de service jeudi', texte: 'Réunion à 14 h. (fictif)', destinataires: [{ genre: 'service', code: U1 }] });
       ajouter(t(-24 * 2 + 1), 'MESSAGE_RETRAIT', { message: retire, motif: 'Réunion reportée (fictif)' }, 'demo-cadre');
     })();
