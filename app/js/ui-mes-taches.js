@@ -60,6 +60,7 @@
     var ech = h('input', { type: 'date', value: t.echeance || '', 'aria-label': 'Échéance' }), heure = h('input', { type: 'time', step: 300, value: t.heure || '', 'aria-label': 'Heure' });
     var rappel = h('select', { 'aria-label': 'Rappel' }, RAPPELS.map(function (x) { return h('option', { value: x[0], text: x[1], selected: String(t.rappel == null ? '' : t.rappel) === x[0] }); }));
     var note = h('textarea', { rows: 3, maxlength: 1000, 'aria-label': 'Note' }); note.value = t.note || '';
+    if (nouveau && U.dernierChoix) U.dernierChoix('taches.rappel', rappel, !(init && init.rappel));
     var element = t.element || null, zoneE = h('div', { class: 'pile' });
     function majElement() {
       U.vider(zoneE);
@@ -71,8 +72,8 @@
       h('label', {}, 'Tâche', titre),
       h('div', { class: 'grille-2' }, h('label', {}, 'Échéance (facultatif)', ech), h('label', {}, 'Heure (facultatif)', heure)),
       h('label', {}, 'Rappel (dans l’onglet Informations et la pastille de l’Agenda)', rappel),
-      h('label', {}, 'Note (facultatif ; aucune donnée clinique)', note),
-      h('h3', { text: 'Élément rattaché' }), zoneE,
+      (U.plusOptions || function (o) { return h('div', { class: 'pile' }, [].slice.call(arguments, 1)); })(!!(t.note || t.element), h('label', {}, 'Note (facultatif ; aucune donnée clinique)', note),
+        h('h3', { text: 'Élément rattaché' }), zoneE),
       h('small', { class: 'muted', text: 'Votre liste est chiffrée par votre clé personnelle : personne d’autre ne la lit, administrateur compris. Pour confier une tâche à un collègue, envoyez-lui un message avec l’élément rattaché.' })),
     [{ texte: 'Annuler' }, nouveau ? null : { texte: 'Retirer', classe: 'danger', action: async function () { if (!confirm('Retirer cette tâche de votre liste ?')) return false; await retirer(t); U.toast('Tâche retirée.'); } },
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
@@ -156,5 +157,5 @@
     },
     pastille: function () { var n = 0; try { n = avant.pastille ? avant.pastille() || 0 : 0; } catch (e) { n = 0; } try { n += aRappeler().length; } catch (e) { /* sans rappel */ } return n; }
   });
-  U.mesTaches = { bouton: bouton, boutonModale: boutonModale, nouvelle: function (init) { modaleTache(null, init); }, taches: taches, aRappeler: aRappeler, jourRappel: jourRappel };
+  U.mesTaches = { demandes: demandes, bouton: bouton, boutonModale: boutonModale, nouvelle: function (init) { modaleTache(null, init); }, taches: taches, aRappeler: aRappeler, jourRappel: jourRappel };
 })();

@@ -1115,7 +1115,20 @@
   Session.prototype.accesFormation = function () { return Droits.accesFormation(this.utilisateur); };
   Session.prototype.peut = function (type) { return moduleDe(type).droits.peut(this.roles(), type, config(this)); };
   /** Saisie permise à un agent pour lui-même (ses propres absences dans l'Agenda), même sans l'accès correspondant. */
+  /** Délai pendant lequel l'auteur annule lui-même sa saisie (bouton « Annuler » du message de confirmation, 0.26.4). */
+  var DELAI_ANNULATION_AUTEUR = 2 * 60 * 1000, NON_ANNULABLES_AUTEUR = { CONFIG: 1, LOT: 1, COMPTE: 1, INTEGRITE: 1, ANNULATION: 1 };
+  function annulableParAuteur(s, e) {
+    if (!e || !s.utilisateur || e.by !== s.utilisateur.id || NON_ANNULABLES_AUTEUR[e.type] || e.lot) return false;
+    if (!(Date.now() - Date.parse(e.at) < DELAI_ANNULATION_AUTEUR)) return false;
+    var m = moduleDe(e.type), st = etatDe(s, m);
+    return !(st && st.annules && st.annules[e.id]);
+  }
   function permisPourSoi(s, type, data) {
+    // Annulation immédiate par l'auteur de sa propre saisie, dans les deux minutes (0.26.4) : saisie d'annulation habituelle
+    if (type === 'ANNULATION' && data && data.immediate === true && data.cible) {
+      var vise = s.evts.filter(function (x) { return x.id === data.cible; })[0];
+      return annulableParAuteur(s, vise);
+    }
     // Groupes d'agents (décision du 8 novembre 2026) : le cadre modifie les groupes de ses services (contrôle de chaque groupe changé)
     if (type === 'CONFIG' && data && data.cle === 'groupes' && (s.utilisateur.roles || []).indexOf('CADRE') >= 0) {
       var G = socle('groupes', './groupes.js');
@@ -1242,8 +1255,14 @@
       if (type === 'CONFIG' && data && ['messagerie', 'groupes', 'services', 'roles'].indexOf(data.cle) >= 0) await clesMessagerieAJour(this);
       try { await this.appliquerDroits(); } catch (e) { this.erreurDroits = e.message; }
     }
+    // Dernière saisie de l'agent (bouton « Annuler » du message de confirmation) : plusieurs saisies rapprochées n'en proposent pas
+    if (type !== 'ANNULATION' && !(options && (options.by || options.conjointe || options.journalLot))) {
+      var dern = this.derniereSaisie, t0 = Date.now();
+      this.derniereSaisie = { evt: evt, le: t0, nb: dern && t0 - dern.le < 3000 ? dern.nb + 1 : 1 };
+    }
     return evt;
   };
+  Session.prototype.annulableParAuteur = function (e) { return annulableParAuteur(this, e); };
 
   // ---------------------------------------------------------- Pièces jointes (Messagerie, 0.23.0)
   /**

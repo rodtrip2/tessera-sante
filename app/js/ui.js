@@ -58,10 +58,24 @@
   function depuisSaisie(s) { var t = new Date(s).getTime(); if (!isFinite(t)) throw new Error('Date invalide.'); return t; }
   function idMesure() { return 'M' + Date.now().toString(36).toUpperCase() + C.hex(C.aleatoire(2)).toUpperCase(); }
 
+  /**
+   * Message de confirmation. Juste après une seule saisie de l'agent (0.26.4) : bouton « Annuler » pendant quelques
+   * secondes, qui enregistre une saisie d'annulation (rien n'est effacé ; elle reste au journal).
+   */
   function toast(msg) {
-    var t = h('div', { class: 'toast', role: 'status', text: msg });
+    var t = h('div', { class: 'toast', role: 'status' }, h('span', { text: msg })), s = App.session, d = s && s.derniereSaisie, duree = 3500;
+    if (d && Date.now() - d.le < 4000 && d.nb === 1 && s.annulableParAuteur && s.annulableParAuteur(d.evt)) {
+      duree = 8000;
+      var b = h('button', { class: 'btn petit', type: 'button', onclick: async function () {
+        b.disabled = true;
+        try { await s.enregistrer('ANNULATION', { cible: d.evt.id, motif: 'Annulée par son auteur juste après la saisie', immediate: true }); t.remove(); toast('Saisie annulée (elle reste au journal avec son annulation).'); }
+        catch (e) { alert(e.message); b.disabled = false; }
+      } }, 'Annuler');
+      t.appendChild(b); t.classList.add('avec-action');
+      s.derniereSaisie = null;
+    }
     document.body.appendChild(t);
-    setTimeout(function () { t.remove(); }, 3500);
+    setTimeout(function () { t.remove(); }, duree);
   }
 
 
@@ -604,6 +618,7 @@
   var NS_SVG = 'http://www.w3.org/2000/svg';
   // Icônes dessinées au trait (24 × 24), couleur du texte
   var ICONES = {
+    aujourdhui: ['M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8', 'M12 2v2', 'M12 20v2', 'M4.9 4.9l1.4 1.4', 'M17.7 17.7l1.4 1.4', 'M2 12h2', 'M20 12h2', 'M4.9 19.1l1.4-1.4', 'M17.7 6.3l1.4-1.4'],
     patients: ['M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1', 'M16 3.5a4 4 0 0 1 0 7', 'M19 14.5a6 6 0 0 1 3 5.5v1'],
     isocont: ['M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16', 'M2 21h20', 'M9 10h6v6H9z', 'M12 13v1'],
     agenda: ['M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z', 'M3 10h18', 'M8 3v4', 'M16 3v4', 'M7 14h3v3H7z'],
@@ -628,6 +643,8 @@
     var s = App.session, res = [];
     if (!s) return res;
     var ms = s.modulesAccessibles();
+    // Page « Aujourd'hui » (0.26.4) : ouverte à la connexion, en tête de la barre des modules
+    if (ms.length && SIC.ui.vueAujourdhui && !s.apercu) res.push({ id: 'aujourdhui', libelle: 'Aujourd’hui' });
     if (ms.length && s.detientCle && s.detientCle('patients') && SIC.modules.obtenir('patients')) res.push({ id: 'patients', libelle: 'Patients' });
     ms.forEach(function (m) { res.push({ id: m.id, libelle: m.libelle }); });
     // Administration : l'administrateur ; le cadre y trouve les groupes d'agents de ses services (décision du 8 novembre 2026)
@@ -647,6 +664,7 @@
   }
   /** Onglets de la fenêtre affichée : ceux du module (son contrat), puis le journal commun. */
   function onglets() {
+    if (App.fenetre === 'aujourdhui') return [['aujourdhui', 'Aujourd’hui']];
     if (App.fenetre === 'admin') {
       if (App.session && App.session.roles().indexOf('ADMIN') < 0) return [['groupes', 'Groupes d’agents']].concat(modulesCadre().map(function (m) { return ['cadre-' + m.id, m.libelle]; }), [['journal', 'Journal']]);
       return [['admin-accueil', 'Accueil'], ['admin', 'Réglages généraux'], ['groupes', 'Groupes d’agents']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['journal', 'Journal']]);
@@ -657,14 +675,23 @@
   }
   App.ongletsFenetres = {};
   /** Ouvre la fenêtre d'un module : son dernier onglet affiché, sinon le premier ; choix retenu sur le poste. */
+  // Retour sur sa dernière position (0.26.4) : onglet et service de chaque fenêtre, retenus sur le poste
+  function positions() { try { var p = JSON.parse(localStorage.getItem('sic-positions') || '{}'); return p && typeof p === 'object' ? p : {}; } catch (e) { return {}; } }
+  function retenirPosition() {
+    if (!App.fenetre) return;
+    App.ongletsFenetres[App.fenetre] = App.onglet;
+    try { var p = positions(); p[App.fenetre] = { onglet: App.onglet, service: App.service }; localStorage.setItem('sic-positions', JSON.stringify(p)); } catch (e) { /* stockage indisponible */ }
+  }
   function ouvrirFenetre(id) {
-    var s = App.session;
-    if (App.fenetre) App.ongletsFenetres[App.fenetre] = App.onglet;
-    if (id !== 'patients' && id !== 'admin' && !s.choisirModule(id)) return;
+    var s = App.session, pseudo = id === 'patients' || id === 'admin' || id === 'aujourdhui';
+    retenirPosition();
+    if (!pseudo && !s.choisirModule(id)) return;
     App.fenetre = id;
-    try { localStorage.setItem('sic-fenetre', id); if (id !== 'patients' && id !== 'admin') localStorage.setItem('sic-module', id); } catch (e) { /* stockage indisponible */ }
-    var codes = onglets().map(function (o) { return o[0]; });
-    App.onglet = codes.indexOf(App.ongletsFenetres[id]) >= 0 ? App.ongletsFenetres[id] : codes[0];
+    try { if (id !== 'aujourdhui') localStorage.setItem('sic-fenetre', id); if (!pseudo) localStorage.setItem('sic-module', id); } catch (e) { /* stockage indisponible */ }
+    var codes = onglets().map(function (o) { return o[0]; }), pos = positions()[id] || {};
+    var voulu = App.ongletsFenetres[id] || pos.onglet;
+    App.onglet = codes.indexOf(voulu) >= 0 ? voulu : codes[0];
+    if (pos.service && (pos.service === '*' || services().some(function (x) { return x.code === pos.service; }))) App.service = pos.service;
     rendreContenu();
   }
   // Ancien nom (liens internes) : ouvrir le module, c'est ouvrir sa fenêtre
@@ -779,7 +806,9 @@
     var fs = fenetres();
     if (estOngletAdmin(App.onglet) && estAdmin) App.fenetre = 'admin';
     if (!App.fenetre) { try { App.fenetre = localStorage.getItem('sic-fenetre') || ''; } catch (e) { App.fenetre = ''; } }
-    if (App.fenetre === 'patients' || App.fenetre === 'admin') { if (!fs.some(function (f) { return f.id === App.fenetre; })) App.fenetre = ''; }
+    // Connexion : la page « Aujourd'hui » s'ouvre d'abord (une fois par session)
+    if (!s._accueilVu) { s._accueilVu = true; if (fs.some(function (f) { return f.id === 'aujourdhui'; }) && !estOngletAdmin(App.onglet)) { retenirPosition(); App.fenetre = 'aujourdhui'; App.onglet = 'aujourdhui'; } }
+    if (App.fenetre === 'patients' || App.fenetre === 'admin' || App.fenetre === 'aujourdhui') { if (!fs.some(function (f) { return f.id === App.fenetre; })) App.fenetre = ''; }
     else if (App.fenetre !== s.moduleAffiche()) App.fenetre = '';
     if (!App.fenetre) App.fenetre = s.moduleAffiche();
     if (estOngletAdmin(App.onglet) && App.fenetre !== 'admin') App.onglet = '';
@@ -791,6 +820,8 @@
     var droitOnglet = {};
     SIC.modules.onglets(s.moduleAffiche()).forEach(function (o) { if (o.droit) droitOnglet[o.code] = o.droit; });
     function affichable(o) {
+      if (App.fenetre === 'aujourdhui') return o === 'aujourdhui';
+      if (o === 'aujourdhui') return false;
       if (estOngletAdmin(o)) return estAdmin;
       if (droitOnglet[o] && !estAdmin && ![].concat(droitOnglet[o]).some(function (t) { return s.peut(t); })) return false;
       if (o === 'journal') return nivJournal !== 'aucun' && !anonyme;
@@ -823,6 +854,7 @@
       s.utilisateur.id !== 'secours' ? h('button', { class: 'btn petit', onclick: modaleMonMotDePasse }, 'Mot de passe') : null,
       anonyme ? null : h('button', { class: 'btn petit', title: 'Fichiers exportés (décomptes, registres, statistiques…)', onclick: modaleExports }, 'Exports'),
       SIC.ui.horsReseau.boutonInstaller(),
+      SIC.ui.modaleRecherche && !anonyme ? h('button', { class: 'btn petit', type: 'button', title: 'Rechercher dans Tessera (Ctrl + K)', onclick: function () { SIC.ui.modaleRecherche(); } }, 'Rechercher') : null,
       boutonAffichage(), boutonTheme(),
       h('button', { class: 'btn petit', title: 'Licence, crédits, signaler un problème', onclick: function () { SIC.ui.apropos.modale(); } }, 'À propos'),
       h('button', { class: 'btn petit', onclick: function () { verrouiller(); } }, 'Verrouiller')));
@@ -854,12 +886,13 @@
     zoneContenu.appendChild(h('section', { class: 'fenetre', 'aria-label': 'Fenêtre du module' }, titreFenetre(), nav, corps));
     var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: function () { return vueAdmin('general'); }, groupes: function () { return SIC.ui.vueGroupes ? SIC.ui.vueGroupes() : h('p', { class: 'muted', text: 'Groupes indisponibles.' }); } };
     modulesAdmin().forEach(function (x) { vues['admin-' + x[0]] = function () { return vueAdmin(x[0]); }; });
+    vues.aujourdhui = function () { return SIC.ui.vueAujourdhui ? SIC.ui.vueAujourdhui() : vues.aucun(); };
     vues['admin-accueil'] = function () { return SIC.ui.vueAccueilAdmin ? SIC.ui.vueAccueilAdmin() : vueAdmin('general'); };
     modulesCadre().forEach(function (m) { vues['cadre-' + m.id] = function () { return h('div', { class: 'pile' }, m.interface.admin.cadre()); }; });
     var mAff = moduleAffiche(), vuesAff = (mAff.interface && mAff.interface.vues) || {}, vuesModule = interfaceModule().vues || {};
     var mPat = SIC.modules.obtenir('patients'), vuesPat = (mPat && mPat.interface && mPat.interface.vues) || {};
     var vue = vues[App.onglet] || (App.fenetre === 'patients' ? vuesPat[App.onglet] : null) || vuesAff[App.onglet] || vuesModule[App.onglet] || vuesAff[(mAff.vues.onglets[0] || {}).code] || vues.aucun;
-    if (App.fenetre !== 'patients' && mAff === moduleActif() && !s.accesModule() && App.onglet !== 'journal' && !estOngletAdmin(App.onglet)) {
+    if (App.fenetre !== 'patients' && App.fenetre !== 'aujourdhui' && mAff === moduleActif() && !s.accesModule() && App.onglet !== 'journal' && !estOngletAdmin(App.onglet)) {
       corps.appendChild(h('div', { class: 'panneau vide', text: 'Les données du module « ' + moduleActif().libelle + ' » ne vous sont pas remises : vous n’y avez pas de rôle, ou il n’est activé pour aucun de vos services. Demandez à l’administrateur si vous devez y avoir accès.' }));
       return;
     }
@@ -1839,8 +1872,29 @@
   try { appliquerAffichage(affichageActuel()); } catch (e) { /* affichage par défaut */ }
   function boutonAffichage() { return h('button', { class: 'btn petit', type: 'button', title: 'Taille d’affichage et hauteur des lignes des tableaux', 'aria-label': 'Affichage', onclick: modaleAffichage }, 'Aa'); }
 
+  // ---------------------------------------------------------------- Formulaires plus courts (0.26.4)
+  /** Champs rarement utilisés repliés sous « Plus d'options » (ouverts d'emblée si l'un d'eux est déjà rempli). */
+  function plusOptions(ouvert) {
+    var d = h('details', { class: 'plus-options pile' }, h('summary', { text: 'Plus d’options' }));
+    Array.prototype.slice.call(arguments, 1).forEach(function (x) { if (x) d.appendChild(x); });
+    d.open = !!ouvert;
+    return d;
+  }
+  /**
+   * Dernier choix de l'agent dans une liste (service, salle habituelle…), retenu sur le poste : repris quand `reprendre`
+   * est vrai (nouvelle saisie) et que la valeur existe encore dans la liste.
+   */
+  function dernierChoix(cle, sel, reprendre) {
+    var k = 'sic-choix', id = (App.session && App.session.utilisateur && App.session.utilisateur.id) || '';
+    var lire = function () { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } };
+    var v = lire()[id + '|' + cle];
+    if (reprendre && v && Array.prototype.some.call(sel.options, function (o) { return o.value === v; })) { sel.value = v; sel.dispatchEvent(new Event('change')); }
+    sel.addEventListener('change', function () { try { var x = lire(); x[id + '|' + cle] = sel.value; localStorage.setItem(k, JSON.stringify(x)); } catch (e) { /* stockage indisponible */ } });
+    return sel;
+  }
+
   // ---------------------------------------------------------------- Raccourcis clavier
-  var RACCOURCIS = [['Ctrl + Entrée', 'Enregistrer le formulaire ouvert (bouton principal)'], ['← et →', 'Jour ou semaine précédente, suivante, dans les plannings (hors d’un champ de saisie)'],
+  var RACCOURCIS = [['Ctrl + K', 'Rechercher dans Tessera'], ['Ctrl + Entrée', 'Enregistrer le formulaire ouvert (bouton principal)'], ['← et →', 'Jour ou semaine précédente, suivante, dans les plannings (hors d’un champ de saisie)'],
     ['Alt + 1 à 9', 'Ouvrir la fenêtre d’un module (ordre de la barre des modules)'], ['Échap', 'Fermer la fenêtre de dialogue'], ['?', 'Afficher cette aide']];
   function dansChamp(el) { return !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable); }
   document.addEventListener('keydown', function (ev) {
@@ -1851,6 +1905,7 @@
       if (b) { ev.preventDefault(); b.click(); }
       return;
     }
+    if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'k' || ev.key === 'K') && !dlg && SIC.ui.modaleRecherche) { ev.preventDefault(); SIC.ui.modaleRecherche(); return; }
     if (dlg || dansChamp(document.activeElement)) return;
     if (ev.altKey && /^[1-9]$/.test(ev.key)) {
       var f = fenetres()[+ev.key - 1];
@@ -1884,7 +1939,7 @@
     App: App, st: st, config: config, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, lignesDe: lignesDe, zoneTexte: zoneTexte, periodeDepuis: periodeDepuis, changerDossier: function () { return changerDossier(); },
-    lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu, activerLargeurs: activerLargeurs, activerTris: activerTris, icone: icone, ongletsAdmin: function () { return App.fenetre === 'admin' ? onglets() : []; }, choisirOrdre: choisirOrdre, modaleAffichage: modaleAffichage, chambresTravaux: chambresTravaux,
+    lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu, activerLargeurs: activerLargeurs, activerTris: activerTris, plusOptions: plusOptions, dernierChoix: dernierChoix, icone: icone, ongletsAdmin: function () { return App.fenetre === 'admin' ? onglets() : []; }, choisirOrdre: choisirOrdre, modaleAffichage: modaleAffichage, chambresTravaux: chambresTravaux,
     demarrer: demarrer, verrouiller: verrouiller,
     retenirAccueil: function () { retenirAccueil(); }
   };

@@ -366,13 +366,14 @@
       etat.textContent = dd.ok ? (dd.validation ? 'Salle libre, soumise à la validation du cadre.' : 'Salle libre.') : 'Salle ' + dd.raison + '. Salles libres : ' + (S.libres(st(), occ, sv, d0, d1).map(function (x) { return x.nom; }).join(', ') || 'aucune') + '.';
     }
     [sel, jour, de, a].forEach(function (x) { x.addEventListener('change', maj); });
+    if (U.dernierChoix) U.dernierChoix('salles.salle.' + sv, sel, !init.salle);
     maj();
     U.modale('Réserver une salle', h('div', { class: 'pile' },
       h('div', { class: 'grille-2', role: 'radiogroup', 'aria-label': 'Type de réservation' },
         h('label', { class: 'sb-choix' }, h('span', {}, agenda, h('b', { text: ' Événement de l’agenda' })), h('small', { text: 'entretien, réunion, activité : professionnels et patients demandés comme dans l’agenda' })),
         h('label', { class: 'sb-choix' }, h('span', {}, simple, h('b', { text: ' Réservation simple' })), h('small', { text: 'salle bloquée, sans participants (rangement, inventaire…)' }))),
       h('div', { class: 'grille-2' }, h('label', {}, 'Salle', sel), h('label', {}, 'Jour', jour), h('label', {}, 'De', de), h('label', {}, 'À', a)),
-      h('label', {}, 'Objet (réservation simple)', titre), rep.noeud, etat),
+      h('label', {}, 'Objet (réservation simple)', titre), U.plusOptions ? U.plusOptions(false, rep.noeud) : rep.noeud, etat),
     [{ texte: 'Annuler' }, { texte: 'Continuer', classe: 'primaire', action: async function () {
       var d0 = S.instant(jour.value, de.value), d1 = S.instant(jour.value, a.value);
       if (agenda.checked) {
