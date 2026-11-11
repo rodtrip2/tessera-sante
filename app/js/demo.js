@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -46,6 +46,17 @@
       cfg('services', [{ code: 'U1', libelle: 'Unité 1 (fictive)' }, { code: 'U2', libelle: 'Unité 2 (fictive)' }]);
       cfg('etablissement', 'Établissement fictif de démonstration');
       cfg('poles', [{ code: 'PSM', libelle: 'Pôle santé mentale (fictif)', services: ['U1', 'U2'] }]);   // 0.27.2
+      // Chambres et lits (0.29.0) : Unité 1 (chambres doubles et simples, deux CSI, pièces dont un espace d'apaisement
+      // utilisé par les patients), Unité 2 (chambres simples, une CSI) ; plan du service en grille
+      var ch = function (nom, lits, x, y, w) { return { id: 'c' + nom, nom: nom, type: 'chambre', lits: lits, x: x, y: y, w: w || 1, h: 1 }; };
+      cfg('chambres', {
+        U1: { colonnes: 8, pieces: [ch('8', ['P', 'F'], 0, 0), ch('10', ['P', 'F'], 1, 0), ch('12', ['P', 'F'], 2, 0), ch('14', [], 3, 0), ch('16', [], 4, 0), ch('18', ['P', 'F'], 5, 0),
+          { id: 'csi1', nom: 'CSI 1', type: 'csi', x: 6, y: 0 }, { id: 'csi2', nom: 'CSI 2', type: 'csi', x: 7, y: 0 },
+          { id: 'poste', nom: 'Poste de soins', type: 'piece', nature: 'poste', x: 0, y: 2, w: 2 }, { id: 'apais', nom: 'Espace d’apaisement', type: 'piece', nature: 'apaisement', usage: true, x: 2, y: 2, w: 2 },
+          { id: 'bur', nom: 'Bureau médical', type: 'piece', nature: 'bureau', x: 4, y: 2 }, { id: 'sam', nom: 'Salle à manger', type: 'piece', nature: 'repas', usage: true, x: 5, y: 2, w: 3 }] },
+        U2: { colonnes: 6, pieces: [ch('A1', [], 0, 0), ch('A3', [], 1, 0), ch('A5', [], 2, 0), ch('A7', [], 3, 0), { id: 'csia', nom: 'CSI A', type: 'csi', x: 5, y: 0 },
+          { id: 'off', nom: 'Office', type: 'piece', nature: 'office', x: 0, y: 2, w: 2 }] }
+      });
       cfg('lieuxCSI', { U1: ['CSI 1', 'CSI 2'], U2: ['CSI A'] });
       // Agenda : audiences JLD et activités thérapeutiques en transparence tant qu'aucun patient n'y est prévu
       // Fiche patient : données complémentaires (sorties libres saisies aussi par les AS dans l'Unité 1 ; éducateur référent
@@ -188,8 +199,9 @@
     patients.forEach(function (p) {
       var c = complements[p[0]];
       ajouter(t(-24 * 279), 'PATIENT', { patientId: p[0], medecin1: c.medecin1, medecin2: c.medecin2 || '', referents: c.referents || [], psychologue: c.psychologue || '', psychologueId: c.psychologueId || '', suiviAS: c.suiviAS || null });
-      ajouter(t(c.entree), 'SEJOUR', { patientId: p[0], sejourId: 'S' + p[0], iep: '7' + p[1], entree: jISO(c.entree), service: p[5], chambre: c.chambre, lit: c.lit });
+      ajouter(t(c.entree), 'SEJOUR', { patientId: p[0], sejourId: 'S' + p[0], iep: '7' + p[1], entree: jISO(c.entree), service: p[5], chambre: p[0] === 'P01' ? '18' : c.chambre, lit: c.lit });
     });
+    ajouter(t(-24 * 10), 'SEJOUR', { patientId: 'P01', sejourId: 'SP01', chambre: '12', lit: 'P' });   // changement de chambre (historique des lits, 0.29.0)
     [['P07', '900107', 'GOLF', 'Ilan', 'SL', U1, 52, -24 * 15, -24 * 3, '6'], ['P08', '900108', 'HOTEL', 'Maé', 'SDT', U1, 29, -24 * 50, -24 * 21, '3']].forEach(function (p) {
       ajouter(t(p[7]), 'PATIENT', { patientId: p[0], ipp: p[1], nom: p[2] + ' (fictif)', prenom: p[3], naissance: SIC.model.dateLocaleISO(now - p[6] * 365.25 * J - 40 * J), service: p[5], medecin1: 'Dr Arnaud (fictif)' });
       ajouter(t(p[7]), 'MODE_HOSPI', { patientId: p[0], mode: p[4], date: t(p[7]) });
@@ -346,12 +358,14 @@
     // Permissions : demande d'un patient en SDRE (validation 48 h avant), demande en SDT, permission de week-end validée
     // Étapes de validation (0.21.0) : SDRE, certificat envoyé puis demande d'un 2e avis par l'ARS (retour à « certificat
     // en attente de signature », délai de 48 h dépassé) ; SDT, validation orale obtenue, certificat à faire signer
-    var permSdre = rdv({ nature: 'permission', titre: '', debut: jour(2, 14), fin: jour(2, 18), service: U2, patients: ['P04'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
+    // Jours gardés dans la semaine affichée (vérification à l'écran quel que soit le jour du lancement)
+    var resteSemaine = (7 - new Date(now).getDay()) % 7, jSdre = Math.max(1, Math.min(2, resteSemaine)), jSdt = Math.max(1, Math.min(4, resteSemaine));
+    var permSdre = rdv({ nature: 'permission', titre: '', debut: jour(jSdre, 14), fin: jour(jSdre, 18), service: U2, patients: ['P04'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
     [['orale'], ['asigner'], ['envoye'], ['asigner', 'avis', 'Demande d’un 2e avis : avis d’un second psychiatre attendu (fictif)']].forEach(function (e, i) {
-      ajouter(avant + (i + 1) * 6e4, 'VALIDATION', { rdv: permSdre, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(2)), statut: 'etape', etape: e[0], processus: 'sdre', retourARS: e[1], mention: e[2], service: U2 });
+      ajouter(avant + (i + 1) * 6e4, 'VALIDATION', { rdv: permSdre, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(jSdre)), statut: 'etape', etape: e[0], processus: 'sdre', retourARS: e[1], mention: e[2], service: U2 });
     });
-    var permSdt = rdv({ nature: 'permission', titre: 'Permission en famille', debut: jour(4, 10), fin: jour(4, 17), service: U1, patients: ['P01'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
-    ajouter(avant + 6e4, 'VALIDATION', { rdv: permSdt, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(4)), statut: 'etape', etape: 'orale', processus: 'contrainte', service: U1 });
+    var permSdt = rdv({ nature: 'permission', titre: 'Permission en famille', debut: jour(jSdt, 10), fin: jour(jSdt, 17), service: U1, patients: ['P01'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
+    ajouter(avant + 6e4, 'VALIDATION', { rdv: permSdt, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(jSdt)), statut: 'etape', etape: 'orale', processus: 'contrainte', service: U1 });
     var samedi = (6 - new Date(now).getDay() + 7) % 7 || 7;
     var permWe = rdv({ nature: 'permission', titre: 'Permission de week-end', debut: jour(samedi, 10), fin: jour(samedi + 1, 18), service: U2, patients: ['P06'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
     ajouter(avant, 'VALIDATION', { rdv: permWe, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(samedi)), statut: 'validee', nom: 'Dr Diallo (fictif)', service: U2 });

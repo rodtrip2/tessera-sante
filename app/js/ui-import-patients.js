@@ -87,12 +87,25 @@
     function apercu() {
       if (!modele.colonnes.nom && !modele.colonnes.nomComplet) { alert('Attribuez au moins la colonne du nom.'); return; }
       decisions = { doublons: {}, noms: {}, sorties: {} };
-      analyse = IP.analyser(lignes, modele, U.st().patients, { aujourdhui: new Date().toISOString().slice(0, 10), service: modele.colonnes.unite ? null : svDefaut.value });
+      analyse = IP.analyser(lignes, modele, U.st().patients, { aujourdhui: new Date().toISOString().slice(0, 10), service: modele.colonnes.unite ? null : svDefaut.value, config: U.config() });
       U.vider(zoneApercu);
       var c = analyse.compte;
       zoneApercu.appendChild(h('h3', { text: 'Aperçu' }));
       zoneApercu.appendChild(h('p', { text: [(c.nouveau || 0) + ' nouveau(x) patient(s)', (c.modifie || 0) + ' fiche(s) ou séjour(s) mis à jour', (c.identique || 0) + ' sans changement', (c.doublon || 0) + ' doublon(s) possible(s) à confirmer', (c.erreur || 0) + ' ligne(s) en erreur', (c.ignoree || 0) + ' ligne(s) écartée(s)', analyse.absents.length + ' patient(s) absent(s) de la liste'].join(' · ') }));
       function section(titre, items, rendu) { if (items.length) zoneApercu.appendChild(h('details', { open: true }, h('summary', { text: titre + ' (' + items.length + ')' }), h('ul', {}, items.map(rendu)))); }
+      // Lits de l'export à rattacher aux lits existants (0.29.0) ; correspondance mémorisée avec le modèle d'import
+      var inconnus = {}; analyse.lignes.forEach(function (r) { if (r.litInconnu) { var k = r.litInconnu.service + '|' + r.litInconnu.brut; (inconnus[k] = inconnus[k] || { x: r.litInconnu, n: 0 }).n++; } });
+      if (Object.keys(inconnus).length) {
+        modele.lits = modele.lits || {};
+        zoneApercu.appendChild(h('h3', { text: 'Lits de l’export à rattacher aux lits du service' }));
+        zoneApercu.appendChild(h('div', { class: 'grille-2' }, Object.keys(inconnus).map(function (k) {
+          var x = inconnus[k].x, sel = h('select', { 'aria-label': 'Lit pour ' + x.libelle, onchange: function () { modele.lits[k] = sel.value || undefined; } },
+            [h('option', { value: '', text: 'À choisir' }), h('option', { value: '__garder', text: 'Garder tel quel (hors de la liste)' })]
+              .concat(SIC.chambres.lits(U.config(), x.service).map(function (l) { return h('option', { value: l.cle, text: l.libelle }); })));
+          return h('label', {}, '« ' + x.libelle + ' » (' + U.libService(x.service) + ', ' + inconnus[k].n + ' ligne(s))', sel);
+        })));
+        zoneApercu.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: apercu }, 'Appliquer les correspondances')));
+      }
       var L = analyse.lignes;
       section('Nouveaux patients', L.filter(function (r) { return r.statut === 'nouveau'; }), function (r) { return h('li', { text: 'Ligne ' + r.n + ' : ' + libFiche(r.valeurs) + (r.valeurs.chambre ? ', chambre ' + r.valeurs.chambre + (r.valeurs.lit ? ' lit ' + r.valeurs.lit : '') : '') }); });
       section('Fiches ou séjours mis à jour', L.filter(function (r) { return r.statut === 'modifie'; }), function (r) {

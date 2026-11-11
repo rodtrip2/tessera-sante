@@ -312,6 +312,17 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 - **`kit/05-elements-rgpd-aipd.md`** et guide utilisateur : l'export du droit d'accès contient la prise en charge (type et nom).
 - **`CHANGELOG.md`** : entrée 0.21.0 (version et empreintes déjà faites à la fusion) ; PDF (`python3 scripts/docs-pdf.py`) ; empreintes (`node scripts/empreintes.mjs`).
 
+## Version 0.29.0 (branche `chambres`, 12 novembre 2026) : chambres et lits
+
+| Sujet | Décisions du porteur (11 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Liste des chambres par service | Chambres (simples, doubles…) et lits distincts (ex. chambre 417, lits 417 P et 417 F) ; CSI identifiées dans la liste (remplacent les lieux d'isolement réglés jusqu'ici, repris sans perte tant que la liste n'existe pas) ; autres pièces (bureau, espace d'apaisement…), certaines utilisées par les patients ; réglée par le cadre pour ses services, par l'administrateur pour tous | `chambres.js` (`SIC.chambres`), `ui-chambres.js` ; réglage commun `chambres` { <service> : { pieces } } contrôlé par `reglages.cadre.chambres` du module Patients ; onglet *Administration → Patients → Chambres et lits* ; groupe `chambres` de l'export des réglages ; `SIC.chambres.lieuxCSI` remplace la lecture directe de `lieuxCSI` (Isocont, parcours) |
+| Un patient par lit | Choix du lit dans une liste (occupation affichée) ; lit occupé : avertissement et proposition de déplacer l'autre patient, en cascade, ou de le laisser (deux patients : à régler) ; « Annuler tout » n'enregistre rien | `U.chambres.selecteurLit`, `cascade`, `enregistrerSejour` ; saisies `SEJOUR` des patients déplacés écrites avant celle du patient ; contrôle dans l'interface seulement (échanges et cascades possibles) |
+| Historique des lits | Gardé : lits successifs dans la fiche du séjour | `sejour.mouvements` [{ du, chambre, lit, par }] tenu par le réducteur de `SEJOUR` |
+| Import de la liste des patients présents | Rattacher les lits de l'export aux lits existants : reconnaissance automatique (« 417P », « 417-F », chambre seule), sinon correspondance choisie à l'import, mémorisée dans le modèle | `import-patients.js` (`options.config`, `modele.lits`, `litInconnu`) ; section « Lits de l'export à rattacher aux lits du service » de `ui-import-patients.js` |
+| Démonstration | Unité 1 : chambres doubles et simples, deux CSI, poste de soins, espace d'apaisement et salle à manger (utilisés par les patients), bureau médical ; Unité 2 : chambres, CSI, office ; changement de lit d'un patient (historique) | `demo.js` ; permissions de démonstration gardées dans la semaine affichée |
+| Prévu (étape 4, 0.29.1) | Plan graphique du service, noms des patients, pièces utilisées, CSI (patient en mesure, chambre ouverte, surcapacité) | Coordonnées x, y, w, h, couleur déjà portées par chaque pièce |
+
 ## Points à faire valider (pour CLAUDE.md § 7 et le kit)
 
 - **Export du droit d'accès** : la prise en charge y figure par le type et le nom (décision du porteur du 11 novembre 2026), sans coordonnées ni commentaires internes ; à faire confirmer par le délégué à la protection des données.
@@ -321,6 +332,8 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 - **Salles et bureaux** : durée de conservation des réservations et des demandes ; entretiens prévus des psychologues (patient, date, heure) à inscrire au registre des traitements ; rôle « Psychologue » (comptes des psychologues) à valider avec la direction des soins et le service informatique.
 - **Messagerie, chiffrement** : relecture par le responsable de la sécurité informatique (RSSI) du chiffrement réservé aux destinataires (parties publiques attestées, clés par groupe, consultation tracée garantie par l'application seulement) ; motifs de consultation et information des agents à valider avec le délégué à la protection des données et la direction des ressources humaines.
 - **Messagerie** : avis du délégué à la protection des données (DPO, référent RGPD) et du responsable de la sécurité informatique (RSSI) sur les pièces jointes (désactivées par défaut ; aucun contrôle antivirus par l'application), sur la durée de conservation (12 mois proposés) et sur l'inscription au registre des traitements.
+
+- **Chambres et lits** : la liste des chambres et l'historique des lits rejoignent la fiche commune ; pas de nouvelle donnée personnelle hors séjour (à confirmer au registre des traitements).
 
 ## Restes connus
 

@@ -332,6 +332,26 @@ with sync_playwright() as p:
     a.locator('nav.onglets button', has_text='Contacts').click(); time.sleep(1)
     verifier(a.locator('table.is-contacts tbody tr').count() >= 8, 'informations : contacts de l’établissement et du service')
 
+    print('Chambres et lits (0.29.0)')
+    fenetre(a, 'Administration'); a.locator('nav.onglets button', has_text='Patients').first.click(); time.sleep(1)
+    a.get_by_role('button', name='Chambres et lits').first.click(); time.sleep(1)
+    verifier(a.locator('table.ch-liste tbody tr').count() >= 10, 'chambres : liste du service (chambres, CSI, autres pièces)')
+    capture(a, 'admin-chambres')
+    fenetre(a, 'Patients')
+    a.locator('tr', has_text='CHARLIE').first.get_by_role('button', name='Fiche').click(); time.sleep(1)
+    a.locator('dialog[open]').get_by_role('button', name='Modifier', exact=True).last.click(); time.sleep(0.8)
+    d = a.locator('dialog[open]').last
+    verifier('occupé' in ' '.join(d.get_by_label('Chambre et lit').locator('option').all_inner_texts()), 'séjour : choix du lit dans la liste, occupation affichée')
+    d.get_by_label('Chambre et lit').select_option('12|P'); d.get_by_role('button', name='Enregistrer').click(); time.sleep(1)
+    d2 = a.locator('dialog[open]').last
+    verifier('Lit occupé' in d2.inner_text(), 'séjour : lit occupé, proposition de déplacer l’autre patient')
+    capture(a, 'chambres-cascade')
+    d2.get_by_label('Nouveau lit', exact=False).select_option('8|F'); d2.get_by_role('button', name='Continuer').click(); time.sleep(2)
+    occ = a.evaluate("(() => { const o = SIC.chambres.occupation(SIC.ui.chambres.fiches(), 'U1'); return [(o['12|P'] || []).length, (o['8|F'] || []).length]; })()")
+    verifier(occ == [1, 1], 'séjour : déplacement en cascade, un patient par lit ' + str(occ))
+    a.keyboard.press('Escape'); time.sleep(0.5)
+    if a.locator('dialog[open]').count(): a.keyboard.press('Escape'); time.sleep(0.5)
+
     print('Administration : organisation par service')
     fenetre(a, 'Administration')
     a.locator('nav.onglets button', has_text='Agenda').first.click(); time.sleep(1)
