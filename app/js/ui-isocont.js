@@ -491,7 +491,7 @@
       majLieu();
     }
     function majLieu() {
-      var lieux = (config().lieuxCSI || {})[selSv.value] || [];
+      var lieux = SIC.chambres.lieuxCSI(config(), selSv.value);
       var avant = selLieu.value;
       vider(selLieu);
       lieux.forEach(function (l) { selLieu.appendChild(h('option', { value: l, text: l })); });
@@ -572,7 +572,7 @@
       // Lieu
       var al = [];
       if (selLieu.value === '__hors' && type.value === 'Contention' && !exception.checked) al.push('Contention hors espace d’isolement (catégorie D du registre) : à n’utiliser qu’à titre exceptionnel.');
-      if (!((config().lieuxCSI || {})[selSv.value] || []).length) al.push(lieu('Aucun lieu de type « chambre de soins intensifs » n’est paramétré pour ce service.'));
+      if (!(SIC.chambres.lieuxCSI(config(), selSv.value)).length) al.push(lieu('Aucun lieu de type « chambre de soins intensifs » n’est paramétré pour ce service.'));
       aLieu.afficher(al);
 
       // Alertes de l'établissement (Administration → Alertes)
@@ -994,7 +994,7 @@
   function modaleLieu(m) {
     var base = m.version;
     var quand = h('input', { type: 'datetime-local', value: versSaisie(Date.now()) });
-    var lieux = (config().lieuxCSI || {})[m.service] || [];
+    var lieux = SIC.chambres.lieuxCSI(config(), m.service);
     var selLieu = h('select', {}, lieux.filter(function (l) { return l !== m.lieu; }).map(function (l) { return h('option', { value: l, text: l }); }), h('option', { value: '__hors', text: lieu('Hors CSI (chambre)') }));
     var chambre = h('input', { type: 'text', placeholder: 'N° de chambre', hidden: selLieu.value !== '__hors' });
     selLieu.addEventListener('change', function () { chambre.hidden = selLieu.value !== '__hors'; });
@@ -1138,7 +1138,7 @@
       h('label', { class: 'case' }, tous, h('span', { text: lieu('Tous les lieux (CSI) du service') })), zoneLieux);
     function majLieux() {
       vider(zoneLieux); casesLieux = {};
-      var lieux = (config().lieuxCSI || {})[selSv.value] || [];
+      var lieux = SIC.chambres.lieuxCSI(config(), selSv.value);
       blocLieux.hidden = !lieux.length;
       lieux.forEach(function (l) { casesLieux[l] = h('input', { type: 'checkbox' }); zoneLieux.appendChild(h('label', { class: 'case' }, casesLieux[l], h('span', { text: l }))); });
       zoneLieux.hidden = tous.checked;
@@ -1195,7 +1195,7 @@
   // ================================================================ Journal : libellés lisibles
   var LIB_ONGLET_MASQUABLE = { tableau: 'Tableau de bord', mesures: 'Mesures', patients: 'Patients', jld: 'JLD', surveillance: 'Surveillance CSI', registre: 'Registre', stats: 'Statistiques' };
   var LIB_CONFIG = {
-    agendaReglages: 'Agenda : réglages par service', travaux: 'Demandes de travaux : réglages', messagerie: 'Messagerie : réglages', salles: 'Salles et bureaux : réglages', infos: 'Informations du service : réglages', poles: 'Pôles', intervenants: 'Prise en charge : types et champs',
+    agendaReglages: 'Agenda : réglages par service', travaux: 'Demandes de travaux : réglages', messagerie: 'Messagerie : réglages', salles: 'Salles et bureaux : réglages', infos: 'Informations du service : réglages', poles: 'Pôles', chambres: 'Chambres et lits', intervenants: 'Prise en charge : types et champs',
     etablissement: 'Nom de l’établissement', services: 'Services', modulesServices: 'Modules activés par service', fichePatient: 'Fiche patient par service (psychiatrie, libellés des médecins)', importPatients: 'Modèles d’import de la liste des patients (DPI)', patientsListe: 'Liste des patients : sorties récentes, couleurs des modes, affichages par défaut', patientsChamps: 'Fiche patient : données complémentaires (par service et par rôle)', champsAjoutes: 'Données ajoutées (patients, médecins ; types, droits, protection)', reglagesDonnees: 'Réglages des données (couleurs, délais)', capacites: 'Capacité d’accueil des services', vuesEnsemble: 'Vue d’ensemble : vues, colonnes, groupes, synthèse', psychologues: 'Liste commune des psychologues', largeursColonnes: 'Largeur des colonnes (tableaux d’Isocont)', vehicules: 'Véhicules : types de véhicules et de signalements, données ajoutées', groupes: 'Groupes d’agents', medecins: 'Liste commune des médecins', suiviMedical: 'Suivi médical : délais d’alerte, gardes et astreintes, lieux de présence', vehiculesInformation: 'Véhicules : destinataires de l’information d’une pré-réservation remplacée', agenda: 'Agenda : identité du patient, types d’alertes, tâches, check-lists, couleurs, validation des permissions', exports: 'Dossier des exports', surveillance: 'Surveillance : professionnels attendus par poste', roles: 'Rôles et accès', organisationJLD: 'Organisation des envois au JLD', verificationVersion: 'Vérification de la version (page GitHub)', listes: 'Listes de saisie (fonctions, motifs, raccourcis)', miroir: 'Dossier de secours', verrouDossier: 'Choix du dossier bloqué sur les postes', vigilance: 'Seuils des points de vigilance', affichage: 'Affichage (mesures terminées, connexion, logo)', lieuIsolement: 'Appellation des lieux dédiés à l’isolement', lieuxCSI: 'Chambres de soins intensifs', psychiatres: 'Liste des psychiatres',
     periodes: 'Postes de surveillance par défaut', periodesService: 'Postes de surveillance propres aux services', modesHospitalisation: 'Modes d’hospitalisation',
     parametres: 'Règles légales (seuils et cycles JLD)', delaiModeHospiHeures: 'Délai de bascule du mode d’hospitalisation (registre)',
