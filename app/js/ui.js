@@ -648,7 +648,7 @@
   function onglets() {
     if (App.fenetre === 'admin') {
       if (App.session && App.session.roles().indexOf('ADMIN') < 0) return [['groupes', 'Groupes d’agents']].concat(modulesCadre().map(function (m) { return ['cadre-' + m.id, m.libelle]; }), [['journal', 'Journal']]);
-      return [['admin', 'Réglages généraux'], ['groupes', 'Groupes d’agents']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['journal', 'Journal']]);
+      return [['admin-accueil', 'Accueil'], ['admin', 'Réglages généraux'], ['groupes', 'Groupes d’agents']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['journal', 'Journal']]);
     }
     var id = App.fenetre === 'patients' ? 'patients' : (App.session ? App.session.moduleAffiche() : null);
     var m = id && SIC.modules.obtenir(id);
@@ -853,6 +853,7 @@
     zoneContenu.appendChild(h('section', { class: 'fenetre', 'aria-label': 'Fenêtre du module' }, titreFenetre(), nav, corps));
     var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: function () { return vueAdmin('general'); }, groupes: function () { return SIC.ui.vueGroupes ? SIC.ui.vueGroupes() : h('p', { class: 'muted', text: 'Groupes indisponibles.' }); } };
     modulesAdmin().forEach(function (x) { vues['admin-' + x[0]] = function () { return vueAdmin(x[0]); }; });
+    vues['admin-accueil'] = function () { return SIC.ui.vueAccueilAdmin ? SIC.ui.vueAccueilAdmin() : vueAdmin('general'); };
     modulesCadre().forEach(function (m) { vues['cadre-' + m.id] = function () { return h('div', { class: 'pile' }, m.interface.admin.cadre()); }; });
     var mAff = moduleAffiche(), vuesAff = (mAff.interface && mAff.interface.vues) || {}, vuesModule = interfaceModule().vues || {};
     var mPat = SIC.modules.obtenir('patients'), vuesPat = (mPat && mPat.interface && mPat.interface.vues) || {};
@@ -1882,7 +1883,7 @@
     App: App, st: st, config: config, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, lignesDe: lignesDe, zoneTexte: zoneTexte, periodeDepuis: periodeDepuis, changerDossier: function () { return changerDossier(); },
-    lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu, activerLargeurs: activerLargeurs, activerTris: activerTris, choisirOrdre: choisirOrdre, modaleAffichage: modaleAffichage, chambresTravaux: chambresTravaux,
+    lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu, activerLargeurs: activerLargeurs, activerTris: activerTris, icone: icone, ongletsAdmin: function () { return App.fenetre === 'admin' ? onglets() : []; }, choisirOrdre: choisirOrdre, modaleAffichage: modaleAffichage, chambresTravaux: chambresTravaux,
     demarrer: demarrer, verrouiller: verrouiller,
     retenirAccueil: function () { retenirAccueil(); }
   };
