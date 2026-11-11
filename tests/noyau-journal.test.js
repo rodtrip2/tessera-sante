@@ -36,3 +36,22 @@ test('Même milliseconde : horodatages différents et autres agents inchangés, 
   const c2 = { id: 'c2', at: AT, by: 'u3', type: 'PATIENT', prec: 'c1', data: {} };
   assert.equal(N.trierEvenements([c1, c2]).length, 2);
 });
+
+test('Tri mémorisé : même ordre que le tri complet, saisies ajoutées à la fin, en retard ou tableau remplacé (0.21.1)', () => {
+  const N = require('../app/js/noyau-journal.js');
+  const def = { etat: () => ({ vus: [] }), appliquer: (st, e) => st.vus.push(e.id) };
+  const e = (id, at, prec) => ({ id, at, by: 'a1', type: 'NOTE', data: {}, prec });
+  const ordre = (evts) => N.trierEvenements(N.deplier(evts)).map(x => x.id);
+  const evts = [e('b', '2026-01-02T08:00:00Z'), e('a', '2026-01-01T08:00:00Z'), e('c', '2026-01-03T08:00:00Z')];
+  assert.deepEqual(N.reduire(evts, def).vus, ['a', 'b', 'c']);
+  evts.push(e('d', '2026-01-04T08:00:00Z'));                       // saisie du poste, à la fin
+  assert.deepEqual(N.reduire(evts, def).vus, ordre(evts));
+  evts.push(e('z', '2026-01-01T09:00:00Z'));                       // saisie arrivée en retard (autre poste)
+  assert.deepEqual(N.reduire(evts, def).vus, ['a', 'z', 'b', 'c', 'd']);
+  const suite = evts.concat([e('f', '2026-01-04T08:00:00Z', 'd'), e('g', '2026-01-05T08:00:00Z')]);   // même heure qu'une saisie connue
+  assert.deepEqual(N.reduire(suite, def).vus, ordre(suite));
+  const autre = [e('x', '2026-02-01T08:00:00Z'), e('w', '2026-01-31T08:00:00Z')];   // autre jeu (formation, reconnexion)
+  assert.deepEqual(N.reduire(autre, def).vus, ['w', 'x']);
+  suite[1] = e('y', '2025-12-31T08:00:00Z');                       // tableau modifié sur place
+  assert.deepEqual(N.reduire(suite, def).vus, ordre(suite));
+});

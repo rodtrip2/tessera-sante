@@ -192,3 +192,19 @@ test('Activation du module par service : réglage du socle, services visibles, s
   await admin.enregistrer('CONFIG', { cle: 'modulesServices', valeur: {} });
   assert.deepEqual(M.droits.servicesInactifs(admin.etat.config), []);
 });
+
+test('Lecture rapide : seuls les mois récents sont parcourus ; la lecture complète rattrape un mois clos (0.21.1)', async () => {
+  const { Dossier } = globalThis.SIC, C = globalThis.SIC.crypto;
+  const racine = new Repertoire('racine'), d = new Dossier(racine, 'reseau');
+  const cle = await C.importerCle(C.b64(C.aleatoire(32)));
+  const maintenant = new Date(), mois = (n) => { const x = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth() - n, 10, 8)); return x.toISOString(); };
+  const ecrire = (at, n) => d.ecrireEvenement(cle, { v: 1, id: at.replace(/[-:]/g, '').replace(/\.\d+/, '') + '_a1_' + n, at, by: 'a1', type: 'NOTE', data: {} });
+  await ecrire(mois(3), '00000001'); await ecrire(mois(0), '00000002');
+  const connus = new Set();
+  assert.equal((await d.lireNouveaux(cle, connus)).evenements.length, 2);   // lecture complète
+  await ecrire(mois(3), '00000003'); await ecrire(mois(1), '00000004'); await ecrire(mois(0), '00000005');
+  const rapide = await d.lireNouveaux(cle, connus, { recents: true });
+  assert.deepEqual(rapide.evenements.map(e => e.id.slice(-8)).sort(), ['00000004', '00000005']);   // le mois clos n'est pas parcouru
+  const complete = await d.lireNouveaux(cle, connus);
+  assert.deepEqual(complete.evenements.map(e => e.id.slice(-8)), ['00000003']);   // rattrapé par la lecture complète
+});

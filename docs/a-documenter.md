@@ -20,6 +20,26 @@ Le détail des décisions est aussi dans le document de projet claude.ai `claude
 | Export du droit d'accès | Décision du porteur : la prise en charge y figure par le type et le nom de chaque professionnel ou structure, sans les coordonnées ni les commentaires internes du service | `intervenants.pourExport`, `ui-qualite.js` (`exporterPatient`) |
 | Parcours des écrans versionné | Suggestion de la relecture, acceptée | `tests/ecrans/parcours.py`, `npm run ecrans` (serveur local sur le port 8765) |
 
+## Version 0.21.1 (test de charge, 11 novembre 2026)
+
+Test de charge sur données fictives (`node scripts/charge.cjs [services] [jours]`) : environ 56 saisies par service et par jour (hypothèses en tête du script), soit ~20 000 par service et par an. Mesures sous Node (poste de développement ; un poste hospitalier peut être 2 à 3 fois plus lent) :
+
+| Volume | Recalcul après une saisie, avant → après | Résumé des alertes de l'Agenda, avant → après |
+| --- | --- | --- |
+| 1 service, 1 an (20 500 saisies) | ~250 ms → 88 ms | 18 ms |
+| 3 services, 1 an (61 500) | 700 ms → 230 ms | 88 ms |
+| 6 services, 1 an (123 000) | — → 820 ms | 258 ms |
+| 3 services, 3 ans (185 000) | — → 1 100 ms | 400 ms → 111 ms |
+
+Déchiffrement : 0,06 ms par saisie ; instantané d'un mois clos : 6 ms. Non mesuré : l'accès au partage réseau (à mesurer sur place).
+
+Améliorations faites (sans changement de résultat, tests d'équivalence) :
+- **Tri mémorisé** (`noyau-journal.js`, `trierMemorise`) : le tri des saisies, qui coûtait l'essentiel du recalcul, est fait une fois pour tous les modules ; les saisies ajoutées à la fin ne trient qu'elles-mêmes.
+- **Lecture rapide** (`store.js` `lireNouveaux` option `recents`, `session.js` `LECTURE_COMPLETE`) : toutes les 5 s, seuls le mois en cours et le précédent sont listés sur le partage ; lecture complète à la connexion puis toutes les 10 minutes (rattrape une saisie arrivée tard dans un mois clos : poste hors réseau, dossier de secours).
+- **Absences lues une fois par période affichée** dans l'Agenda (`prevusAbsents`).
+
+Restes (décision du porteur à prendre) : le recalcul reste proportionnel à tout l'historique (~1 s à 3 ans pour 3 services) ; piste : **recalcul incrémental** (n'appliquer que les nouvelles saisies, recalcul complet sur une annulation ou une saisie en retard). Le partage réseau liste encore ~10 000 fichiers toutes les 5 s pour 3 services ; piste : un sous-dossier par jour. À documenter : fiche technique (performances, lecture rapide), architecture (§ journal).
+
 ## Par document
 
 - **`docs/architecture.md`** : § 7 bis (Agenda) : remplacer les lignes « Accompagnateurs » et « Consigne des accompagnateurs » par les deux rubriques ; ajouter événements de plusieurs services, étapes des permissions, tâches suggérées, sorties dans l'agenda, organisation par service. § 7 (Patients) : prise en charge et répertoire ; sortie envisagée ou actée. § 7 quinquies : colonne renommée, couleurs par état. Tableau des décisions (11 novembre 2026) ; état du plan (ligne 0.21.0).
