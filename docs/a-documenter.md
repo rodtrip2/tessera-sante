@@ -26,7 +26,7 @@ Test de charge sur données fictives (`node scripts/charge.cjs [services] [jours
 
 | Volume | Recalcul après une saisie, avant → après | Résumé des alertes de l'Agenda, avant → après |
 | --- | --- | --- |
-| 1 service, 1 an (20 500 saisies) | ~250 ms → 88 ms | 18 ms |
+| 1 service, 1 an (20 500 saisies) | — → 88 ms | 18 ms |
 | 3 services, 1 an (61 500) | 700 ms → 230 ms | 88 ms |
 | 6 services, 1 an (123 000) | — → 820 ms | 258 ms |
 | 3 services, 3 ans (185 000) | — → 1 100 ms | 400 ms → 111 ms |
