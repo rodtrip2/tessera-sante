@@ -115,6 +115,16 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.28.1 (rôle et fiche « Médecin » ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Rôle | Vrai rôle pour les médecins, par service | Rôle fourni `MEDECIN` (rôle de service), journal fermé par défaut ; cumulable avec les rôles de médecin chef |
+| Droits par défaut (réglables) | Réserver des salles, échanger des messages, recevoir des alertes ; lecture des modules ; ses propres présences | Salles et bureaux : réserver, demander, relevé ; Messagerie : comme les IDE (sans sondage) ; Agenda : s'inscrire, valider les permissions, envoyer et recevoir les alertes ; lecture (accès « consulter ») des autres modules ; Suivi médical : le médecin relié à son compte saisit **ses propres** présences, absences et gardes (`permisPourSoi` : jamais celles d'un autre médecin) ; bouton « + Ma présence, absence, garde », médecin imposé dans le formulaire |
+| Fiche | La fiche de la liste commune devient la fiche Équipe du compte relié | Lien existant (liste des médecins : « Compte ») ; fiche de contact : fonction du médecin, numéro personnel pour ses lecteurs (cadre, médecin chef de service) |
+
+Retour sur sa dernière position : désormais retenu **par agent** (deux agents du même poste ne retrouvent pas la position de l'autre). Tests : `tests/suivi.test.js`, `tests/roles.test.js` ; parcours (compte de médecin relié : salles, messages, alertes, ses présences). À documenter : guide d'administration (rôle Médecin, relier un médecin à un compte), architecture, `CLAUDE.md` (rôles, § 7 : droits par défaut du médecin à valider).
+
 ## Version 0.28.0 (Vue d'ensemble : fiche du patient ; données ajoutées dans l'Équipe ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |

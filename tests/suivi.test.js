@@ -207,3 +207,17 @@ test('Planning des psychologues (0.25.0) : présences, entretiens prévus dans u
   assert.throws(() => S.contrat.saisies.controler('ENTRETIEN_PREVU', { id: 'X', psychologue: 'Mme Petit', patient: 'P01', jour: '2026-11-16', de: '10:00', a: '09:00' }, { etat: st, config: {} }), /Heures/);
   assert.deepEqual([S.droits.peut(['SECRETAIRE'], 'PRESENCE_PSY', {}), S.droits.peut(['IDE'], 'PRESENCE_PSY', {})], [true, false]);
 });
+
+test('Rôle Médecin (0.28.1) : le médecin relié à un compte saisit ses propres présences, jamais celles d’un autre', () => {
+  globalThis.self = globalThis; globalThis.SIC = globalThis.SIC || {}; SIC.medecins = require('../app/js/medecins.js');
+  const S2 = require('../app/js/module-suivi.js');
+  const config = { medecins: [{ id: 'm-a', nom: 'Dr A (fictif)', fonction: 'psychiatre', compte: 'u-a' }, { id: 'm-b', nom: 'Dr B (fictif)', fonction: 'psychiatre' }] };
+  const st = S2.reduire([{ v: 1, id: 'p1', at: '2026-11-11T08:00:00.000Z', by: 'sec', type: 'PRESENCE', data: { id: 'PB', medecin: 'Dr B (fictif)', medecinId: 'm-b', service: 'U1', nature: 'presence', repetition: 'date', debut: '2026-11-12' } }]);
+  const ctx = { config, etat: st }, a = { id: 'u-a', roles: ['MEDECIN'] };
+  assert.equal(S2.medecinDuCompte(config, a).id, 'm-a');
+  assert.equal(S2.permisPourSoi('PRESENCE', { id: 'PA', medecin: 'Dr A (fictif)', medecinId: 'm-a', service: 'U1' }, a, ctx), true);
+  assert.equal(S2.permisPourSoi('PRESENCE', { id: 'PX', medecin: 'Dr B (fictif)', medecinId: 'm-b', service: 'U1' }, a, ctx), false);
+  assert.equal(S2.permisPourSoi('PRESENCE', { id: 'PB', medecinId: 'm-a' }, a, ctx), false);   // présence d'un autre médecin
+  assert.equal(S2.permisPourSoi('PRESENCE', { id: 'PB', supprime: true }, a, ctx), false);
+  assert.equal(S2.permisPourSoi('PRESENCE', { id: 'PA', medecinId: 'm-a' }, { id: 'u-z', roles: ['MEDECIN'] }, ctx), false);   // compte sans médecin relié
+});
