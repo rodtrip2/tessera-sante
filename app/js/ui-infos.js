@@ -100,6 +100,8 @@
           prop.length ? h('select', { 'aria-label': 'Ajouter une rubrique proposée', onchange: function (ev) { var v = ev.target.value; ev.target.value = ''; if (v) ajouter(sv, prop.filter(function (x) { return x.code === v; })[0].titre); } },
             [h('option', { value: '', text: '+ Rubrique proposée…' })].concat(prop.map(function (x) { return h('option', { value: x.code, text: x.titre }); }))) : null,
           h('button', { class: 'btn primaire', type: 'button', onclick: function () { modaleRubrique(null, sv); } }, '+ Nouvelle rubrique')) : null),
+      // Référents (module Équipe, 0.27.1) : repris automatiquement, tenus dans la fenêtre Équipe
+      (function () { var t = U.equipe && U.equipe.tableReferents ? U.equipe.tableReferents(sv) : null; return t ? h('section', { class: 'panneau is-rubrique' }, h('div', { class: 'is-tete' }, h('h2', { text: 'Référents' }), h('small', { class: 'muted', text: 'tenus dans la fenêtre Équipe' })), t) : null; })(),
       liste.length ? liste.map(function (r) { return rubrique(r, liste); }) : h('p', { class: 'muted', text: sv === I.ETABLISSEMENT ? 'Page de l’établissement vide : elle n’est pas affichée aux agents.' : 'Page vide : ajoutez une rubrique proposée ou une nouvelle rubrique.' }));
   }
   async function ajouter(sv, titre) {

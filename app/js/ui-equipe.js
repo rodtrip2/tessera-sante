@@ -167,18 +167,97 @@
     } }]);
   }
 
+  // ------------------------------------------------------------ Référents
+  function servicePage() {
+    var mes = mesServices();
+    if (U.App.service !== '*' && mes.indexOf(U.App.service) >= 0) return U.App.service;
+    return vueRef.service && mes.indexOf(vueRef.service) >= 0 ? vueRef.service : mes[0] || null;
+  }
+  var vueRef = { service: null };
+  function personnes(l) {
+    return l.length ? h('div', { class: 'pile eq-personnes' }, l.map(function (p) {
+      var f = E.fiche(st(), p.id), a = agent(p.id);
+      return h('div', { class: 'actions gauche' }, lien(p.id, p.nom || (a && a.nom)), f.telPro ? boutonCopie(f.telPro, 'Copier le numéro') : null,
+        a && a.compte && peutEcrire() && p.id !== moi().id ? h('button', { class: 'btn petit', type: 'button', onclick: function () { U.messagerie.nouveau({ destinataires: ['agent|' + p.id] }); } }, 'Écrire') : null);
+    })) : h('span', { class: 'muted', text: '—' });
+  }
+  /** Tableau des référents d'une page (service ou établissement), en lecture : repris par les Informations du service. */
+  function tableReferents(sv, gestion) {
+    var l = E.referents(st(), sv, gestion);
+    if (!l.length) return null;
+    return h('div', { class: 'table-wrap' }, h('table', { class: 'eq-referents' },
+      h('thead', {}, h('tr', {}, ['Domaine', 'Référent(s)', 'Suppléant(s)', ''].map(function (t) { return h('th', { text: t }); }))),
+      h('tbody', {}, l.map(function (r) {
+        return h('tr', {}, h('td', {}, h('b', { text: r.libelle }), r.precision ? h('div', { class: 'muted', text: r.precision }) : null), h('td', {}, personnes(r.titulaires)), h('td', {}, personnes(r.suppleants)),
+          h('td', { class: 'actions-ligne' }, gestion ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleReferents(sv, r); } }, 'Modifier') : null));
+      }))));
+  }
+  function modaleReferents(sv, r) {
+    var candidats = agents().filter(function (a) { return sv === E.ETABLISSEMENT || a.services.indexOf(sv) >= 0; });
+    function choix(liste, lib) {
+      var zone = h('div', { class: 'pile' }), courant = liste.slice();
+      function maj() {
+        U.vider(zone);
+        courant.forEach(function (p, i) { zone.appendChild(h('div', { class: 'actions gauche' }, h('span', { text: p.nom }), h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Retirer ' + p.nom, onclick: function () { courant.splice(i, 1); maj(); } }, '✕'))); });
+        var sel = h('select', { 'aria-label': 'Ajouter : ' + lib, onchange: function () { var a = candidats.filter(function (x) { return x.id === sel.value; })[0]; if (a && !courant.some(function (p) { return p.id === a.id; })) courant.push({ id: a.id, nom: a.nom }); maj(); } },
+          [h('option', { value: '', text: '+ Ajouter…' })].concat(candidats.map(function (a) { return h('option', { value: a.id, text: a.nom + (a.compte ? '' : ' (sans compte)') }); })));
+        zone.appendChild(sel);
+      }
+      maj();
+      return { noeud: zone, valeur: function () { return courant; } };
+    }
+    var t = choix(r.titulaires, 'Référent(s)'), su = choix(r.suppleants, 'Suppléant(s)'), prec = h('input', { type: 'text', maxlength: 160, value: r.precision || '', 'aria-label': 'Précision' });
+    U.modale('Référents — ' + r.libelle, h('div', { class: 'pile' }, h('h3', { text: 'Référent(s)' }), t.noeud, h('h3', { text: 'Suppléant(s)' }), su.noeud,
+      h('label', {}, 'Précision (facultatif : horaires, lieu, comment joindre)', prec)),
+    [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: async function () {
+      await s().enregistrer('REFERENTS', { service: sv, domaine: r.domaine, titulaires: t.valeur(), suppleants: su.valeur(), precision: prec.value.trim() }); U.toast('Référents enregistrés.');
+    } }]);
+  }
+  function modaleDomaines(sv) {
+    var ds = E.domaines(st(), sv, true), lignes = ds.map(function (d) { return { d: d, cb: h('input', { type: 'checkbox', checked: !d.masque, 'aria-label': 'Afficher ' + d.libelle }) }; });
+    var nouveau = h('input', { type: 'text', maxlength: 80, placeholder: 'ex. Référent sport adapté', 'aria-label': 'Nouveau domaine' });
+    U.modale('Domaines de référence' + (sv === E.ETABLISSEMENT ? ' — établissement' : ' — ' + U.libService(sv)), h('div', { class: 'pile' },
+      h('p', { class: 'muted', text: 'Décochez un domaine pour le masquer (ses référents sont gardés au journal).' }),
+      h('div', { class: 'grille-2' }, lignes.map(function (l) { return h('label', { class: 'case' }, l.cb, h('span', { text: l.d.libelle })); })),
+      h('label', {}, 'Ajouter un domaine', nouveau)),
+    [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: async function () {
+      for (var i = 0; i < lignes.length; i++) if (lignes[i].cb.checked === lignes[i].d.masque) await s().enregistrer('DOMAINE_REFERENT', { service: sv, code: lignes[i].d.code, masque: !lignes[i].cb.checked });
+      var v = nouveau.value.trim();
+      if (v) await s().enregistrer('DOMAINE_REFERENT', { service: sv, code: 'p-' + SIC.crypto.hex(SIC.crypto.aleatoire(3)), libelle: v, masque: false });
+      U.toast('Domaines enregistrés.');
+    } }]);
+  }
+  function blocReferents(sv, titre) {
+    var g = E.gereReferents(compte(), sv) && s().peut('REFERENTS') && !s().apercu, tab = tableReferents(sv, g);
+    if (!tab && !g) return null;
+    return h('section', { class: 'panneau' }, h('div', { class: 'barre' }, h('h2', { text: titre }), h('div', { class: 'espace' }),
+      g ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleDomaines(sv); } }, 'Domaines…') : null),
+      tab || h('p', { class: 'muted', text: 'Aucun référent désigné.' }));
+  }
+  function vueReferents() {
+    var sv = servicePage(), mes = U.services();
+    var sel = U.App.service === '*' && mes.length > 1 ? h('label', { class: 'en-ligne' }, 'Service', (function () { var x = h('select', { 'aria-label': 'Service', class: 'champ-moyen', onchange: function () { vueRef.service = x.value; U.rendreContenu(); } }, mes.map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === sv }); })); return x; })()) : null;
+    var miens = E.referentDe(st(), moi().id);
+    return h('div', { class: 'pile' }, sel,
+      miens.length ? h('p', { class: 'info', text: 'Vous êtes ' + miens.map(function (x) { return (x.suppleant ? 'suppléant(e) ' : 'référent(e) ') + x.libelle.toLowerCase() + (x.service === E.ETABLISSEMENT ? ' (établissement)' : ' (' + U.libService(x.service) + ')'); }).join(', ') + '.' }) : null,
+      blocReferents(E.ETABLISSEMENT, 'Référents de l’établissement'),
+      sv ? blocReferents(sv, 'Référents — ' + U.libService(sv)) : h('p', { class: 'muted', text: 'Aucun service ne vous est affecté.' }));
+  }
+
   // ------------------------------------------------------------ Journal
   function resume(e) {
     var d = e.data || {};
     if (e.type === 'COORDONNEES') { var a = agent(d.agent); return 'Fiche de ' + (a ? a.nom : d.agent) + (d.accord === false ? ' — accord retiré pour les coordonnées personnelles' : d.perso ? ' — coordonnées personnelles (chiffrées)' : ''); }
+    if (e.type === 'REFERENTS') { var dr = E.domaines(st(), d.service, true).filter(function (x) { return x.code === d.domaine; })[0]; return 'Référents ' + ((dr && dr.libelle) || d.domaine) + (d.service === E.ETABLISSEMENT ? ' (établissement)' : ' (' + U.libService(d.service) + ')') + ' : ' + ((d.titulaires || []).map(function (p) { return p.nom; }).join(', ') || 'aucun'); }
+    if (e.type === 'DOMAINE_REFERENT') return 'Domaine de référence ' + (d.libelle || d.code) + (d.masque ? ' masqué' : d.masque === false && !d.libelle ? ' affiché' : ' ajouté');
     if (e.type === 'COORDONNEES_MEDECIN') { var m = SIC.medecins && SIC.medecins.liste(U.config()).filter(function (x) { return x.id === d.medecin; })[0]; return 'Numéro personnel de ' + (m ? m.nom : d.medecin) + (d.perso ? ' (chiffré)' : ' retiré'); }
     return e.type;
   }
-  var LIB = { COORDONNEES: 'Équipe : fiche d’un agent', COORDONNEES_MEDECIN: 'Équipe : numéro personnel d’un médecin' };
+  var LIB = { REFERENTS: 'Équipe : référents', DOMAINE_REFERENT: 'Équipe : domaine de référence', COORDONNEES: 'Équipe : fiche d’un agent', COORDONNEES_MEDECIN: 'Équipe : numéro personnel d’un médecin' };
 
   SIC.modules.completerInterface('equipe', {
-    vues: { annuaire: vueAnnuaire, 'ma-fiche': vueMaFiche, medecins: vueMedecins },
+    vues: { annuaire: vueAnnuaire, referents: vueReferents, 'ma-fiche': vueMaFiche, medecins: vueMedecins },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'La fiche revient à son état précédent.'; } }
   });
-  U.equipe = { contact: contact, lien: lien, agents: agents };
+  U.equipe = { contact: contact, lien: lien, agents: agents, tableReferents: function (sv) { try { return s().detientCle('equipe') ? tableReferents(sv, false) : null; } catch (e) { return null; } } };
 })();

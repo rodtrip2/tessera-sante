@@ -534,6 +534,19 @@
       ir({ id: 'IR-U3', service: U1, titre: 'Consignes et procédures du service', ordre: 3, texte: 'Inventaire du chariot d’urgence chaque lundi (fictif).\nClés de la CSI au poste de soins, jamais dans une poche.' });
       ir({ id: 'IR-U4', service: U1, titre: 'Livret d’accueil des nouveaux agents', ordre: 4, texte: 'En préparation (fictif).', masquee: true });
     })();
+    // Référents (0.27.1) : Unité 1 (plaies et escarres, pharmacie avec suppléant, restriction des libertés tenue par
+    // l'agent connecté, domaine ajouté par le cadre, douleur masquée), établissement (identitovigilance)
+    (function () {
+      var moiR = options.moi && options.moi.id ? { id: options.moi.id, nom: options.moi.nom || 'Cadre de santé' } : null;
+      var rf = function (d) { ajouter(t(-24 * 15), d.code ? 'DOMAINE_REFERENT' : 'REFERENTS', d, moiR ? moiR.id : 'demo'); };
+      rf({ service: U1, domaine: 'plaies', titulaires: [{ id: 'demo-a', nom: 'Agent A (fictif)' }], suppleants: [], precision: 'Avis sur les pansements complexes, du lundi au vendredi' });
+      rf({ service: U1, domaine: 'pharmacie', titulaires: [{ id: 'demo-c', nom: 'Agent C (fictif)' }], suppleants: [{ id: 'demo-b', nom: 'Agent B (fictif)' }], precision: '' });
+      if (moiR) rf({ service: U1, domaine: 'libertes', titulaires: [moiR], suppleants: [], precision: '' });
+      rf({ service: U1, code: 'p-sport', libelle: 'Activité physique adaptée', masque: false });
+      rf({ service: U1, domaine: 'p-sport', titulaires: [{ id: 'demo-d', nom: 'Agent D (fictif)' }], suppleants: [], precision: 'Créneaux du mercredi' });
+      rf({ service: U1, code: 'douleur', masque: true });
+      rf({ service: '*', domaine: 'identito', titulaires: [{ id: 'demo-b', nom: 'Agent B (fictif)' }], suppleants: [], precision: 'Cellule d’identitovigilance de l’établissement (fictive)' });
+    })();
     // Rôle « Psychologue » (rôle créé par l'administrateur) : planning des psychologues, salles, messagerie (fictif)
     if (!reel) cfg('roles', { PSYCHOLOGUE: { libelle: 'Psychologue', services: true, accesModules: { suivi: ['suivi.consulter', 'suivi.psychologues'], salles: ['salles.consulter', 'salles.reserver'], messagerie: ['messagerie.lire', 'messagerie.ecrire'], agenda: [] } } });
 
