@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -45,6 +45,7 @@
     } else {
       cfg('services', [{ code: 'U1', libelle: 'Unité 1 (fictive)' }, { code: 'U2', libelle: 'Unité 2 (fictive)' }]);
       cfg('etablissement', 'Établissement fictif de démonstration');
+      cfg('poles', [{ code: 'PSM', libelle: 'Pôle santé mentale (fictif)', services: ['U1', 'U2'] }]);   // 0.27.2
       cfg('lieuxCSI', { U1: ['CSI 1', 'CSI 2'], U2: ['CSI A'] });
       // Agenda : audiences JLD et activités thérapeutiques en transparence tant qu'aucun patient n'y est prévu
       // Fiche patient : données complémentaires (sorties libres saisies aussi par les AS dans l'Unité 1 ; éducateur référent

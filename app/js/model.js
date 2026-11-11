@@ -19,11 +19,26 @@
     AS: 'Aide-soignant(e)',
     SECRETAIRE: 'Secrétaire',
     CADRE: 'Cadre de santé',
+    // Cadre supérieur de santé (0.27.2, décision du porteur du 11 novembre 2026) : cadre de tous les services de son pôle ;
+    // un compte qui porte ce rôle porte aussi le rôle Cadre (ajouté d'office), il a donc tout ce que fait le cadre
+    CADRE_SUP: 'Cadre supérieur de santé',
     ADMIN: 'Administrateur'
   };
+  /** Rôles d'un compte, complétés : le cadre supérieur est aussi cadre. */
+  function rolesComplets(roles) { var r = (roles || []).slice(); if (r.indexOf('CADRE_SUP') >= 0 && r.indexOf('CADRE') < 0) r.push('CADRE'); return r; }
+  /**
+   * Pôles (0.27.2) : regroupements de services réglés par l'administrateur (`config.poles` = [{ code, libelle,
+   * services }]), validés à la lecture (service inconnu écarté, un service dans un seul pôle).
+   */
+  function poles(config) {
+    var connus = ((config && config.services) || []).map(function (x) { return x.code; }), pris = {};
+    return (Array.isArray(config && config.poles) ? config.poles : []).filter(function (p) { return p && /^[A-Za-z0-9_-]{1,20}$/.test(p.code || '') && String(p.libelle || '').trim(); })
+      .map(function (p) { return { code: p.code, libelle: String(p.libelle).trim().slice(0, 80), services: (Array.isArray(p.services) ? p.services : []).filter(function (s) { if (connus.indexOf(s) < 0 || pris[s]) return false; pris[s] = 1; return true; }) }; });
+  }
+  function poleDe(config, service) { return poles(config).filter(function (p) { return p.services.indexOf(service) >= 0; })[0] || null; }
 
   // Rôles qui exigent au moins un service affecté.
-  var ROLES_DE_SERVICE = ['IDE', 'AS', 'SECRETAIRE', 'CADRE'];
+  var ROLES_DE_SERVICE = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP'];
 
   // Types d'événements autorisés par rôle. L'IDE dispose en permanence des
   // actions JLD (usage prévu le week-end et en l'absence de la secrétaire).
@@ -62,7 +77,7 @@
 
   var TYPES_ADMIN = ['CONFIG', 'ANNULATION', 'COMPTE', 'LOT', 'INTEGRITE', 'EDITION_CADA', 'EXPORT_PATIENT'];
 
-  var ROLES_FOURNIS = ['IDE', 'AS', 'SECRETAIRE', 'CADRE'];
+  var ROLES_FOURNIS = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP'];
 
   // Onglets que l'établissement peut masquer rôle par rôle (demande du porteur).
   // (Journal : réglage « Journal des saisies » du rôle ; Administration : administrateur seulement.)
@@ -235,6 +250,7 @@
     capacites: {},         // capacité d'accueil par service (capacites.js, 0.18.2) : lits, fermetures et réservations datées
     vuesEnsemble: {},      // module Vue d'ensemble (0.19.0) : vues de l'établissement et des services
     psychologues: { liste: [] },   // liste commune des psychologues (medecins.js, 0.20.0), mêmes réglages que les médecins
+    poles: [],             // pôles : regroupements de services (0.27.2)
     infos: {},             // informations du service : pièces jointes (désactivées par défaut), taille maximale (0.26.2)
     salles: {},            // salles et bureaux : plage affichée, horaires des demi-journées des présences, par service (0.25.0)
     messagerie: {},        // messagerie : onglet Informations, pièces jointes, conservation, affichage par service (0.23.0)
@@ -2048,6 +2064,7 @@
     { code: 'capacites', libelle: 'Capacité d’accueil des services (lits, fermetures, lits réservés)', cles: ['capacites'] },
     { code: 'psychologues', libelle: 'Liste commune des psychologues', cles: ['psychologues'] },
     { code: 'infos', libelle: 'Informations du service : pièces jointes', cles: ['infos'] },
+    { code: 'poles', libelle: 'Pôles (regroupements de services)', cles: ['poles'] },
     { code: 'salles', libelle: 'Salles et bureaux : plage affichée, horaires des présences, nom sur les occupations des autres plannings', cles: ['salles'] },
     { code: 'messagerie', libelle: 'Messagerie : onglet Informations, pièces jointes, conservation, durée d’affichage', cles: ['messagerie'] },
     { code: 'travaux', libelle: 'Demandes de travaux : types, lieux, gravités, urgences, délai d’affichage, numéro des services techniques', cles: ['travaux'] },
@@ -2198,6 +2215,7 @@
   }
 
   return {
+    rolesComplets: rolesComplets, poles: poles, poleDe: poleDe,
     droits: D, champ: champ, ROLES: ROLES, DROITS: DROITS, ACCES: ACCES, ROLES_FOURNIS: ROLES_FOURNIS, rolesConfig: rolesConfig, libRole: libRole, accesDefaut: accesDefaut, voitTousServices: voitTousServices, exigeService: exigeService, ROLES_DE_SERVICE: ROLES_DE_SERVICE, accesFormation: accesFormation, CONFIG_DEFAUT: CONFIG_DEFAUT, LIB_CATEGORIES: LIB_CATEGORIES,
     peut: peut, servicesDe: servicesDe, periodesDe: periodesDe, estContrainte: estContrainte,
     reduire: reduire, optionsSurveillance: optionsSurveillance, agentsSurveillance: agentsSurveillance, dossierExports: dossierExports, optionsExports: optionsExports, exportsAPurger: exportsAPurger, dossierExportService: dossierExportService, cheminWindowsExports: cheminWindowsExports, DOSSIER_ETABLISSEMENT: DOSSIER_ETABLISSEMENT, CONSERVATION_EXPORTS: CONSERVATION_EXPORTS, annulabilite: annulabilite, profilAnnuelPatient: profilAnnuelPatient, libLieu: libLieu, txtLieu: txtLieu, lieuDetaille: lieuDetaille, listesConfig: listesConfig, libRaccourci: libRaccourci, optionsVigilance: optionsVigilance, optionsAffichage: optionsAffichage, comparerVersions: comparerVersions, commandesRobocopy: commandesRobocopy, cheminWindows: cheminWindows, INTERVALLES_ROBOCOPY: INTERVALLES_ROBOCOPY, registreSeul: registreSeul, ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, NIVEAUX_JOURNAL: NIVEAUX_JOURNAL, niveauJournal: niveauJournal, servicesSaisie: servicesSaisie, servicesCibles: servicesCibles, journalVisible: journalVisible, GROUPES_REGLAGES: GROUPES_REGLAGES, REGLAGES_EXCLUS: REGLAGES_EXCLUS, exporterReglages: exporterReglages, analyserReglages: analyserReglages, reglagesAImporter: reglagesAImporter, LIEUX_ISOLEMENT: LIEUX_ISOLEMENT, cheminEvenement: cheminEvenement, filtrerIntegrite: filtrerIntegrite, trierEvenements: trierEvenements, deplier: deplier,
