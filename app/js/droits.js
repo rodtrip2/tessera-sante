@@ -32,6 +32,12 @@
    * d'Isocont ; un autre module range les siens dans `r.accesModules[module]`, étape 6), appartenance ('role' : tout rôle
    * a un rôle dans le module ; 'acces' : seulement un rôle qui y a au moins un accès) }.
    */
+  // Rôles fournis de lecture (0.27.3) : tous les services, journal fermé et identité réduite par défaut, selon le rôle
+  var TOUS_SERVICES_DEFAUT = ['ADMIN_GARDE', 'DIRECTEUR_SOINS'];
+  var SANS_JOURNAL_DEFAUT = ['MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS'];
+  var IDENTITE_REDUITE_DEFAUT = ['ADMIN_GARDE'];
+  var IDENTITES = { complete: 'Identité complète', initiales: 'Initiales seulement' };
+
   function creer(def) {
     var ROLES = def.roles, ROLES_DE_SERVICE = def.rolesDeService || [], DROITS = def.droits || {}, ACCES = def.acces || [];
     var TYPES_ADMIN = def.typesAdmin || [], ROLES_FOURNIS = def.rolesFournis || [], ONGLETS_MASQUABLES = def.ongletsMasquables || [];
@@ -93,14 +99,15 @@
         var acces = Array.isArray(brut) ? brut.filter(function (a) { return ACCES.some(function (x) { return x.code === a; }); }) : (fourni ? accesDefaut(code) : []);
         var types = [];
         ACCES.forEach(function (a) { if (acces.indexOf(a.code) >= 0) a.types.forEach(function (t) { if (types.indexOf(t) < 0) types.push(t); }); });
-        var svc = r.services === undefined ? true : !!r.services;
+        var svc = r.services === undefined ? !(fourni && TOUS_SERVICES_DEFAUT.indexOf(code) >= 0) : !!r.services;
+        var identite = r.identite === 'initiales' || r.identite === 'complete' ? r.identite : (fourni && IDENTITE_REDUITE_DEFAUT.indexOf(code) >= 0 ? 'initiales' : 'complete');
         // Registre seulement (demande du porteur) : aucune saisie, aucun journal, un seul onglet, le registre tel quel.
         // `registreAnonyme` : nom du réglage en 1.65.0, repris tel quel.
         var anonyme = !fourni && (r.registreSeul === true || r.registreAnonyme === true);
         if (anonyme) { acces = []; types = []; }
         var masques = anonyme ? [] : (Array.isArray(r.ongletsMasques) ? ONGLETS_MASQUABLES.filter(function (o) { return r.ongletsMasques.indexOf(o) >= 0; }) : []);
         res.push({ code: code, libelle: String(r.libelle || (fourni ? ROLES[code] : code)).trim() || code, acces: acces, types: types,
-          services: svc, journal: anonyme ? 'aucun' : journalDefaut(code, svc, r.journal), registreSeul: anonyme, ongletsMasques: masques, fourni: fourni, admin: false });
+          services: svc, journal: anonyme ? 'aucun' : journalDefaut(code, svc, r.journal), registreSeul: anonyme, ongletsMasques: masques, fourni: fourni, admin: false, identite: identite });
       });
       res.push({ code: 'ADMIN', libelle: ROLES.ADMIN, acces: [], types: TYPES_ADMIN.slice(), services: false, journal: 'complet', fourni: true, admin: true });
       return res;
@@ -111,6 +118,7 @@
     // Par défaut (choix du porteur) : cadre de santé et rôles « tous services » complet, autres rôles limités à leurs services.
     function journalDefaut(code, services, valeur) {
       if (NIVEAUX_JOURNAL.some(function (n) { return n.code === valeur; })) return valeur;
+      if (SANS_JOURNAL_DEFAUT.indexOf(code) >= 0) return 'aucun';
       if (JOURNAL_COMPLET.indexOf(code) >= 0 || !services) return 'complet';
       return 'services';
     }
@@ -210,6 +218,13 @@
     }
 
     return {
+      IDENTITES: IDENTITES, identiteReduite: function (roles, config) {
+        // Identité réduite (initiales) : si aucun des rôles du compte ne voit l'identité complète (l'administrateur la voit)
+        var rs = (roles || []).filter(function (x) { return x !== 'ADMIN'; });
+        if (!rs.length || (roles || []).indexOf('ADMIN') >= 0) return false;
+        var rc = rolesConfig(config);
+        return rs.every(function (code) { var r = rc.filter(function (x) { return x.code === code; })[0]; return !r || r.identite === 'initiales'; });
+      },
       ROLES: ROLES, DROITS: DROITS, ACCES: ACCES, TYPES_ADMIN: TYPES_ADMIN, ROLES_FOURNIS: ROLES_FOURNIS, ROLES_DE_SERVICE: ROLES_DE_SERVICE,
       accesFormation: accesFormation, accesDefaut: accesDefaut, rolesConfig: rolesConfig, libRole: libRole, peut: peut,
       voitTousServices: voitTousServices, exigeService: exigeService, servicesDe: servicesDe, membre: membre, LIRE_ACCES: LIRE_ACCES,

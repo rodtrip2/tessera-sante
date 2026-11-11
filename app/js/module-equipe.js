@@ -144,7 +144,7 @@
     { code: 'equipe.medecins', libelle: 'Tenir le numéro personnel des médecins de ses services (cadre, médecin chef de service)', types: ['COORDONNEES_MEDECIN'] }
   ];
   var D = Droits.creer({
-    roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: { CADRE: TYPES.slice() }, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
+    roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: { CADRE: TYPES.slice(), MEDECIN_CHEF_SERVICE: ['COORDONNEES_MEDECIN'], MEDECIN_CHEF_POLE: ['COORDONNEES_MEDECIN'] }, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
     ongletsMasquables: [], rolesJournalComplet: ['CADRE'], module: 'equipe', rolesEncadrement: ['CADRE'],
     lireAcces: function (r) { return r.accesModules ? r.accesModules.equipe : undefined; },
     appartenance: 'role'
