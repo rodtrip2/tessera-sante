@@ -71,7 +71,7 @@
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
   var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
-    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, messagerie: 1, salles: 1, infos: 1 };
+    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, messagerie: 1, salles: 1, infos: 1, poles: 1 };
   /** Champs ajoutés (0.18.0) : définitions, droits réglés pour chaque donnée, clés propres (`d-<id>`). */
   function CH() { return socle('champs', './champs.js'); }
   /** Clés propres à une donnée détenues par la session (journaux `modules\d-<id>\`). */
@@ -684,6 +684,7 @@
   Session.prototype.creerComptes = async function (liste, progres) {
     var s = this;
     liste.forEach(function (c) {
+      c.roles = SIC.model && SIC.model.rolesComplets ? SIC.model.rolesComplets(c.roles) : c.roles;   // cadre supérieur : aussi cadre
       c.login = c.login.trim().toLowerCase();
       if (!MOTIF_LOGIN.test(c.login)) throw new Error('Identifiant « ' + c.login + ' » : lettres minuscules, chiffres, point, tiret (2 à 40 caractères).');
       if (!c.nom || !c.nom.trim()) throw new Error('Nom manquant pour « ' + c.login + ' ».');
@@ -732,7 +733,7 @@
     await this.modifierCoffre(async function (coffre, comptes) {
       var c = comptes.filter(function (x) { return x.id === userId; })[0];
       if (!c) throw new Error('Compte introuvable.');
-      c.roles = roles; c.actif = actif; c.services = services || [];
+      c.roles = SIC.model && SIC.model.rolesComplets ? SIC.model.rolesComplets(roles) : roles; c.actif = actif; c.services = services || [];
       if (typeof formation === 'boolean') c.formation = formation;
       if (typeof finValidite === 'string') c.finValidite = finValidite;
       if (!actif) {

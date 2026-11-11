@@ -13,7 +13,17 @@ test('Sans réglage, les rôles fournis gardent exactement leurs droits historiq
     TYPES.forEach((t) => assert.equal(M.peut([r], t, {}), M.DROITS[r].indexOf(t) >= 0, r + ' ' + t));
   });
   assert.ok(M.peut(['CADRE'], 'EDITION_CADA', {}) && M.peut(['CADRE'], 'EXPORT_PATIENT', {}) && !M.peut(['IDE'], 'EXPORT_PATIENT', {}));
-  assert.deepEqual(M.rolesConfig({}).map((r) => r.code), ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'ADMIN']);
+  assert.deepEqual(M.rolesConfig({}).map((r) => r.code), ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'ADMIN']);
+});
+
+test('Cadre supérieur de santé (0.27.2) : droits du cadre par défaut, rôle Cadre ajouté d’office ; pôles validés', () => {
+  TYPES.forEach((t) => assert.equal(M.peut(['CADRE_SUP'], t, {}), M.peut(['CADRE'], t, {}), 'CADRE_SUP ' + t));
+  assert.deepEqual(M.rolesComplets(['CADRE_SUP']).sort(), ['CADRE', 'CADRE_SUP']);
+  assert.deepEqual(M.rolesComplets(['IDE']), ['IDE']);
+  const cfg = { services: [{ code: 'U1' }, { code: 'U2' }, { code: 'U3' }], poles: [{ code: 'PSM', libelle: 'Pôle santé mentale (fictif)', services: ['U1', 'U2', 'X9'] }, { code: 'P2', libelle: 'Autre', services: ['U2', 'U3'] }, { code: 'bad code', libelle: 'x' }] };
+  assert.deepEqual(M.poles(cfg).map((p) => [p.code, p.services]), [['PSM', ['U1', 'U2']], ['P2', ['U3']]]);   // service inconnu écarté, un service dans un seul pôle
+  assert.equal(M.poleDe(cfg, 'U3').code, 'P2');
+  assert.equal(M.poleDe(cfg, 'U9'), null);
 });
 
 test('Rôle fourni modifié, rôle créé, accès à tous les services, administrateur fixe', () => {

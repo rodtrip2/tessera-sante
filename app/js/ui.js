@@ -845,7 +845,14 @@
     document.body.classList.toggle('en-formation', !!s.formation);
     var selService = h('select', { 'aria-label': 'Service', onchange: function () { App.service = selService.value; try { localStorage.setItem('sic-service', App.service); } catch (e) { /* */ } rendreContenu(); } },
       mesSv.length > 1 ? h('option', { value: '*', text: estAdmin ? 'Tous les services' : 'Tous mes services' }) : null,
-      mesSv.map(function (x) { return h('option', { value: x.code, text: x.libelle + (droits().serviceActif(config(), x.code) ? '' : ' — consultation seule'), selected: App.service === x.code }); }));
+      (function () {
+        // Services rangés par pôle quand l'établissement en a réglé (0.27.2)
+        var opt = function (x) { return h('option', { value: x.code, text: x.libelle + (droits().serviceActif(config(), x.code) ? '' : ' — consultation seule'), selected: App.service === x.code }); };
+        var ps = M.poles(config()).filter(function (p) { return mesSv.some(function (x) { return p.services.indexOf(x.code) >= 0; }); });
+        if (!ps.length || mesSv.length < 2) return mesSv.map(opt);
+        var hors = mesSv.filter(function (x) { return !ps.some(function (p) { return p.services.indexOf(x.code) >= 0; }); });
+        return ps.map(function (p) { return h('optgroup', { label: p.libelle }, mesSv.filter(function (x) { return p.services.indexOf(x.code) >= 0; }).map(opt)); }).concat(hors.length ? [h('optgroup', { label: 'Autres services' }, hors.map(opt))] : []);
+      })());
     if (App.service === '*') selService.value = '*';
     var age = s.derniereSynchro ? Math.round((maintenant - s.derniereSynchro) / 1000) : null;
     zoneEntete.appendChild(h('div', { class: 'entete-haut' }, marque(etablissement() || App.dossier.nom), h('div', { class: 'espace' }), mesSv.length ? selService : null,
@@ -1174,11 +1181,14 @@
     var etab = h('input', { type: 'text', value: cfg.etablissement || '', placeholder: 'Nom de l’établissement (en-tête des documents imprimés)' });
     var tServices = zoneTexte(tousServices().map(function (x) { return x.code + ' ; ' + x.libelle; }).join('\n'));
     var tLieux = zoneTexte(Object.keys(cfg.lieuxCSI || {}).map(function (k) { return k + ' : ' + cfg.lieuxCSI[k].join(', '); }).join('\n'));
+    // Pôles (0.27.2) : regroupements de services (cadre supérieur de santé, médecin chef de pôle)
+    var tPoles = zoneTexte(M.poles(cfg).map(function (p) { return p.code + ' ; ' + p.libelle + ' ; ' + p.services.join(', '); }).join('\n'));
     var pServices = h('section', { class: 'panneau' }, h('h2', { text: 'Établissement et services' }),
       h('label', {}, 'Établissement', etab),
       h('div', { class: 'grille-2' },
         h('label', {}, 'Services (code ; libellé), un par ligne', tServices),
         h('label', {}, lieu('Chambres de soins intensifs (code service : CSI 1, CSI 2)'), tLieux)),
+      h('label', {}, 'Pôles (code ; libellé ; services du pôle séparés par des virgules), un par ligne — facultatif : cadre supérieur de santé, médecin chef de pôle', tPoles),
       h('div', { class: 'barre' }, h('span', { text: 'Médecins (fiche patient, Isocont, Suivi médical) : ' + (SIC.medecins ? SIC.medecins.liste(cfg).length : 0) + ' dans la liste commune.' }),
         SIC.ui.medecins ? h('button', { class: 'btn petit', type: 'button', onclick: function () { SIC.ui.medecins.modaleListe(); } }, 'Gérer la liste des médecins…') : null,
         SIC.ui.psychologues ? h('button', { class: 'btn petit', type: 'button', onclick: function () { SIC.ui.psychologues.modaleListe(); } }, 'Gérer la liste des psychologues…') : null),
@@ -1189,7 +1199,14 @@
         var utilises = M.listeMesures(st()).map(function (m) { return m.service; });
         tousServices().forEach(function (x) { if (codes.indexOf(x.code) < 0 && utilises.indexOf(x.code) >= 0) throw new Error('Le service ' + x.code + ' a des mesures : il ne peut pas être supprimé (renommez son libellé).'); });
         var lieux = {}; lignesDe(tLieux).forEach(function (l) { var x = l.split(':'); if (x.length < 2) throw new Error('Lieu mal formé : ' + l); lieux[x[0].trim()] = x.slice(1).join(':').split(',').map(function (v) { return v.trim(); }).filter(Boolean); });
-        await enregistrerConfig([['etablissement', etab.value.trim()], ['services', svs], ['lieuxCSI', lieux]]);
+        var poles = lignesDe(tPoles).map(function (l) {
+          var x = l.split(';'); if (x.length < 3 || !/^[A-Za-z0-9_-]{1,20}$/.test(x[0].trim()) || !x[1].trim()) throw new Error('Pôle mal formé : ' + l + ' (code ; libellé ; services).');
+          var sv = x.slice(2).join(';').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
+          sv.forEach(function (c) { if (codes.indexOf(c) < 0) throw new Error('Pôle ' + x[0].trim() + ' : service inconnu « ' + c + ' ».'); });
+          return { code: x[0].trim(), libelle: x[1].trim(), services: sv };
+        });
+        var vusP = {}; poles.forEach(function (p) { p.services.forEach(function (c) { if (vusP[c]) throw new Error('Le service ' + c + ' est dans deux pôles.'); vusP[c] = 1; }); });
+        await enregistrerConfig([['etablissement', etab.value.trim()], ['services', svs], ['lieuxCSI', lieux], ['poles', poles]]);
       }));
 
     // -- Activation des modules par service (socle, architecture § 5)
@@ -1497,7 +1514,12 @@
       bloc.appendChild(h('label', { class: 'case' }, cases[x.code], h('span', { text: x.libelle + ' (' + x.code + ')' })));
     });
     bloc.appendChild(note);
+    // Cadre supérieur de santé (0.27.2) : services de son pôle d'un clic ; le rôle Cadre suit
+    var ps = M.poles(config()), selPole = ps.length ? h('select', { 'aria-label': 'Pôle', onchange: function () { var p = ps.filter(function (x) { return x.code === selPole.value; })[0]; if (p) Object.keys(cases).forEach(function (k) { cases[k].checked = p.services.indexOf(k) >= 0; }); selPole.value = ''; } },
+      [h('option', { value: '', text: 'Cocher les services d’un pôle…' })].concat(ps.map(function (p) { return h('option', { value: p.code, text: p.libelle + ' (' + p.services.join(', ') + ')' }); }))) : null;
+    if (selPole) bloc.appendChild(selPole);
     function maj() {
+      if (roles.cases.CADRE_SUP && roles.cases.CADRE_SUP.checked && roles.cases.CADRE) roles.cases.CADRE.checked = true;
       var choisis = Object.keys(roles.cases).filter(function (r) { return roles.cases[r].checked; });
       var tous = droits().voitTousServices(choisis, config());
       note.hidden = !tous;

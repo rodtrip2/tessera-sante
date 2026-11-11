@@ -17,7 +17,7 @@
 | Notes par patient : notes cliniques | Tessera Santé, 8 novembre 2026 | Notes organisationnelles réalisées en 0.19.0 ; **données cliniques** (décision préalable) | Petite |
 | Module Agents (fiches des agents et des psychiatres) | Tessera Santé, 8 novembre 2026 | Demande, à préciser ; une première fiche agent avec données ajoutées existe depuis la 0.20.0 ; **données du personnel** (avis préalable) | Moyenne à grande |
 | Planning des psychologues | Tessera Santé, 9 novembre 2026 | **Réalisé en 0.25.0** | Petite à moyenne |
-| Rôles d'encadrement : cadre supérieur de santé, médecin chef de service, médecin chef de pôle | Tessera Santé, 8 et 11 novembre 2026 | Demande, à préciser | Moyenne |
+| Rôles d'encadrement : cadre supérieur de santé, médecin chef de service, médecin chef de pôle | Tessera Santé, 8 et 11 novembre 2026 | **Cadre supérieur réalisé en 0.27.2** (pôles) ; médecins chefs : 0.27.3 | Moyenne |
 | Tri des colonnes d'un tableau par clic sur le titre | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.0** (avec filtre rapide, taille d'affichage, hauteur des lignes, raccourcis clavier) | Petite |
 | Liste de tâches personnelle, reliée aux autres modules | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.3** (« Mes tâches ») | Moyenne |
 | Page d'accueil de l'administration : modules activés ou désactivés | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.1** | Petite |
