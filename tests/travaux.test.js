@@ -93,3 +93,13 @@ test('Chambre indisponible (option) et interventions programmées : lues par les
   const fini = T.reduire(evts.concat([etape('sec1', { etape: 'realisee' }), ev('cadre', 'TRAVAUX_CONFIRMATION', { demande: 'D1', service: 'U1' })]));
   assert.deepEqual([T.chambresIndisponibles(fini, ['U1'], cfg).length, T.interventions(fini, ['U1'], '2026-11-16', '2026-11-22').length], [0, 0]);
 });
+
+test('Salle indisponible pendant les travaux (0.25.1) : case proposée par le réglage, désactivée par défaut', () => {
+  const T = require('../app/js/module-travaux.js');
+  const e = { v: 1, id: 'x1', at: '2026-11-10T08:00:00.000Z', by: 'a', type: 'TRAVAUX', data: { id: 'TRS', service: 'U1', type: 'electricite', lieu: 'salle', salle: 'SA-1', salleNom: 'Salon', salleIndisponible: true, gravite: 'gene', urgence: 'non', description: 'x' } };
+  const st = T.reduire([e]);
+  assert.deepEqual(T.sallesIndisponibles(st, {}), []);
+  assert.deepEqual(T.sallesIndisponibles(st, { travaux: { U1: { salleIndisponible: true } } }).map((x) => x.salle), ['SA-1']);
+  assert.equal(T.libLieu(st.demandes.TRS, {}), 'Salon');
+  assert.throws(() => T.contrat.saisies.controler('TRAVAUX', { id: 'TRZ', service: 'U1', type: 'electricite', lieu: 'salle', gravite: 'gene', urgence: 'non', description: 'x' }, { etat: st, config: {} }), /salle/);
+});
