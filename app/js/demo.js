@@ -85,7 +85,7 @@
           { si: { op: 'egal', valeur: 'm-chen' }, couleur: 'turquoise', rendu: 'pastille', libelle: 'Dr Chen (fictif)' },
           { si: { op: 'vide' }, couleur: 'rouge', rendu: 'fond', libelle: 'Sans médecin de 1re ligne' }] },
           U2: { regles: [{ si: { op: 'egal', valeur: 'm-diallo' }, couleur: 'brun', rendu: 'pastille', libelle: 'Dr Diallo (fictif)' }, { si: { op: 'vide' }, couleur: 'rouge', rendu: 'fond', libelle: 'Sans médecin de 1re ligne' }] } },
-        'patients.sortiePrevue': { '*': { regles: [{ si: { op: 'depuisPlusDe', n: 0 }, couleur: 'rouge', rendu: 'fond', libelle: 'Date de sortie passée' }, { si: { op: 'dansMoinsDe', n: 2 }, couleur: 'orange', rendu: 'fond', libelle: 'Sortie dans 2 jours ou moins' }, { si: { op: 'dansMoinsDe', n: 7 }, couleur: 'jaune', rendu: 'fond', libelle: 'Sortie dans la semaine' }] } },
+        'patients.sortiePrevue': { '*': { regles: [{ si: { op: 'depuisPlusDe', n: 0 }, couleur: 'rouge', rendu: 'fond', libelle: 'Date de sortie passée' }, { si: { op: 'egal', valeur: 'actee' }, couleur: 'vert', rendu: 'fond', libelle: 'Sortie actée (date arrêtée avec le patient)' }, { si: { op: 'egal', valeur: 'envisagee' }, couleur: 'jaune', rendu: 'fond', libelle: 'Sortie envisagée (à confirmer)' }] } },
         'c:accueil': { '*': { regles: [{ si: { op: 'complete' }, couleur: 'vert', rendu: 'fond', libelle: 'Check-list complète' }, { si: { op: 'avancementMoins', n: 50 }, couleur: 'orange', rendu: 'fond', libelle: 'Moins de la moitié faite' }] } },
         'c:afgsu': { '*': { regles: [{ si: { op: 'depuisPlusDe', n: 0 }, couleur: 'rouge', rendu: 'fond', libelle: 'Formation à renouveler' }, { si: { op: 'dansMoinsDe', n: 60 }, couleur: 'orange', rendu: 'fond', libelle: 'À renouveler dans les 2 mois' }] } },
         'c:demarches': { '*': { regles: [{ si: { op: 'importance', valeur: 'urgent' }, couleur: 'rouge', rendu: 'texte', libelle: 'Note urgente' }, { si: { op: 'importance', valeur: 'important' }, couleur: 'orange', rendu: 'texte', libelle: 'Note importante' }] } }
@@ -227,7 +227,8 @@
     [['P03', 'IV001', 'Prévenir le cabinet de la date de sortie'], ['P03', 'IV004', ''], ['P01', 'IV002', ''], ['P01', 'IV003', 'Mardi et jeudi'], ['P05', 'IV001', '']].forEach(function (l, i) {
       ajouter(t(-24 * 19), 'PRISE_EN_CHARGE', { patientId: l[0], lien: 'LD' + i, intervenant: l[1], commentaire: l[2] });
     });
-    ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { debut: jISO(24 * 1) } });
+    // Sorties (0.21.0) : une sortie actée (date et heure arrêtées avec le patient), une envisagée en fourchette, une approximation seule
+    ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { etat: 'actee', debut: jISO(24 * 3), heure: '11:00' } });
     ajouter(t(-24 * 2), 'SEJOUR', { patientId: 'P01', sejourId: 'SP01', sortiePrevue: { debut: jISO(24 * 6), fin: jISO(24 * 10), precision: 'après la synthèse (fictif)' } });
     ajouter(t(-24 * 1), 'SEJOUR', { patientId: 'P04', sejourId: 'SP04', sortiePrevue: { precision: 'selon place en appartement thérapeutique (fictif)' } });
     // Rappel : P01 soins sans consentement (SDT), P03 soins libres, P04 SDRE (Unité 2)
