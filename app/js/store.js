@@ -446,6 +446,23 @@
   };
   SIC.cheminExport = cheminExport;
 
+  // ------------------------------------------------------ Pièces jointes (Messagerie, 0.23.0)
+  /**
+   * Fichier joint, chiffré par la clé du journal, rangé à part des saisies : pieces/<id>.enc (jamais modifié). Le nom,
+   * le type et la taille restent dans la saisie qui le cite ; le fichier n'est lu qu'à l'ouverture.
+   */
+  function nomPiece(id) { if (!/^PJ[0-9a-f]{8,32}$/.test(id || '')) throw new Error('Identifiant de pièce jointe invalide.'); return id + '.enc'; }
+  Dossier.prototype.ecrirePiece = async function (cle, id, octets) {
+    var dir = await this.sousDossier(['pieces'], true), nom = nomPiece(id);
+    await this.ecrireFichier(dir, nom, await C.chiffrerOctets(cle, octets, 'piece:' + nom), true);
+  };
+  Dossier.prototype.lirePiece = async function (cle, id) {
+    var nom = nomPiece(id), dir;
+    try { dir = await this.sousDossier(['pieces'], false); } catch (e) { return null; }
+    var o = await this.lireFichier(dir, nom);
+    return o ? C.dechiffrerOctets(cle, o, 'piece:' + nom) : null;
+  };
+
   // ------------------------------------------------------ Préférences d'un agent
   /** Préférences d'affichage d'un agent (thème…), chiffrées, une par agent : preferences/<agent>.enc. */
   Dossier.prototype.ecrirePreferences = async function (cle, agent, prefs) {

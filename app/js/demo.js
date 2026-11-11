@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -476,6 +476,51 @@
     ajouter(avant, 'ALERTE', { id: 'AL004', type: 'autre', libelle: 'Relire la procédure de sortie avant la réunion', patientId: null, service: U1, avant: SIC.model.dateLocaleISO(jour(3)), heure: '', pour: { groupe: 'groupe-qualite' }, precision: '' });
     ajouter(avant, 'ALERTE', { id: 'AL003', type: 'rdv', libelle: '', patientId: 'P04', service: U2, avant: '', heure: '', pour: null, precision: '' });
 
+    // Messagerie (0.23.0) : message important à confirmer avec éléments rattachés (demande de travaux, tâche, accès
+    // réservé pour qui n'a pas le module), message à un groupe avec réponses à tous, message envoyé par l'agent connecté
+    // (suivi des lectures, réponse reçue), message relancé, message de tout l'établissement, fiche patient rattachée,
+    // message ancien (archives), message retiré ; informations des autres modules affichées dans l'onglet Informations
+    (function () {
+      var moiM = options.moi && options.moi.id, nM = 0, jM = function (n) { return SIC.model.dateLocaleISO(now + n * J); };
+      function msg(h0, by, d) {
+        d.id = 'MS' + String(++nM).padStart(3, '0');
+        d = Object.assign({ important: false, accuse: 'auto', reponses: 'auteur', jusquau: jM(15), rattaches: [], pieces: [] }, d);
+        d.services = SIC.messagerie ? SIC.messagerie.servicesDe(d.destinataires, { groupes: [{ code: 'groupe-qualite', libelle: 'q', services: [U1, U2], membres: [] }, { code: 'equipe-nuit-u1', libelle: 'n', services: [U1], membres: [] }] }) : [];
+        ajouter(t(h0), 'MESSAGE', d, by); return d.id;
+      }
+      function lu(h0, id, by, confirme) { ajouter(t(h0), 'MESSAGE_LU', { message: id, confirme: !!confirme }, by); }
+      function rep(h0, id, by, nom, texte) { ajouter(t(h0), 'MESSAGE_REPONSE', { message: id, id: 'R' + nM + '-' + (-h0), texte: texte, nom: nom }, by); }
+      var cles = msg(-26, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Nouvelle procédure de remise des clés de la pharmacie', important: true, accuse: 'confirmer',
+        texte: 'À partir de lundi, les clés de la pharmacie du service ne sont plus remises de main à main.\nElles sont rangées dans la boîte à code du poste de soins ; le code est donné par le cadre ou l’IDE coordinateur.\nMerci de noter chaque emprunt sur la feuille fixée à l’intérieur de la boîte. (fictif)',
+        destinataires: [{ genre: 'service', code: U1 }], jusquau: jM(30),
+        rattaches: [{ module: 'agenda', genre: 'tache', id: 'TA002', service: U1 }, { module: 'travaux', genre: 'demande', id: 'TR007', service: U1 }] });
+      lu(-25, cles, 'demo-a', true); lu(-24, cles, 'demo-c', false);
+      rep(-23, cles, 'demo-a', 'Agent A (fictif)', 'Bien noté. Faut-il garder une clé de secours au bureau infirmier ? (fictif)');
+      var qualite = msg(-30, 'demo-b', { nom: 'Agent B (fictif)', objet: 'Réunion du groupe qualité : ordre du jour', reponses: 'tous',
+        texte: 'Je propose de revoir la procédure de sortie et la grille d’audit des dossiers. Ajoutez vos points en réponse. (fictif)', destinataires: [{ genre: 'groupe', code: 'groupe-qualite' }] });
+      if (moiM) { lu(-29, qualite, moiM); rep(-28, qualite, moiM, options.moi.nom || '', 'Je prépare la grille d’audit pour la réunion. (fictif)'); }
+      rep(-4, qualite, 'demo-b', 'Agent B (fictif)', 'Merci ! J’ajoute aussi le point sur les check-lists d’entrée. (fictif)');
+      if (moiM) {
+        var envoi = msg(-48, moiM, { nom: options.moi.nom || '', objet: 'Nuit du 15 au 16 : renfort prévu', accuse: 'confirmer',
+          texte: 'Un renfort AS de la suppléance arrive à 21 h. Merci de lui présenter le service et le circuit des clés. (fictif)',
+          destinataires: [{ genre: 'groupe', code: 'equipe-nuit-u1' }, { genre: 'agent', code: 'demo-c', nom: 'Agent C (fictif)' }] });
+        lu(-40, envoi, 'demo-b', true); lu(-30, envoi, 'demo-c', false);
+        rep(-6, envoi, 'demo-b', 'Agent B (fictif)', 'Bien reçu, je l’accueille à son arrivée. (fictif)');
+      }
+      var relance = msg(-24 * 3, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Inscriptions à la formation incendie', texte: 'Merci de vous inscrire avant vendredi sur la feuille du secrétariat. (fictif)',
+        destinataires: [{ genre: 'service', code: U1 }], reponses: 'aucune' });
+      ajouter(t(-20), 'MESSAGE_RELANCE', { message: relance }, 'demo-cadre');
+      msg(-8, 'demo-admin', { nom: 'Administrateur (fictif)', objet: 'Coupure du réseau informatique dimanche matin', texte: 'Le réseau sera coupé dimanche de 6 h à 8 h pour maintenance. Tessera reste utilisable en mode hors réseau. (fictif)',
+        destinataires: [{ genre: 'etablissement', code: '*' }], reponses: 'aucune', rattaches: [{ module: 'vehicules', genre: 'reservation', id: 'RV004', service: U1 }] });
+      msg(-5, 'demo-a', { nom: 'Agent A (fictif)', objet: 'Accompagnement de M. Durand demain', texte: 'Le rendez-vous est confirmé ; prévoir le minibus. (fictif)',
+        destinataires: [{ genre: 'role', code: 'IDE', service: U1 }, { genre: 'role', code: 'CADRE', service: U1 }], rattaches: [{ module: 'patients', genre: 'fiche', id: 'P01', service: U1 }] });
+      var ancien = msg(-24 * 40, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Planning des congés d’été', texte: 'Les demandes sont à rendre avant la fin du mois. (fictif)', destinataires: [{ genre: 'service', code: U1 }], jusquau: jM(-10) });
+      if (moiM) lu(-24 * 39, ancien, moiM);
+      var retire = msg(-24 * 2, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Réunion de service jeudi', texte: 'Réunion à 14 h. (fictif)', destinataires: [{ genre: 'service', code: U1 }] });
+      ajouter(t(-24 * 2 + 1), 'MESSAGE_RETRAIT', { message: retire, motif: 'Réunion reportée (fictif)' }, 'demo-cadre');
+    })();
+    if (!reel) cfg('messagerie', { '*': { informations: { agenda: true, vehicules: true, travaux: true, suivi: true }, piecesJointes: true }, U1: { affichageJours: 15 } });
+
     file.sort(function (a, b) { return a.at - b.at || a.n - b.n; });
     return file.map(function (x, i) { return { at: new Date(Math.min(x.at, now) + i).toISOString(), by: x.by || 'demo', type: x.type, data: x.data }; });
   };
@@ -484,6 +529,20 @@
     // L'agent qui crée la démonstration est inscrit par les « données fictives » à une audience : information reçue
     var u = session.utilisateur || {};
     await session.enregistrerLot(SIC.donneesFictives({ moi: { id: u.id, nom: u.nom } }), { libelle: 'Données fictives de démonstration', by: 'demo', sansControle: true });
+    // Messagerie (0.23.0) : un message avec deux pièces jointes fictives (une image affichée dans l'application, un texte
+    // téléchargé après avertissement), écrites chiffrées avant la saisie qui les cite
+    if (session.enregistrerPiece && !session.formation) {
+      try {
+        var png = SIC.crypto.deb64('iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAVElEQVR42u3WsQ0AIAgEQDZxMAsXdwATl3ABLI0Fl1CScNXz0UZPZ+6Vzuv9AAICKgf6dfi2DwQEVA8kqYGAgPQhrwMISB+S1EBAQPqQ1wEEVBp0AOAC5OIP3b9UAAAAAElFTkSuQmCC');
+        var txt = new TextEncoder().encode('Feuille des emprunts de clés (fictif)\nDate ; Heure ; Agent ; Retour\n');
+        var pj1 = await session.enregistrerPiece('messagerie', png), pj2 = await session.enregistrerPiece('messagerie', txt);
+        await session.enregistrerLot([{ at: new Date(Date.now() - 3 * 36e5).toISOString(), by: 'demo-cadre', type: 'MESSAGE', data: { id: 'MS900', nom: 'Cadre de santé (fictif)',
+          objet: 'Plan de la boîte à code et feuille des emprunts', texte: 'Ci-joint le plan d’emplacement de la boîte à code et la feuille des emprunts à imprimer. (fictif)',
+          destinataires: [{ genre: 'service', code: 'U1' }], services: ['U1'], important: false, accuse: 'auto', reponses: 'auteur', jusquau: SIC.model.dateLocaleISO(Date.now() + 15 * 864e5),
+          rattaches: [], pieces: [{ id: pj1, nom: 'plan-boite-a-code (fictif).png', taille: png.length }, { id: pj2, nom: 'feuille-emprunts (fictif).txt', taille: txt.length }] } }],
+          { libelle: 'Message fictif avec pièces jointes', by: 'demo', sansControle: true });
+      } catch (e) { /* démonstration sans pièces jointes */ }
+    }
     // Données sous clé propre (0.20.0) : la clé de chaque donnée est créée d'abord, puis ses valeurs fictives sont écrites
     // dans son journal (vigilance organisationnelle, données des agents)
     if (session.creerClesManquantes && !session.formation) {

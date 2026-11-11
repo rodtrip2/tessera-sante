@@ -1106,6 +1106,8 @@
     dessinerServices(); dessinerPatients(); dessinerPros(); dessinerChecklist();
 
     var boutons = [{ texte: lecture || repete ? 'Fermer' : 'Annuler' }];
+    // « Envoyer par message » (messagerie, 0.23.0) : nouveau message avec l'événement rattaché
+    if (!nouveau && U.messagerie && U.messagerie.peutEnvoyer()) boutons.push(U.messagerie.boutonModale('agenda', 'evenement', r.id, r.service));
     var propres = (x.surchargee || []).map(function (k) { return LIB_CHAMPS[k] || k; });
     if (!lecture && parDate && x.annulee) boutons.push({ texte: 'Rétablir cette date', action: async function () {
       await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, annulee: false, service: x.service });
@@ -1302,6 +1304,29 @@
     admin: { onglets: function () { return [['agenda-categories', 'Catégories d’événements', [panneauCategories()]], ['agenda', 'Réglages de l’agenda', [panneauReglages()]], ['agenda-services', 'Organisation par service', [I.panneauReglagesService()]]]; },
       // Réglages ouverts au cadre pour ses services : onglet « Agenda du service » de sa fenêtre Administration (0.21.0)
       cadre: function () { return [I.panneauReglagesService()]; } },
+    // Onglet Informations de la messagerie (0.23.0, réglage de l'établissement) : réponses attendues, inscriptions à
+    // confirmer, informations reçues
+    informations: function () {
+      var res = [];
+      try {
+        var m = mesReponses(), jourDe = function (x) { return libJour(x.debut) + ' ' + hm(x.debut); };
+        m.repondre.forEach(function (x) {
+          res.push({ id: 'ag-r-' + x.rdv.id + '-' + x.occurrence, niveau: 'warn', titre: 'Réponse attendue : ' + libelleElement(x.rdv) + ' — ' + jourDe(x),
+            detail: x.situation.etat === 'propose' ? 'Un collègue vous propose comme accompagnateur.' : 'Vous êtes invité(e) comme accompagnateur.', ouvrir: function () { modaleElement(x.rdv, null, !peut('RDV'), null, false, x.occurrence); } });
+        });
+        m.confirmer.forEach(function (x) {
+          res.push({ id: 'ag-c-' + x.rdv.id + '-' + x.occurrence + '-' + x.demande.agent, niveau: 'warn', titre: 'Inscription à confirmer : ' + (x.demande.nom || U.App.session.nomAuteur(x.demande.agent)) + ' — ' + libelleElement(x.rdv),
+            detail: jourDe(x), ouvrir: function () { modaleElement(x.rdv, null, !peut('RDV'), null, false, x.occurrence); } });
+        });
+        mesAvis().forEach(function (a) {
+          var r = st().rdv[a.rdv];
+          if (!r) return;
+          res.push({ id: 'ag-a-' + a.id, niveau: '', titre: U.App.session.nomAuteur(a.par) + ({ retrait: ' vous a désinscrit(e) : ', refus: ' a refusé votre demande : ', confirmation: ' a confirmé votre demande : ' }[a.genre || (a.retrait ? 'retrait' : '')] || ' vous a inscrit(e) : ') + libelleElement(r),
+            detail: String(a.occurrence).split('-').reverse().join('/') + (a.motif ? ' — ' + a.motif : ''), ouvrir: function () { modaleElement(r, null, !peut('RDV'), null, false, a.occurrence); }, vu: function () { return marquerVus([a.id]); } });
+        });
+      } catch (e) { /* module illisible : rien à afficher */ }
+      return res;
+    },
     // Pastille de la barre des modules : informations reçues non vues
     pastille: function () { try { var m = mesReponses(); return mesAvis().length + m.repondre.length + m.confirmer.length; } catch (e) { return 0; } }
   });

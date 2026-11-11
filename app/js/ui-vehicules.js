@@ -185,6 +185,8 @@
     var motif = h('input', { type: 'text', maxlength: 120, value: x.motif || '', placeholder: 'Précision (facultatif)' });
     var liste = V.pretsDe(st(), v.id, minuit(Date.now()), Infinity);
     var boutons = [{ texte: 'Fermer' }];
+    // « Envoyer par message » (messagerie, 0.23.0) : nouveau message avec la réservation rattachée
+    if (r && U.messagerie && U.messagerie.peutEnvoyer()) boutons.push(U.messagerie.boutonModale('vehicules', 'reservation', r.id, r.service));
     if (p) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () { await U.App.session.enregistrer('PRET', { id: p.id, vehicule: v.id, supprime: true }); U.toast('Prêt supprimé.'); } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       if (!debut.value) throw new Error('Indiquez le premier jour.');
@@ -425,6 +427,16 @@
     vues: { parc: vueParc, planning: vuePlanning, signalements: vueSignalements },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'Le véhicule ou la réservation revient à son état précédent.'; } },
     admin: { onglets: function () { return [['vehicules', 'Véhicules', [panneauReglages()]]]; } },
+    // Onglet Informations de la messagerie (0.23.0, réglage de l'établissement) : pré-réservations remplacées
+    informations: function () {
+      try {
+        return mesAvis().map(function (a) {
+          var p = a.preReservation, f = a.reservationForcee, v = p && st().vehicules[p.vehicule];
+          return { id: 've-' + a.id, niveau: 'warn', titre: 'Pré-réservation remplacée : ' + (v ? v.nom : 'véhicule') + (p && p.motif ? ' — ' + p.motif : ''),
+            detail: p ? 'Prévue le ' + new Date(p.debut).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '', ouvrir: f ? function () { modaleReservation(f); } : null, vu: function () { return marquerVus([a.id]); } };
+        });
+      } catch (e) { return []; }
+    },
     pastille: function () { try { return mesAvis().length + V.signalementsOuverts(st()).filter(function (sg) { return V.vehiculesPour(st(), U.services().map(function (x) { return x.code; })).some(function (v) { return v.id === sg.vehicule; }); }).length; } catch (e) { return 0; } }
   });
   U.vehicules = { modaleReservation: modaleReservation, mesAvis: mesAvis };
