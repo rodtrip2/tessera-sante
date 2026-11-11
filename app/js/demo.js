@@ -658,7 +658,7 @@
           if (moiC) await session.enregistrerLot(lot, { libelle: 'Messages chiffrés fictifs', by: 'demo', sansControle: true });
           session.clesMessages = {};   // l'agent connecté n'est pas l'auteur : il ouvre ce qui lui est adressé, consulte le reste
         }
-        // Mes tâches (0.26.3) : liste personnelle de l'agent connecté, chiffrée par sa clé personnelle (échéance proche avec
+        // Mes tâches (0.26.3) : liste personnelle de l'agent connecté, chiffrée par sa clé de liste (échéance proche avec
         // rappel, tâche en retard rattachée à une demande de travaux, tâche sans date, tâche faite hier)
         var moiT = session.compteEffectif && session.compteEffectif();
         if (moiT && session.aClePersonnelle && session.aClePersonnelle()) {
