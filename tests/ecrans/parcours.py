@@ -335,6 +335,15 @@ with sync_playwright() as p:
     fenetre(a, 'Vue d’ensemble')
     verifier(a.locator('table.table-vue td[data-couleur=bleu]', has_text='Actée').count() >= 1, 'couleur de la sortie actée réglée, reprise dans la Vue d’ensemble')
 
+    print('Pôles et cadre supérieur de santé (0.27.2)')
+    verifier(a.locator('header select[aria-label="Service"] optgroup[label="Pôle santé mentale (fictif)"]').count() == 1, 'sélecteur de service rangé par pôle')
+    roles = a.evaluate("SIC.model.rolesConfig(SIC.ui.config()).map(r => r.libelle).join('|')")
+    verifier('Cadre supérieur de santé' in roles, 'rôle fourni « Cadre supérieur de santé »')
+    r = a.evaluate("""async () => { const s = SIC.ui.App.session;
+      await s.creerCompte({ nom: 'Cadre Sup (fictif)', login: 'cadre.sup', motDePasse: 'motdepasse-cadre-sup', roles: ['CADRE_SUP'], services: ['U1', 'U2'] });
+      const c = s.comptes.find(x => x.login === 'cadre.sup'); return c.roles.slice().sort().join(','); }""")
+    verifier(r == 'CADRE,CADRE_SUP', 'cadre supérieur : rôle Cadre ajouté d’office (' + r + ')')
+
     print('Comptes d’un autre service : cadre et IDE de l’Unité 2 (non administrateurs)')
     a.evaluate("""async () => { const s = SIC.ui.App.session;
       await s.creerCompte({ nom: 'Cadre Deux (fictif)', login: 'cadre.u2', motDePasse: 'motdepasse-cadre-u2', roles: ['CADRE'], services: ['U2'] });
