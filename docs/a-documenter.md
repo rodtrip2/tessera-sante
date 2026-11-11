@@ -115,6 +115,17 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.29.0 (branche `chambres`, 12 novembre 2026) : chambres et lits
+
+| Sujet | Décisions du porteur (11 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Liste des chambres par service | Chambres (simples, doubles…) et lits distincts (ex. chambre 417, lits 417 P et 417 F) ; CSI identifiées dans la liste (remplacent les lieux d'isolement réglés jusqu'ici, repris sans perte tant que la liste n'existe pas) ; autres pièces (bureau, espace d'apaisement…), certaines utilisées par les patients ; réglée par le cadre pour ses services, par l'administrateur pour tous | `chambres.js` (`SIC.chambres`), `ui-chambres.js` ; réglage commun `chambres` { <service> : { pieces } } contrôlé par `reglages.cadre.chambres` du module Patients ; onglet *Administration → Patients → Chambres et lits* ; groupe `chambres` de l'export des réglages ; `SIC.chambres.lieuxCSI` remplace la lecture directe de `lieuxCSI` (Isocont, parcours) |
+| Un patient par lit | Choix du lit dans une liste (occupation affichée) ; lit occupé : avertissement et proposition de déplacer l'autre patient, en cascade, ou de le laisser (deux patients : à régler) ; « Annuler tout » n'enregistre rien | `U.chambres.selecteurLit`, `cascade`, `enregistrerSejour` ; saisies `SEJOUR` des patients déplacés écrites avant celle du patient ; contrôle dans l'interface seulement (échanges et cascades possibles) |
+| Historique des lits | Gardé : lits successifs dans la fiche du séjour | `sejour.mouvements` [{ du, chambre, lit, par }] tenu par le réducteur de `SEJOUR` |
+| Import de la liste des patients présents | Rattacher les lits de l'export aux lits existants : reconnaissance automatique (« 417P », « 417-F », chambre seule), sinon correspondance choisie à l'import, mémorisée dans le modèle | `import-patients.js` (`options.config`, `modele.lits`, `litInconnu`) ; section « Lits de l'export à rattacher aux lits du service » de `ui-import-patients.js` |
+| Démonstration | Unité 1 : chambres doubles et simples, deux CSI, poste de soins, espace d'apaisement et salle à manger (utilisés par les patients), bureau médical ; Unité 2 : chambres, CSI, office ; changement de lit d'un patient (historique) | `demo.js` ; permissions de démonstration gardées dans la semaine affichée |
+| Prévu (étape 4, 0.29.1) | Plan graphique du service, noms des patients, pièces utilisées, CSI (patient en mesure, chambre ouverte, surcapacité) | Coordonnées x, y, w, h, couleur déjà portées par chaque pièce |
+
 ## Version 0.28.1 (rôle et fiche « Médecin » ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |
@@ -311,17 +322,6 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 - **`CLAUDE.md`** § 7 : nouveaux points à valider (ci-dessous). Le § 6 est déjà à jour (parcours des écrans, documentation reportable).
 - **`kit/05-elements-rgpd-aipd.md`** et guide utilisateur : l'export du droit d'accès contient la prise en charge (type et nom).
 - **`CHANGELOG.md`** : entrée 0.21.0 (version et empreintes déjà faites à la fusion) ; PDF (`python3 scripts/docs-pdf.py`) ; empreintes (`node scripts/empreintes.mjs`).
-
-## Version 0.29.0 (branche `chambres`, 12 novembre 2026) : chambres et lits
-
-| Sujet | Décisions du porteur (11 novembre 2026) | Fichiers, saisies, réglages |
-| --- | --- | --- |
-| Liste des chambres par service | Chambres (simples, doubles…) et lits distincts (ex. chambre 417, lits 417 P et 417 F) ; CSI identifiées dans la liste (remplacent les lieux d'isolement réglés jusqu'ici, repris sans perte tant que la liste n'existe pas) ; autres pièces (bureau, espace d'apaisement…), certaines utilisées par les patients ; réglée par le cadre pour ses services, par l'administrateur pour tous | `chambres.js` (`SIC.chambres`), `ui-chambres.js` ; réglage commun `chambres` { <service> : { pieces } } contrôlé par `reglages.cadre.chambres` du module Patients ; onglet *Administration → Patients → Chambres et lits* ; groupe `chambres` de l'export des réglages ; `SIC.chambres.lieuxCSI` remplace la lecture directe de `lieuxCSI` (Isocont, parcours) |
-| Un patient par lit | Choix du lit dans une liste (occupation affichée) ; lit occupé : avertissement et proposition de déplacer l'autre patient, en cascade, ou de le laisser (deux patients : à régler) ; « Annuler tout » n'enregistre rien | `U.chambres.selecteurLit`, `cascade`, `enregistrerSejour` ; saisies `SEJOUR` des patients déplacés écrites avant celle du patient ; contrôle dans l'interface seulement (échanges et cascades possibles) |
-| Historique des lits | Gardé : lits successifs dans la fiche du séjour | `sejour.mouvements` [{ du, chambre, lit, par }] tenu par le réducteur de `SEJOUR` |
-| Import de la liste des patients présents | Rattacher les lits de l'export aux lits existants : reconnaissance automatique (« 417P », « 417-F », chambre seule), sinon correspondance choisie à l'import, mémorisée dans le modèle | `import-patients.js` (`options.config`, `modele.lits`, `litInconnu`) ; section « Lits de l'export à rattacher aux lits du service » de `ui-import-patients.js` |
-| Démonstration | Unité 1 : chambres doubles et simples, deux CSI, poste de soins, espace d'apaisement et salle à manger (utilisés par les patients), bureau médical ; Unité 2 : chambres, CSI, office ; changement de lit d'un patient (historique) | `demo.js` ; permissions de démonstration gardées dans la semaine affichée |
-| Prévu (étape 4, 0.29.1) | Plan graphique du service, noms des patients, pièces utilisées, CSI (patient en mesure, chambre ouverte, surcapacité) | Coordonnées x, y, w, h, couleur déjà portées par chaque pièce |
 
 ## Points à faire valider (pour CLAUDE.md § 7 et le kit)
 
