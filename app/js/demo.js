@@ -248,6 +248,11 @@
     ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { etat: 'actee', debut: jISO(24 * 3), heure: '11:00' } });
     ajouter(t(-24 * 2), 'SEJOUR', { patientId: 'P01', sejourId: 'SP01', sortiePrevue: { debut: jISO(24 * 6), fin: jISO(24 * 10), precision: 'après la synthèse (fictif)' } });
     ajouter(t(-24 * 1), 'SEJOUR', { patientId: 'P04', sejourId: 'SP04', sortiePrevue: { precision: 'selon place en appartement thérapeutique (fictif)' } });
+    // Plan du service (0.29.1) : placements temporaires, chambre gardée (CSI en chambre ouverte dans l'Unité 2, alors
+    // qu'une mesure y est en cours : point à régler signalé ; espace d'apaisement dans l'Unité 1) ; les patients en mesure
+    // apparaissent dans leur CSI et, estompés, dans leur chambre
+    ajouter(t(-3), 'SEJOUR', { patientId: 'P06', sejourId: 'SP06', placement: { piece: 'CSI A' } });
+    ajouter(t(-1), 'SEJOUR', { patientId: 'P05', sejourId: 'SP05', placement: { piece: 'Espace d’apaisement' } });
     // Rappel : P01 soins sans consentement (SDT), P03 soins libres, P04 SDRE (Unité 2)
 
     var nMes = 0;

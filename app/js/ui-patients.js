@@ -424,7 +424,8 @@
       h('div', { class: 'grille-2' }, h('label', {}, 'Numéro de séjour (IEP, facultatif)', iep), h('label', {}, 'Unité', sv)),
       h('div', { class: 'grille-2' }, h('label', {}, 'Entrée', entree), h('label', {}, 'Sortie (vide : séjour en cours)', sortie)),
       litSel.noeud,
-      x.mouvements && x.mouvements.length > 1 ? h('details', {}, h('summary', { text: 'Lits successifs (' + x.mouvements.length + ')' }), h('ul', { class: 'liste-simple' }, x.mouvements.map(function (m) { return h('li', { text: SIC.chambres.libelle(m.chambre, m.lit) + ' — depuis le ' + U.date(Date.parse(m.du)).slice(0, 10) }); }))) : null,
+      x.mouvements && x.mouvements.length > 1 ? h('details', {}, h('summary', { text: 'Lits successifs (' + x.mouvements.length + ')' }), h('ul', { class: 'liste-simple' }, x.mouvements.map(function (m) { return h('li', { text: (m.piece !== undefined ? (m.retour ? 'Retour en chambre' : m.piece + ' (chambre gardée)') : SIC.chambres.libelle(m.chambre, m.lit)) + ' — depuis le ' + U.date(Date.parse(m.du)).slice(0, 10) }); }))) : null,
+      x.placement ? h('p', { class: 'info', text: 'Actuellement en ' + x.placement.piece + ', chambre gardée (retour depuis le plan du service).' }) : null,
       !sj && P.sejourEnCours(p) ? h('p', { class: 'alerte', text: 'Un séjour est déjà en cours (entrée le ' + jj(P.sejourEnCours(p).entree) + ') : indiquez sa date de sortie s’il est terminé.' }) : null), [
       { texte: 'Annuler' },
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
