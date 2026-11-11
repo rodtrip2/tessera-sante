@@ -115,6 +115,16 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.26.1 (lot A, étape 2 : page d'accueil de l'administration ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Page d'accueil | Premier onglet de la fenêtre Administration : carte par module (icône, nom, état, services, saisies, alertes) | `app/js/ui-accueil-admin.js` (onglet `admin-accueil`, administrateur) ; Patients présenté comme module de référence (sans activation propre) ; nombre de saisies lu dans le journal du module (annulées exclues), informations en attente = pastille du module |
+| Activation | Par service depuis la carte ; confirmation avant de désactiver un module qui a des données (« rien n'est effacé, le module est masqué ») ; un clic ouvre les réglages du module | « Services… » / « Activer… » : même réglage `modulesServices` que *Réglages généraux → Établissement et services* ; clés remises à l'activation comme avant ; « Réglages » et « Ouvrir » |
+| État de la plateforme | Dernière sauvegarde, renouvellement des clés, comptes provisoires non activés | Copie de sauvegarde complète, copie du coffre sous scellé, intégrité du coffre (anomalies attestées), intégrité des données, comptes au mot de passe provisoire, comptes à échéance dans moins de 15 jours ; bouton « Voir » vers la rubrique |
+
+Parcours des écrans complété. À documenter : guide d'administration (kit), fiche technique (nouveau fichier), guide utilisateur (fenêtre Administration).
+
 ## Version 0.26.0 (lot A, étape 1 : tableaux et affichage ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |
