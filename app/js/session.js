@@ -390,7 +390,7 @@
       // Équipe (0.27.0) : coordonnées personnelles d'un service, remises au cadre du service (et aux rôles d'encadrement à venir)
       if (/^e-[pm]\./.test(nom)) {
         var sve = nom.slice(4), rse = compte.roles || [], de = SIC.modules.obtenir('equipe') && SIC.modules.obtenir('equipe').droits;
-        var lecteurs = nom.charAt(2) === 'm' ? ['CADRE', 'MEDECIN_CHEF_SERVICE'] : ['CADRE'];
+        var lecteurs = nom.charAt(2) === 'm' ? ['CADRE', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE'] : ['CADRE'];
         if (!rse.some(function (r) { return lecteurs.indexOf(r) >= 0; })) return false;
         return (de && de.voitTousServices(rse, cfg)) || (compte.services || []).indexOf(sve) >= 0;
       }
@@ -1723,9 +1723,24 @@
     // ne portent pas (répertoire de la prise en charge, 0.21.0)
     var mp = SIC.modules && SIC.modules.obtenir ? SIC.modules.obtenir('patients') : null;
     if (mp && !etats.patients && aCle(s, 'patients')) etats.patients = mp.saisies.reduire(s.evts);
+    // Identité des patients réduite aux initiales (0.27.3 : administrateur de garde par défaut, réglable par rôle) :
+    // états d'affichage recopiés avec les fiches réduites ; le journal et les états d'origine ne changent pas
+    var cpt = this.utilisateur && this.compteEffectif ? this.compteEffectif() : null;
+    if (cpt && !this.apercu && moduleActif().droits.identiteReduite && moduleActif().droits.identiteReduite(cpt.roles, config(this))) {
+      var reduire = function (e) { if (!e || !e.patients) return e; var p = {}; Object.keys(e.patients).forEach(function (k) { p[k] = patientReduit(e.patients[k]); }); return Object.assign({}, e, { patients: p }); };
+      this.etat = reduire(this.etat);
+      Object.keys(etats).forEach(function (k) { etats[k] = k === idModule() ? s.etat : reduire(etats[k]); });
+    }
     this.etats = etats;
     this.notifier(info);
   };
+  /** Fiche réduite : initiales du nom et du prénom, sans IPP ni date de naissance (l'âge reste calculable à l'année). */
+  function patientReduit(p) {
+    if (!p || typeof p !== 'object') return p;
+    var ini = function (t) { t = String(t || '').trim(); return t ? t.charAt(0).toUpperCase() + '.' : ''; };
+    var an = /^(\d{4})/.exec(p.naissance || '');
+    return Object.assign({}, p, { nom: ini(p.nom), prenom: ini(p.prenom), nomUsage: '', ipp: '', iep: '', naissance: an ? an[1] + '-07-01' : '', identiteReduite: true });
+  }
 
   /**
    * Synchronisation : une seule à la fois (les appels se suivent dans une file). Deux lectures simultanées des mêmes

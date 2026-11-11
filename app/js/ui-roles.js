@@ -43,7 +43,7 @@
     var cfg = U.config();
     // Copie de travail des rôles réglables (l'administrateur est fixe)
     var liste = D().rolesConfig(cfg).filter(function (r) { return !r.admin; }).map(function (r) {
-      return { code: r.code, libelle: r.libelle, acces: r.acces.slice(), modules: accesModules(r.code, cfg), services: r.services, journal: r.journal, registreSeul: !!r.registreSeul, ongletsMasques: r.ongletsMasques.slice(), fourni: r.fourni };
+      return { code: r.code, libelle: r.libelle, acces: r.acces.slice(), modules: accesModules(r.code, cfg), services: r.services, journal: r.journal, registreSeul: !!r.registreSeul, ongletsMasques: r.ongletsMasques.slice(), fourni: r.fourni, identite: r.identite || 'complete' };
     });
     var avant = JSON.parse(JSON.stringify(liste));
     var zone = h('div', { class: 'pile' }), zoneErr = h('div');
@@ -57,6 +57,8 @@
         return h('label', { class: 'case' }, cb, h('span', { text: U.lieu(a.libelle) }));
       });
       var tous = h('input', { type: 'checkbox', checked: !r.services, onchange: function () { r.services = !tous.checked; } });
+      // Identité des patients (0.27.3) : complète, ou initiales seulement (administrateur de garde par défaut)
+      var selIdentite = h('select', { 'aria-label': 'Identité des patients', onchange: function () { r.identite = selIdentite.value; } }, Object.keys(D().IDENTITES).map(function (k) { return h('option', { value: k, text: D().IDENTITES[k], selected: (r.identite || 'complete') === k }); }));
       var n = comptesAvec(r.code).length;
       var noteJournal = h('small', { class: 'alerte-champ' });
       function majNote() {
@@ -96,10 +98,11 @@
         cbAnonyme ? h('label', { class: 'case' }, cbAnonyme, h('span', { text: 'Accès limité au registre (consultation seule)' })) : null, noteAnonyme,
         grilleAcces,
         h('label', { class: 'case' }, tous, h('span', { text: 'Accès à tous les services (sans affectation de services au compte), par exemple pour une direction des soins' })),
+        h('label', { class: 'en-ligne' }, 'Identité des patients', selIdentite, h('small', { class: 'muted', text: 'initiales : ni nom complet, ni IPP, ni date de naissance (année seulement), sauf si un autre rôle du compte voit l’identité complète' })),
         blocOnglets, blocJournal, noteJournal,
         h('div', { class: 'actions gauche' },
           r.fourni ? h('button', { class: 'btn petit', type: 'button', onclick: function () {
-            r.acces = D().accesDefaut(r.code); autresModules().forEach(function (m) { r.modules[m.id] = m.droits.accesDefaut(r.code); }); r.ongletsMasques = []; r.services = true; r.libelle = D().ROLES[r.code]; r.journal = D().rolesConfig({}).filter(function (x) { return x.code === r.code; })[0].journal; dessiner();
+            r.acces = D().accesDefaut(r.code); autresModules().forEach(function (m) { r.modules[m.id] = m.droits.accesDefaut(r.code); }); var def0 = D().rolesConfig({}).filter(function (x) { return x.code === r.code; })[0]; r.ongletsMasques = []; r.services = def0.services; r.identite = def0.identite; r.libelle = D().ROLES[r.code]; r.journal = def0.journal; dessiner();
           } }, 'Rétablir les droits par défaut') : null,
           !r.fourni ? h('button', { class: 'btn petit danger', type: 'button', disabled: n > 0, title: n ? 'Retirez d’abord ce rôle des ' + n + ' compte(s) qui le portent.' : '', onclick: function () {
             liste.splice(liste.indexOf(r), 1); dessiner();
@@ -139,7 +142,7 @@
           if (vus[l.toLowerCase()] || l.toLowerCase() === D().ROLES.ADMIN.toLowerCase()) throw new Error('Deux rôles portent le libellé « ' + l + ' ».');
           if (!r.registreSeul && r.ongletsMasques.length === ongletsMasquables().length && r.journal === 'aucun') throw new Error('Le rôle « ' + l + ' » n’affiche aucun onglet : laissez au moins un onglet ou le journal.');
           vus[l.toLowerCase()] = 1;
-          valeur[r.code] = { libelle: l, acces: r.registreSeul ? [] : r.acces.slice(), services: !!r.services, journal: r.journal };
+          valeur[r.code] = { libelle: l, acces: r.registreSeul ? [] : r.acces.slice(), services: !!r.services, journal: r.journal, identite: r.identite || 'complete' };
           if (!r.registreSeul && autresModules().length) valeur[r.code].accesModules = JSON.parse(JSON.stringify(r.modules || {}));
           if (!r.registreSeul && r.ongletsMasques.length) valeur[r.code].ongletsMasques = r.ongletsMasques.slice();
           if (r.registreSeul) valeur[r.code].registreSeul = true;
