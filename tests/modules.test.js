@@ -41,7 +41,7 @@ test('Isocont : contrat déclaré au registre, identique à ce que le modèle ex
 
 test('Module Patients : module de référence, saisies de la fiche, chargé avant Isocont, fiche reconstituée', () => {
   const P = registre.obtenir('patients');
-  assert.ok(P.reference && P.vues.onglets.length === 1);
+  assert.ok(P.reference && P.vues.onglets.length === 2)   // liste des patients, plan du service (0.29.1);
   assert.deepEqual(registre.affiches().map((m) => m.id), ['isocont']);
   assert.deepEqual(registre.ordre().map((m) => m.id), ['patients', 'isocont']);
   assert.equal(registre.moduleDuType('PATIENT').id, 'patients');
