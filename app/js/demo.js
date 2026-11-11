@@ -122,7 +122,7 @@
         { code: 'groupe-qualite', libelle: 'Groupe de travail qualité', services: ['U1', 'U2'], membres: [{ id: 'demo-b', nom: 'Agent B (fictif)' }].concat(moiG) }]);
       // Information des pré-réservations remplacées : l'Unité 2 informe le cadre et le groupe qualité (sans la secrétaire)
       // Demandes de travaux (0.22.0) : numéro des services techniques ; case « chambre indisponible » proposée en Unité 1
-      cfg('travaux', { '*': { telephone: '5555 (fictif)' }, U1: { chambreIndisponible: true } });
+      cfg('travaux', { '*': { telephone: '5555 (fictif)' }, U1: { chambreIndisponible: true, salleIndisponible: true } });
       cfg('vehiculesInformation', { U2: { roles: ['CADRE'], groupes: ['groupe-qualite'], agents: [] } });
       // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
       cfg('agenda', { categories: {
@@ -489,6 +489,10 @@
       salle({ id: 'SA-FAM', nom: 'Salle des familles', type: 'familles', capacite: 6, accessible: true, service: U1, validation: true });
       salle({ id: 'SA-ACT', nom: 'Salle d’activités', type: 'activites', capacite: 12, accessible: true, service: '', services: [U1, U2] });
       salle({ id: 'SA-PSY2', nom: 'Bureau du psychologue', type: 'psychologue', capacite: 3, service: U2 });
+      salle({ id: 'SA-DET', nom: 'Salon des patients', type: 'autre', capacite: 10, service: U1 });
+      // Demande de travaux sur une salle, case « salle indisponible » cochée : salle fermée jusqu'à la fin des travaux
+      ajouter(t(-24), 'TRAVAUX', { id: 'TR-SAL', service: U1, type: 'electricite', lieu: 'salle', salle: 'SA-DET', salleNom: 'Salon des patients', salleIndisponible: true, precisionLieu: 'Plafonnier', gravite: 'gene', urgence: 'non', description: 'Plafonnier qui grésille, à vérifier avant usage (fictif)', nom: 'Agent B (fictif)' }, 'demo-b');
+      if (options.moi && options.moi.id) ajouter(t(-24), 'SALLE_RESERVATION', { id: 'SR-MOI', salle: 'SA-REU', jour: SIC.model.dateLocaleISO(jour(3)), de: '08:00', a: '09:00', titre: 'Préparation du staff', service: U1, nom: options.moi.nom || '', repetition: { type: 'aucune', jours: [] } }, options.moi.id);
       ajouter(t(-24 * 80), 'SALLE_FERMETURE', { id: 'SF-REPAS', salle: 'SA-ACT', jour: lun(-28), de: '12:00', a: '13:30', repetition: { type: 'semaine', jours: [0, 1, 2, 3, 4, 5, 6] }, motif: 'Repas' });
       ajouter(t(-24 * 80), 'SALLE_FERMETURE', { id: 'SF-REPAS2', salle: 'SA-ACT', jour: lun(-28), de: '18:30', a: '19:30', repetition: { type: 'semaine', jours: [0, 1, 2, 3, 4, 5, 6] }, motif: 'Repas du soir' });
       ajouter(t(-24 * 40), 'SALLE_PRET', { id: 'SP-U2', salle: 'SA-E1', jour: lun(-14), repetition: { type: 'semaine', jours: [2] }, services: [U2], motif: 'Consultations de l’Unité 2 le mardi' });

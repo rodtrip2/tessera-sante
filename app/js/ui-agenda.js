@@ -109,6 +109,7 @@
       h('div', { class: 'ag-bloc-tete' }, h('b', { text: plage + ' ' + libelleElement(r) })),
       x.patients.length ? h('div', { class: 'ag-ligne', text: nomsPatients(x.patients).join(', ') }) : null,
       r.lieu ? h('div', { class: 'ag-ligne muted', text: r.lieu }) : null,
+      r.salle && U.salles && U.App.session.detientCle('salles') ? h('div', { class: 'ag-ligne muted ag-salle', text: 'Salle : ' + U.salles.libelle('agenda|' + r.id + '|' + x.occurrence, r.salle) }) : null,
       (r.professionnels || []).length ? h('div', { class: 'ag-ligne muted', text: r.professionnels.map(function (p) { return p.nom; }).join(', ') }) : null,
       h('div', { class: 'ag-badges' },
         x.annulee ? h('span', { class: 'badge bad', text: 'Annulée' + (r.motifAnnulation ? ' : ' + r.motifAnnulation : '') }) : null,
@@ -489,6 +490,8 @@
       h('div', {}, teinter(h('span', { class: 'badge mode-hospi', text: libNature(r.nature, r.service) }), couleurNature(r.nature, r.service)), x.externe ? h('span', { class: 'badge warn', text: U.libService(r.service) }) : (avecService ? h('span', { class: 'badge', text: U.libService(r.service) }) : null)),
       h('b', { text: r.titre || '' }),
       r.lieu ? h('div', {}, h('small', { text: r.lieu })) : null,
+      // Salle réservée (Salles et bureaux, 0.25.0), après arbitrage
+      r.salle && U.salles && U.App.session.detientCle('salles') ? h('div', {}, h('small', { class: 'ag-salle', text: 'Salle : ' + U.salles.libelle('agenda|' + r.id + '|' + x.occurrence, r.salle) })) : null,
       x.patients.length ? h('div', {}, h('small', { text: (x.patients.length > 1 ? 'Patients : ' : 'Patient : ') + nomsPatients(x.patients).join(', ') })) : null,
       (r.professionnels || []).length ? h('div', {}, h('small', { class: 'muted', text: r.professionnels.map(function (p) { return p.nom; }).join(', ') })) : null,
       (r.commentaires || []).length ? h('div', {}, h('small', { class: 'muted', text: r.commentaires.length + ' commentaire(s)' })) : null,

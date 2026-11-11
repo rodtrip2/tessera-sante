@@ -115,6 +115,16 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.25.1 (Salles et bureaux : suite ; demandes du porteur du 11 novembre 2026)
+
+| Sujet | Réalisation |
+| --- | --- |
+| Salle indisponible pendant des travaux | Demandes de travaux : lieu « Salle ou bureau… » (salles du service), case « Salle indisponible pendant les travaux » proposée par le réglage du service (**non proposée par défaut**) ; la salle est fermée dans Salles et bureaux, journée par journée, jusqu'à la fin des travaux (`TRAVAUX.salle`, `salleNom`, `salleIndisponible` ; `sallesIndisponibles` ; fourniture `travaux.salles`) |
+| Mon agenda | Rubrique « Mes salles cette semaine » (réservations simples et demandes de l'agent, avec leur état) ; salle de chaque événement affichée sur sa carte et dans la grille, après arbitrage (`U.salles.miennes`, `U.salles.libelle`) |
+| Événement déplacé après un arbitrage | Une demande acceptée n'occupe la salle par ses propres horaires que pour une réservation simple ; pour un événement ou une présence, l'occupation suit l'élément d'origine (l'ancien créneau n'est plus bloqué) |
+
+Démonstration : demande de travaux sur le salon des patients (salle fermée), réservation de l'agent connecté. Tests : `tests/travaux.test.js` ; parcours des écrans complété. Reste : occupations d'un module dont l'agent n'a pas la clé, absentes de ses conflits.
+
 ## Version 0.25.0 (module Salles et bureaux, planning des psychologues ; décisions du porteur du 11 novembre 2026)
 
 Maquette validée le 11 novembre 2026 (« Tessera Santé — maquette des salles et bureaux »). Détail des décisions : document de projet claude.ai `claude/module-salles-et-bureaux.md`.
