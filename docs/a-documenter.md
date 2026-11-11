@@ -115,6 +115,17 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.27.2 (lot C, étape 3 : pôles et cadre supérieur de santé ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Pôles | Notion de pôle (regroupement de services) dans les Réglages généraux | Réglage `poles` ([{ code, libelle, services }], journal du socle), saisi dans *Établissement et services* (code ; libellé ; services) ; un service dans un seul pôle, service inconnu refusé (`M.poles`, `M.poleDe`) ; sélecteur de service de l'en-tête rangé par pôle ; groupe d'export des réglages |
+| Cadre supérieur de santé | Tout ce que fait le cadre, pour tous les services de son pôle ; comptes, coffre, activation des modules et sauvegardes restent à l'administrateur | Rôle fourni `CADRE_SUP` (rôle de service) ; un compte qui le porte porte aussi le rôle Cadre, ajouté d'office (`M.rolesComplets`, création et modification des comptes) : il a donc tous les droits du cadre sur ses services (réglages des modules, groupes, journaux, validations) ; accès par défaut = ceux du cadre dans chaque module (`droits.js`), réglables dans *Rôles et accès* ; fiche de compte : « Cocher les services d'un pôle… » |
+
+Démonstration : pôle « santé mentale » (Unités 1 et 2). Tests : `tests/roles.test.js` ; parcours (sélecteur par pôle, rôle fourni, rôle Cadre ajouté d'office). À documenter : guide d'administration (pôles, cadre supérieur), architecture (rôle fourni, rôles complétés), `CLAUDE.md` (rôles).
+
+Point à valider : un compte de cadre supérieur suit ses services tels que cochés (cocher le pôle d'un clic) ; s'il faut qu'il suive automatiquement les changements de son pôle, prévoir l'affectation du compte à un pôle.
+
 ## Version 0.27.1 (lot C, étape 2 : référents ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |

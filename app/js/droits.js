@@ -37,6 +37,11 @@
     var TYPES_ADMIN = def.typesAdmin || [], ROLES_FOURNIS = def.rolesFournis || [], ONGLETS_MASQUABLES = def.ongletsMasquables || [];
     var TYPES_EN_PLUS = def.typesEnPlus || {}, JOURNAL_COMPLET = def.rolesJournalComplet || [], ONGLET_REGISTRE_SEUL = def.ongletRegistreSeul || null;
     var MODULE = def.module || null, ENCADREMENT = def.rolesEncadrement || [];
+    // Cadre supérieur de santé (0.27.2) : accès par défaut, journal et encadrement du cadre, dans chaque module
+    if (DROITS.CADRE && !DROITS.CADRE_SUP) DROITS = Object.assign({}, DROITS, { CADRE_SUP: DROITS.CADRE.slice() });
+    if (TYPES_EN_PLUS.CADRE && !TYPES_EN_PLUS.CADRE_SUP) TYPES_EN_PLUS = Object.assign({}, TYPES_EN_PLUS, { CADRE_SUP: TYPES_EN_PLUS.CADRE.slice() });
+    function avecSup(l) { return l.indexOf('CADRE') >= 0 && l.indexOf('CADRE_SUP') < 0 ? l.concat(['CADRE_SUP']) : l; }
+    JOURNAL_COMPLET = avecSup(JOURNAL_COMPLET); ENCADREMENT = avecSup(ENCADREMENT);
     var LIRE_ACCES = def.lireAcces || function (r) { return r.acces; }, APPARTENANCE = def.appartenance || 'role';
 
     // ------------------------------------------------ Activation du module par service (étape 3, architecture § 5)
