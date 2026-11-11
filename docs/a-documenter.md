@@ -115,6 +115,18 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.26.2 (lot A, étape 3 : Informations du service ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Module | Fenêtre « Informations du service », ouverte à tous les agents du service, tenue par le cadre | Nouveau module `infos` (`module-infos.js`, `ui-infos.js`) : journal `modules\infos\`, clé propre remise à tous les rôles (appartenance par rôle) ; saisie `INFO_RUBRIQUE` (création, modification, ordre, masquage, retrait) ; accès « Tenir la page de ses services » (cadre par défaut) ; icône |
+| Rubriques | Ajoutées, masquées, rangées par le cadre ; par défaut : coordonnées, horaires, organisation, consignes, numéros utiles | Rubriques proposées à l'ajout (liste « + Rubrique proposée… »), rubrique libre, monter / descendre, masquer (visible du seul gestionnaire), retirer (reste au journal) |
+| Contenu | Texte, contacts (nom, numéro, « écrire un message »), pièces jointes (PDF) si activées ; clic sur un numéro : copie | Texte (retours à la ligne gardés, 6 000 caractères) ; contacts (nom, fonction, numéro, courriel, compte de l'agent relié : bouton « Écrire ») ; pièces jointes chiffrées par la clé du module (réglage `config.infos.piecesJointes`, **désactivé par défaut**, taille maximale 5 Mo par défaut, réglables par l'administrateur) ; onglet *Contacts* (annuaire de l'établissement et du service, triable et filtrable) ; fourniture `infos.contacts` |
+| Page de l'établissement | Tenue par l'administrateur, au-dessus de celle du service | Service « * » ; affichée aux agents seulement si elle a des rubriques |
+| Livret d'accueil | Simple rubrique, plus tard | Rubrique « Livret d'accueil des nouveaux agents » masquée dans la démonstration |
+
+Démonstration : numéros utiles de l'établissement, page de l'Unité 1 (coordonnées avec contact relié au compte connecté, horaires, consignes, livret masqué), Unité 2 vide. Tests : `tests/infos.test.js` ; parcours des écrans complété. À documenter : architecture (nouveau module, contrat), fiche technique (journal, clé, pièces jointes), kit RGPD (coordonnées professionnelles d'agents dans les contacts ; aucune donnée de patient), guide utilisateur, `CLAUDE.md` § 1 (liste des modules).
+
 ## Version 0.26.1 (lot A, étape 2 : page d'accueil de l'administration ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |
