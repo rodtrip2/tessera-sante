@@ -800,5 +800,5 @@
     // Pastille : messages qui vous attendent et informations non vues
     pastille: function () { try { var c = compte(); return MS.enAttente(st(), c, c.groupes, U.config(), Date.now()) + informationsNonVues().length; } catch (e) { return 0; } }
   });
-  U.messagerie = { nouveau: modaleNouveau, bouton: bouton, boutonModale: boutonModale, peutEnvoyer: peutEnvoyer, envoyer: envoyer, informations: informations };
+  U.messagerie = { ligneRattache: ligneRattache, modaleRattacher: modaleRattacher, nouveau: modaleNouveau, bouton: bouton, boutonModale: boutonModale, peutEnvoyer: peutEnvoyer, envoyer: envoyer, informations: informations };
 })();

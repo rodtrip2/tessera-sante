@@ -19,7 +19,7 @@
 | Planning des psychologues | Tessera Santé, 9 novembre 2026 | **Réalisé en 0.25.0** | Petite à moyenne |
 | Rôles d'encadrement : cadre supérieur de santé, médecin chef de service, médecin chef de pôle | Tessera Santé, 8 et 11 novembre 2026 | Demande, à préciser | Moyenne |
 | Tri des colonnes d'un tableau par clic sur le titre | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.0** (avec filtre rapide, taille d'affichage, hauteur des lignes, raccourcis clavier) | Petite |
-| Liste de tâches personnelle, reliée aux autres modules | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Moyenne |
+| Liste de tâches personnelle, reliée aux autres modules | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.3** (« Mes tâches ») | Moyenne |
 | Page d'accueil de l'administration : modules activés ou désactivés | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.1** | Petite |
 | Informations du service | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.2** (livret d'accueil : plus tard) | Petite à moyenne |
 | Rôles de référents (escarres, pharmacie, restriction des libertés…) | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Moyenne |

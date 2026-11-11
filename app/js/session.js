@@ -596,7 +596,7 @@
 
   Session.prototype.verrouiller = function () {
     // Trousseau effacé de la mémoire (octets des clés et partie privée remis à zéro)
-    T.effacer(this.trousseau); if (this.privee8) this.privee8.fill(0);
+    T.effacer(this.trousseau); if (this.privee8) this.privee8.fill(0); this.clesPerso = null;
     this.clesMessages = null;   // clés des messages chiffrés ouverts (messagerie, 0.24.0)
     this.trousseau = null; this.privee8 = null; this.cleV1 = null; this.moduleChoisi = undefined;
     A.effacerCles(this.attest); this.attest = null; this.ancre = null; this.controle = null;
@@ -1265,6 +1265,26 @@
     var d = await dossierJournal(this, j, false);
     return d ? d.lirePiece(j.cle, id) : null;
   };
+
+  // ---------------------------------------------------------- Données personnelles de l'agent (0.26.3, Mes tâches)
+  /**
+   * Clé personnelle d'usage (`usage`, ex. « taches ») dérivée de la partie privée de la clé personnelle de l'agent
+   * (HKDF-SHA-256) : seul l'agent la reconstitue, administrateur compris ; elle change si sa clé personnelle est
+   * renouvelée (mot de passe oublié), et ce qu'elle chiffrait devient alors illisible.
+   */
+  async function clePersonnelle(s, usage) {
+    if (!s.utilisateur || !s.privee8 || s.utilisateur.id === 'secours') throw new Error('Clé personnelle indisponible pour ce compte.');
+    s.clesPerso = s.clesPerso || {};
+    var k = 'perso:' + usage + ':' + s.utilisateur.id;
+    if (!s.clesPerso[k]) s.clesPerso[k] = await C.cleUsagePersonnel(s.privee8, k);
+    return { cle: s.clesPerso[k], aad: k };
+  }
+  Session.prototype.chiffrerPersonnel = async function (usage, objet) { var k = await clePersonnelle(this, usage); return C.b64(await C.chiffrerJSON(k.cle, objet, k.aad)); };
+  /** Contenu déchiffré, ou null s'il ne s'ouvre pas avec la clé personnelle actuelle (autre agent, clé renouvelée). */
+  Session.prototype.dechiffrerPersonnel = async function (usage, texte) {
+    try { var k = await clePersonnelle(this, usage); return await C.dechiffrerJSON(k.cle, C.deb64(texte), k.aad); } catch (e) { return null; }
+  };
+  Session.prototype.aClePersonnelle = function () { return !!(this.utilisateur && this.privee8 && this.utilisateur.id !== 'secours'); };
 
   // ---------------------------------------------------------- Messages chiffrés pour leurs seuls destinataires (0.24.0)
   /**
