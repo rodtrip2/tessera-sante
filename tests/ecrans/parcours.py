@@ -295,7 +295,8 @@ with sync_playwright() as p:
     verifier(a.locator('main .info', has_text='Vous êtes référent').count() == 1, 'référents : l’agent voit ses propres domaines')
     capture(a, 'equipe-referents')
     blocU1.locator('tbody tr', has_text='Pharmacie').get_by_role('button', name='Modifier').click(); time.sleep(0.6)
-    a.locator('dialog[open]').get_by_label('Ajouter : Référent(s)').select_option(label='Agent A (fictif) (sans compte)'); time.sleep(0.3)
+    sel = a.locator('dialog[open]').get_by_label('Ajouter : Référent(s)')
+    sel.select_option(value=sel.locator('option', has_text='Agent A (fictif)').first.get_attribute('value')); time.sleep(0.3)
     a.locator('dialog[open]').get_by_role('button', name='Enregistrer').click(); time.sleep(1.2)
     verifier('Agent A' in a.locator('section.panneau', has_text='Référents — Unité 1').locator('tbody tr', has_text='Pharmacie').inner_text(), 'référents : référent ajouté par le cadre')
     a.locator('nav.onglets button', has_text='Ma fiche').click(); time.sleep(1.5)
@@ -358,8 +359,11 @@ with sync_playwright() as p:
       await s.creerCompte({ nom: 'Cadre Deux (fictif)', login: 'cadre.u2', motDePasse: 'motdepasse-cadre-u2', roles: ['CADRE'], services: ['U2'] });
       await s.creerCompte({ nom: 'Ide Deux (fictif)', login: 'ide.u2', motDePasse: 'motdepasse-ide-u2', roles: ['IDE'], services: ['U2'] });
       await s.creerCompte({ nom: 'Garde (fictif)', login: 'garde', motDePasse: 'motdepasse-garde', roles: ['ADMIN_GARDE'], services: [] });
+      await s.creerCompte({ nom: 'Dr Arnaud (fictif)', login: 'dr.arnaud', motDePasse: 'motdepasse-medecin', roles: ['MEDECIN'], services: ['U1'] });
+      const cm = s.comptes.find(c => c.login === 'dr.arnaud');
+      const meds = JSON.parse(JSON.stringify(SIC.ui.config().medecins || { liste: [] })); const ma = (meds.liste || []).find(m => m.id === 'm-arnaud'); if (ma) { ma.compte = cm.id; await s.enregistrer('CONFIG', { cle: 'medecins', valeur: meds }); }
       await s.creerCompte({ nom: 'Directrice des soins (fictif)', login: 'ds', motDePasse: 'motdepasse-ds-01', roles: ['DIRECTEUR_SOINS'], services: [] });
-      await s.modifierCoffre(async (coffre, comptes) => { comptes.filter(c => /\\.u2$|^garde$|^ds$/.test(c.login)).forEach(c => { c.mdpProvisoire = false; }); }); }""")
+      await s.modifierCoffre(async (coffre, comptes) => { comptes.filter(c => /\\.u2$|^garde$|^ds$|^dr\\.arnaud$/.test(c.login)).forEach(c => { c.mdpProvisoire = false; }); }); }""")
     a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
     connecter(a, 'cadre', MDP)   # l'administrateur se reconnecte : remise des clés aux nouveaux comptes
     a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
@@ -429,6 +433,15 @@ with sync_playwright() as p:
     ids = a.evaluate("(() => { const p = SIC.ui.App.session.etat.patients || {}; return Object.keys(p).slice(0, 3).map(k => p[k].nom || ''); })()")
     verifier(len(ids) > 0 and all(len(x) > 2 for x in ids), 'directeur des soins : identité complète, tous les services')
     verifier(a.evaluate("SIC.ui.services().length") >= 2, 'directeur des soins : tous les services sans affectation')
+    print('Rôle Médecin (0.28.1)')
+    a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
+    connecter(a, 'dr.arnaud', 'motdepasse-medecin')
+    droits = a.evaluate("(() => { const s = SIC.ui.App.session; s.choisirModule('salles'); const r1 = s.peut('SALLE_RESERVATION'); s.choisirModule('messagerie'); const r2 = s.peut('MESSAGE'); s.choisirModule('agenda'); const r3 = s.peut('ALERTE_VUE'); return [r1, r2, r3]; })()")
+    verifier(droits == [True, True, True], 'médecin : réserve des salles, écrit des messages, reçoit les alertes ' + str(droits))
+    fenetre(a, 'Suivi médical', False); time.sleep(1)
+    a.locator('nav.onglets button', has_text='Présences médicales').click(); time.sleep(1)
+    verifier(a.get_by_role('button', name='+ Ma présence, absence, garde').count() == 1, 'médecin : saisit ses propres présences')
+    capture(a, 'medecin-suivi')
     nav.close()
 
 if erreurs: print('\nErreurs du navigateur :'); [print('  ' + e) for e in erreurs[:20]]

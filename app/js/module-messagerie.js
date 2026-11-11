@@ -528,7 +528,7 @@
   // Droits proposés : tous les rôles lisent et écrivent ; l'appartenance aux services et aux groupes fait le reste
   // Sondages : cadre (et administrateur) par défaut, réglable dans Rôles et accès (décision du porteur du 11 novembre 2026)
   var SANS_SONDAGE = TYPES.filter(function (t) { return t !== 'SONDAGE_CLOTURE' && t !== 'CONSULTATION'; });
-  var DROITS = { IDE: SANS_SONDAGE.slice(), AS: SANS_SONDAGE.slice(), SECRETAIRE: SANS_SONDAGE.slice(), CADRE: TYPES.slice() };
+  var DROITS = { IDE: SANS_SONDAGE.slice(), AS: SANS_SONDAGE.slice(), SECRETAIRE: SANS_SONDAGE.slice(), MEDECIN: SANS_SONDAGE.slice(), CADRE: TYPES.slice() };
   var D = Droits.creer({
     roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
     ongletsMasquables: [], rolesJournalComplet: [], module: 'messagerie', rolesEncadrement: ['CADRE'],

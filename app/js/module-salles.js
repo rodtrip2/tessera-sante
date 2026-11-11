@@ -345,7 +345,7 @@
   ];
   // Droits proposés (décision du porteur du 11 novembre 2026) : IDE, AS, secrétaires et cadres réservent ; le cadre gère et arbitre
   var R = ['SALLE_RESERVATION', 'SALLE_DEMANDE', 'SALLE_REFLET'];
-  var DROITS = { IDE: R, AS: R, SECRETAIRE: R, CADRE: TYPES.slice() };
+  var DROITS = { IDE: R, AS: R, SECRETAIRE: R, MEDECIN: R, CADRE: TYPES.slice() };
   var D = Droits.creer({
     roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
     ongletsMasquables: [], rolesJournalComplet: ['CADRE'], module: 'salles', rolesEncadrement: ['CADRE'],

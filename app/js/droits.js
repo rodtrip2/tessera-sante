@@ -34,7 +34,7 @@
    */
   // Rôles fournis de lecture (0.27.3) : tous les services, journal fermé et identité réduite par défaut, selon le rôle
   var TOUS_SERVICES_DEFAUT = ['ADMIN_GARDE', 'DIRECTEUR_SOINS'];
-  var SANS_JOURNAL_DEFAUT = ['MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS'];
+  var SANS_JOURNAL_DEFAUT = ['MEDECIN', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS'];
   var IDENTITE_REDUITE_DEFAUT = ['ADMIN_GARDE'];
   var IDENTITES = { complete: 'Identité complète', initiales: 'Initiales seulement' };
 
