@@ -972,4 +972,4 @@ html.taille-tres-grande body { zoom: 1.3; }
 /* Équipe (0.27.0) */
 .eq-lien { font-weight: 600; text-align: left; }
 .eq-perso { border-top: 1px dashed var(--line); padding-top: 8px; display: grid; gap: 6px; }
-
+.eq-donnees { gap: 8px 16px; }
