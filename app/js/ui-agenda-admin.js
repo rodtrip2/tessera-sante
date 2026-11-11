@@ -386,6 +386,13 @@
       cbSuit ? h('label', { class: 'case' }, cbSuit, h('span', { text: 'Comme l’établissement' })) : null, zone, h('label', {}, 'Tâches obligatoires non faites', selB)),
       lire: function () { return { suggestions: suit ? undefined : regles.filter(function (rg) { return String(rg.tache || '').trim(); }), tachesObligatoiresBloquent: selB.value === '' ? undefined : selB.value === 'oui' }; } };
   });
+  ajouterRubrique(function (ctx) {
+    var suit = ctx.niveau !== '*' && ctx.propre.sortieEvenement === undefined;
+    var sel = h('select', { 'aria-label': 'Événement de sortie' }, (ctx.niveau === '*' ? [] : [h('option', { value: '', text: 'Comme l’établissement', selected: suit })]).concat([['suggere', 'Proposé : l’agent choisit de créer l’événement de sortie et sa check-list'], ['office', 'Créé d’office avec sa check-list']].map(function (o) { return h('option', { value: o[0], text: o[1], selected: !suit && (ctx.effectif.sortieEvenement === 'office' ? 'office' : 'suggere') === o[0] }); })));
+    return { titre: 'Sortie actée (date arrêtée par le médecin avec le patient) : événement de l’agenda', noeud: h('div', { class: 'pile' }, sel,
+      h('small', { class: 'muted', text: 'Les couleurs des sorties envisagées et actées se règlent avec la donnée « Sortie envisagée ou actée » (Vue d’ensemble → Régler la vue → réglages de la colonne) ; elles sont reprises dans l’agenda.' })),
+      lire: function () { return { sortieEvenement: sel.value || undefined }; } };
+  });
 
   I.panneauReglages = panneauReglages;
   I.panneauReglagesService = panneauReglagesService; I.ajouterRubrique = ajouterRubrique; I.choixRoles = choixRoles;

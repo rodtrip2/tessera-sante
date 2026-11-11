@@ -187,6 +187,46 @@
   }
   function puceTache(t) { return teinter(h('div', { class: 'ag-puce ag-tache-bande' }, ligneTache(t)), couleurs().tache); }
   /** Repères de la période (alertes, échéances JLD, permissions à valider, check-lists en retard), par jour. */
+  /** Couleur d'une sortie selon les règles de la donnée « patients.sortiePrevue » (réglages des données, par service). */
+  function couleurSortie(x, service, maintenant) {
+    var CO = SIC.couleurs;
+    if (!CO) return null;
+    var reg = CO.reglages(U.config(), 'patients.sortiePrevue', service, { regles: SIC.sorties.REGLES_DEFAUT });
+    return CO.evaluer(reg.regles, { valeur: x.valeur.debut || null, cle: x.etat, maintenant: maintenant });
+  }
+  /** Événement « Sortie du patient » de l'agenda pour ce patient ce jour-là, s'il existe. */
+  function evenementDeSortie(patientId, jourIso) {
+    var d0 = A.depuisISO(jourIso);
+    return A.elements(st(), fiches(), U.services().map(function (v) { return v.code; }), d0, plusJours(d0, 1)).filter(function (x) { return !x.externe && baseNature(x.rdv.nature, x.rdv.service) === 'sortie' && (x.rdv.patients || []).indexOf(patientId) >= 0; })[0] || null;
+  }
+  function ouvrirSortie(p, x) {
+    var ev = x.etat === 'actee' ? evenementDeSortie(p.id, x.jour) : null;
+    if (ev) return ouvrirElement(ev);
+    U.sorties.modale(p, function () { U.rendreContenu(); });
+  }
+  /**
+   * Sortie actée (0.21.0) : événement « Sortie du patient » avec sa check-list (modèle du type d'événement, tâches
+   * suggérées par la prise en charge), **proposé** ou **créé d'office** selon le réglage du service.
+   */
+  async function evenementSortie(p, val, sj) {
+    var service = A.serviceDuPatient(p) || (sj && sj.service) || serviceVue();
+    if (!peut('RDV') || !A.droits.serviceActif(U.config(), service) || evenementDeSortie(p.id, val.debut)) return;
+    var office = A.reglagesService(U.config(), service).sortieEvenement === 'office';
+    var d0 = new Date(val.debut + 'T' + (val.heure || '11:00')).getTime();
+    if (!office) {
+      if (!confirm('Créer l’événement « Sortie du patient » dans l’agenda, avec sa check-list ?')) return;
+      return modaleElement(null, d0, false, null, false, null, { nature: 'sortie', service: service, patients: [p.id], heure: val.heure || '11:00', heureFixee: true });
+    }
+    var pr = cat('sortie', service).prereglages || {}, liste = [], modele = A.checklists(U.config()).filter(function (c) { return c.code === pr.checklist; })[0];
+    if (modele) modele.items.forEach(function (it) { liste.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: it.libelle, delai: it.delai }); });
+    var ep = null; try { ep = U.App.session.etatModule('patients'); } catch (e) { ep = null; }
+    if (ep && SIC.intervenants) A.tachesSuggerees(U.config(), service, 'sortie', SIC.intervenants.dePatient(ep, (ep.fiches || {})[p.id]).map(function (l) { return { type: l.intervenant.type, nom: l.intervenant.nom, contact: l.intervenant.contact }; }))
+      .forEach(function (t) { if (!liste.some(function (y) { return y.libelle === t.libelle; })) { var o = { id: 'i' + C.hex(C.aleatoire(4)), libelle: t.libelle, delai: t.delai }; if (t.obligatoire) o.obligatoire = true; liste.push(o); } });
+    try {
+      await U.App.session.enregistrer('RDV', { id: 'R' + C.hex(C.aleatoire(6)), nature: 'sortie', titre: pr.titre || '', debut: d0, fin: d0 + (pr.duree || 30) * 6e4, lieu: pr.lieu || '', service: service, patients: [p.id], professionnels: [], checklist: liste });
+      U.toast('Événement de sortie ajouté à l’agenda, avec sa check-list.');
+    } catch (e) { alert(e.message); }
+  }
   function reperesParJour(debut, n, maintenant) {
     var svs = servicesAffiches(), res = {}, aujourdhui = A.jourISO(maintenant);
     function ajouter(jourIso, noeud) { (res[jourIso] = res[jourIso] || []).push(noeud); }
@@ -203,6 +243,19 @@
     A.transportsAReserver(st(), fiches(), svs, maintenant, 7, U.config()).forEach(function (t) {
       ajouter(aujourdhui, puce('transport' + (t.niveau === 'proche' ? ' retard' : ''), 'Réserver : ' + (t.transport.nombre > 1 ? t.transport.nombre + ' ' : '') + A.TRANSPORTS[t.transport.type] + ' — ' + libelleElement(t.rdv) + ' (' + libJour(t.debut) + ' ' + hm(t.debut) + ')', function () { modaleElement(t.rdv, null, !peut('RDV'), null, false, t.occurrence); }));
     });
+    // Sorties envisagées ou actées des patients des services affichés (0.21.0), lues à la volée dans les fiches : la
+    // sortie actée à sa date, l'envisagée au premier jour de sa fourchette ; couleur réglée pour la donnée
+    if (SIC.sorties) {
+      var fs = {}, tous = fiches();
+      Object.keys(tous).forEach(function (k) { if (svs.indexOf(A.serviceDuPatient(tous[k])) >= 0) fs[k] = tous[k]; });
+      SIC.sorties.parJour(fs, A.jourISO(debut), A.jourISO(plusJours(debut, n - 1))).sorties.forEach(function (x) {
+        var p = tous[x.patientId], coul = couleurSortie(x, A.serviceDuPatient(p), maintenant);
+        var el = puce('sortie-patient', (x.etat === 'actee' ? 'Sortie actée' + (x.heure ? ' ' + x.heure : '') : 'Sortie envisagée' + (x.valeur.fin ? ' (jusqu’au ' + x.valeur.fin.split('-').reverse().join('/') + ')' : '')) + ' — ' + A.identite(p, opts().identite),
+          function () { ouvrirSortie(p, x); }, null, SIC.sorties.libelle(x.valeur) + (coul && coul.libelle ? ' — ' + coul.libelle : ''));
+        if (coul) el.insertBefore(h('span', { class: 'marque-couleur pastille-couleur cpv-' + coul.couleur, 'data-symbole': coul.symbole, 'aria-hidden': 'true' }), el.firstChild);
+        ajouter(x.jour, el);
+      });
+    }
     A.alertesChecklists(st(), fiches(), svs, maintenant).forEach(function (c) { ajouter(aujourdhui, puce('alerte', 'Check-list en retard : ' + c.item.libelle + ' (' + libelleElement(c.rdv) + ')', function () { modaleElement(c.rdv, null, !peut('RDV'), null, false, c.occurrence); }, couleurs().alerte)); });
     return res;
   }
@@ -1244,5 +1297,5 @@
     // Pastille de la barre des modules : informations reçues non vues
     pastille: function () { try { var m = mesReponses(); return mesAvis().length + m.repondre.length + m.confirmer.length; } catch (e) { return 0; } }
   });
-  U.agenda = { modaleElement: modaleElement, modaleAjout: modaleAjout, sectionPatient: sectionPatient, aVenirPour: aVenirPour, suivreVehicules: suivreVehicules };
+  U.agenda = { evenementSortie: evenementSortie, modaleElement: modaleElement, modaleAjout: modaleAjout, sectionPatient: sectionPatient, aVenirPour: aVenirPour, suivreVehicules: suivreVehicules };
 })();
