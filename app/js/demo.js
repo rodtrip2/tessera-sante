@@ -658,6 +658,18 @@
           if (moiC) await session.enregistrerLot(lot, { libelle: 'Messages chiffrés fictifs', by: 'demo', sansControle: true });
           session.clesMessages = {};   // l'agent connecté n'est pas l'auteur : il ouvre ce qui lui est adressé, consulte le reste
         }
+        // Mes tâches (0.26.3) : liste personnelle de l'agent connecté, chiffrée par sa clé personnelle (échéance proche avec
+        // rappel, tâche en retard rattachée à une demande de travaux, tâche sans date, tâche faite hier)
+        var moiT = session.compteEffectif && session.compteEffectif();
+        if (moiT && session.aClePersonnelle && session.aClePersonnelle()) {
+          var lotT = [], nT = 0;
+          var tp = async function (h0, contenu) { lotT.push({ at: at(h0), by: moiT.id, type: 'TACHE_PERSO', data: { id: 'TP-DEMO' + (++nT), agent: moiT.id, chiffre: await session.chiffrerPersonnel('taches', contenu) } }); };
+          await tp(-20, { titre: 'Préparer le planning de décembre (fictif)', echeance: jC(2), heure: '', rappel: '2', note: 'Penser aux congés de fin d’année.', element: null, fait: false, faitLe: '' });
+          await tp(-48, { titre: 'Relancer les services techniques pour le salon (fictif)', echeance: jC(-1), heure: '10:00', rappel: '0', note: '', element: { module: 'travaux', genre: 'demande', id: 'TR-SAL', service: 'U1' }, fait: false, faitLe: '' });
+          await tp(-10, { titre: 'Lire la nouvelle note de service (fictif)', echeance: '', heure: '', rappel: '', note: '', element: null, fait: false, faitLe: '' });
+          await tp(-72, { titre: 'Commander les badges des stagiaires (fictif)', echeance: jC(-2), heure: '', rappel: '', note: '', element: null, fait: true, faitLe: at(-24) });
+          await session.enregistrerLot(lotT, { libelle: 'Tâches personnelles fictives', by: moiT.id, sansControle: true });
+        }
       } catch (e) { if (typeof console !== 'undefined') console.warn('Démonstration incomplète : ' + e.message); /* démonstration sans ces valeurs */ }
     }
   };

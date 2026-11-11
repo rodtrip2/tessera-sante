@@ -168,6 +168,7 @@
       { texte: modifiable ? 'Annuler' : 'Fermer' },
       nouveau ? null : { texte: 'Bon de travaux…', action: function () { imprimerBon(x); return false; } },
       nouveau || !U.messagerie ? null : U.messagerie.boutonModale('travaux', 'demande', x.id, x.service),
+      nouveau || !U.mesTaches ? null : U.mesTaches.boutonModale('travaux', 'demande', x.id, x.service, 'Suivre la demande ' + numero(x)),
       modifiable ? { texte: nouveau ? 'Enregistrer la demande' : 'Enregistrer les modifications', classe: 'primaire', action: async function () {
         var d = { id: x.id || 'TR' + C.hex(C.aleatoire(6)), service: sv.value, type: type.value, lieu: lieu.value, chambre: lieu.value === 'chambre' ? chambre.value.trim() : '',
           precisionLieu: precision.value.trim(), gravite: gravite.value, urgence: urgence.value, description: description.value.trim(),

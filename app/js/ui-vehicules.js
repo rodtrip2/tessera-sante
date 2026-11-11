@@ -187,6 +187,7 @@
     var boutons = [{ texte: 'Fermer' }];
     // « Envoyer par message » (messagerie, 0.23.0) : nouveau message avec la réservation rattachée
     if (r && U.messagerie && U.messagerie.peutEnvoyer()) boutons.push(U.messagerie.boutonModale('vehicules', 'reservation', r.id, r.service));
+    if (r && U.mesTaches) { var bml = U.mesTaches.boutonModale('vehicules', 'reservation', r.id, r.service, ''); if (bml) boutons.push(bml); }
     if (p) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () { await U.App.session.enregistrer('PRET', { id: p.id, vehicule: v.id, supprime: true }); U.toast('Prêt supprimé.'); } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       if (!debut.value) throw new Error('Indiquez le premier jour.');

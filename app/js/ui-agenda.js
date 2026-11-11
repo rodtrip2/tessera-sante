@@ -1113,6 +1113,7 @@
     var boutons = [{ texte: lecture || repete ? 'Fermer' : 'Annuler' }];
     // « Envoyer par message » (messagerie, 0.23.0) : nouveau message avec l'événement rattaché
     if (!nouveau && U.messagerie && U.messagerie.peutEnvoyer()) boutons.push(U.messagerie.boutonModale('agenda', 'evenement', r.id, r.service));
+    if (!nouveau && U.mesTaches) { var bml = U.mesTaches.boutonModale('agenda', 'evenement', r.id, r.service, r.titre || ''); if (bml) boutons.push(bml); }
     var propres = (x.surchargee || []).map(function (k) { return LIB_CHAMPS[k] || k; });
     if (!lecture && parDate && x.annulee) boutons.push({ texte: 'Rétablir cette date', action: async function () {
       await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, annulee: false, service: x.service });
