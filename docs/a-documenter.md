@@ -115,6 +115,19 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.26.3 (lot A, étape 4 : Mes tâches ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Place | Onglet « Mes tâches » à côté de Mon agenda | Onglet `mes-taches` de la fenêtre Agenda du service (`ui-mes-taches.js`) |
+| Rubriques | Mes tâches (titre, échéance, rappel, note, élément rattaché) ; ce que les modules me demandent (à cocher dans leur module) ; faites, gardées un mois à l'écran | Tâches à faire triées par échéance (retard signalé) ; informations de tous les modules dont l'agent a la clé, avec « Ouvrir », et messages qui attendent ; faites des 30 derniers jours (bouton « Toutes ») |
+| Confidentialité | Chiffrée par la clé personnelle : personne d'autre ne la lit, administrateur compris | Saisie `TACHE_PERSO` du module Agenda (permise à chacun pour lui-même, `permisPourSoi` ; contrôle : une tâche n'appartient qu'à son agent) ; contenu chiffré par une clé dérivée de la partie privée de la clé personnelle (`C.cleUsagePersonnel`, HKDF-SHA-256 ; `session.chiffrerPersonnel` / `dechiffrerPersonnel`) ; le journal ne garde qu'une saisie opaque. **Une clé personnelle renouvelée (mot de passe oublié) rend les anciennes tâches illisibles** (affichées « illisible ») |
+| « + Ma liste » | Depuis n'importe quel élément des autres modules, à côté de « Envoyer par message » | Événement de l'agenda, demande de travaux, fiche patient, réservation de véhicule (`U.mesTaches.boutonModale`) ; rattachement aussi depuis le formulaire (choix d'un élément, comme la messagerie) |
+| Confier une tâche | Par la messagerie, sans liste partagée | Rappelé dans le formulaire |
+| Rappels | Onglet Informations et pastille | Rappel le jour de l'échéance, la veille, 2 jours ou une semaine avant : pastille de l'Agenda ; onglet Informations de la messagerie si les informations de l'Agenda y sont activées (réglage existant) |
+
+Rôle sans accès à l'Agenda (ex. rôle créé sans accès) : pas de Mes tâches. Démonstration : quatre tâches de l'agent connecté (échéance proche avec rappel, tâche en retard rattachée à une demande de travaux, tâche sans date, tâche faite). Tests : `tests/mes-taches.test.js` ; parcours complété. À documenter : guide utilisateur, fiche technique (dérivation de la clé personnelle d'usage, saisie opaque), kit RGPD (liste personnelle de l'agent, contenu lisible par lui seul), architecture.
+
 ## Version 0.26.2 (lot A, étape 3 : Informations du service ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |

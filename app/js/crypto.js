@@ -229,6 +229,9 @@
     return subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: sel, info: enc.encode(info) }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
   }
 
+  /** Clé AES-GCM d'un usage personnel (Mes tâches…), dérivée de la partie privée de la clé personnelle de l'agent. */
+  async function cleUsagePersonnel(prive8, info) { return cleHKDF(prive8, enc.encode('Tessera personnel'), info); }
+
   /**
    * Enveloppe : chiffre des octets (une clé de droit) pour le détenteur d'une partie publique, sans connaître son
    * secret. Échange ECDH avec une paire éphémère, HKDF-SHA-256, AES-GCM. `contexte` (ex. « isocont:3:u1a2b ») est
@@ -347,7 +350,7 @@
   return {
     aleatoire: aleatoire, hex: hex, b64: b64, deb64: deb64,
     nouvelleCleDonnees: nouvelleCleDonnees, exporterCle: exporterCle, importerCle: importerCle,
-    chiffrerJSON: chiffrerJSON, dechiffrerJSON: dechiffrerJSON,
+    chiffrerJSON: chiffrerJSON, dechiffrerJSON: dechiffrerJSON, cleUsagePersonnel: cleUsagePersonnel,
     emballerMotDePasse: emballerMotDePasse, deballerMotDePasse: deballerMotDePasse,
     nouveauCodeSecours: nouveauCodeSecours, nouveauMotDePasseProvisoire: nouveauMotDePasseProvisoire, ITERATIONS_PROVISOIRE: ITERATIONS_SECOURS, emballerCodeSecours: emballerCodeSecours, deballerCodeSecours: deballerCodeSecours,
     webauthnDisponible: webauthnDisponible, emballerCleSecurite: emballerCleSecurite, deballerCleSecurite: deballerCleSecurite,

@@ -15,7 +15,7 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, P, Pm) {
   'use strict';
 
-  var TYPES = ['RDV', 'OCCURRENCE', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'PATIENT_INSCRIT', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
+  var TYPES = ['RDV', 'OCCURRENCE', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'PATIENT_INSCRIT', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE', 'TACHE_PERSO'];
   // Types d'éléments (décisions du porteur du 7 novembre 2026 : entretien médical ou infirmier, individuel ou avec la
   // famille ; permission de sortie demandée puis validée, distincte de la sortie du patient)
   // Audience JLD (services de psychiatrie) et Examen : décisions du porteur du 8 novembre 2026
@@ -867,13 +867,19 @@
         ['type', 'libelle', 'patientId', 'service', 'avant', 'heure', 'pour', 'precision', 'supprime'].forEach(function (k) { if (d[k] !== undefined) al[k] = d[k]; });
         st.alertes[d.id] = al;
         break;
+      case 'TACHE_PERSO':
+        // Tâche personnelle (0.26.3) : contenu chiffré par la clé personnelle de l'agent, dernier état gardé
+        if (!d.id || !d.agent) break;
+        if (st.perso[d.id] && st.perso[d.id].agent !== d.agent) break;
+        st.perso[d.id] = { id: d.id, agent: d.agent, chiffre: typeof d.chiffre === 'string' ? d.chiffre : '', supprime: !!d.supprime, cree: (st.perso[d.id] && st.perso[d.id].cree) || e.at, le: e.at, evt: e.id };
+        break;
       case 'ALERTE_VUE':
         if (st.alertes[d.alerte]) st.alertes[d.alerte].vue = d.annule ? null : { par: e.by, le: e.at, evt: e.id };
         break;
     }
   }
   function reduire(evts) {
-    return N.reduire(evts, { cle: 'agenda', etat: function () { return { rdv: {}, taches: {}, absences: {}, alertes: {}, avis: [] }; }, appliquer: appliquer });
+    return N.reduire(evts, { cle: 'agenda', etat: function () { return { rdv: {}, taches: {}, absences: {}, alertes: {}, avis: [], perso: {} }; }, appliquer: appliquer });
   }
 
   /** Services sur lesquels agit une saisie de l'Agenda (activation du module par service). */
@@ -894,8 +900,11 @@
   function permisPourSoi(type, data, compte) {
     if (type === 'COMMENTAIRE') return !!compte && !!data && !data.supprime;   // retrait : annulation depuis le journal
     if (type === 'INSCRIPTION') return !!compte && !!data && data.agent === compte.id;   // chacun s'inscrit lui-même
+    if (type === 'TACHE_PERSO') return !!compte && !!data && data.agent === compte.id;   // sa propre liste de tâches
     return type === 'ABSENCE' && !!compte && !!data && data.agent === compte.id;
   }
+  /** Tâches personnelles d'un agent (contenu chiffré), hors retirées. */
+  function tachesPerso(st, agent) { return Object.keys((st && st.perso) || {}).map(function (k) { return st.perso[k]; }).filter(function (t) { return t.agent === agent && !t.supprime; }); }
 
   /**
    * Contrôles propres à l'Agenda avant l'enregistrement (décision du porteur du 7 novembre 2026) : une tâche du service
@@ -903,6 +912,13 @@
    * une tâche d'équipe récurrente demande le réglage, ou le droit de régler les tâches. ctx : { etat, config, peut }.
    */
   function controler(type, d, ctx) {
+    if (type === 'TACHE_PERSO') {
+      var tp = ctx.etat && ctx.etat.perso && ctx.etat.perso[d.id], c = ctx.compte;
+      if (!d.id || !c || d.agent !== c.id) throw new Error('Une tâche personnelle n’appartient qu’à son agent.');
+      if (tp && tp.agent !== c.id) throw new Error('Une tâche personnelle n’appartient qu’à son agent.');
+      if (!d.supprime && (typeof d.chiffre !== 'string' || !d.chiffre || d.chiffre.length > 40000)) throw new Error('Tâche personnelle mal formée.');
+      return;
+    }
     var st = ctx.etat || { taches: {} }, t = d && (st.taches[d.id] || st.taches[d.tache]), o = optionsTaches(ctx.config);
     // Étape d'une permission (0.21.0) : étape du processus indiqué, enregistrée par un rôle permis
     if (type === 'VALIDATION' && d.statut === 'etape') {
@@ -956,7 +972,7 @@
       services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { agendaReglages: controlerCadreReglages } },
     // Onglet « Tâches du service » : affiché à qui peut régler les tâches (décision du porteur du 7 novembre 2026)
-    vues: { onglets: [{ code: 'agenda', libelle: 'Agenda' }, { code: 'alertes', libelle: 'Alertes' }, { code: 'mon-agenda', libelle: 'Mon agenda' }, { code: 'taches', libelle: 'Tâches récurrentes', droit: ['TACHE', 'TACHE_AJUSTEMENT'] }] },
+    vues: { onglets: [{ code: 'agenda', libelle: 'Agenda' }, { code: 'alertes', libelle: 'Alertes' }, { code: 'mon-agenda', libelle: 'Mon agenda' }, { code: 'mes-taches', libelle: 'Mes tâches' }, { code: 'taches', libelle: 'Tâches récurrentes', droit: ['TACHE', 'TACHE_AJUSTEMENT'] }] },
     migrations: [],
     fournitures: [
       // Lue par Salles et bureaux (0.25.0) : salles occupées par les événements
@@ -967,7 +983,7 @@
   };
 
   registre.declarer(contrat);
-  return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
+  return { contrat: contrat, reduire: reduire, tachesPerso: tachesPerso, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
     libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, suggestions: suggestions, tachesSuggerees: tachesSuggerees, SUGGESTIONS_DEFAUT: SUGGESTIONS_DEFAUT, EVENEMENTS_SUGGESTION: EVENEMENTS_SUGGESTION, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
