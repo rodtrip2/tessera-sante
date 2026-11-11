@@ -628,13 +628,15 @@
     var zoneExamen = h('div', { class: 'pile' }, h('label', {}, 'Type d’examen', typeExamen), h('datalist', { id: listeEx }, A.EXAMENS.map(function (e) { return h('option', { value: e }); })),
       h('div', { class: 'actions gauche' }, h('label', { class: 'case' }, cbVSL, h('span', { text: 'VSL à prévoir' })), h('label', { class: 'case' }, cbAccomp, h('span', { text: 'Patient accompagné' }))));
     var zoneAudience = h('p', { class: 'muted', text: 'Audience devant le juge des libertés et de la détention (JLD) : patients convoqués, VSL à réserver et soignants à prévoir ci-dessous.' });
-    var base = x.debut || (jour || minuit(Date.now())) + 10 * 3600e3;
+    var base = x.debut || ini.debut || (jour || minuit(Date.now())) + 10 * 3600e3;
     var date = h('input', Object.assign({ type: 'date', value: jourISO(base) }, dis));
     // Jour de fin (décision du 8 novembre 2026) : un élément peut durer plusieurs jours (ex. permission de 48 h)
     var dateFin = h('input', Object.assign({ type: 'date', value: jourISO(x.fin || base) }, dis));
     date.addEventListener('change', function () { if (!dateFin.value || dateFin.value < date.value) dateFin.value = date.value; });
-    var hDebut = h('input', Object.assign({ type: 'time', value: hm(base) }, dis)), hFin = h('input', Object.assign({ type: 'time', value: x.fin ? hm(x.fin) : hm(base + 3600e3) }, dis));
+    var hDebut = h('input', Object.assign({ type: 'time', value: hm(base) }, dis)), hFin = h('input', Object.assign({ type: 'time', value: x.fin ? hm(x.fin) : ini.fin ? hm(ini.fin) : hm(base + 3600e3) }, dis));
     var lieu = h('input', Object.assign({ type: 'text', maxlength: 80, value: x.lieu || '', placeholder: 'ex. Salle d’activités, extérieur' }, dis));
+    // Salle réservée (module Salles et bureaux, 0.25.0) : disponibilité affichée, conflit arbitré par le gestionnaire
+    var avecSalles = !!(U.salles && s.detientCle && s.detientCle('salles')), selSalle = null;
     var patients = (x.patients || ini.patients || []).slice(), profs = (x.professionnels || []).map(function (p) { return { id: p.id || null, nom: p.nom }; });
     var transports = (Array.isArray(x.transports) ? x.transports : []).map(function (t) { return Object.assign({}, t); });
     var validations = A.validationsDe(x).map(function (v) { return Object.assign({}, v); });
@@ -1161,7 +1163,7 @@
       if (parDate) rg = A.regularite(r.regularite);
       if (rg.type === 'semaine' && !rg.jours.length) rg.jours = [new Date(d0).getDay()];
       if (validations.some(function (v) { return v.type !== 'permission' && !String(v.libelle || '').trim(); })) throw new Error('Précisez l’intitulé de chaque validation médicale ou autre (ex. avis du psychiatre).');
-      var d = { id: x.id || 'R' + C.hex(C.aleatoire(6)), nature: nv, titre: titre.value.trim(), debut: d0, fin: d1, lieu: lieu.value.trim(), service: sv.value,
+      var d = { id: x.id || 'R' + C.hex(C.aleatoire(6)), nature: nv, titre: titre.value.trim(), debut: d0, fin: d1, lieu: lieu.value.trim(), salle: selSalle ? selSalle.valeur() : (x.salle || ''), service: sv.value,
         patients: visibles.patients ? patients : [], professionnels: profs, regularite: rg, checklist: checklist,
         services: autresSv.filter(function (c) { return c !== sv.value; }), partage: autresSv.length ? partage : '',
         accompagnateurs: Math.min(20, part.nombre), consigneAccompagnateurs: consigneAcc.trim(),
@@ -1193,7 +1195,7 @@
       if (parDate) {
         // Cette date seulement : champs modifiés par rapport à cette date, rangés comme réglages propres à la date
         var od = { rdv: x.id, occurrence: occurrence, service: r.service }, n0 = 0;
-        ['titre', 'lieu', 'patients', 'professionnels', 'accompagnateurs', 'consigneAccompagnateurs', 'participation', 'transports', 'validations', 'checklist'].forEach(function (k) {
+        ['titre', 'lieu', 'salle', 'patients', 'professionnels', 'accompagnateurs', 'consigneAccompagnateurs', 'participation', 'transports', 'validations', 'checklist'].forEach(function (k) {
           var av = k === 'participation' ? partAvant : x[k] === undefined ? (Array.isArray(d[k]) ? [] : (k === 'accompagnateurs' ? 0 : '')) : x[k];
           if (JSON.stringify(d[k]) !== JSON.stringify(av)) { od[k] = d[k]; n0++; }
         });
@@ -1215,10 +1217,24 @@
       if (nouveau && JSON.stringify(d.participation) === JSON.stringify(sansAncien(P.reglage({ participation: {} })))) delete d.participation;
       if (nouveau) ['accompagnateurs', 'consigneAccompagnateurs', 'transports', 'validations'].forEach(function (k) { if (!d[k] || (Array.isArray(d[k]) && !d[k].length)) delete d[k]; });
       if (!nouveau && Object.keys(d).length <= 2 && d.service === x.service) return true;
+      // Salle : dates des 8 prochaines semaines vérifiées (conflits, salle à valider) avant d'enregistrer
+      var demandesSalle = [];
+      if (selSalle && selSalle.valeur() && (nouveau || selSalle.valeur() !== (x.salle || '') || d.debut !== undefined)) {
+        var periodesS = (parDate || rg.type === 'aucune') ? [{ ref: 'agenda|' + (x.id || d.id) + '|' + (parDate ? occurrence : jourISO(d0)), debut: d0, fin: d1 }]
+          : A.occurrences(Object.assign({}, x, d, { id: d.id }), Math.max(Date.now() - 864e5, d0 - 1), Math.max(Date.now(), d0) + 56 * 864e5).filter(function (o) { return !o.annulee; }).map(function (o) { return { ref: 'agenda|' + d.id + '|' + o.occurrence, debut: o.debut, fin: o.fin || o.debut + 36e5 }; });
+        demandesSalle = U.salles.verifier({ salle: selSalle.valeur(), service: sv.value || x.service, titre: d.titre || libNature(nv, sv.value), genre: 'agenda', periodes: periodesS, exclure: 'agenda|' + d.id });
+      }
       await s.enregistrer('RDV', d);
+      if (demandesSalle.length) await U.salles.envoyer(demandesSalle);
       U.toast(nouveau ? 'Ajouté à l’agenda.' : 'Élément modifié.');
       signalerEchecs(await suivreVehicules(d.id, { dates: rg.type === 'aucune' ? [jourISO(d0)] : [], forcer: forcerVehicules }));
     } });
+    if (avecSalles) {
+      selSalle = U.salles.selecteur({ service: function () { return sv.value || x.service || ini.service; }, valeur: x.salle || ini.salle || '', lecture: lecture, exclure: x.id ? 'agenda|' + x.id : null,
+        periode: function () { var d0 = new Date(date.value + 'T' + (hDebut.value || '00:00')).getTime(), d1 = new Date((dateFin.value || date.value) + 'T' + (hFin.value || '00:00')).getTime(); return isFinite(d0) && d1 > d0 ? [d0, d1] : null; } });
+      [date, dateFin, hDebut, hFin].forEach(function (c0) { c0.addEventListener('change', function () { selSalle.maj(); }); });
+      if (sv && sv.addEventListener) sv.addEventListener('change', function () { selSalle.remplir(); });
+    }
     U.modale(nouveau ? 'Nouvel élément de l’agenda' : (lecture ? libelleElement(x) + (externe ? ' — ' + U.libService(x.service) : '') : (parDate ? 'Modifier le ' + occurrence.split('-').reverse().join('/') : 'Modifier l’élément')), h('div', { class: 'pile' },
       externe ? h('p', { class: 'muted', text: 'Élément de l’agenda du service ' + U.libService(x.service) + ', qui concerne un patient hospitalisé dans votre service' + (lecture ? ' : consultation et commentaires.' : '.') }) : null,
       repete && !lecture ? h('fieldset', { class: 'ag-portee' }, h('legend', { text: 'Élément répété (' + A.libelleRepetition(r.regularite) + ') : modifier' }),
@@ -1233,6 +1249,13 @@
       h('label', {}, 'Intitulé', titre),
       h('div', { class: 'grille-4' }, h('label', {}, 'Jour de début', date), h('label', {}, 'Heure de début', hDebut), h('label', {}, 'Jour de fin', dateFin), h('label', {}, 'Heure de fin', hFin)),
       h('label', {}, 'Lieu', lieu),
+      selSalle ? h('label', {}, 'Salle réservée', selSalle.noeud) : null,
+      (function () {
+        // Salle de cette date après arbitrage, ou demande en attente
+        if (!x.id || !avecSalles || !occurrence) return null;
+        var lib = U.salles.libelle('agenda|' + x.id + '|' + occurrence, x.salle), simple = U.salles.libelle('', x.salle);
+        return lib && lib !== simple ? h('p', { class: 'info', text: 'Salle de cette date : ' + lib + '.' }) : null;
+      })(),
       parDate ? null : rep.noeuds,
 
       barreAjout, secPatients,

@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -427,7 +427,7 @@
     // urgences), une demi-journée sans psychiatre en Unité 1 (mercredi après-midi) ; entretiens et contrats de soins
     // à jour, en retard, jamais faits
     var pm = 0, presence = function (d) { ajouter(t(-24 * 20), 'PRESENCE', Object.assign({ id: 'PM' + String(++pm).padStart(3, '0'), repetition: 'semaine', debut: lundiISO(-21), moments: ['matin', 'apresmidi'], precision: '' }, d)); };
-    presence({ medecin: 'Dr Arnaud (fictif)', service: U1, nature: 'presence', jours: [1, 2, 5] });
+    presence({ medecin: 'Dr Arnaud (fictif)', service: U1, nature: 'presence', jours: [1, 2, 5], salle: 'SA-MED' });
     presence({ medecin: 'Dr Arnaud (fictif)', service: U1, nature: 'presence', jours: [3], moments: ['matin'] });
     presence({ medecin: 'Dr Benoît (fictif)', service: U1, nature: 'presence', jours: [2], moments: ['apresmidi'] });
     presence({ medecin: 'Dr Benoît (fictif)', service: U1, nature: 'presence', jours: [4] });
@@ -475,6 +475,48 @@
     ajouter(avant, 'ALERTE', { id: 'AL002', type: 'transmission', libelle: '', patientId: 'P01', service: U1, avant: SIC.model.dateLocaleISO(jour(-1)), heure: '', pour: null, precision: 'Famille à rappeler (fictif)' });
     ajouter(avant, 'ALERTE', { id: 'AL004', type: 'autre', libelle: 'Relire la procédure de sortie avant la réunion', patientId: null, service: U1, avant: SIC.model.dateLocaleISO(jour(3)), heure: '', pour: { groupe: 'groupe-qualite' }, precision: '' });
     ajouter(avant, 'ALERTE', { id: 'AL003', type: 'rdv', libelle: '', patientId: 'P04', service: U2, avant: '', heure: '', pour: null, precision: '' });
+
+    // Salles et bureaux (0.25.0) : salles de l'Unité 1 (dont une soumise à validation), salle commune fermée pendant les repas,
+    // bureau prêté à l'Unité 2 le mardi, réservation simple répétée, événements de l'agenda et présences qui occupent une
+    // salle, demande en conflit à arbitrer, réservation à valider ; planning des psychologues avec entretiens prévus
+    (function () {
+      var jD = function (n) { return SIC.model.dateLocaleISO(jour(n)); }, lun = function (n) { return SIC.model.dateLocaleISO(lundiDe(n)); };
+      var salle = function (d) { ajouter(t(-24 * 90), 'SALLE', d); };
+      salle({ id: 'SA-E1', nom: 'Bureau d’entretien 1', type: 'entretien', capacite: 4, accessible: true, service: U1 });
+      salle({ id: 'SA-E2', nom: 'Bureau d’entretien 2', type: 'entretien', capacite: 3, service: U1 });
+      salle({ id: 'SA-MED', nom: 'Bureau médical', type: 'medical', capacite: 2, service: U1 });
+      salle({ id: 'SA-REU', nom: 'Salle de réunion', type: 'reunion', capacite: 14, equipement: 'Écran, visioconférence', service: U1 });
+      salle({ id: 'SA-FAM', nom: 'Salle des familles', type: 'familles', capacite: 6, accessible: true, service: U1, validation: true });
+      salle({ id: 'SA-ACT', nom: 'Salle d’activités', type: 'activites', capacite: 12, accessible: true, service: '', services: [U1, U2] });
+      salle({ id: 'SA-PSY2', nom: 'Bureau du psychologue', type: 'psychologue', capacite: 3, service: U2 });
+      ajouter(t(-24 * 80), 'SALLE_FERMETURE', { id: 'SF-REPAS', salle: 'SA-ACT', jour: lun(-28), de: '12:00', a: '13:30', repetition: { type: 'semaine', jours: [0, 1, 2, 3, 4, 5, 6] }, motif: 'Repas' });
+      ajouter(t(-24 * 80), 'SALLE_FERMETURE', { id: 'SF-REPAS2', salle: 'SA-ACT', jour: lun(-28), de: '18:30', a: '19:30', repetition: { type: 'semaine', jours: [0, 1, 2, 3, 4, 5, 6] }, motif: 'Repas du soir' });
+      ajouter(t(-24 * 40), 'SALLE_PRET', { id: 'SP-U2', salle: 'SA-E1', jour: lun(-14), repetition: { type: 'semaine', jours: [2] }, services: [U2], motif: 'Consultations de l’Unité 2 le mardi' });
+      ajouter(t(-24 * 10), 'SALLE_RESERVATION', { id: 'SR-INV', salle: 'SA-MED', jour: lun(0), de: '16:00', a: '17:00', titre: 'Inventaire de la pharmacie', service: U1, nom: 'Cadre de santé (fictif)', repetition: { type: 'semaine', jours: [1] } }, 'demo-cadre');
+      rdv({ nature: 'reunion', titre: 'Staff Unité 1', debut: lundiDe(-7, 10), fin: lundiDe(-7, 11, 30), lieu: '', salle: 'SA-REU', service: U1, patients: [], regularite: { type: 'semaine', jours: [1] } });
+      rdv({ nature: 'activite', titre: 'Atelier cuisine', debut: jour(1, 10), fin: jour(1, 11, 30), salle: 'SA-ACT', service: U1, patients: ['P01', 'P05'], accompagnateurs: 2, transports: [] });
+      rdv({ nature: 'entretien', titre: 'Entretien infirmier', debut: jour(0, 9), fin: jour(0, 10, 30), salle: 'SA-E1', service: U1, patients: ['P02'], transports: [] });
+      // Conflit : l'atelier mémoire occupe la salle de réunion ; la réunion de service la demande (à arbitrer par le cadre)
+      var atelier = rdv({ nature: 'activite', titre: 'Atelier mémoire', debut: jour(2, 13, 30), fin: jour(2, 14, 30), salle: 'SA-REU', service: U1, patients: ['P03'], transports: [] });
+      var reunion = rdv({ nature: 'reunion', titre: 'Réunion de service', debut: jour(2, 13, 30), fin: jour(2, 14, 30), salle: 'SA-REU', service: U1, patients: [], transports: [] });
+      ajouter(t(-2), 'SALLE_DEMANDE', { id: 'SD-REU', salle: 'SA-REU', ref: 'agenda|' + reunion + '|' + jD(2), debut: jour(2, 13, 30), fin: jour(2, 14, 30), titre: 'Réunion de service', genre: 'agenda', service: U1,
+        motif: 'Seule salle avec écran ; réunion prévue de longue date (fictif)', conflits: [{ ref: 'agenda|' + atelier + '|' + jD(2), par: 'demo', titre: 'Atelier mémoire' }], nom: 'Agent B (fictif)' }, 'demo-b');
+      ajouter(t(-5), 'SALLE_DEMANDE', { id: 'SD-FAM', salle: 'SA-FAM', ref: 'salles|SD-FAM|' + jD(3), debut: jour(3, 15), fin: jour(3, 16, 30), titre: 'Rencontre avec une famille', genre: 'simple', service: U1, motif: '', validation: true, conflits: [], nom: 'Agent C (fictif)' }, 'demo-c');
+      // Planning des psychologues
+      var pp = function (d) { ajouter(t(-24 * 30), 'PRESENCE_PSY', d); return d.id; };
+      var pm = pp({ id: 'PP-M1', psychologue: 'Mme Martin (fictif)', psychologueId: 'p-martin', service: U1, nature: 'presence', jours: [1], repetition: 'semaine', debut: lun(-14), de: '09:00', a: '12:30', salle: 'SA-E2' });
+      pp({ id: 'PP-M3', psychologue: 'Mme Martin (fictif)', psychologueId: 'p-martin', service: U1, nature: 'presence', jours: [3], repetition: 'semaine', debut: lun(-14), de: '09:30', a: '12:00', salle: 'SA-E1' });
+      pp({ id: 'PP-L', psychologue: 'M. Leroy (fictif)', psychologueId: 'p-leroy', service: U1, nature: 'presence', jours: [4], repetition: 'semaine', debut: lun(-14), de: '13:30', a: '17:00', precision: 'Bilans neuropsychologiques', salle: 'SA-E2' });
+      pp({ id: 'PP-N', psychologue: 'Mme Nguyen (fictif)', psychologueId: 'p-nguyen', service: U2, nature: 'presence', jours: [1, 4], repetition: 'semaine', debut: lun(-14), de: '14:00', a: '17:00', salle: 'SA-PSY2' });
+      pp({ id: 'PP-ABS', psychologue: 'Mme Martin (fictif)', psychologueId: 'p-martin', service: U1, nature: 'absence', jours: [], repetition: 'date', debut: lun(9), precision: 'Formation', remplacant: 'M. Leroy (fictif)', remplacantId: 'p-leroy' });
+      ajouter(t(-24 * 3), 'PRESENCE_PSY', { id: 'PP-M3', sauf: [lun(9)], service: U1 });
+      var ep = function (d) { ajouter(t(-24 * 2), 'ENTRETIEN_PREVU', d); };
+      ep({ id: 'EP-1', psychologue: 'Mme Martin (fictif)', psychologueId: 'p-martin', patient: 'P01', jour: lun(7), de: '09:30', a: '10:15', presence: pm, salle: 'SA-E2', service: U1 });
+      ep({ id: 'EP-2', psychologue: 'Mme Martin (fictif)', psychologueId: 'p-martin', patient: 'P02', jour: lun(7), de: '11:00', a: '11:45', presence: pm, salle: 'SA-E2', service: U1 });
+      ep({ id: 'EP-3', psychologue: 'Mme Martin (fictif)', psychologueId: 'p-martin', patient: 'P03', jour: lun(9), de: '14:00', a: '15:00', salle: 'SA-E1', service: U1 });
+    })();
+    // Rôle « Psychologue » (rôle créé par l'administrateur) : planning des psychologues, salles, messagerie (fictif)
+    if (!reel) cfg('roles', { PSYCHOLOGUE: { libelle: 'Psychologue', services: true, accesModules: { suivi: ['suivi.consulter', 'suivi.psychologues'], salles: ['salles.consulter', 'salles.reserver'], messagerie: ['messagerie.lire', 'messagerie.ecrire'], agenda: [] } } });
 
     // Messagerie (0.23.0) : message important à confirmer avec éléments rattachés (demande de travaux, tâche, accès
     // réservé pour qui n'a pas le module), message à un groupe avec réponses à tous, message envoyé par l'agent connecté

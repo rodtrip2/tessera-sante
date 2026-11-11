@@ -875,3 +875,34 @@ tr.chambre-travaux th { background: color-mix(in srgb, var(--warn, #b97a00) 12%,
 .ms-option input[type=text] { flex: 1 1 12em; }
 .ms-option input { width: auto; }
 .ms-chiffrer { padding: 10px 12px; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); }
+
+/* Salles et bureaux (0.25.0) */
+.sb-defile { overflow-x: auto; }
+.sb-grille { display: grid; min-width: 900px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.sb-tete { padding: 8px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; font-size: .9rem; }
+.sb-pret { color: var(--warn); }
+.sb-heures { position: relative; }
+.sb-heures span { position: absolute; right: 8px; font-size: .75rem; color: var(--ink-2); transform: translateY(-50%); }
+.sb-heures span:first-child { transform: none; }
+.sb-col { position: relative; border-left: 1px solid var(--line); background-image: linear-gradient(to bottom, var(--line) 1px, transparent 1px); }
+.sb-bloc { position: absolute; left: 4px; right: 4px; box-sizing: border-box; overflow: hidden; text-align: left; font: inherit; font-size: .8rem; line-height: 1.25; padding: 3px 7px; border-radius: 6px; border: 1px solid; border-left-width: 4px; cursor: pointer; display: flex; flex-direction: column; color: var(--ink); background: var(--surface-2); }
+.sb-bloc b { font-weight: 600; }
+.sb-bloc:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sb-agenda { background: var(--accent-soft); border-color: var(--accent); }
+.sb-medical { background: color-mix(in srgb, #3b4fa0 14%, var(--surface)); border-color: #3b4fa0; }
+.sb-psy { background: color-mix(in srgb, #7a3f96 14%, var(--surface)); border-color: #7a3f96; }
+.sb-simple { background: var(--surface-2); border-color: var(--ink-2); }
+.sb-attente { background: var(--warn-soft); border-color: var(--warn); border-style: dashed; }
+.sb-conflit { background: var(--bad-soft); border-color: var(--bad); border-style: dashed; }
+.sb-ferme { background: repeating-linear-gradient(135deg, var(--surface-2) 0 6px, color-mix(in srgb, var(--ink-2) 18%, transparent) 6px 12px); border-color: var(--ink-2); color: var(--ink-2); }
+.sb-legende { display: flex; flex-wrap: wrap; gap: 14px; font-size: .85rem; }
+.sb-legende span { display: inline-flex; align-items: center; gap: 6px; }
+.sb-legende i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border-width: 2px; border-style: solid; }
+.sb-barre { align-items: center; }
+.sb-etat.ok { color: var(--ok); }
+.sb-etat.bad { color: var(--bad); font-weight: 600; }
+.sb-choix { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); }
+.sb-choix.demande { border-color: var(--bad); }
+tr.grise td { opacity: .55; }
+.psy-absence { border-style: dashed; }
+.psy-ent { display: block; margin-top: 3px; padding: 2px 6px; background: var(--surface); border: 1px solid #7a3f96; border-radius: 4px; font-size: .75rem; }

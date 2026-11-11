@@ -18,7 +18,9 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, MED) {
   'use strict';
 
-  var TYPES = ['PRESENCE', 'SUIVI'];
+  var TYPES = ['PRESENCE', 'SUIVI', 'PRESENCE_PSY', 'ENTRETIEN_PREVU'];
+  // Planning des psychologues (0.25.0, décisions du porteur du 11 novembre 2026) : présences, absences, entretiens prévus
+  var NATURES_PSY = { presence: 'Présence', absence: 'Absence' };
   var NATURES = { presence: 'Présence', absence: 'Absence', garde: 'Garde ou astreinte' };
   var MOMENTS = { matin: 'Matin', apresmidi: 'Après-midi' };
   var REPETITIONS = { semaine: 'Chaque semaine', quinzaine: 'Toutes les 2 semaines', date: 'Une seule date' };
@@ -68,8 +70,24 @@
         var p = Object.assign({}, st.presences[d.id] || { id: d.id, par: e.by, cree: e.at });
         // `sauf` : jours écartés d'une série (modifiés ou retirés ce jour seulement) ; `remplace` : série dont cette saisie
         // d'un jour remplace un jour (0.20.0, décision du porteur du 9 novembre 2026)
-        ['medecin', 'medecinId', 'service', 'nature', 'garde', 'jours', 'moments', 'repetition', 'debut', 'fin', 'precision', 'remplacant', 'remplacantId', 'sauf', 'remplace'].forEach(function (k) { if (d[k] !== undefined) p[k] = d[k]; });
+        ['medecin', 'medecinId', 'service', 'nature', 'garde', 'jours', 'moments', 'repetition', 'debut', 'fin', 'precision', 'remplacant', 'remplacantId', 'sauf', 'remplace', 'salle'].forEach(function (k) { if (d[k] !== undefined) p[k] = d[k]; });
         p.modifie = e.at; st.presences[d.id] = p;
+        return;
+      case 'PRESENCE_PSY':
+        // Présence ou absence d'un psychologue (salle occupée facultative), saisie aussi par les psychologues eux-mêmes
+        if (!d.id) return;
+        if (d.supprime) { if (st.presencesPsy[d.id]) st.presencesPsy[d.id].supprime = true; return; }
+        var q = Object.assign({}, st.presencesPsy[d.id] || { id: d.id, par: e.by, cree: e.at });
+        ['psychologue', 'psychologueId', 'service', 'nature', 'jours', 'repetition', 'debut', 'fin', 'de', 'a', 'precision', 'remplacant', 'remplacantId', 'sauf', 'remplace', 'salle'].forEach(function (k) { if (d[k] !== undefined) q[k] = d[k]; });
+        q.modifie = e.at; st.presencesPsy[d.id] = q;
+        return;
+      case 'ENTRETIEN_PREVU':
+        // Entretien prévu avec un patient (date et heure seulement, aucun contenu), seul ou dans une présence
+        if (!d.id) return;
+        if (d.annule) { if (st.entretiensPrevus[d.id]) st.entretiensPrevus[d.id].annule = { par: e.by, le: e.at }; return; }
+        var en = Object.assign({}, st.entretiensPrevus[d.id] || { id: d.id, par: e.by, cree: e.at });
+        ['psychologue', 'psychologueId', 'patient', 'jour', 'de', 'a', 'presence', 'salle', 'service'].forEach(function (k) { if (d[k] !== undefined) en[k] = d[k]; });
+        st.entretiensPrevus[d.id] = en;
         return;
       case 'SUIVI':
         if (!d.id) return;
@@ -78,7 +96,7 @@
         return;
     }
   }
-  function reduire(evts) { return N.reduire(evts, { cle: 'suivi', etat: function () { return { presences: {}, suivis: {} }; }, appliquer: appliquer }); }
+  function reduire(evts) { return N.reduire(evts, { cle: 'suivi', etat: function () { return { presences: {}, suivis: {}, presencesPsy: {}, entretiensPrevus: {} }; }, appliquer: appliquer }); }
 
   // ------------------------------------------------------------ Présences
   /** La présence s'applique-t-elle à ce jour (ISO) ? Selon les jours de la semaine, la répétition et la période. */
@@ -284,15 +302,77 @@
     return res;
   }
 
+  // ------------------------------------------------------------ Planning des psychologues (0.25.0)
+  var PSY = MED.psychologues;
+  function psyDe(config, p) { return PSY ? PSY.resoudre(config, p.psychologue, p.psychologueId) : p.psychologue; }
+  function heuresPsy(p) { return { de: heure(p.de, '09:00'), a: heure(p.a, '17:00') }; }
+  /**
+   * Semaine des psychologues pour des services : [{ jour, items: [{ genre: 'presence'|'absence'|'entretien', id, psychologue,
+   * service, de, a, salle, precision, remplacant, modifie, entretiens: [...] }] }]. Les entretiens prévus rattachés à une
+   * présence sont rangés dedans ; les autres sont des éléments à part.
+   */
+  function semainePsy(st, config, lundi, services, psychologue) {
+    var jours = []; for (var i = 0; i < 7; i++) jours.push(jourISO(plusJours(depuisISO(lundi), i)));
+    var ps = Object.keys(st.presencesPsy || {}).map(function (k) { return st.presencesPsy[k]; }).filter(function (p) { return !p.supprime && (!psychologue || psyDe(config, p) === psychologue); });
+    var ents = Object.keys(st.entretiensPrevus || {}).map(function (k) { return st.entretiensPrevus[k]; }).filter(function (x) { return !x.annule && (!psychologue || psyDe(config, x) === psychologue); });
+    return jours.map(function (j) {
+      var items = [];
+      ps.forEach(function (p) {
+        if (!couvre(p, j) || (p.nature === 'presence' && services && services.indexOf(p.service) < 0)) return;
+        var h = heuresPsy(p), modifie = (Array.isArray(p.sauf) && p.sauf.indexOf(j) >= 0) || (!!p.remplace && p.debut === j);
+        items.push({ genre: p.nature === 'absence' ? 'absence' : 'presence', id: p.id, psychologue: psyDe(config, p), service: p.service || '', de: h.de, a: h.a, salle: p.salle || '', precision: p.precision || '',
+          remplacant: p.remplacant ? (PSY ? PSY.resoudre(config, p.remplacant, p.remplacantId) : p.remplacant) : '', modifie: modifie, serie: p.repetition !== 'date', entretiens: [] });
+      });
+      // Jours écartés d'une série : marqués sur la série d'origine
+      ps.forEach(function (p) { if (Array.isArray(p.sauf) && p.sauf.indexOf(j) >= 0 && (!services || services.indexOf(p.service) >= 0)) items.push({ genre: 'retire', id: p.id, psychologue: psyDe(config, p), service: p.service || '', de: heuresPsy(p).de, a: heuresPsy(p).a, modifie: true, entretiens: [] }); });
+      ents.filter(function (x) { return x.jour === j && (!services || services.indexOf(x.service) >= 0); }).forEach(function (x) {
+        var e = { genre: 'entretien', id: x.id, psychologue: psyDe(config, x), patient: x.patient, service: x.service, de: heure(x.de, '09:00'), a: heure(x.a, '10:00'), salle: x.salle || '', presence: x.presence || '' };
+        var dans = items.filter(function (it) { return it.genre === 'presence' && it.id === x.presence; })[0];
+        if (dans) dans.entretiens.push(e); else items.push(e);
+      });
+      items.sort(function (a, b) { return a.de.localeCompare(b.de); });
+      return { jour: j, items: items };
+    });
+  }
+  /**
+   * Occupations de salles venues du module (0.25.0), lues par Salles et bureaux : présences médicales (par demi-journée,
+   * horaires réglés dans Salles), présences des psychologues, entretiens prévus, qui ont une salle.
+   * [{ ref, salle, debut, fin, titre, genre, service, par }] sur [debut, fin[ (instants).
+   */
+  function occupationsSalles(st, config, debut, fin, horaires) {
+    var res = [], hr = horaires || { matin: ['08:30', '12:30'], apresmidi: ['13:30', '17:30'] };
+    var a = jourISO(debut), b = jourISO(fin - 1);
+    function t(j, h) { var p = h.split(':'), d = new Date(depuisISO(j)); d.setHours(+p[0], +p[1], 0, 0); return d.getTime(); }
+    for (var j = a, n = 0; j <= b && n < 400; j = jourISO(plusJours(depuisISO(j), 1)), n++) {
+      presencesActives(st).forEach(function (p) {
+        if (!p.salle || p.nature !== 'presence' || !couvre(p, j)) return;
+        moments(p).forEach(function (mo) { var h = hr[mo]; res.push({ ref: 'suivi|' + p.id + '|' + j + '|' + mo, salle: p.salle, debut: t(j, h[0]), fin: t(j, h[1]), titre: medecinDe(config, p), genre: 'medical', service: p.service, par: p.par }); });
+      });
+      Object.keys(st.presencesPsy || {}).map(function (k) { return st.presencesPsy[k]; }).forEach(function (p) {
+        if (p.supprime || !p.salle || p.nature !== 'presence' || !couvre(p, j)) return;
+        var h = heuresPsy(p);
+        res.push({ ref: 'psy|' + p.id + '|' + j, salle: p.salle, debut: t(j, h.de), fin: t(j, h.a), titre: psyDe(config, p), genre: 'psy', service: p.service, par: p.par });
+      });
+      Object.keys(st.entretiensPrevus || {}).map(function (k) { return st.entretiensPrevus[k]; }).forEach(function (x) {
+        if (x.annule || x.jour !== j || !x.salle) return;
+        var pr = x.presence && st.presencesPsy[x.presence];
+        if (pr && pr.salle === x.salle && couvre(pr, j)) return;   // dans la présence et sa salle : déjà occupée
+        res.push({ ref: 'entretien|' + x.id + '|' + j, salle: x.salle, debut: t(j, heure(x.de, '09:00')), fin: t(j, heure(x.a, '10:00')), titre: 'Entretien prévu — ' + psyDe(config, x), genre: 'entretien', service: x.service, par: x.par });
+      });
+    }
+    return res.filter(function (o) { return o.debut < fin && o.fin > debut; });
+  }
+
   // ------------------------------------------------------------ Contrat
   var ACCES = [
     { code: 'suivi.consulter', libelle: 'Consulter les présences médicales, les entretiens et contrats de soins, les patients par médecin', types: [] },
     { code: 'suivi.presences', libelle: 'Saisir les présences, absences, gardes et astreintes des médecins', types: ['PRESENCE'] },
-    { code: 'suivi.entretiens', libelle: 'Cocher les entretiens médicaux et les réévaluations du contrat de soins', types: ['SUIVI'] }
+    { code: 'suivi.entretiens', libelle: 'Cocher les entretiens médicaux et les réévaluations du contrat de soins', types: ['SUIVI'] },
+    { code: 'suivi.psychologues', libelle: 'Saisir le planning des psychologues : présences, absences, entretiens prévus (rôle « Psychologue » à créer dans Rôles et accès)', types: ['PRESENCE_PSY', 'ENTRETIEN_PREVU'] }
   ];
   // Rôles par défaut (maquette validée) : secrétaire et cadre saisissent les présences ; IDE et cadre cochent les
   // entretiens. Réglables dans Rôles et accès. Les médecins n'utilisent pas encore Tessera.
-  var DROITS = { IDE: ['SUIVI'], SECRETAIRE: ['PRESENCE'], CADRE: TYPES.slice() };
+  var DROITS = { IDE: ['SUIVI'], SECRETAIRE: ['PRESENCE', 'PRESENCE_PSY', 'ENTRETIEN_PREVU'], CADRE: TYPES.slice() };
   var D = Droits.creer({
     roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
     ongletsMasquables: [], rolesJournalComplet: ['CADRE'], module: 'suivi', rolesEncadrement: ['CADRE'],
@@ -302,7 +382,8 @@
   function lieuxCodes(config) { return options(config).lieux.map(function (l) { return l.code; }); }
   /** Services sur lesquels agit une saisie : le service de la présence (un lieu sans patient n'en est pas un), celui du patient. */
   function cibles(st, e) {
-    var d = e.data || {}, x = e.type === 'PRESENCE' ? (d.service !== undefined ? d : st && st.presences && st.presences[d.id]) : (d.service !== undefined ? d : st && st.suivis && st.suivis[d.id]);
+    var d = e.data || {}, coll = { PRESENCE: 'presences', SUIVI: 'suivis', PRESENCE_PSY: 'presencesPsy', ENTRETIEN_PREVU: 'entretiensPrevus' }[e.type];
+    var x = d.service !== undefined ? d : st && st[coll] && st[coll][d.id];
     return x && x.service ? [x.service] : [];
   }
   function controler(type, d, ctx) {
@@ -310,6 +391,23 @@
     if (type === 'SUIVI') {
       if (!d.patient || !/^\d{4}-\d{2}-\d{2}$/.test(d.date || '')) throw new Error('Patient et date requis.');
       if (d.date > jourISO(Date.now())) throw new Error('La date ne peut pas être dans le futur.');
+    }
+    if (type === 'PRESENCE_PSY') {
+      var q = Object.assign({}, (ctx.etat && ctx.etat.presencesPsy && ctx.etat.presencesPsy[d.id]) || {}, d);
+      if (!String(q.psychologue || '').trim()) throw new Error('Choisissez le psychologue.');
+      if (!NATURES_PSY[q.nature]) throw new Error('Nature inconnue.');
+      if (q.nature === 'presence' && !q.service) throw new Error('Choisissez le service.');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(q.debut || '')) throw new Error('Indiquez le premier jour.');
+      if (q.fin && q.fin < q.debut) throw new Error('Le dernier jour précède le premier.');
+      if (q.repetition !== 'date' && !(q.jours || []).length) throw new Error('Choisissez au moins un jour de la semaine.');
+      if ((q.de || q.a) && !(heure(q.de, '') && heure(q.a, '') && q.a > q.de)) throw new Error('Heures invalides (la fin suit le début).');
+    }
+    if (type === 'ENTRETIEN_PREVU') {
+      var en = Object.assign({}, (ctx.etat && ctx.etat.entretiensPrevus && ctx.etat.entretiensPrevus[d.id]) || {}, d);
+      if (!String(en.psychologue || '').trim()) throw new Error('Choisissez le psychologue.');
+      if (!en.patient) throw new Error('Choisissez le patient.');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(en.jour || '')) throw new Error('Indiquez le jour.');
+      if (!(heure(en.de, '') && heure(en.a, '') && en.a > en.de)) throw new Error('Heures invalides (la fin suit le début).');
     }
     if (type === 'PRESENCE') {
       var p = Object.assign({}, (ctx.etat && ctx.etat.presences && ctx.etat.presences[d.id]) || {}, d);
@@ -332,14 +430,17 @@
     droits: D,
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [] },
-    vues: { onglets: [{ code: 'presences', libelle: 'Présences médicales' }, { code: 'entretiens', libelle: 'Entretiens et contrats de soins' }, { code: 'medecins', libelle: 'Patients par médecin' }, { code: 'liste', libelle: 'Médecins' }, { code: 'psychologues', libelle: 'Psychologues' }] },
+    vues: { onglets: [{ code: 'presences', libelle: 'Présences médicales' }, { code: 'entretiens', libelle: 'Entretiens et contrats de soins' }, { code: 'medecins', libelle: 'Patients par médecin' }, { code: 'liste', libelle: 'Médecins' }, { code: 'planning-psy', libelle: 'Planning des psychologues' }, { code: 'psychologues', libelle: 'Psychologues' }] },
     migrations: [],
     fournitures: [
       // Lue par la liste des patients et par l'agenda : derniers entretien et contrat d'un patient, alertes du module
       { nom: 'suivi.patient', version: 1, acces: 'lecture', champs: ['jour', 'delais', 'entretien', 'contrat'],
         lire: function (st, o) { return suiviPatient(st, o.config, o.patient, o.maintenant || Date.now()); } },
       { nom: 'suivi.alertes', version: 1, acces: 'lecture', champs: ['type', 'niveau', 'service', 'suivi'],
-        lire: function (st, o) { return alertes(st, o.config, o.fiches, o.services, o.maintenant || Date.now()); } }
+        lire: function (st, o) { return alertes(st, o.config, o.fiches, o.services, o.maintenant || Date.now()); } },
+      // Lue par Salles et bureaux (0.25.0) : salles occupées par les présences et les entretiens prévus
+      { nom: 'suivi.occupations', version: 1, acces: 'lecture', champs: ['ref', 'salle', 'debut', 'fin', 'titre', 'genre', 'service', 'par'],
+        lire: function (st, o) { return occupationsSalles(st, o.config, o.debut, o.fin, o.horaires); } }
     ],
     besoins: [{ fourniture: 'patients.fiches', version: 1, obligatoire: true }]
   };
@@ -347,5 +448,6 @@
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, NATURES: NATURES, MOMENTS: MOMENTS, REPETITIONS: REPETITIONS, QUOI: QUOI, TRANCHES_DEFAUT: TRANCHES_DEFAUT, GARDES_DEFAUT: GARDES_DEFAUT,
     options: options, delais: delais, libGarde: libGarde, couvre: couvre, situation: situation, modifications: modifications, grilleLieu: grilleLieu, gardesDuJour: gardesDuJour, semaineMedecin: semaineMedecin,
     medecinsDuLieu: medecinsDuLieu, medecinDe: medecinDe, derniers: derniers, suivisDe: suivisDe, suiviPatient: suiviPatient, jourHospitalisation: jourHospitalisation, identite: identite, hospitalises: hospitalises,
+    NATURES_PSY: NATURES_PSY, semainePsy: semainePsy, occupationsSalles: occupationsSalles, psyDe: psyDe,
     suivis: suivis, parMedecin: parMedecin, alertes: alertes, serviceDe: serviceDe, lieuxCodes: lieuxCodes, jourISO: jourISO, depuisISO: depuisISO, plusJours: plusJours };
 });

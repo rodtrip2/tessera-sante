@@ -190,3 +190,20 @@ test('Série : modifier ou retirer un seul jour sans toucher au reste de la sér
   assert.equal(S.situation(st, config, 'Dr ALPHA (fictif)', 'U1', '2026-11-16', 'matin').modifie, false);
   assert.throws(() => S.contrat.saisies.controler('PRESENCE', { id: 's1', sauf: ['9 novembre'], service: 'U1' }, { config, etat: st }), /mal formés/);
 });
+
+test('Planning des psychologues (0.25.0) : présences, entretiens prévus dans une présence, salles occupées', () => {
+  const S = require('../app/js/module-suivi.js');
+  const ev2 = (type, data, i) => ({ v: 1, id: 'p' + i, at: '2026-11-10T08:0' + i + ':00.000Z', by: 'sec', type, data });
+  const st = S.reduire([
+    ev2('PRESENCE_PSY', { id: 'PP1', psychologue: 'Mme Petit (fictif)', service: 'U1', nature: 'presence', jours: [1], repetition: 'semaine', debut: '2026-11-02', de: '09:00', a: '12:00', salle: 'S1' }, 1),
+    ev2('ENTRETIEN_PREVU', { id: 'EP1', psychologue: 'Mme Petit (fictif)', patient: 'P01', jour: '2026-11-16', de: '09:30', a: '10:15', presence: 'PP1', salle: 'S1', service: 'U1' }, 2),
+    ev2('ENTRETIEN_PREVU', { id: 'EP2', psychologue: 'Mme Petit (fictif)', patient: 'P02', jour: '2026-11-18', de: '14:00', a: '15:00', salle: 'S2', service: 'U1' }, 3),
+    ev2('PRESENCE', { id: 'PM1', medecin: 'Dr Arnaud (fictif)', service: 'U1', nature: 'presence', jours: [1], moments: ['apresmidi'], repetition: 'semaine', debut: '2026-11-02', salle: 'S3' }, 4)]);
+  const sem = S.semainePsy(st, {}, '2026-11-16', ['U1']);
+  assert.deepEqual([sem[0].items.map((i) => i.genre), sem[0].items[0].entretiens.map((e) => e.patient), sem[2].items.map((i) => i.genre)], [['presence'], ['P01'], ['entretien']]);
+  const debut = new Date(2026, 10, 16).getTime(), fin = new Date(2026, 10, 19).getTime();
+  const occ = S.occupationsSalles(st, {}, debut, fin);
+  assert.deepEqual(occ.map((o) => o.ref.split('|')[0] + ':' + o.salle).sort(), ['entretien:S2', 'psy:S1', 'suivi:S3']);   // entretien dans la présence : pas en double
+  assert.throws(() => S.contrat.saisies.controler('ENTRETIEN_PREVU', { id: 'X', psychologue: 'Mme Petit', patient: 'P01', jour: '2026-11-16', de: '10:00', a: '09:00' }, { etat: st, config: {} }), /Heures/);
+  assert.deepEqual([S.droits.peut(['SECRETAIRE'], 'PRESENCE_PSY', {}), S.droits.peut(['IDE'], 'PRESENCE_PSY', {})], [true, false]);
+});
