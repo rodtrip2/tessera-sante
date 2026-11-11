@@ -7,6 +7,7 @@
 | Documents et outils de bureautique | Tessera Santé, 6 novembre 2026 | Idée à retravailler | Grande |
 | Connexion avec la session Windows | Suivi-mesures-isocont, 2 novembre 2026 | Étude technique faite, à adapter au socle | Moyenne (dépend du service informatique) |
 | Stockage sur un partage autre que SMB | Suivi-mesures-isocont, 2 novembre 2026 | Demande, à étudier | Moyenne à grande |
+| Rangement des saisies par jour sur le partage | Test de charge, 11 novembre 2026 | À décider après un essai sur le partage de l’établissement | Moyenne |
 | Agenda : échéances des certificats légaux | Tessera Santé, 7 novembre 2026 | Écartée pour l'instant | Petite à moyenne (règles juridiques à valider) |
 | Module Messagerie | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
 | Module Demandes de travaux et de réparation | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
@@ -198,3 +199,13 @@ Un rôle aux droits **entre ceux du cadre et ceux de l'administrateur**.
 - **Restent à l'administrateur** : coffre et clés, comptes et droits techniques, activation des modules, réglages généraux de l'établissement, sauvegardes et restauration.
 - **Fonctionnement** : nouveau rôle fourni (comme IDE, AS, secrétaire, cadre), avec ses accès par défaut dans chaque module et réglables dans *Rôles et accès* ; notion de pôle (regroupement de services) à ajouter aux réglages si elle est retenue.
 - **À trancher avant développement** : pôle ou liste de services ; peut-il créer des comptes pour ses services ; voit-il les données patients de tous ses services ou seulement les tableaux de bord ; ce qu'il valide à la place du cadre.
+
+## Rangement des saisies par jour sur le partage (test de charge, 11 novembre 2026)
+
+Le test de charge (`scripts/charge.cjs`, données fictives) estime environ 1 700 saisies par service et par mois, chacune dans un fichier chiffré du dossier du mois (`evenements/AAAA/MM/`). Depuis la 0.21.1, chaque poste ouvert ne relit toutes les 5 secondes que les dossiers du mois en cours et du mois précédent, et parcourt tout l'historique à la connexion puis toutes les 10 minutes. Pour trois services, cela fait encore environ 10 000 fichiers listés toutes les 5 secondes par poste.
+
+- **À mesurer d'abord sur place** : durée de la liste d'un dossier de 5 000 à 10 000 fichiers sur le partage de l'établissement, avec plusieurs postes ouverts (dossier rempli par le script, données fictives). Si elle reste courte, rien à changer.
+- **Piste** : un sous-dossier par jour (`evenements/AAAA/MM/JJ/`) ; la lecture rapide ne parcourrait que les jours récents (quelques centaines de fichiers).
+- **Ce qui serait touché** : lecture et écriture des saisies (`store.js`), instantanés mensuels, contrôle d'intégrité (fichiers disparus), dossier de secours et script robocopy, déplacement du dossier, restauration ; lecture des deux rangements pendant la transition (les saisies déjà écrites ne sont jamais déplacées, le journal étant en ajout seul).
+- **Alternative à étudier** : un fichier d'index par poste, mis à jour à chaque saisie, lu à la place de la liste du dossier.
+

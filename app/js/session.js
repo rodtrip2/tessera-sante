@@ -1492,6 +1492,7 @@
   };
 
   Session.prototype.recalculer = function (info) {
+    N.suivre(this.evts);   // journal de la session : recalcul incrémental des modules (0.21.2)
     this.etat = moduleActif().saisies.reduire(this.evts);
     // Autres modules affichés dont la session détient la clé : leur propre état (étape 6)
     var s = this, etats = {};
@@ -1564,7 +1565,7 @@
         // des fichiers des mois clos n'est relue qu'à la connexion puis toutes les LECTURE_COMPLETE millisecondes
         var complete = !j.lectureComplete || Date.now() - j.lectureComplete >= LECTURE_COMPLETE;
         r = await d.lireNouveaux(j.cle, j.connus, complete ? undefined : { recents: true });
-        if (complete && !r.interrompu) j.lectureComplete = Date.now();
+        if (complete && !r.interrompu) { j.lectureComplete = Date.now(); N.oublierEtats(); }   // recalcul complet ensuite
       } catch (e) { interruption = e; continue; }   // journal momentanément illisible : les autres sont lus quand même
       if (r.interrompu) interruption = new Error(r.interrompu);
       // Fichiers illisibles : liste tenue à jour à chaque lecture (un fichier relu avec succès en sort)

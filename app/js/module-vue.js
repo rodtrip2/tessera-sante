@@ -422,7 +422,7 @@
     if (e.type === 'INSTANTANE_PART' && d.instantane) { var i = st.instantanes[d.instantane] = st.instantanes[d.instantane] || { parts: {}, notes: [] }; i.parts[d.journal] = d; }
     if (e.type === 'INSTANTANE_NOTE' && d.instantane) { var n = st.instantanes[d.instantane] = st.instantanes[d.instantane] || { parts: {}, notes: [] }; n.notes.push({ texte: d.texte, par: e.by, le: e.at, evt: e.id }); }
   }
-  function reduire(evts) { return N.reduire(evts, { etat: function () { return { instantanes: {} }; }, appliquer: appliquer }); }
+  function reduire(evts) { return N.reduire(evts, { cle: 'vue', etat: function () { return { instantanes: {} }; }, appliquer: appliquer }); }
   /** Instantanés d'une vue, du plus récent au plus ancien (en-tête lisible seulement). */
   function instantanes(st, idVue) {
     return Object.keys((st && st.instantanes) || {}).map(function (k) { return st.instantanes[k]; }).filter(function (i) { return i.entete && (!idVue || i.entete.vue === idVue); })
