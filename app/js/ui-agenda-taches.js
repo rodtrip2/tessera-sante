@@ -443,4 +443,13 @@
   I.resumeAlertes = resumeAlertes;
   I.vueAlertes = vueAlertes;
   I.vueMonAgenda = vueMonAgenda;
+  /** Page « Aujourd'hui » (0.26.4) : ce que Mon agenda prévoit pour l'agent ce jour (cartes, tâches, absence, alertes). */
+  U.monJour = function (maintenant) {
+    var s = U.App.session;
+    if (!s.detientCle('agenda')) return null;
+    var moi = moiAvecGroupes(), svs = s.mesServices().map(function (x) { return x.code || x; }), j0 = minuit(maintenant), j1 = plusJours(j0, 1);
+    var m = A.monAgenda(st(), fiches(), U.config(), moi, svs, j0, j1, maintenant);
+    return { elements: m.elements.filter(function (x) { return x.debut < j1 && (x.fin || x.debut) >= j0; }).map(function (x) { return carteElement(x, j0, svs.length > 1); }),
+      taches: m.taches.filter(function (x) { return x.occurrence === A.jourISO(j0); }).map(ligneTache), absent: m.absences.some(function (a) { return a.debut < j1 && (a.fin || a.debut) >= j0; }), alertes: m.alertes.length };
+  };
 })();

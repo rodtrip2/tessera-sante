@@ -115,6 +115,21 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.26.4 (lot A, étape 5 : ergonomie ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Page « Aujourd'hui » | Écran à la connexion : Mon agenda du jour, Mes tâches, informations non traitées, salles réservées | `app/js/ui-aujourdhui.js` : fenêtre en tête de la barre des modules, ouverte à chaque connexion ; blocs « Mon agenda » (cartes et tâches du jour, absence, alertes), « Mes tâches » (aujourd'hui et en retard), « Ce qui vous attend » (informations des modules, messages), « Mes salles aujourd'hui » ; chaque bloc mène à son module (`U.monJour`, `U.mesTaches.demandes`) |
+| Recherche générale | Champ pour trouver un patient, un événement, une salle, un message, un agent, limitée aux modules accessibles | Bouton « Rechercher » de l'en-tête et Ctrl + K : éléments des modules (ceux qu'on peut rattacher à un message : clé du module et services de l'agent), messages reçus et envoyés, agents (« Écrire »), contacts des Informations du service ; tous les mots, sans accents ; 40 résultats affichés (`U.messagerie.elements`, `U.messagerie.chercher`) |
+| Retour sur sa dernière position | Chaque fenêtre rouvre l'onglet, le service et la date | Onglet et service de chaque fenêtre retenus sur le poste (`sic-positions`) ; la date affichée reste celle laissée pendant la session (au rechargement, les plannings repartent d'aujourd'hui) |
+| « Annuler » | Quelques secondes dans le message de confirmation ; saisie d'annulation, comme aujourd'hui | Bouton « Annuler » 8 secondes après **une seule** saisie de l'agent ; nouvelle règle du socle : l'auteur annule sa propre saisie dans les **deux minutes** (`immediate: true`, motif « Annulée par son auteur juste après la saisie ») ; jamais pour un réglage, un lot, un compte, une annulation (`session.annulableParAuteur`) |
+| Raccourcis clavier | (0.26.0) | Ajout de Ctrl + K |
+| Formulaires plus courts | Champs rares sous « Plus d'options » ; derniers choix retenus | Aides `U.plusOptions` et `U.dernierChoix` (retenu sur le poste, par agent) ; appliquées : réservation d'une salle (répétition repliée, salle habituelle par service), Mes tâches (note et élément repliés, dernier rappel), demande de travaux (dernier service) ; à étendre aux autres formulaires au fil des modifications |
+
+Tests : `tests/mes-taches.test.js` (annulation immédiate) ; parcours des écrans complété. À documenter : guide utilisateur (Aujourd'hui, recherche, Annuler, Plus d'options), guide IDE / AS (captures : barre des modules avec « Aujourd'hui »), fiche technique (règle d'annulation par l'auteur), `docs/architecture.md` (règle du socle).
+
+Point à valider : délai de deux minutes de l'annulation par l'auteur.
+
 ## Version 0.26.3 (lot A, étape 4 : Mes tâches ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |

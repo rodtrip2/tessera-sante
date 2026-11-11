@@ -55,6 +55,23 @@ with sync_playwright() as p:
     a.wait_for_selector('.code-secours', timeout=90000)
     a.get_by_text('J’ai noté le code de secours').click(); a.get_by_role('button', name='Continuer').click(); time.sleep(4)
 
+    print('Aujourd’hui, recherche, annulation, retour sur sa position (0.26.4)')
+    verifier(a.evaluate('SIC.ui.App.fenetre') == 'aujourdhui' and a.locator('.aj-bloc').count() >= 3, 'connexion : page « Aujourd’hui » (agenda du jour, tâches, ce qui vous attend)')
+    capture(a, 'aujourdhui')
+    a.keyboard.press('Control+k'); time.sleep(0.6)
+    a.locator('dialog[open] input[type=search]').fill('salle'); time.sleep(0.8)
+    verifier(a.locator('.aj-resultat').count() >= 3, 'recherche générale (Ctrl + K) : éléments des modules')
+    capture(a, 'recherche')
+    a.keyboard.press('Escape'); time.sleep(0.2); a.keyboard.press('Escape'); time.sleep(0.4)
+    fenetre(a, 'Agenda du service', False); a.locator('nav.onglets button', has_text='Mes tâches').click(); time.sleep(1.2)
+    a.get_by_role('button', name='+ Tâche').click(); time.sleep(0.5)
+    d = a.locator('dialog[open]'); d.get_by_label('Tâche', exact=True).fill('Tâche à annuler (fictif)'); d.get_by_role('button', name='Enregistrer').click(); time.sleep(1)
+    verifier(a.locator('.toast .btn', has_text='Annuler').count() == 1, 'message de confirmation : « Annuler » juste après la saisie')
+    a.locator('.toast .btn', has_text='Annuler').click(); time.sleep(1.5)
+    verifier(a.locator('.mt-tache', has_text='Tâche à annuler').count() == 0, 'annulation immédiate par l’auteur (saisie d’annulation)')
+    fenetre(a, 'Informations du service', False); fenetre(a, 'Agenda du service', False)
+    verifier(a.evaluate('SIC.ui.App.onglet') == 'mes-taches', 'fenêtre rouverte sur son dernier onglet')
+
     print('Toutes les fenêtres, tous les onglets')
     for m in ['Patients', 'Isolement et contention', 'Agenda du service', 'Véhicules', 'Suivi médical', 'Vue d’ensemble', 'Administration']:
         fenetre(a, m, False)
@@ -215,7 +232,7 @@ with sync_playwright() as p:
     d.get_by_label('Salle proposée').select_option(label='Salle d’activités (12 places) — libre')
     d.get_by_role('button', name='Enregistrer la décision').click(); time.sleep(1.2)
     a.locator('nav.onglets button', has_text='Journée').click(); time.sleep(1)
-    a.get_by_role('button', name='Aujourd’hui').click(); time.sleep(0.6)
+    a.locator('main').get_by_role('button', name='Aujourd’hui', exact=True).click(); time.sleep(0.6)
     for _ in range(2): a.get_by_role('button', name='Suivant').first.click(); time.sleep(0.8)
     verifier(a.locator('.sb-bloc', has_text='Atelier mémoire').filter(has_text='déplacé').count() == 1 and a.locator('.sb-col .sb-conflit').count() == 0, 'arbitrage : salle attribuée, atelier déplacé dans la salle libre proposée')
     a.get_by_role('button', name='+ Réserver').click(); time.sleep(0.8)
@@ -233,7 +250,7 @@ with sync_playwright() as p:
     # Agent sans la clé du Suivi médical : la présence apparaît « Occupé », sans le nom du médecin
     a.evaluate("() => { const s = SIC.ui.App.session; s._cle = s.detientCle; s.detientCle = (m) => m !== 'suivi' && s._cle(m); }")
     a.locator('nav.onglets button', has_text='Journée').click(); time.sleep(1)
-    a.get_by_role('button', name='Aujourd’hui').click(); time.sleep(0.6)
+    a.locator('main').get_by_role('button', name='Aujourd’hui', exact=True).click(); time.sleep(0.6)
     for _ in range(7):
         if a.locator('.sb-occupe').count(): break
         a.get_by_role('button', name='Suivant').first.click(); time.sleep(0.6)
