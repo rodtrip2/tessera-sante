@@ -137,6 +137,7 @@
       if (seul) { d.repetition = 'date'; d.jours = []; d.fin = ''; d.remplace = seul.serie.id; await s().enregistrer('PRESENCE_PSY', { id: seul.serie.id, sauf: (seul.serie.sauf || []).concat([seul.jour]).sort(), service: seul.serie.service }); }
       await s().enregistrer('PRESENCE_PSY', d);
       if (demandes.length) await U.salles.envoyer(demandes);
+      if (U.salles) U.salles.synchroniser(true);
       U.toast(seul ? 'Ce jour est modifié ; la série ne change pas les autres jours.' : 'Enregistré.');
     } });
     U.modale(seul ? 'Modifier ce jour seulement (' + jourFr(seul.jour) + ')' : p ? 'Modifier — ' + S.psyDe(cfg(), p) : 'Présence ou absence d’un psychologue', h('div', { class: 'pile' },
@@ -168,6 +169,7 @@
         periodes: [{ ref: 'entretien|' + d.id + '|' + d.jour, debut: SIC.salles.instant(d.jour, d.de), fin: SIC.salles.instant(d.jour, d.a) }], exclure: ['entretien|' + d.id].concat(x.presence ? ['psy|' + x.presence] : []) });
       await s().enregistrer('ENTRETIEN_PREVU', d);
       if (demandes.length) await U.salles.envoyer(demandes);
+      if (U.salles) U.salles.synchroniser(true);
       U.toast('Entretien prévu enregistré.');
     } });
     U.modale(e ? 'Entretien prévu' : 'Nouvel entretien prévu', h('div', { class: 'pile' },

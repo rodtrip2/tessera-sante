@@ -93,3 +93,23 @@ test('Contrôles : quart d’heure, salle soumise à validation, salle commune c
   assert.equal(S.controlerCadre({}, { U1: { debut: '08:00' } }, cadre), true);
   assert.equal(S.controlerCadre({}, { '*': { debut: '08:00' } }, cadre), false);
 });
+
+test('Relevé « occupé » (0.25.2) : salle et horaires seulement, remplacé par le suivant, nom sur réglage', () => {
+  const src = [{ ref: 'suivi|PR1|' + L + '|matin', salle: 'S1', debut: at('08:30'), fin: at('12:30'), titre: 'Dr Arnaud (fictif)', genre: 'medical', service: 'U1', par: 'sec' },
+    { ref: 'travaux|TR1|' + L, salle: 'S3', debut: at('00:00'), fin: S.instant(S.plusJours(L, 1), '00:00'), titre: 'Travaux : électricité', genre: 'ferme', service: 'U1', par: '' }];
+  const contenu = S.contenuReflet(src);
+  assert.equal(contenu.some((o) => 'titre' in o), false);   // l'objet (médecin, patients) n'est jamais recopié
+  const evts = base().concat([ev('sec', 'SALLE_REFLET', { module: 'suivi', du: L, au: '2026-12-31', occupations: contenu })]);
+  let st = S.reduire(evts);
+  const r = S.reflet(st, 'suivi', at('00:00'), at('23:59'));
+  assert.deepEqual(r.map((o) => [o.salle, o.genre, o.titre]), [['S1', 'occupe', 'Occupé'], ['S3', 'ferme', 'Travaux']]);
+  const occ = S.occupations(st, r, at('00:00'), at('23:59'));
+  assert.equal(S.disponibilite(st, occ, 'S1', 'U1', at('09:00'), at('10:00')).ok, false);
+  assert.equal(S.refletChange(st, 'suivi', src, at('00:00')), false);
+  assert.equal(S.refletChange(st, 'suivi', src.slice(1), at('00:00')), true);
+  st = S.reduire(evts.concat([ev('sec', 'SALLE_REFLET', { module: 'suivi', du: L, au: '2026-12-31', occupations: S.contenuReflet(src.slice(1)) })]));
+  assert.equal(S.reflet(st, 'suivi', at('00:00'), at('23:59')).length, 1);   // le relevé suivant remplace le précédent
+  assert.throws(() => S.controler('SALLE_REFLET', { module: 'vehicules', du: L, au: L, occupations: [] }, { etat: st }), /inconnu/);
+  assert.equal(S.options({}, 'U1').nomOccupe, false);
+  assert.equal(S.options({ salles: { U1: { nomOccupe: true } } }, 'U1').nomOccupe, true);
+});

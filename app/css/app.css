@@ -892,6 +892,7 @@ tr.chambre-travaux th { background: color-mix(in srgb, var(--warn, #b97a00) 12%,
 .sb-medical { background: color-mix(in srgb, #3b4fa0 14%, var(--surface)); border-color: #3b4fa0; }
 .sb-psy { background: color-mix(in srgb, #7a3f96 14%, var(--surface)); border-color: #7a3f96; }
 .sb-simple { background: var(--surface-2); border-color: var(--ink-2); }
+.sb-occupe { background: color-mix(in srgb, var(--ink-2) 10%, var(--surface)); border-color: var(--ink-2); border-style: dotted; color: var(--ink-2); }
 .sb-attente { background: var(--warn-soft); border-color: var(--warn); border-style: dashed; }
 .sb-conflit { background: var(--bad-soft); border-color: var(--bad); border-style: dashed; }
 .sb-ferme { background: repeating-linear-gradient(135deg, var(--surface-2) 0 6px, color-mix(in srgb, var(--ink-2) 18%, transparent) 6px 12px); border-color: var(--ink-2); color: var(--ink-2); }

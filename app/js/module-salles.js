@@ -20,10 +20,12 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre) {
   'use strict';
 
-  var TYPES = ['SALLE', 'SALLE_PRET', 'SALLE_FERMETURE', 'SALLE_RESERVATION', 'SALLE_DEMANDE', 'SALLE_DECISION'];
+  var TYPES = ['SALLE', 'SALLE_PRET', 'SALLE_FERMETURE', 'SALLE_RESERVATION', 'SALLE_DEMANDE', 'SALLE_DECISION', 'SALLE_REFLET'];
+  // Plannings recopiés en « occupé » pour les agents qui n'en ont pas la clé (SALLE_REFLET)
+  var REFLETS = ['agenda', 'suivi', 'travaux'];
   var TYPES_SALLE_DEFAUT = [['entretien', 'Bureau d’entretien'], ['reunion', 'Salle de réunion'], ['medical', 'Bureau médical'], ['familles', 'Salle des familles'],
     ['activites', 'Salle d’activités'], ['psychologue', 'Bureau du psychologue'], ['autre', 'Autre']].map(function (x) { return { code: x[0], libelle: x[1] }; });
-  var GENRES = { agenda: 'Événement de l’agenda', medical: 'Présence médicale', psy: 'Présence d’un psychologue', entretien: 'Entretien prévu', simple: 'Réservation simple', ferme: 'Indisponible' };
+  var GENRES = { agenda: 'Événement de l’agenda', medical: 'Présence médicale', psy: 'Présence d’un psychologue', entretien: 'Entretien prévu', simple: 'Réservation simple', ferme: 'Indisponible', occupe: 'Occupé (planning auquel vous n’avez pas accès)' };
   var JOUR = /^\d{4}-\d{2}-\d{2}$/, HEURE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
   function texte(v, n) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n || 120); }
@@ -45,7 +47,9 @@
     var debut = h(r.debut, '07:00'), fin = h(r.fin, '21:00');
     if (fin <= debut) { debut = '07:00'; fin = '21:00'; }
     return { types: types.length ? types : TYPES_SALLE_DEFAUT.map(function (t) { return Object.assign({}, t); }), debut: debut, fin: fin,
-      matin: [h(r.matinDebut, '08:30'), h(r.matinFin, '12:30')], apresmidi: [h(r.apresmidiDebut, '13:30'), h(r.apresmidiFin, '17:30')] };
+      matin: [h(r.matinDebut, '08:30'), h(r.matinFin, '12:30')], apresmidi: [h(r.apresmidiDebut, '13:30'), h(r.apresmidiFin, '17:30')],
+      // Occupation d'un planning non accessible : nom de la personne qui a réservé (désactivé par défaut, décision du 11 novembre 2026)
+      nomOccupe: r.nomOccupe === true };
   }
   function libType(config, code) { var t = options(config).types.filter(function (x) { return x.code === code; })[0]; return t ? t.libelle : code || ''; }
 
@@ -90,6 +94,11 @@
         st.demandes[d.id] = { id: d.id, par: e.by, nom: d.nom || '', le: e.at, salle: d.salle, ref: d.ref, debut: d.debut, fin: d.fin, titre: d.titre || '', service: d.service || '',
           motif: d.motif || '', genre: d.genre || 'simple', conflits: Array.isArray(d.conflits) ? d.conflits : [], validation: !!d.validation, statut: 'ouverte', retiree: false };
         break;
+      case 'SALLE_REFLET':
+        // Dernier relevé des occupations d'un autre module (salle, horaires, auteur ; jamais l'objet) : remplace le précédent
+        if (REFLETS.indexOf(d.module) < 0 || !Array.isArray(d.occupations)) break;
+        st.reflets[d.module] = { du: d.du || '', au: d.au || '', le: e.at, par: e.by, occupations: contenuReflet(d.occupations) };
+        break;
       case 'SALLE_DECISION':
         x = st.demandes[d.demande];
         if (!x || x.statut !== 'ouverte') break;
@@ -108,7 +117,7 @@
     }
   }
   function reduire(evts) {
-    return N.reduire(evts, { cle: 'salles', etat: function () { return { salles: {}, prets: {}, fermetures: {}, reservations: {}, demandes: {}, attributions: {}, avis: [] }; }, appliquer: appliquer });
+    return N.reduire(evts, { cle: 'salles', etat: function () { return { salles: {}, prets: {}, fermetures: {}, reservations: {}, demandes: {}, attributions: {}, avis: [], reflets: {} }; }, appliquer: appliquer });
   }
 
   // ------------------------------------------------------------ Salles, accès, gestion
@@ -146,6 +155,32 @@
     if (s.service === service) return { ok: true };
     if (commune(s) && (!(s.services || []).length || s.services.indexOf(service) >= 0)) return { ok: true };
     return { ok: false, raison: 'salle de ' + ls(s.service) };
+  }
+
+  // ------------------------------------------------------------ Relevé des autres plannings (« occupé »)
+  /**
+   * Contenu d'un relevé : occupations d'un autre module réduites à la salle, aux horaires, au service et à l'auteur
+   * (l'objet de l'événement, les patients et le médecin ne sont jamais recopiés), triées par référence.
+   */
+  function contenuReflet(sources) {
+    return (sources || []).filter(function (o) { return o && typeof o.ref === 'string' && /^[a-z]+\|/.test(o.ref) && o.salle && o.fin > o.debut; })
+      .map(function (o) { var y = { ref: o.ref, salle: String(o.salle), debut: +o.debut, fin: +o.fin, service: o.service || '', par: o.par || '' }; if (o.genre === 'ferme') y.genre = 'ferme'; return y; })
+      .sort(function (a, b) { return a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : 0; });
+  }
+  /** Occupations du relevé d'un module sur [debut, fin[, à joindre aux sources quand l'agent n'a pas la clé du module. */
+  function reflet(st, module, debut, fin) {
+    var r = st && st.reflets && st.reflets[module];
+    if (!r) return [];
+    return r.occupations.filter(function (o) { return o.debut < fin && o.fin > debut; }).map(function (o) {
+      return { ref: o.ref, salle: o.salle, debut: o.debut, fin: o.fin, service: o.service, par: o.par, genre: o.genre === 'ferme' ? 'ferme' : 'occupe', titre: o.genre === 'ferme' ? 'Travaux' : 'Occupé', reflet: module };
+    });
+  }
+  /** Le relevé enregistré diffère-t-il des occupations actuelles (comparées à partir de `debut`) ? */
+  function refletChange(st, module, sources, debut) {
+    var r = st && st.reflets && st.reflets[module], neuf = contenuReflet(sources);
+    if (!r) return neuf.length > 0;
+    var ancien = r.occupations.filter(function (o) { return o.fin > debut; });
+    return JSON.stringify(ancien) !== JSON.stringify(neuf.filter(function (o) { return o.fin > debut; }));
   }
 
   // ------------------------------------------------------------ Occupations
@@ -272,6 +307,12 @@
       if (!d.validation && !texte(d.motif)) throw new Error('Indiquez le motif de la demande.');
       return;
     }
+    if (type === 'SALLE_REFLET') {
+      if (REFLETS.indexOf(d.module) < 0) throw new Error('Planning inconnu.');
+      if (!Array.isArray(d.occupations) || d.occupations.length > 5000) throw new Error('Relevé mal formé.');
+      if (!JOUR.test(d.du || '') || !JOUR.test(d.au || '')) throw new Error('Période du relevé invalide.');
+      return;
+    }
     if (type === 'SALLE_DECISION') {
       var dm = st.demandes[d.demande];
       if (!dm || dm.statut !== 'ouverte') throw new Error('Demande déjà traitée.');
@@ -299,11 +340,12 @@
   // ------------------------------------------------------------ Droits et contrat
   var ACCES = [
     { code: 'salles.consulter', libelle: 'Consulter le planning des salles et bureaux', types: [] },
-    { code: 'salles.reserver', libelle: 'Réserver une salle, demander une salle prise (arbitrage)', types: ['SALLE_RESERVATION', 'SALLE_DEMANDE'] },
+    { code: 'salles.reserver', libelle: 'Réserver une salle, demander une salle prise (arbitrage)', types: ['SALLE_RESERVATION', 'SALLE_DEMANDE', 'SALLE_REFLET'] },
     { code: 'salles.gerer', libelle: 'Gérer les salles du service : liste, fermetures, prêts, arbitrage des demandes', types: ['SALLE', 'SALLE_PRET', 'SALLE_FERMETURE', 'SALLE_DECISION'] }
   ];
   // Droits proposés (décision du porteur du 11 novembre 2026) : IDE, AS, secrétaires et cadres réservent ; le cadre gère et arbitre
-  var DROITS = { IDE: ['SALLE_RESERVATION', 'SALLE_DEMANDE'], AS: ['SALLE_RESERVATION', 'SALLE_DEMANDE'], SECRETAIRE: ['SALLE_RESERVATION', 'SALLE_DEMANDE'], CADRE: TYPES.slice() };
+  var R = ['SALLE_RESERVATION', 'SALLE_DEMANDE', 'SALLE_REFLET'];
+  var DROITS = { IDE: R, AS: R, SECRETAIRE: R, CADRE: TYPES.slice() };
   var D = Droits.creer({
     roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
     ongletsMasquables: [], rolesJournalComplet: ['CADRE'], module: 'salles', rolesEncadrement: ['CADRE'],
@@ -342,5 +384,5 @@
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, GENRES: GENRES, TYPES_SALLE_DEFAUT: TYPES_SALLE_DEFAUT,
     options: options, libType: libType, repetition: repetition, couvre: couvre, sallesActives: sallesActives, sallesDuService: sallesDuService, commune: commune, gere: gere,
     acces: acces, pretDuJour: pretDuJour, occupations: occupations, conflits: conflits, disponibilite: disponibilite, libres: libres, aArbitrer: aArbitrer, avisPour: avisPour,
-    salleDe: salleDe, demandeDe: demandeDe, controler: controler, controlerCadre: controlerCadre, jourISO: jourISO, depuisISO: depuisISO, plusJours: plusJours, instant: instant, hm: hm };
+    salleDe: salleDe, demandeDe: demandeDe, REFLETS: REFLETS, contenuReflet: contenuReflet, reflet: reflet, refletChange: refletChange, controler: controler, controlerCadre: controlerCadre, jourISO: jourISO, depuisISO: depuisISO, plusJours: plusJours, instant: instant, hm: hm };
 });
