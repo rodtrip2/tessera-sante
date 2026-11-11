@@ -417,23 +417,31 @@
     var iep = h('input', { type: 'text', value: x.iep || '' }), entree = h('input', { type: 'date', value: x.entree || new Date().toISOString().slice(0, 10) });
     var sortie = h('input', { type: 'date', value: x.sortie || '' });
     var sv = h('select', {}, U.services().map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === (x.service || p.service) }); }));
-    var chambre = h('input', { type: 'text', value: x.chambre || '', placeholder: 'ex. 412' }), lit = h('input', { type: 'text', value: x.lit || '', placeholder: 'ex. U, P, F' });
+    // Chambre et lit choisis dans la liste du service (0.29.0) ; sans liste réglée, texte libre comme avant
+    var litSel = U.chambres.selecteurLit(x.service || p.service, x.chambre, x.lit, p.id);
+    sv.addEventListener('change', function () { litSel.service(sv.value); });
     U.modale((sj ? 'Séjour' : 'Nouveau séjour') + ' — ' + (p.nom || '') + ' ' + (p.prenom || ''), h('div', { class: 'pile' },
       h('div', { class: 'grille-2' }, h('label', {}, 'Numéro de séjour (IEP, facultatif)', iep), h('label', {}, 'Unité', sv)),
       h('div', { class: 'grille-2' }, h('label', {}, 'Entrée', entree), h('label', {}, 'Sortie (vide : séjour en cours)', sortie)),
-      h('div', { class: 'grille-2' }, h('label', {}, 'Chambre', chambre), h('label', {}, 'Lit', lit)),
+      litSel.noeud,
+      x.mouvements && x.mouvements.length > 1 ? h('details', {}, h('summary', { text: 'Lits successifs (' + x.mouvements.length + ')' }), h('ul', { class: 'liste-simple' }, x.mouvements.map(function (m) { return h('li', { text: SIC.chambres.libelle(m.chambre, m.lit) + ' — depuis le ' + U.date(Date.parse(m.du)).slice(0, 10) }); }))) : null,
       !sj && P.sejourEnCours(p) ? h('p', { class: 'alerte', text: 'Un séjour est déjà en cours (entrée le ' + jj(P.sejourEnCours(p).entree) + ') : indiquez sa date de sortie s’il est terminé.' }) : null), [
       { texte: 'Annuler' },
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         if (!entree.value) throw new Error('Indiquez la date d’entrée.');
         if (sortie.value && sortie.value < entree.value) throw new Error('La sortie ne peut pas précéder l’entrée.');
         var d = { patientId: p.id, sejourId: x.id || 'S' + C.hex(C.aleatoire(4)) }, ch = 0;
-        [['iep', iep.value.trim()], ['entree', entree.value], ['sortie', sortie.value], ['service', sv.value], ['chambre', chambre.value.trim()], ['lit', lit.value.trim().toUpperCase()]].forEach(function (v) {
+        var lv = litSel.valeur();
+        [['iep', iep.value.trim()], ['entree', entree.value], ['sortie', sortie.value], ['service', sv.value], ['chambre', lv.chambre], ['lit', lv.lit]].forEach(function (v) {
           if ((x[v[0]] || '') !== v[1]) { d[v[0]] = v[1]; ch++; }
         });
         if (!ch) return true;
-        await U.App.session.enregistrer('SEJOUR', d);
-        U.toast('Séjour enregistré.');
+        // Un lit occupé : déplacement de l'autre patient proposé, en cascade (sortie du séjour : aucun déplacement)
+        if (sortie.value) { await U.App.session.enregistrer('SEJOUR', d); U.toast('Séjour enregistré.'); return; }
+        if (d.chambre !== undefined || d.lit !== undefined) { d.chambre = lv.chambre; d.lit = lv.lit; }
+        var n = await U.chambres.enregistrerSejour(d, sv.value);
+        if (n === false) return false;
+        U.toast(n > 1 ? 'Séjour et ' + (n - 1) + ' déplacement(s) enregistrés.' : 'Séjour enregistré.');
       } }]);
   }
 

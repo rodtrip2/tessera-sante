@@ -258,6 +258,7 @@
     capacites: {},         // capacité d'accueil par service (capacites.js, 0.18.2) : lits, fermetures et réservations datées
     vuesEnsemble: {},      // module Vue d'ensemble (0.19.0) : vues de l'établissement et des services
     psychologues: { liste: [] },   // liste commune des psychologues (medecins.js, 0.20.0), mêmes réglages que les médecins
+    chambres: {},          // chambres et lits par service, CSI, autres pièces, plan (0.29.0)
     poles: [],             // pôles : regroupements de services (0.27.2)
     infos: {},             // informations du service : pièces jointes (désactivées par défaut), taille maximale (0.26.2)
     salles: {},            // salles et bureaux : plage affichée, horaires des demi-journées des présences, par service (0.25.0)
@@ -2073,6 +2074,7 @@
     { code: 'psychologues', libelle: 'Liste commune des psychologues', cles: ['psychologues'] },
     { code: 'infos', libelle: 'Informations du service : pièces jointes', cles: ['infos'] },
     { code: 'poles', libelle: 'Pôles (regroupements de services)', cles: ['poles'] },
+    { code: 'chambres', libelle: 'Chambres, lits et plan des services', cles: ['chambres'] },
     { code: 'salles', libelle: 'Salles et bureaux : plage affichée, horaires des présences, nom sur les occupations des autres plannings', cles: ['salles'] },
     { code: 'messagerie', libelle: 'Messagerie : onglet Informations, pièces jointes, conservation, durée d’affichage', cles: ['messagerie'] },
     { code: 'travaux', libelle: 'Demandes de travaux : types, lieux, gravités, urgences, délai d’affichage, numéro des services techniques', cles: ['travaux'] },

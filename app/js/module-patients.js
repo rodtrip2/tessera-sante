@@ -82,7 +82,11 @@
         ps.sejours = ps.sejours || [];
         var sj = ps.sejours.filter(function (x) { return x.id === d.sejourId; })[0];
         if (!sj) { sj = { id: d.sejourId }; ps.sejours.push(sj); }
+        // Historique des lits (0.29.0) : chaque changement de chambre ou de lit est gardé, daté
+        var avantLit = sj.chambre === undefined && sj.lit === undefined ? null : (sj.chambre || '') + '|' + (sj.lit || '');
         ['iep', 'entree', 'sortie', 'service', 'chambre', 'lit'].forEach(function (k) { if (d[k] !== undefined) sj[k] = d[k]; });
+        if ((d.chambre !== undefined || d.lit !== undefined) && (sj.chambre || '') + '|' + (sj.lit || '') !== avantLit && (sj.chambre || sj.lit))
+          (sj.mouvements = sj.mouvements || []).push({ du: e.at, chambre: sj.chambre || '', lit: sj.lit || '', par: e.by });
         // Sortie prévisionnelle (0.18.0, décision du porteur du 9 novembre 2026) : date ou période, précision courte ;
         // chaque changement est gardé, daté
         if (d.sortiePrevue !== undefined) {
@@ -137,6 +141,15 @@
 
   // ------------------------------------------------------------ Réglages écrits par le cadre (0.18.0)
   /** Données ajoutées : le cadre règle celles de ses services (champs.js, controlerCadre) ; contrôle de la liste entière. */
+  /** Chambres et lits (0.29.0) : le cadre règle la liste de ses services, l'administrateur toutes. */
+  function cadreChambres(ancien, nouveau, compte) {
+    var roles = (compte && compte.roles) || [], sv = (compte && compte.services) || [];
+    if (roles.indexOf('ADMIN') >= 0) return true;
+    if (roles.indexOf('CADRE') < 0 || !nouveau || typeof nouveau !== 'object' || Array.isArray(nouveau)) return false;
+    var a = ancien || {}, cles = {};
+    Object.keys(a).concat(Object.keys(nouveau)).forEach(function (k) { cles[k] = 1; });
+    return Object.keys(cles).every(function (k) { return JSON.stringify(a[k]) === JSON.stringify(nouveau[k]) || sv.indexOf(k) >= 0; });
+  }
   function cadreChamps(ancien, nouveau, compte) {
     try { CH.controlerListe(ancien, nouveau); return CH.controlerCadre(ancien, nouveau, compte); } catch (e) { return false; }
   }
@@ -203,7 +216,7 @@
       reduire: reduire
     },
     // Réglages que le cadre écrit pour ses services (contrôle appelé par la session avant l'enregistrement)
-    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { champsAjoutes: cadreChamps, reglagesDonnees: cadreReglagesDonnees, capacites: cadreCapacites, largeursColonnes: cadreLargeurs, intervenants: cadreIntervenants } },
+    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { chambres: cadreChambres, champsAjoutes: cadreChamps, reglagesDonnees: cadreReglagesDonnees, capacites: cadreCapacites, largeursColonnes: cadreLargeurs, intervenants: cadreIntervenants } },
     // Fenêtre du module Patients (décision du porteur du 7 novembre 2026) : liste réglable des patients (ui-liste-patients.js)
     vues: { onglets: [{ code: 'fiches', libelle: 'Liste des patients' }] },
     migrations: [],

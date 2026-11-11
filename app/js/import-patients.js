@@ -176,6 +176,16 @@
       } else if (options.service) v.service = options.service;
       if (!v.nom) { r.statut = 'erreur'; r.erreurs.push('nom absent'); res.push(r); return; }
       if (v.service) services[v.service] = true;
+      // Lits existants (0.29.0) : chambre et lit de l'export rattachés à la liste du service (correspondance mémorisée,
+      // sinon reconnaissance « 417 P », « 417P »…) ; un lit non reconnu est signalé pour être rattaché à la main
+      var K = (typeof self !== 'undefined' && self.SIC && self.SIC.chambres) || null;
+      if (K && options.config && v.service && (v.chambre || v.lit) && K.liste(options.config, v.service)) {
+        var brut = K.cle(v.chambre || '', v.lit || ''), cor = (modele.lits || {})[v.service + '|' + brut], t = null;
+        if (cor && cor !== '__garder') t = { chambre: cor.split('|')[0], lit: cor.split('|')[1] || '' };
+        else if (!cor) t = K.trouver(options.config, v.service, v.chambre, v.lit);
+        if (t) { v.chambre = t.chambre; v.lit = t.lit; }
+        else if (cor !== '__garder') r.litInconnu = { service: v.service, brut: brut, libelle: K.libelle(v.chambre || '', v.lit || '') };
+      }
       // Fiche du patient : IPP, puis numéro de séjour, puis doublons possibles (confirmation)
       var f = null;
       if (v.ipp) f = liste.filter(function (x) { return x.ipp === v.ipp; })[0] || null;
@@ -270,15 +280,15 @@
 
   /** Modèle d'import à mémoriser (sans aucune donnée de patient : noms des colonnes et correspondances). */
   function modeleAMemoriser(m) {
-    return { colonnes: Object.assign({}, m.colonnes), unites: Object.assign({}, m.unites || {}), sexes: Object.assign({}, m.sexes || {}) };
+    return { colonnes: Object.assign({}, m.colonnes), unites: Object.assign({}, m.unites || {}), sexes: Object.assign({}, m.sexes || {}), lits: Object.assign({}, m.lits || {}) };
   }
   /** Modèle mémorisé appliqué à un fichier : en-têtes retrouvés par leur nom, ligne d'en-tête redevinée. */
   function appliquerModele(lignes, memorise) {
     var g = deviner(lignes);
-    if (!memorise) return { entete: g.entete, colonnes: g.colonnes, unites: {}, sexes: {} };
+    if (!memorise) return { entete: g.entete, colonnes: g.colonnes, unites: {}, sexes: {}, lits: {} };
     var colonnes = {};
     CHAMPS.forEach(function (c) { var e = memorise.colonnes && memorise.colonnes[c.cle]; colonnes[c.cle] = e && g.entetes.indexOf(e) >= 0 ? e : (e === null ? null : g.colonnes[c.cle]); });
-    return { entete: g.entete, colonnes: colonnes, unites: Object.assign({}, memorise.unites || {}), sexes: Object.assign({}, memorise.sexes || {}) };
+    return { entete: g.entete, colonnes: colonnes, unites: Object.assign({}, memorise.unites || {}), sexes: Object.assign({}, memorise.sexes || {}), lits: Object.assign({}, memorise.lits || {}) };
   }
 
   return {
