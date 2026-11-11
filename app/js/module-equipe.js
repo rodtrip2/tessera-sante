@@ -14,7 +14,7 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre) {
   'use strict';
 
-  var TYPES = ['COORDONNEES', 'COORDONNEES_MEDECIN', 'REFERENTS', 'DOMAINE_REFERENT'];
+  var TYPES = ['COORDONNEES', 'COORDONNEES_MEDECIN', 'REFERENTS', 'DOMAINE_REFERENT', 'VALEUR_SOI'];
   var ETABLISSEMENT = '*';
   // Domaines de référence proposés (décision du porteur du 11 novembre 2026), complétés ou masqués par le cadre et l'administrateur
   var DOMAINES_DEFAUT = [['plaies', 'Plaies et escarres'], ['pharmacie', 'Pharmacie'], ['libertes', 'Restriction des libertés (isolement, contention)'], ['hygiene', 'Hygiène'],
@@ -45,13 +45,16 @@
       var pers = function (l) { return (Array.isArray(l) ? l : []).filter(function (p) { return p && p.id; }).slice(0, 10).map(function (p) { return { id: String(p.id), nom: texte(p.nom, 80) }; }); };
       st.referents[d.service + '|' + d.domaine] = { service: d.service, domaine: d.domaine, titulaires: pers(d.titulaires), suppleants: pers(d.suppleants), precision: texte(d.precision, 160), le: e.at, par: e.by };
     }
+    // Valeur d'une donnée ajoutée d'agent ouverte à l'agent lui-même (0.28.0) : enveloppe pour la clé propre de la donnée
+    // (`d-<champ>`, ses rôles lecteurs) et la clé de liste de l'agent (`t-a.<agent>`)
+    if (e.type === 'VALEUR_SOI' && d.champ && d.agent) st.soi[d.agent + '|' + d.champ] = { champ: d.champ, agent: d.agent, env: enveloppe(d.env), le: e.at, par: e.by };
     if (e.type === 'COORDONNEES_MEDECIN' && d.medecin) {
       x = st.medecins[d.medecin] || (st.medecins[d.medecin] = { medecin: d.medecin, perso: null });
       if (d.perso !== undefined) x.perso = enveloppe(d.perso);
       x.le = e.at; x.par = e.by;
     }
   }
-  function reduire(evts) { return N.reduire(evts, { cle: 'equipe', etat: function () { return { agents: {}, medecins: {}, domaines: {}, referents: {} }; }, appliquer: appliquer }); }
+  function reduire(evts) { return N.reduire(evts, { cle: 'equipe', etat: function () { return { agents: {}, medecins: {}, domaines: {}, referents: {}, soi: {} }; }, appliquer: appliquer }); }
 
   // ------------------------------------------------------------ Lecture
   function fiche(st, agent) { return (st && st.agents && st.agents[agent]) || { agent: agent, telPro: '', mailPro: '', fonction: '', perso: null, accord: false }; }
@@ -122,6 +125,15 @@
       if (d.accord !== undefined && c.id !== d.agent && r.indexOf('ADMIN') < 0) throw new Error('Seul l’agent donne ou retire son accord.');
       return;
     }
+    if (type === 'VALEUR_SOI') {
+      var CH = (typeof self !== 'undefined' && self.SIC && self.SIC.champs) || null, def = CH ? CH.definition(ctx.config || {}, d.champ) : null;
+      if (!d.agent || !d.champ || !enveloppe(d.env)) throw new Error('Valeur mal formée.');
+      if (!def || def.entite !== 'agent') throw new Error('Donnée d’agent inconnue.');
+      if (c.id === d.agent) { if (def.soi !== 'ecriture') throw new Error('« ' + def.libelle + ' » ne se modifie pas par l’agent lui-même.'); return; }
+      if (!def.soi) throw new Error('« ' + def.libelle + ' » n’est pas ouverte à l’agent.');
+      if (r.indexOf('ADMIN') < 0 && !r.some(function (x) { return (def.saisie || []).indexOf(x) >= 0; })) throw new Error('Vous ne modifiez pas « ' + def.libelle + ' ».');
+      return;
+    }
     if (type === 'REFERENTS' || type === 'DOMAINE_REFERENT') {
       if (!d.service) throw new Error('Indiquez le service.');
       if (!gereReferents(c, d.service)) throw new Error(d.service === ETABLISSEMENT ? 'Seul l’administrateur tient les référents de l’établissement.' : 'Seul le cadre du service (ou l’administrateur) tient ses référents.');
@@ -135,7 +147,15 @@
     }
   }
   /** L'agent tient sa propre fiche sans accès particulier. */
-  function permisPourSoi(type, data, compte) { return type === 'COORDONNEES' && !!compte && !!data && data.agent === compte.id; }
+  function permisPourSoi(type, data, compte, ctx) {
+    if (!compte || !data) return false;
+    if (type === 'COORDONNEES') return data.agent === compte.id;
+    if (type !== 'VALEUR_SOI') return false;
+    if (data.agent === compte.id) return true;
+    // Copie pour l'agent écrite par un rôle qui modifie la donnée (le contrôle vérifie le réglage)
+    var CH = (typeof self !== 'undefined' && self.SIC && self.SIC.champs) || null, def = CH && ctx ? CH.definition(ctx.config || {}, data.champ) : null;
+    return !!def && (compte.roles || []).some(function (r) { return (def.saisie || []).indexOf(r) >= 0; });
+  }
 
   var ACCES = [
     { code: 'equipe.consulter', libelle: 'Consulter l’annuaire de l’équipe (coordonnées professionnelles)', types: [] },

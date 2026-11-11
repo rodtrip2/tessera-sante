@@ -300,6 +300,9 @@ with sync_playwright() as p:
     verifier('Agent A' in a.locator('section.panneau', has_text='Référents — Unité 1').locator('tbody tr', has_text='Pharmacie').inner_text(), 'référents : référent ajouté par le cadre')
     a.locator('nav.onglets button', has_text='Ma fiche').click(); time.sleep(1.5)
     verifier(a.get_by_label('Téléphone personnel').input_value() == '06 00 00 00 02', 'ma fiche : coordonnées personnelles relues')
+    time.sleep(0.8)
+    verifier(a.get_by_label('Taille de tenue').input_value() == 'M', 'ma fiche : donnée ajoutée ouverte à l’agent lui-même (lecture et écriture)')
+    capture(a, 'equipe-ma-fiche')
     a.locator('nav.onglets button', has_text='Médecins').click(); time.sleep(1.5)
     verifier('06 00 00 00 10' in a.locator('main tbody tr', has_text='Arnaud').inner_text(), 'médecins : numéro personnel lu par le cadre')
     capture(a, 'equipe-medecins')
@@ -307,6 +310,12 @@ with sync_playwright() as p:
     a.locator('.is-rubrique', has_text='Coordonnées du service').locator('.eq-lien').first.click(); time.sleep(1)
     verifier(a.locator('dialog[open]', has_text='Téléphone professionnel').count() == 1, 'informations : nom d’un contact relié à un compte, fiche de contact d’un clic')
     verifier(a.locator('.is-rubrique', has_text='tenus dans la fenêtre Équipe').count() >= 1, 'informations : référents repris automatiquement')
+    a.keyboard.press('Escape'); time.sleep(0.3)
+
+    print('Vue d’ensemble : fiche du patient d’un clic (0.28.0)')
+    fenetre(a, 'Vue d’ensemble'); time.sleep(1)
+    a.locator('td.patient button.lien').first.click(); time.sleep(1)
+    verifier(a.locator('dialog[open]', has_text='Séjours').count() == 1 or a.locator('dialog[open]', has_text='Fiche patient').count() == 1, 'vue d’ensemble : un clic sur un patient ouvre sa fiche')
     a.keyboard.press('Escape'); time.sleep(0.3)
 
     print('Informations du service (0.26.2)')
