@@ -400,6 +400,12 @@
    * en cas d'échec (droits du partage…), le fichier est téléchargé sur le poste, avec un avertissement.
    */
   async function exporter(categorie, nom, contenu, type, options) {
+    // Tableau trié à l'écran (0.26.0) : l'agent choisit l'ordre des lignes du CSV, si la colonne triée y figure
+    if (typeof contenu === 'string' && /\.csv$/i.test(nom) && App.trisActifs.length && SIC.tri.enteteCsv(SIC.tri.lireCsv(contenu), App.trisActifs[0].titre)) {
+      var ordre = await choisirOrdre('Exporter');
+      if (!ordre) return null;
+      if (ordre === 'ecran') contenu = SIC.tri.ordonnerCsv(contenu, App.trisActifs[0]);
+    }
     var octets = typeof contenu === 'string' ? new TextEncoder().encode(contenu) : contenu;
     try {
       var chemin = await App.session.exporter(categorie, nom, octets, options);
@@ -553,7 +559,7 @@
   function chargerPreferences() {
     var s = App.session;
     if (!s || !s.lirePreferences) return;
-    s.lirePreferences().then(function (p) { if (p && p.theme) appliquerTheme(p.theme); }).catch(function () { /* thème du poste */ });
+    s.lirePreferences().then(function (p) { if (p && p.theme) appliquerTheme(p.theme); if (p && p.affichage) appliquerAffichage(affichageActuel()); if (p && (p.tris || p.affichage)) rendreContenu(); }).catch(function () { /* thème du poste */ });
   }
 
   /** Purge automatique des exports (règle de l'administrateur), une fois par jour et par poste. */
@@ -694,6 +700,11 @@
   function ecranApplication() {
     zoneEntete = h('header', { class: 'entete' });
     zoneContenu = h('main', { id: 'contenu' });
+    // Tableaux affichés après coup (lectures du journal, vues recalculées) : tri et filtre activés à leur arrivée
+    if (typeof MutationObserver !== 'undefined') {
+      var attente = null;
+      new MutationObserver(function () { if (!attente) attente = setTimeout(function () { attente = null; try { activerTris(zoneContenu); } catch (e) { /* tri : sans conséquence */ } }, 60); }).observe(zoneContenu, { childList: true, subtree: true });
+    }
     var frag = h('div', {}, zoneEntete, zoneContenu);
     rendreContenu();
     return frag;
@@ -736,6 +747,7 @@
     var pos = memeVue ? { x: window.scrollX, y: window.scrollY, h: zoneContenu.offsetHeight, zones: Array.prototype.map.call(zoneContenu.querySelectorAll('.table-wrap, .apercu-document, .apercu-registre'), function (z) { return [z.scrollLeft, z.scrollTop]; }) } : null;
     rendreContenuBrut();
     try { activerLargeurs(zoneContenu); } catch (e) { /* largeurs : sans conséquence sur l'affichage */ }
+    try { activerTris(zoneContenu); } catch (e) { console.warn('Tri des tableaux :', e.message); }
     vueAffichee = App.onglet + '|' + App.service + (estOngletAdmin(App.onglet) ? '|' + App.sousOngletAdmin : '');
     App.miseAJourEnAttente = false; signalerAttente();
     if (pos) {
@@ -810,7 +822,7 @@
       s.utilisateur.id !== 'secours' ? h('button', { class: 'btn petit', onclick: modaleMonMotDePasse }, 'Mot de passe') : null,
       anonyme ? null : h('button', { class: 'btn petit', title: 'Fichiers exportés (décomptes, registres, statistiques…)', onclick: modaleExports }, 'Exports'),
       SIC.ui.horsReseau.boutonInstaller(),
-      boutonTheme(),
+      boutonAffichage(), boutonTheme(),
       h('button', { class: 'btn petit', title: 'Licence, crédits, signaler un problème', onclick: function () { SIC.ui.apropos.modale(); } }, 'À propos'),
       h('button', { class: 'btn petit', onclick: function () { verrouiller(); } }, 'Verrouiller')));
     zoneEntete.appendChild(h('div', { id: 'actualisation-attente', class: 'actualisation-attente', hidden: !App.miseAJourEnAttente },
@@ -1558,6 +1570,9 @@
     setTimeout(function () { window.print(); }, 60);
   }
   async function imprimer(noeud) {
+    var ordre = App.trisActifs.length ? await choisirOrdre('Imprimer') : 'origine';
+    if (!ordre) return;
+    if (ordre === 'ecran') trierDocument(noeud);
     var nb = await choisirImpression();
     if (nb === null) return;
     var zone = document.getElementById('zone-impression') || document.body.appendChild(h('div', { id: 'zone-impression' }));
@@ -1567,8 +1582,14 @@
   }
   /** Impression de la page affichée (aperçus du registre, des statistiques…), après le choix couleur / noir et blanc. */
   async function imprimerPage() {
+    var ordre = App.trisActifs.length ? await choisirOrdre('Imprimer') : 'origine';
+    if (!ordre) return;
     var nb = await choisirImpression();
-    if (nb !== null) lancerImpression(nb);
+    if (nb === null) return;
+    // Ordre d'origine : lignes remises dans leur ordre le temps de l'impression, puis tri de l'écran rétabli
+    var tris = ordre === 'origine' ? App.trisActifs.slice() : [];
+    tris.forEach(function (t) { trierTable(t.table, -1, 0); });
+    lancerImpression(nb, function () { tris.forEach(function (t) { var idx = Array.prototype.map.call(t.table.tHead.rows[0].cells, function (c) { return SIC.tri.codeTitre(titreCase(c)); }).indexOf(t.col); trierTable(t.table, idx, t.sens); }); });
   }
 
   // ================================================================ Largeur des colonnes (0.20.0)
@@ -1650,6 +1671,199 @@
     });
   }
 
+  // ================================================================ Tri et filtre des tableaux, affichage (0.26.0)
+  /*
+   * Lot A, décisions du porteur du 11 novembre 2026 : un clic sur le titre d'une colonne trie le tableau (croissant,
+   * décroissant, ordre d'origine), tri retenu dans les préférences de l'agent ; l'ordre réglé de la Vue d'ensemble
+   * reste le réglage commun (le tri de l'agent ne vaut que pour lui) ; à l'export et à l'impression, l'agent choisit
+   * l'ordre affiché ou l'ordre d'origine. Filtre rapide au-dessus des longs tableaux. Tableaux à l'ordre voulu (grilles,
+   * documents officiels, tableaux qui ont leur propre tri, `sans-tri`) écartés.
+   */
+  var EXCLUS_TRI = 'grille-agenda, planning-vehicules, grille-presences, agenda-grille, semaine-agenda, sans-tri'.split(', ');
+  var LIGNES_FILTRE = 12;
+  App.trisActifs = []; App.filtres = {};
+  function texteCase(c) { return c ? (c.getAttribute('data-tri') || c.textContent || '') : ''; }
+  function titreCase(th) { var c = th.cloneNode(true); Array.prototype.forEach.call(c.querySelectorAll('.tri-fleche, .poignee-largeur, button'), function (x) { x.remove(); }); return (c.textContent || '').trim(); }
+  function tableTriable(table) {
+    if (!table.tHead || table.tHead.rows.length !== 1 || !table.tBodies.length || table.closest('dialog, .apercu-registre, .apercu-document, .document-jld')) return false;
+    if (EXCLUS_TRI.some(function (c) { return table.classList.contains(c); })) return false;
+    var ligne = table.tHead.rows[0];
+    if (Array.prototype.some.call(ligne.cells, function (c) { return c.colSpan > 1 || c.hasAttribute('aria-sort') || c.querySelector('button.tri, select, input'); })) return false;
+    var n = ligne.cells.length, donnees = 0;
+    for (var b = 0; b < table.tBodies.length; b++) for (var r = 0; r < table.tBodies[b].rows.length; r++) {
+      var tr = table.tBodies[b].rows[r];
+      if (Array.prototype.some.call(tr.cells, function (c) { return c.rowSpan > 1; })) return false;
+      if (estDonnee(tr, n)) donnees++;
+    }
+    return donnees >= 2;
+  }
+  /** Ligne de données : pas de case fusionnée (une ligne de groupe ou de détail occupe la largeur du tableau). */
+  function estDonnee(tr, n) { return tr.cells.length >= Math.min(n, 2) && !Array.prototype.some.call(tr.cells, function (c) { return c.colSpan > 1; }); }
+  /** Lignes de données et séparateurs (lignes de groupe) d'un corps de tableau. */
+  function segments(tb, n) {
+    var res = [[]], seps = [];
+    Array.prototype.forEach.call(tb.rows, function (tr, i) {
+      if (tr._ordre === undefined) tr._ordre = i;
+      if (estDonnee(tr, n)) res[res.length - 1].push(tr); else { seps.push(tr); res.push([]); }
+    });
+    return { lignes: res, seps: seps };
+  }
+  function trierTable(table, idx, sens) {
+    var n = table.tHead.rows[0].cells.length;
+    Array.prototype.forEach.call(table.tBodies, function (tb) {
+      var sg = segments(tb, n), ordre = [];
+      sg.lignes.forEach(function (ls, k) {
+        if (k > 0) ordre.push(sg.seps[k - 1]);
+        ordre = ordre.concat(sens ? SIC.tri.trier(ls, function (tr) { return texteCase(tr.cells[idx]); }, sens) : ls.slice().sort(function (a, b) { return a._ordre - b._ordre; }));
+      });
+      ordre.forEach(function (tr) { tb.appendChild(tr); });
+    });
+  }
+  function marquerTri(table, idx, sens) {
+    Array.prototype.forEach.call(table.tHead.rows[0].cells, function (th, i) {
+      var f = th.querySelector('.tri-fleche');
+      if (!th.classList.contains('triable')) return;
+      th.setAttribute('aria-sort', i === idx && sens ? (sens === 1 ? 'ascending' : 'descending') : 'none');
+      if (f) f.textContent = i === idx && sens ? (sens === 1 ? ' ▲' : ' ▼') : '';
+    });
+  }
+  function filtrerTable(table, texte, compteur) {
+    var n = table.tHead.rows[0].cells.length, vus = 0, total = 0;
+    Array.prototype.forEach.call(table.tBodies, function (tb) {
+      var sg = segments(tb, n);
+      sg.lignes.forEach(function (ls, k) {
+        var visibles = 0;
+        ls.forEach(function (tr) { var ok = SIC.tri.correspond(tr.textContent, texte); tr.hidden = !ok; total++; if (ok) { vus++; visibles++; } });
+        if (k > 0) sg.seps[k - 1].hidden = !!texte && !visibles;
+      });
+    });
+    if (compteur) compteur.textContent = texte ? vus + ' ligne' + (vus > 1 ? 's' : '') + ' sur ' + total : '';
+  }
+  function activerTris(zone) {
+    App.trisActifs = App.trisActifs.filter(function (x) { return document.body.contains(x.table); });
+    if (!zone || !SIC.tri || !App.session || !App.session.utilisateur) return;
+    var s = App.session, prefs = SIC.tri.preference((s.preferences || {}).tris), vus = {}, rechercheEcran = !!zone.querySelector('input[type="search"]:not(.filtre-tableau)');
+    Array.prototype.forEach.call(zone.querySelectorAll('table'), function (table) {
+      if (!table._tri && !tableTriable(table)) return;
+      var ligne = table.tHead.rows[0], titres = Array.prototype.map.call(ligne.cells, titreCase);
+      var base = 'tri/' + (App.fenetre || '') + '/' + (App.onglet || '') + '/' + (SIC.tri.codeTitre(titres.filter(Boolean)[0] || 'tableau'));
+      var cle = table.getAttribute('data-tri-cle') || (vus[base] ? base + '#' + (vus[base] + 1) : base);
+      vus[base] = (vus[base] || 0) + 1;
+      if (table._tri) return;   // déjà traité (tableau affiché après coup : observateur ci-dessous)
+      table._tri = true;
+      var actif = null;
+      function appliquer(tri, enregistrer) {
+        var idx = tri ? titres.map(SIC.tri.codeTitre).indexOf(tri.col) : -1;
+        if (tri && idx < 0) tri = null;
+        trierTable(table, idx, tri ? tri.sens : 0); marquerTri(table, idx, tri ? tri.sens : 0);
+        actif = tri;
+        App.trisActifs = App.trisActifs.filter(function (x) { return x.table !== table; });
+        if (tri) App.trisActifs.push({ table: table, cle: cle, col: tri.col, titre: titres[idx], sens: tri.sens });
+        if (enregistrer && !s.apercu) { var nv = SIC.tri.regler((s.preferences || {}).tris, cle, tri); s.preferences = Object.assign({}, s.preferences || {}, { tris: nv }); s.enregistrerPreference('tris', nv).catch(function () { /* tri appliqué sur cet écran seulement */ }); }
+      }
+      Array.prototype.forEach.call(ligne.cells, function (th, i) {
+        if (!titres[i]) return;
+        th.classList.add('triable'); th.tabIndex = 0; th.setAttribute('aria-sort', 'none');
+        if (!th.title) th.title = 'Trier : un clic, ordre croissant ; deux clics, décroissant ; trois clics, ordre d’origine';
+        th.insertBefore(h('span', { class: 'tri-fleche', 'aria-hidden': 'true' }), th.querySelector('.poignee-largeur'));
+        function clic() { appliquer(SIC.tri.suivant(actif, SIC.tri.codeTitre(titres[i])), true); }
+        th.addEventListener('click', function (ev) { if (ev.target !== th && ev.target.closest && ev.target.closest('button, a, input, select, .poignee-largeur')) return; clic(); });
+        th.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); clic(); } });
+      });
+      if (prefs[cle]) appliquer(prefs[cle], false);
+      // Filtre rapide : longs tableaux, sauf si l'écran a déjà sa propre recherche
+      var donnees = 0; Array.prototype.forEach.call(table.tBodies, function (tb) { donnees += Array.prototype.filter.call(tb.rows, function (tr) { return estDonnee(tr, ligne.cells.length); }).length; });
+      if (!rechercheEcran && donnees >= LIGNES_FILTRE && !table.classList.contains('sans-filtre')) {
+        var compteur = h('small', { class: 'muted' });
+        var champ = h('input', { type: 'search', class: 'champ-moyen filtre-tableau', placeholder: 'Filtrer le tableau…', 'aria-label': 'Filtrer le tableau', value: App.filtres[cle] || '' });
+        champ.addEventListener('input', function () { App.filtres[cle] = champ.value; filtrerTable(table, champ.value, compteur); });
+        var avant = table.parentNode && table.parentNode.classList && table.parentNode.classList.contains('table-wrap') ? table.parentNode : table;
+        avant.parentNode.insertBefore(h('div', { class: 'filtre-rapide actions gauche' }, champ, compteur), avant);
+        if (champ.value) filtrerTable(table, champ.value, compteur);
+      }
+    });
+  }
+  /**
+   * Ordre des lignes à l'export ou à l'impression quand un tableau de l'écran est trié : 'ecran', 'origine', ou null
+   * (abandon). Sans tri actif : 'origine' sans rien demander.
+   */
+  function choisirOrdre(titre) {
+    var t = App.trisActifs[0];
+    if (!t) return Promise.resolve('origine');
+    return new Promise(function (resoudre) {
+      var fini = false;
+      modale(titre || 'Ordre des lignes', h('p', { text: 'Le tableau est trié à l’écran (« ' + t.titre + ' », ' + (t.sens === 1 ? 'croissant' : 'décroissant') + '). Dans quel ordre faut-il garder les lignes ?' }), [
+        { texte: 'Annuler' },
+        { texte: 'Ordre d’origine', action: function () { fini = true; resoudre('origine'); } },
+        { texte: 'Ordre affiché à l’écran', classe: 'primaire', action: function () { fini = true; resoudre('ecran'); } }]).then(function () { if (!fini) resoudre(null); });
+    });
+  }
+  /** Applique le tri de l'écran aux tableaux d'un document à imprimer qui ont la colonne triée. */
+  function trierDocument(noeud) {
+    var t = App.trisActifs[0];
+    if (!t || !noeud) return;
+    Array.prototype.forEach.call(noeud.querySelectorAll('table'), function (table) {
+      if (!table.tHead || table.tHead.rows.length !== 1) return;
+      var idx = Array.prototype.map.call(table.tHead.rows[0].cells, function (c) { return SIC.tri.codeTitre(titreCase(c)); }).indexOf(t.col);
+      if (idx >= 0) trierTable(table, idx, t.sens);
+    });
+  }
+
+  // ---------------------------------------------------------------- Taille d'affichage et hauteur des lignes
+  var AFFICHAGE = { taille: [['normale', 'Normale'], ['grande', 'Grande'], ['tres-grande', 'Très grande']], lignes: [['compactes', 'Compactes'], ['normales', 'Normales'], ['aerees', 'Aérées'], ['tres-aerees', 'Très aérées']] };
+  function affichageActuel() {
+    var p = {};
+    try { p = JSON.parse(localStorage.getItem('sic-affichage') || '{}') || {}; } catch (e) { /* stockage indisponible */ }
+    var a = (App.session && App.session.preferences && App.session.preferences.affichage) || p;
+    var ok = function (liste, v, d) { return liste.some(function (x) { return x[0] === v; }) ? v : d; };
+    return { taille: ok(AFFICHAGE.taille, a.taille, 'normale'), lignes: ok(AFFICHAGE.lignes, a.lignes, 'normales') };
+  }
+  function appliquerAffichage(a) {
+    var r = document.documentElement;
+    AFFICHAGE.taille.forEach(function (x) { r.classList.toggle('taille-' + x[0], a.taille === x[0] && x[0] !== 'normale'); });
+    AFFICHAGE.lignes.forEach(function (x) { r.classList.toggle('lignes-' + x[0], a.lignes === x[0] && x[0] !== 'normales'); });
+    try { localStorage.setItem('sic-affichage', JSON.stringify(a)); } catch (e) { /* stockage indisponible */ }
+  }
+  function modaleAffichage() {
+    var a = affichageActuel();
+    function choix(cle, lib) {
+      var sel = h('select', { 'aria-label': lib, onchange: function () { a[cle] = sel.value; appliquerAffichage(a); } }, AFFICHAGE[cle].map(function (x) { return h('option', { value: x[0], text: x[1], selected: a[cle] === x[0] }); }));
+      return h('label', {}, lib, sel);
+    }
+    modale('Affichage', h('div', { class: 'pile' }, h('p', { class: 'muted', text: 'Réglage de votre compte, sur tous les postes. Les impressions gardent leur taille habituelle.' }),
+      choix('taille', 'Taille du texte et des boutons'), choix('lignes', 'Hauteur des lignes des tableaux')),
+    [{ texte: 'Fermer', classe: 'primaire', action: async function () { if (App.session && App.session.utilisateur && !App.session.apercu) { try { await App.session.enregistrerPreference('affichage', a); } catch (e) { toast('Affichage appliqué sur ce poste ; il n’a pas pu être enregistré pour votre compte.'); } } } }]);
+  }
+  try { appliquerAffichage(affichageActuel()); } catch (e) { /* affichage par défaut */ }
+  function boutonAffichage() { return h('button', { class: 'btn petit', type: 'button', title: 'Taille d’affichage et hauteur des lignes des tableaux', 'aria-label': 'Affichage', onclick: modaleAffichage }, 'Aa'); }
+
+  // ---------------------------------------------------------------- Raccourcis clavier
+  var RACCOURCIS = [['Ctrl + Entrée', 'Enregistrer le formulaire ouvert (bouton principal)'], ['← et →', 'Jour ou semaine précédente, suivante, dans les plannings (hors d’un champ de saisie)'],
+    ['Alt + 1 à 9', 'Ouvrir la fenêtre d’un module (ordre de la barre des modules)'], ['Échap', 'Fermer la fenêtre de dialogue'], ['?', 'Afficher cette aide']];
+  function dansChamp(el) { return !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable); }
+  document.addEventListener('keydown', function (ev) {
+    if (!App.session || !App.session.utilisateur || !App.session.cle) return;
+    var dlg = document.querySelector('dialog[open]');
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter' && dlg) {
+      var b = dlg.querySelector('.actions .btn.primaire:not([disabled])') || Array.prototype.filter.call(dlg.querySelectorAll('.btn.primaire:not([disabled])'), function (x) { return x.offsetParent; }).pop();
+      if (b) { ev.preventDefault(); b.click(); }
+      return;
+    }
+    if (dlg || dansChamp(document.activeElement)) return;
+    if (ev.altKey && /^[1-9]$/.test(ev.key)) {
+      var f = fenetres()[+ev.key - 1];
+      if (f) { ev.preventDefault(); ouvrirFenetre(f.id); }
+      return;
+    }
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if (ev.key === '?') { ev.preventDefault(); modale('Raccourcis clavier', h('table', {}, h('tbody', {}, RACCOURCIS.map(function (r) { return h('tr', {}, h('th', { text: r[0] }), h('td', { text: r[1] })); }))), [{ texte: 'Fermer', classe: 'primaire' }]); return; }
+    if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+      var noms = ev.key === 'ArrowLeft' ? ['Précédent', 'Semaine précédente', 'Jour précédent'] : ['Suivant', 'Semaine suivante', 'Jour suivant'];
+      var bt = zoneContenu && Array.prototype.filter.call(zoneContenu.querySelectorAll('button[aria-label]'), function (x) { return noms.indexOf(x.getAttribute('aria-label')) >= 0 && x.offsetParent; })[0];
+      if (bt) { ev.preventDefault(); bt.click(); }
+    }
+  });
+
   /**
    * Chambres indisponibles pendant des travaux (module Demandes de travaux, 0.22.0), lues à la volée pour la Vue
    * d'ensemble et la liste des patients ; vide si l'agent n'a pas la clé du module ou si l'option n'est pas activée.
@@ -1668,7 +1882,7 @@
     App: App, st: st, config: config, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, lignesDe: lignesDe, zoneTexte: zoneTexte, periodeDepuis: periodeDepuis, changerDossier: function () { return changerDossier(); },
-    lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu, activerLargeurs: activerLargeurs, chambresTravaux: chambresTravaux,
+    lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu, activerLargeurs: activerLargeurs, activerTris: activerTris, choisirOrdre: choisirOrdre, modaleAffichage: modaleAffichage, chambresTravaux: chambresTravaux,
     demarrer: demarrer, verrouiller: verrouiller,
     retenirAccueil: function () { retenirAccueil(); }
   };
