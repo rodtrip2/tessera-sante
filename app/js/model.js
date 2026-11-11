@@ -22,6 +22,12 @@
     // Cadre supérieur de santé (0.27.2, décision du porteur du 11 novembre 2026) : cadre de tous les services de son pôle ;
     // un compte qui porte ce rôle porte aussi le rôle Cadre (ajouté d'office), il a donc tout ce que fait le cadre
     CADRE_SUP: 'Cadre supérieur de santé',
+    // Rôles de lecture (0.27.3, décisions du porteur du 11 novembre 2026) : médecins chefs (services, pôle), administrateur
+    // de garde (identité des patients en initiales), directeur des soins ; accès réglables dans « Rôles et accès »
+    MEDECIN_CHEF_SERVICE: 'Médecin chef de service',
+    MEDECIN_CHEF_POLE: 'Médecin chef de pôle',
+    ADMIN_GARDE: 'Administrateur de garde',
+    DIRECTEUR_SOINS: 'Directeur des soins',
     ADMIN: 'Administrateur'
   };
   /** Rôles d'un compte, complétés : le cadre supérieur est aussi cadre. */
@@ -38,7 +44,7 @@
   function poleDe(config, service) { return poles(config).filter(function (p) { return p.services.indexOf(service) >= 0; })[0] || null; }
 
   // Rôles qui exigent au moins un service affecté.
-  var ROLES_DE_SERVICE = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP'];
+  var ROLES_DE_SERVICE = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE'];
 
   // Types d'événements autorisés par rôle. L'IDE dispose en permanence des
   // actions JLD (usage prévu le week-end et en l'absence de la secrétaire).
@@ -77,7 +83,7 @@
 
   var TYPES_ADMIN = ['CONFIG', 'ANNULATION', 'COMPTE', 'LOT', 'INTEGRITE', 'EDITION_CADA', 'EXPORT_PATIENT'];
 
-  var ROLES_FOURNIS = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP'];
+  var ROLES_FOURNIS = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS'];
 
   // Onglets que l'établissement peut masquer rôle par rôle (demande du porteur).
   // (Journal : réglage « Journal des saisies » du rôle ; Administration : administrateur seulement.)
