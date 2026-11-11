@@ -862,3 +862,15 @@ tr.chambre-travaux th { background: color-mix(in srgb, var(--warn, #b97a00) 12%,
 .ms-info > div:nth-child(2) { display: flex; flex-direction: column; }
 .ms-info .ms-module { justify-self: start; }
 @media (max-width: 700px) { .ms-info { grid-template-columns: 1fr; } }
+.ms-reponse.individuelle { border-left-style: dashed; }
+.ms-repondre-champ { flex: 1 1 auto; }
+.ms-sondage { border: 1px solid var(--accent); border-radius: var(--radius); padding: 12px; background: color-mix(in srgb, var(--accent-soft) 40%, transparent); }
+.ms-resultats { display: flex; flex-direction: column; gap: 6px; }
+.ms-resultat { display: grid; grid-template-columns: minmax(120px, 34%) minmax(0, 1fr) 6.5em; gap: 4px 10px; align-items: center; }
+.ms-resultat-noms { grid-column: 1 / -1; }
+.ms-barre-fond { height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.ms-barre { display: block; height: 100%; background: color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 6px; }
+.ms-barre.tete { background: var(--accent); }
+.ms-resultat-n { text-align: right; font-variant-numeric: tabular-nums; }
+.ms-option input[type=text] { flex: 1 1 12em; }
+.ms-option input { width: auto; }
