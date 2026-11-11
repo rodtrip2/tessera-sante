@@ -4,6 +4,7 @@
   "private": true,
   "description": "Tessera Santé — plateforme modulaire de suivi et d'organisation d'un service de soins (socle commun et modules), application web statique, données chiffrées sur le réseau de l'établissement.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "ecrans": "python3 tests/ecrans/parcours.py"
   }
 }

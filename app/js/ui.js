@@ -633,7 +633,7 @@
   /** Modules dont certains réglages sont ouverts au cadre dans sa fenêtre Administration (`interface.admin.cadre`, 0.21.0). */
   function modulesCadre() {
     var s = App.session, acc = s ? s.modulesAccessibles().map(function (m) { return m.id; }) : [];
-    return SIC.modules.liste().filter(function (m) { return acc.indexOf(m.id) >= 0 && m.interface && m.interface.admin && typeof m.interface.admin.cadre === 'function'; });
+    return SIC.modules.liste().filter(function (m) { return (acc.indexOf(m.id) >= 0 || (m.id === 'patients' && s && s.detientCle && s.detientCle('patients'))) && m.interface && m.interface.admin && typeof m.interface.admin.cadre === 'function'; });
   }
   /** Onglets de la fenêtre affichée : ceux du module (son contrat), puis le journal commun. */
   function onglets() {
