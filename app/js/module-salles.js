@@ -183,7 +183,8 @@
     (sources || []).forEach(function (o) { if (o && o.ref) ajouter(Object.assign({}, o)); });
     // Demandes acceptées sans occupation d'origine visible (réservation simple demandée, ou source sans salle) : la demande occupe
     dem.forEach(function (d) {
-      if (d.statut === 'acceptee' && !vus[d.ref] && st.attributions[d.ref] && st.attributions[d.ref].salle === d.salle) { vus[d.ref] = 1; res.push({ ref: d.ref, salle: d.salle, debut: d.debut, fin: d.fin, titre: d.titre, genre: d.genre, service: d.service, par: d.par, nom: d.nom }); }
+      // Seule une réservation simple demandée occupe par sa demande ; un événement déplacé depuis la décision ne garde pas l'ancien créneau
+      if (d.statut === 'acceptee' && d.genre === 'simple' && !vus[d.ref] && st.attributions[d.ref] && st.attributions[d.ref].salle === d.salle) { vus[d.ref] = 1; res.push({ ref: d.ref, salle: d.salle, debut: d.debut, fin: d.fin, titre: d.titre, genre: d.genre, service: d.service, par: d.par, nom: d.nom }); }
       if (d.statut === 'ouverte' && !attente.some(function (x) { return x.demande === d.id; })) attente.push({ ref: d.ref, salle: d.salle, debut: d.debut, fin: d.fin, titre: d.titre, genre: d.genre, service: d.service, par: d.par, demande: d.id, nom: d.nom });
     });
     var dans = function (o) { return o.debut < fin && o.fin > debut; };
