@@ -176,8 +176,11 @@
       .concat(MSG() && s.etat && SIC.modules && SIC.modules.obtenir('messagerie') ? MSG().clesNecessaires(config(s), s.comptes || []) : [])
       // Mes tâches (0.26.5, décision du porteur du 11 novembre 2026) : une clé de liste par agent (`t-a.<compte>`), tenue par
       // le trousseau : elle survit à une réinitialisation du mot de passe et à « Tout renouveler »
-      .concat(SIC.modules && SIC.modules.obtenir('agenda') ? clesTaches(s.comptes || []) : []);
+      .concat(SIC.modules && SIC.modules.obtenir('agenda') ? clesTaches(s.comptes || []) : [])
+      // Équipe (0.27.0) : coordonnées personnelles des agents (`e-p.<service>`) et des médecins (`e-m.<service>`)
+      .concat(SIC.modules && SIC.modules.obtenir('equipe') && s.etat ? clesEquipe(config(s)) : []);
   }
+  function clesEquipe(cfg) { var r = []; (cfg.services || []).forEach(function (x) { r.push('e-p.' + x.code, 'e-m.' + x.code); }); return r; }
   function clesTaches(comptes) { return comptes.filter(function (c) { return c && c.actif !== false && c.id !== 'secours'; }).map(function (c) { return 't-a.' + c.id; }); }
   /** Trousseau ouvert : `cle` = jeu de la plateforme (comptes, journal du socle, préférences, traces). */
   function installerTrousseau(s, trousseau, privee8, cleV1) {
@@ -384,6 +387,13 @@
       if (regles[nom]) return regles[nom](compte);
       // Clé propre d'une donnée (0.18.0) : remise aux seuls rôles qui la voient ou la saisissent (administrateur toujours)
       if (/^d-/.test(nom)) { var dc = CH() && CH().definition(cfg, nom.slice(2)); return !!(dc && dc.protection === 'cle' && dc.actif && CH().aDroitCle(dc, compte.roles)); }
+      // Équipe (0.27.0) : coordonnées personnelles d'un service, remises au cadre du service (et aux rôles d'encadrement à venir)
+      if (/^e-[pm]\./.test(nom)) {
+        var sve = nom.slice(4), rse = compte.roles || [], de = SIC.modules.obtenir('equipe') && SIC.modules.obtenir('equipe').droits;
+        var lecteurs = nom.charAt(2) === 'm' ? ['CADRE', 'MEDECIN_CHEF_SERVICE'] : ['CADRE'];
+        if (!rse.some(function (r) { return lecteurs.indexOf(r) >= 0; })) return false;
+        return (de && de.voitTousServices(rse, cfg)) || (compte.services || []).indexOf(sve) >= 0;
+      }
       // Mes tâches (0.26.5) : la clé de liste d'un agent ne lui est remise qu'à lui (l'administrateur l'a toujours, ci-dessus)
       if (/^t-a\./.test(nom)) return compte.id === nom.slice(4);
       // Messagerie (0.24.0) : clés des destinataires (services, rôles, groupes, agent) et de la consultation tracée
@@ -1324,6 +1334,45 @@
   };
   Session.prototype.formatPersonnelAncien = function (texte) { return String(texte || '').indexOf(FORMAT_LISTE) !== 0; };
   Session.prototype.aClePersonnelle = function () { return !!cleListe(this); };
+
+  // ---------------------------------------------------------- Enveloppes pour plusieurs clés (Équipe, 0.27.0)
+  /*
+   * Coordonnées personnelles : contenu chiffré par une clé aléatoire, emballée pour chaque clé lectrice avec sa partie
+   * publique attestée (comme les messages chiffrés) : l'agent écrit sa fiche sans détenir la clé du cadre. `contexte`
+   * lie l'enveloppe à son usage (ex. « fiche:<agent> »). Lecture : seulement par une clé que le compte tient de ses
+   * droits (`admin` faux : l'administrateur, qui détient techniquement toutes les clés, n'ouvre pas).
+   */
+  Session.prototype.clesEnveloppeManquantes = function (noms) { return this.clesMessagerieManquantes(noms); };
+  Session.prototype.chiffrerEnveloppe = async function (contexte, noms, contenu) {
+    var manquantes = this.clesMessagerieManquantes(noms);
+    if (manquantes.length) throw new Error('Chiffrement impossible : certaines clés ne sont pas encore créées (elles le seront à la prochaine connexion d’un administrateur).');
+    var p = publiquesAttestees(this), k8 = C.aleatoire(32), cles = {};
+    for (var i = 0; i < noms.length; i++) {
+      var g = this.coffre.cles[noms[i]].courante;
+      cles[noms[i]] = { g: g, env: await C.envelopper(k8, await C.importerPublique(p[noms[i]][g]), 'env:' + contexte + ':' + noms[i] + ':' + g) };
+    }
+    var k = await C.importerCleOctets(k8); k8.fill(0);
+    return { cles: cles, ct: C.b64(await C.chiffrerJSON(k, contenu, 'env:' + contexte)) };
+  };
+  Session.prototype.ouvrirEnveloppe = async function (contexte, chiffre, options) {
+    if (!chiffre || !chiffre.cles || !chiffre.ct) return null;
+    var s = this, c = this.compteEffectif && this.compteEffectif(), regle = aDroitPour(this), admin = !!(options && options.admin);
+    // Administrateur sans service affecté : ses autres rôles (cadre…) valent pour tous les services
+    var tousSv = (config(this).services || []).map(function (x) { return x.code; });
+    var qui = c ? (admin ? c : Object.assign({}, c, { roles: (c.roles || []).filter(function (r) { return r !== 'ADMIN'; }), services: (c.services || []).length || (c.roles || []).indexOf('ADMIN') < 0 ? c.services : tousSv })) : null;
+    var noms = Object.keys(chiffre.cles).filter(function (n) { return s.trousseau && s.trousseau[n] && qui && regle(n, qui); });
+    for (var i = 0; i < noms.length; i++) {
+      var e = chiffre.cles[noms[i]];
+      try {
+        var o = await this.trousseau[noms[i]].octetsDe(e.g);
+        if (!o) continue;
+        var paire = await C.paireDepuisOctets(o, noms[i] + ':' + e.g), k8 = await C.ouvrirEnveloppe(e.env, paire.privee, 'env:' + contexte + ':' + noms[i] + ':' + e.g);
+        var k = await C.importerCleOctets(k8); k8.fill(0);
+        return await C.dechiffrerJSON(k, C.deb64(chiffre.ct), 'env:' + contexte);
+      } catch (err) { /* clé suivante */ }
+    }
+    return null;
+  };
 
   // ---------------------------------------------------------- Messages chiffrés pour leurs seuls destinataires (0.24.0)
   /**

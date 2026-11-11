@@ -661,6 +661,19 @@
         // Mes tâches (0.26.3) : liste personnelle de l'agent connecté, chiffrée par sa clé de liste (échéance proche avec
         // rappel, tâche en retard rattachée à une demande de travaux, tâche sans date, tâche faite hier)
         var moiT = session.compteEffectif && session.compteEffectif();
+        // Équipe (0.27.0) : coordonnées professionnelles d'agents fictifs ; coordonnées personnelles chiffrées (agent B avec
+        // son accord, agent connecté) ; numéro personnel d'un médecin (cadre et médecin chef de service)
+        if (moiT && session.chiffrerEnveloppe && SIC.equipe) {
+          var EQ = SIC.equipe, lotE = [], dispo = function (noms) { return noms.filter(function (n) { return !session.clesEnveloppeManquantes([n]).length; }); };
+          var fiche = async function (by, d, perso, svs) { if (perso) d.perso = await session.chiffrerEnveloppe('fiche:' + d.agent, dispo(EQ.clesAgent(d.agent, svs)), perso); lotE.push({ at: at(-30), by: by, type: 'COORDONNEES', data: d }); };
+          await fiche('demo', { agent: 'demo-a', telPro: '4511', mailPro: 'agent.a@exemple.invalid', fonction: 'IDE de jour' });
+          await fiche('demo', { agent: 'demo-b', telPro: '4512', mailPro: 'agent.b@exemple.invalid', fonction: 'IDE de nuit', accord: true }, { tel: '06 00 00 00 01', mail: 'agent.b.perso@exemple.invalid' }, ['U1']);
+          await fiche('demo', { agent: 'demo-c', telPro: '4513', fonction: 'Aide-soignante' });
+          await fiche(moiT.id, { agent: moiT.id, telPro: '4500', mailPro: 'cadre.u1@exemple.invalid', fonction: 'Cadre de santé', accord: true }, { tel: '06 00 00 00 02', mail: '' }, moiT.services && moiT.services.length ? moiT.services : ['U1', 'U2']);
+          var noms = dispo(['e-m.U1']);
+          if (noms.length) lotE.push({ at: at(-30), by: 'demo', type: 'COORDONNEES_MEDECIN', data: { medecin: 'm-arnaud', perso: await session.chiffrerEnveloppe('medecin:m-arnaud', noms, { tel: '06 00 00 00 10' }) } });
+          await session.enregistrerLot(lotE, { libelle: 'Fiches fictives de l’équipe', by: 'demo', sansControle: true });
+        }
         if (moiT && session.aClePersonnelle && session.aClePersonnelle()) {
           var lotT = [], nT = 0;
           var tp = async function (h0, contenu) { lotT.push({ at: at(h0), by: moiT.id, type: 'TACHE_PERSO', data: { id: 'TP-DEMO' + (++nT), agent: moiT.id, chiffre: await session.chiffrerPersonnel('taches', contenu) } }); };
