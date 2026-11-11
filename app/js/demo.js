@@ -216,6 +216,17 @@
       ajouter(t(-24 * 30), 'VALEUR', { entite: 'medecin', id: 'm-benoit', champ: 'tel-pro', valeur: '01 00 00 00 12', journal: 'suivi' });
       ajouter(t(-24 * 30), 'VALEUR', { entite: 'medecin', id: 'm-arnaud', champ: 'jours-presence', valeur: ['Lundi', 'Mardi', 'Jeudi'], journal: 'suivi' });
     }
+    // Professionnels ou structures participant à la prise en charge (0.21.0) : répertoire commun et fiches des patients ;
+    // l'agenda en tire des tâches suggérées (ex. « Appeler l'infirmier libéral » avant une sortie ou une permission)
+    [['IV001', 'idel', 'Cabinet infirmier du Centre (fictif)', '02 00 00 00 01', 'Passages matin et soir ; prévenir 48 h avant'],
+      ['IV002', 'foyer', 'Foyer Les Tilleuls (fictif)', '02 00 00 00 02', 'Référente : éducatrice du foyer (fictif)'],
+      ['IV003', 'hdj', 'Hôpital de jour du secteur (fictif)', '02 00 00 00 03', ''],
+      ['IV004', 'cmp', 'Centre médico-psychologique du secteur (fictif)', '02 00 00 00 04', '']].forEach(function (i) {
+      ajouter(t(-24 * 20), 'INTERVENANT', { id: i[0], type: i[1], nom: i[2], contact: i[3], commentaire: i[4], champs: {} });
+    });
+    [['P03', 'IV001', 'Prévenir le cabinet de la date de sortie'], ['P03', 'IV004', ''], ['P01', 'IV002', ''], ['P01', 'IV003', 'Mardi et jeudi'], ['P05', 'IV001', '']].forEach(function (l, i) {
+      ajouter(t(-24 * 19), 'PRISE_EN_CHARGE', { patientId: l[0], lien: 'LD' + i, intervenant: l[1], commentaire: l[2] });
+    });
     ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { debut: jISO(24 * 1) } });
     ajouter(t(-24 * 2), 'SEJOUR', { patientId: 'P01', sejourId: 'SP01', sortiePrevue: { debut: jISO(24 * 6), fin: jISO(24 * 10), precision: 'après la synthèse (fictif)' } });
     ajouter(t(-24 * 1), 'SEJOUR', { patientId: 'P04', sejourId: 'SP04', sortiePrevue: { precision: 'selon place en appartement thérapeutique (fictif)' } });

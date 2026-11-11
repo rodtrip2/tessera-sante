@@ -71,7 +71,7 @@
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
   var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
-    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1 };
+    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1 };
   /** Champs ajoutés (0.18.0) : définitions, droits réglés pour chaque donnée, clés propres (`d-<id>`). */
   function CH() { return socle('champs', './champs.js'); }
   /** Clés propres à une donnée détenues par la session (journaux `modules\d-<id>\`). */
@@ -1498,6 +1498,10 @@
     if (SIC.modules && SIC.modules.affiches) SIC.modules.affiches().forEach(function (m) {
       if (m !== moduleActif() && aCle(s, m.id)) etats[m.id] = m.saisies.reduire(s.evts);
     });
+    // Module Patients (module de référence, sans fenêtre de module) : son état complet, pour ce que les fiches fournies
+    // ne portent pas (répertoire de la prise en charge, 0.21.0)
+    var mp = SIC.modules && SIC.modules.obtenir ? SIC.modules.obtenir('patients') : null;
+    if (mp && !etats.patients && aCle(s, 'patients')) etats.patients = mp.saisies.reduire(s.evts);
     this.etats = etats;
     this.notifier(info);
   };

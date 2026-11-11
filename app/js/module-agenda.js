@@ -263,6 +263,42 @@
     Object.keys(a).concat(Object.keys(nouveau)).forEach(function (k) { cles[k] = 1; });
     return Object.keys(cles).every(function (k) { return JSON.stringify(a[k]) === JSON.stringify(nouveau[k]) || (k !== '*' && sv.indexOf(k) >= 0); });
   }
+  /**
+   * Tâches suggérées selon la prise en charge des patients (0.21.0, décision du porteur du 11 novembre 2026) : règles
+   * « type de professionnel ou de structure → tâche, délai d'anticipation (jours), événements concernés (sortie,
+   * permission), obligatoire ou non », réglées par service. Une tâche suggérée est proposée, jamais ajoutée d'office ;
+   * une tâche obligatoire l'est, et seul le cadre la retire. `tachesObligatoiresBloquent` (faux par défaut) : la
+   * dernière étape d'une permission attend que les tâches obligatoires soient faites.
+   */
+  var SUGGESTIONS_DEFAUT = [
+    { type: 'idel', tache: 'Appeler l’infirmier libéral', delai: 2, pour: ['sortie', 'permission'] },
+    { type: 'foyer', tache: 'Prévenir le foyer ou le lieu de vie', delai: 2, pour: ['sortie', 'permission'] },
+    { type: 'hdj', tache: 'Prévenir l’hôpital de jour', delai: 1, pour: ['sortie'] },
+    { type: 'cmp', tache: 'Prendre rendez-vous au centre médico-psychologique', delai: 2, pour: ['sortie'] }];
+  var EVENEMENTS_SUGGESTION = { sortie: 'Sortie du patient', permission: 'Permission de sortie' };
+  function suggestions(config, service) {
+    var v = reglagesService(config, service).suggestions;
+    if (!Array.isArray(v)) return SUGGESTIONS_DEFAUT.map(function (x) { return Object.assign({}, x); });
+    return v.filter(function (x) { return x && typeof x.type === 'string' && String(x.tache || '').trim(); }).slice(0, 60).map(function (x) {
+      return { type: x.type, tache: String(x.tache).trim().slice(0, 100), delai: delaiValide(x.delai), obligatoire: !!x.obligatoire,
+        pour: (Array.isArray(x.pour) ? x.pour : []).filter(function (k) { return EVENEMENTS_SUGGESTION[k]; }) };
+    });
+  }
+  /**
+   * Tâches suggérées pour un événement : `base` (sortie, permission…), `entrees` : intervenants des patients de
+   * l'événement [{ type, nom, contact, patient (désignation affichée) }]. [{ libelle, delai, obligatoire }], sans doublon.
+   */
+  function tachesSuggerees(config, service, base, entrees) {
+    var res = [], vus = {};
+    suggestions(config, service).forEach(function (rg) {
+      if (rg.pour.indexOf(base) < 0) return;
+      (entrees || []).filter(function (e) { return e && e.type === rg.type; }).forEach(function (e) {
+        var lib = (rg.tache + ' : ' + e.nom + (e.contact ? ' (' + e.contact + ')' : '') + (e.patient ? ' — ' + e.patient : '')).slice(0, 120);
+        if (!vus[lib]) { vus[lib] = 1; res.push({ libelle: lib, delai: rg.delai, obligatoire: rg.obligatoire }); }
+      });
+    });
+    return res;
+  }
   /** Rôles qui confirment les demandes d'inscription, en plus de l'auteur et des organisateurs (cadre par défaut). */
   /** Partage proposé à la création d'un événement de plusieurs services : 'invites' (par défaut) ou 'co'. */
   function partageDefaut(config, service) { return reglagesService(config, service).partageDefaut === 'co' ? 'co' : 'invites'; }
@@ -496,7 +532,7 @@
     var jour = depuisISO(occurrence);
     var items = (r.checklist || []).map(function (it) {
       var c = (r.coches || {})[occurrence + '|' + it.id], delai = delaiValide(it.delai), ech = delai === null || jour === null ? null : plusJours(jour, -delai);
-      return { id: it.id, libelle: it.libelle, delai: delai, echeance: ech, fait: c || null, alerte: !c && ech !== null && maintenant !== undefined && maintenant >= ech };
+      return { id: it.id, libelle: it.libelle, delai: delai, echeance: ech, obligatoire: !!it.obligatoire, fait: c || null, alerte: !c && ech !== null && maintenant !== undefined && maintenant >= ech };
     });
     return { items: items, reste: items.filter(function (x) { return !x.fait; }).length, alertes: items.filter(function (x) { return x.alerte; }).length };
   }
@@ -852,6 +888,10 @@
       var prc = Pm.processus(ctx.config, rg, cle.indexOf('mode:') === 0 ? cle.slice(5) : cle === 'sdre' ? 'SDRE' : '');
       if (cle && cle.indexOf('mode:') !== 0 && Pm.DEFAUT[cle]) prc = { etapes: (rg.processPermissions && rg.processPermissions[cle] && Pm.etapes(rg.processPermissions[cle].etapes)) || Pm.DEFAUT[cle] };
       Pm.controler(prc, d, (ctx.compte && ctx.compte.roles) || []);
+      if (d.finale && rvp && rg.tachesObligatoiresBloquent) {
+        var reste = etatChecklist(rdvOccurrence(rvp, d.occurrence), d.occurrence).items.filter(function (it) { return it.obligatoire && !it.fait; });
+        if (reste.length) throw new Error('Tâche obligatoire à faire avant de valider la permission : ' + reste.map(function (it) { return it.libelle; }).join(' ; ') + '.');
+      }
     }
     // Événement de plusieurs services (0.21.0) : un agent d'un autre service ne le modifie que si son service est
     // co-organisateur (ou si l'établissement permet de modifier les éléments des autres services) ; un service invité
@@ -904,7 +944,7 @@
   return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
-    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
+    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, suggestions: suggestions, tachesSuggerees: tachesSuggerees, SUGGESTIONS_DEFAUT: SUGGESTIONS_DEFAUT, EVENEMENTS_SUGGESTION: EVENEMENTS_SUGGESTION, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
     enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
     alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,

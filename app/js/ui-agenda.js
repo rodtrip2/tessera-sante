@@ -521,7 +521,7 @@
     var x = r ? (parDate ? Object.assign({}, A.rdvOccurrence(r, occurrence), occ ? { debut: occ.debut, fin: occ.fin } : {}) : r) : {};
     var nouveau = !r, dis = lecture ? { disabled: true } : {};
     function courant() { var b = st().rdv[x.id] || r || x; return occurrence ? A.rdvOccurrence(b, occurrence) : b; }
-    var reg = A.regularite(x.regularite), checklist = (x.checklist || []).map(function (it) { return { id: it.id, libelle: it.libelle, delai: it.delai === undefined ? null : it.delai }; });
+    var reg = A.regularite(x.regularite), checklist = (x.checklist || []).map(function (it) { var o = { id: it.id, libelle: it.libelle, delai: it.delai === undefined ? null : it.delai }; if (it.obligatoire) o.obligatoire = true; return o; });
     var serviceInitial = x.service || ini.service || (U.App.service !== '*' ? U.App.service : '');
     var disCommun = parDate ? { disabled: true, title: 'Commun à toutes les dates : choisissez « toutes les dates » pour le changer' } : dis;
     var svChoix = lecture || partageVu ? U.tousServices() : U.services();
@@ -653,7 +653,7 @@
       var champ = h('input', { type: 'search', placeholder: 'Rechercher un patient du service', value: recherche, oninput: function () { recherche = champ.value; dessinerPatients(); var c = zonePat.querySelector('input[type=search]'); if (c) { c.focus(); c.setSelectionRange(c.value.length, c.value.length); } } });
       zonePat.appendChild(champ);
       zonePat.appendChild(h('div', { class: 'grille-2 liste-cases' }, liste.slice(0, 40).map(function (p) {
-        var cb = h('input', { type: 'checkbox', checked: patients.indexOf(p.id) >= 0, onchange: function () { patients = cb.checked ? patients.concat([p.id]) : patients.filter(function (i) { return i !== p.id; }); dessinerValidations(); dessinerPatients(); } });
+        var cb = h('input', { type: 'checkbox', checked: patients.indexOf(p.id) >= 0, onchange: function () { patients = cb.checked ? patients.concat([p.id]) : patients.filter(function (i) { return i !== p.id; }); dessinerValidations(); dessinerPatients(); dessinerChecklist(); } });
         var rang = pl.attente.indexOf(p.id);
         return h('label', { class: 'case' }, cb, h('span', { text: (p.nom || '?') + ' ' + (p.prenom || '') + (p.ipp ? ' — IPP ' + p.ipp : '') }), rang >= 0 ? h('span', { class: 'badge warn', text: 'attente n° ' + (rang + 1) }) : null);
       })));
@@ -957,6 +957,18 @@
     var rep = champsRepetition(reg, parDate ? { disabled: true } : dis);
     // Check-list (points à réaliser avant l'événement, ex. sortie d'un patient)
     var zoneCheck = h('div', { class: 'pile' });
+    var retirees = {};
+    /** Tâches suggérées par la prise en charge des patients de l'événement (répertoire du module Patients, lu à la volée). */
+    function suggestionsPrise() {
+      if (!SIC.intervenants || !visibles || !visibles.patients) return [];
+      var ep = null; try { ep = s.etatModule('patients'); } catch (e) { ep = null; }
+      if (!ep) return [];
+      var entrees = [], plusieurs = patients.length > 1;
+      patients.forEach(function (pid) {
+        SIC.intervenants.dePatient(ep, (ep.fiches || {})[pid]).forEach(function (l) { entrees.push({ type: l.intervenant.type, nom: l.intervenant.nom, contact: l.intervenant.contact, patient: plusieurs ? nomsPatients([pid])[0] : '' }); });
+      });
+      return A.tachesSuggerees(U.config(), sv.value, baseNature(nature.value, sv.value), entrees);
+    }
     function dessinerChecklist() {
       U.vider(zoneCheck);
       var etat = r && occurrence ? A.etatChecklist(courant(), occurrence, Date.now()) : null, peutCocher = !nouveau && occurrence && peut('CHECK');
@@ -970,8 +982,19 @@
           lecture ? (it.delai !== null && it.delai !== undefined ? h('small', { class: 'muted', text: libDelai(it.delai) }) : null) : selectDelai(it.delai, function (v) { it.delai = v; }),
           f && f.alerte ? h('span', { class: 'badge bad', text: 'En retard (attendu ' + (f.delai ? 'le ' + libJour(f.echeance) : 'le jour même') + ')' }) : null,
           f && f.fait ? h('small', { class: 'muted', text: s.nomAuteur(f.fait.par) + ', ' + U.date(Date.parse(f.fait.le)) }) : null,
-          !lecture ? h('button', { class: 'btn petit', type: 'button', onclick: function () { checklist.splice(i, 1); dessinerChecklist(); } }, 'Retirer') : null));
+          it.obligatoire ? h('span', { class: 'badge warn', title: 'Tâche réglée comme obligatoire : seul le cadre la retire', text: 'Obligatoire' }) : null,
+          !lecture && (!it.obligatoire || (moi.roles || []).indexOf('CADRE') >= 0) ? h('button', { class: 'btn petit', type: 'button', onclick: function () { if (it.obligatoire) retirees[it.libelle] = 1; checklist.splice(i, 1); dessinerChecklist(); } }, 'Retirer') : null));
       });
+      // Tâches suggérées selon la prise en charge des patients (0.21.0) : proposées ; les obligatoires sont ajoutées d'office
+      if (!lecture) {
+        var sug = suggestionsPrise().filter(function (t) { return !checklist.some(function (y) { return y.libelle === t.libelle; }); });
+        sug.filter(function (t) { return t.obligatoire && !retirees[t.libelle]; }).forEach(function (t) { checklist.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: t.libelle, delai: t.delai, obligatoire: true }); });
+        if (sug.some(function (t) { return t.obligatoire && !retirees[t.libelle]; })) return dessinerChecklist();
+        if (sug.length) zoneCheck.appendChild(h('div', { class: 'pile ag-suggestions' }, h('small', { class: 'muted', text: 'Suggestions selon la prise en charge des patients :' }), sug.map(function (t) {
+          return h('div', { class: 'barre' }, h('span', { text: t.libelle + (t.delai !== null ? ' — ' + libDelai(t.delai).toLowerCase() : '') }),
+            h('button', { class: 'btn petit', type: 'button', onclick: function () { checklist.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: t.libelle, delai: t.delai }); dessinerChecklist(); } }, 'Ajouter à la check-list'));
+        })));
+      }
       if (!checklist.length) zoneCheck.appendChild(h('small', { class: 'muted', text: 'Aucune check-list.' }));
       if (!lecture) {
         var modeles = A.checklists(U.config());

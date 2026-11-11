@@ -23,7 +23,7 @@
   var LIB_TIERS = { INFORME: 'Tiers informé', TENTATIVE: 'Tentative sans succès', PAS_DE_TIERS: 'Pas de tiers identifié', REFUS_PATIENT: 'Refus du patient', AUTRE: 'Non informé — autre motif' };
   var LIB_NATURE = { INFO: 'Information du JLD', SAISINE: 'Saisine du JLD', DECISION: 'Décision reçue du JLD' };
   var LIB_EVT = {
-    CONFIG: 'Paramétrage', PATIENT: 'Patient', SEJOUR: 'Séjour du patient', COMPLEMENT: 'Fiche patient : donnée complémentaire', MODE_HOSPI: "Mode d'hospitalisation", MESURE_DEBUT: 'Début de mesure',
+    CONFIG: 'Paramétrage', PATIENT: 'Patient', SEJOUR: 'Séjour du patient', INTERVENANT: 'Prise en charge : répertoire', PRISE_EN_CHARGE: 'Fiche patient : prise en charge', COMPLEMENT: 'Fiche patient : donnée complémentaire', MODE_HOSPI: "Mode d'hospitalisation", MESURE_DEBUT: 'Début de mesure',
     MESURE_FIN: 'Fin de mesure', PAUSE: 'Pause de mesure', REPRISE: 'Reprise de mesure', TIERS: 'Information du tiers', INFORMATION: 'Information (alerte de l’établissement)', FUSION: 'Fusion de fiches patient', PROPOSITION: 'Correction proposée', REFUS_PROPOSITION: 'Correction proposée refusée', TRANSFERT: 'Transfert entre services', SOMATIQUE: 'Soins somatiques ou urgences', SOMATIQUE_RETOUR: 'Retour dans le service', RECOURS: 'Recours ou appel (JLD)', ENTRETIEN: 'Entretien après la mesure', INTEGRITE: 'Intégrité des données', JLD: 'JLD', PROFESSIONNEL: 'Professionnel en CSI',
     CORRECTION: 'Correction', ANNULATION: 'Annulation', COMPTE: 'Comptes et clés', LOT: 'Lot de saisies', STATS: 'Statistiques'
   };
@@ -1195,7 +1195,7 @@
   // ================================================================ Journal : libellés lisibles
   var LIB_ONGLET_MASQUABLE = { tableau: 'Tableau de bord', mesures: 'Mesures', patients: 'Patients', jld: 'JLD', surveillance: 'Surveillance CSI', registre: 'Registre', stats: 'Statistiques' };
   var LIB_CONFIG = {
-    agendaReglages: 'Agenda : réglages par service',
+    agendaReglages: 'Agenda : réglages par service', intervenants: 'Prise en charge : types et champs',
     etablissement: 'Nom de l’établissement', services: 'Services', modulesServices: 'Modules activés par service', fichePatient: 'Fiche patient par service (psychiatrie, libellés des médecins)', importPatients: 'Modèles d’import de la liste des patients (DPI)', patientsListe: 'Liste des patients : sorties récentes, couleurs des modes, affichages par défaut', patientsChamps: 'Fiche patient : données complémentaires (par service et par rôle)', champsAjoutes: 'Données ajoutées (patients, médecins ; types, droits, protection)', reglagesDonnees: 'Réglages des données (couleurs, délais)', capacites: 'Capacité d’accueil des services', vuesEnsemble: 'Vue d’ensemble : vues, colonnes, groupes, synthèse', psychologues: 'Liste commune des psychologues', largeursColonnes: 'Largeur des colonnes (tableaux d’Isocont)', vehicules: 'Véhicules : types de véhicules et de signalements, données ajoutées', groupes: 'Groupes d’agents', medecins: 'Liste commune des médecins', suiviMedical: 'Suivi médical : délais d’alerte, gardes et astreintes, lieux de présence', vehiculesInformation: 'Véhicules : destinataires de l’information d’une pré-réservation remplacée', agenda: 'Agenda : identité du patient, types d’alertes, tâches, check-lists, couleurs, validation des permissions', exports: 'Dossier des exports', surveillance: 'Surveillance : professionnels attendus par poste', roles: 'Rôles et accès', organisationJLD: 'Organisation des envois au JLD', verificationVersion: 'Vérification de la version (page GitHub)', listes: 'Listes de saisie (fonctions, motifs, raccourcis)', miroir: 'Dossier de secours', verrouDossier: 'Choix du dossier bloqué sur les postes', vigilance: 'Seuils des points de vigilance', affichage: 'Affichage (mesures terminées, connexion, logo)', lieuIsolement: 'Appellation des lieux dédiés à l’isolement', lieuxCSI: 'Chambres de soins intensifs', psychiatres: 'Liste des psychiatres',
     periodes: 'Postes de surveillance par défaut', periodesService: 'Postes de surveillance propres aux services', modesHospitalisation: 'Modes d’hospitalisation',
     parametres: 'Règles légales (seuils et cycles JLD)', delaiModeHospiHeures: 'Délai de bascule du mode d’hospitalisation (registre)',
@@ -1379,6 +1379,11 @@
         var quoi = d.op ? (d.op.ajout ? (d.op.ajout.texte !== undefined ? 'note ajoutée : « ' + d.op.ajout.texte + ' »' : 'élément ajouté : « ' + d.op.ajout.libelle + ' »') : d.op.retrait ? 'élément retiré' : d.op.cocher ? (d.op.cocher.fait ? 'coché' : 'décoché') + ' : ' + d.op.cocher.element : 'modifiée')
           : (d.valeur === null || d.valeur === undefined ? 'retirée' : (cc ? SIC.champs.lib(cc, d.valeur) : String(d.valeur)));
         return (cc ? cc.libelle : d.champ) + ' — ' + qui + ' : ' + quoi;
+      case 'INTERVENANT':
+        return (d.supprime ? 'Retiré du répertoire : ' : 'Répertoire de la prise en charge : ') + (d.nom || d.id) + (d.contact ? ' (' + d.contact + ')' : '');
+      case 'PRISE_EN_CHARGE':
+        var ivj = (function () { try { return (App.session.etatModule('patients').intervenants || {})[d.intervenant]; } catch (err) { return null; } })();
+        return 'Prise en charge de ' + nomPatient(d.patientId).trim() + ' : ' + (d.retire ? 'un professionnel ou une structure retiré' : (ivj ? ivj.nom : 'professionnel ou structure') + (d.commentaire ? ' — ' + d.commentaire : ''));
       case 'SEJOUR':
         return 'Séjour de ' + nomPatient(d.patientId).trim() + ' : ' + [d.iep ? 'n° ' + d.iep : '', d.entree ? 'entrée le ' + d.entree.split('-').reverse().join('/') : '', d.sortie ? 'sortie le ' + d.sortie.split('-').reverse().join('/') : '', d.service ? 'unité : ' + libService(d.service) : '', d.chambre ? 'chambre ' + d.chambre + (d.lit ? ', lit ' + d.lit : '') : ''].filter(Boolean).join(', ');
       case 'MODE_HOSPI':
