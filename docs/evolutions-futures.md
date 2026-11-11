@@ -28,6 +28,29 @@
 | Module Demandes de congés | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **données du personnel** (avis du délégué à la protection des données) | Grande |
 | Prêt de droits pendant une absence | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; touche aux clés et aux droits (avis du responsable de la sécurité informatique) | Moyenne |
 | Module Signalement (lanceur d'alerte) | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **cadre légal et confidentialité renforcée** (avis du délégué à la protection des données et de la direction juridique) | Moyenne à grande |
+| Fiches agents : téléphones et courriels professionnels et personnels ; numéro professionnel accessible dans les autres modules | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; complète le module Agents ; **données du personnel** (coordonnées personnelles : avis du délégué à la protection des données) | Petite à moyenne |
+| Rôles « Administrateur de garde » et « Directeur des soins », accès réglables | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Petite à moyenne |
+| Accès aux données cliniques réglable par rôle et par service, limité aux patients présents, « bris de glace » | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; suppose la levée de la règle « aucune donnée clinique » ; touche aux clés (avis du responsable de la sécurité informatique) | Moyenne à grande |
+| Isocont : tâche de surveillance de la CSI dans l'agenda | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Petite à moyenne |
+| Contrôle de conformité des CSI libres, une fois par poste, par deux agents, avec check-list | Tessera Santé, 11 novembre 2026 | Demande, à préciser (contenu de la check-list) | Moyenne |
+
+
+## Lots proposés (11 novembre 2026)
+
+Regroupement des évolutions encore ouvertes, pour choisir le prochain lot. Un lot « sans avis préalable » peut être développé tout de suite (données fictives, options désactivées par défaut) ; les autres attendent une décision ou un avis avant le développement, même si leur étude peut commencer.
+
+| Lot | Contenu | Avis préalable | Ampleur |
+| --- | --- | --- | --- |
+| **A. Confort et accueil** | Tri des colonnes ; page d'accueil de l'administration (modules activés ou désactivés) ; informations du service ; liste de tâches personnelle reliée aux autres modules | Aucun | Moyenne |
+| **B. Chambres de soins intensifs (CSI)** | Tâche de surveillance de la CSI (Isocont) dans l'agenda ; contrôle de conformité des CSI libres par poste, à deux agents, avec check-list | Aucun pour les rappels et la check-list (aucune donnée clinique) ; check-list à rédiger avec le porteur | Moyenne |
+| **C. Équipe et rôles** | Fiches agents (téléphones, courriels, numéro professionnel dans les autres modules) ; référents par domaine avec contact direct ; rôles d'encadrement (cadre supérieur, médecins chefs de service et de pôle) ; administrateur de garde ; directeur des soins | Coordonnées personnelles et données des agents : délégué à la protection des données ; le reste sans avis | Grande (peut être découpé : C1 fiches et référents, C2 rôles) |
+| **D. Accès particuliers** | Intervenants extérieurs aux informations limitées ; prêt de droits pendant une absence | Responsable de la sécurité informatique (clés et droits) | Moyenne |
+| **E. Droit d'accès des patients** | Case « information d'un tiers » (messagerie, données patient) ; vérification avant l'export du droit d'accès | Délégué à la protection des données (règle d'exclusion) | Moyenne |
+| **F. Données cliniques** | Accès réglable par rôle et service, limité aux patients présents, « bris de glace » ; feuille de staff (CIM, motif, projet thérapeutique, dépendance) ; notes cliniques | Levée de la règle « aucune donnée clinique », délégué à la protection des données (analyse d'impact), responsable de la sécurité informatique, direction des soins, commission médicale d'établissement | Grande |
+| **G. Nouveaux modules du personnel et de l'établissement** | Demandes de congés ; signalement (lanceur d'alerte) | Délégué à la protection des données, direction des ressources humaines, direction juridique | Grande |
+| **H. Socle technique et documents** | Rangement des saisies par jour (après essai sur le partage) ; connexion avec la session Windows ; stockage autre que SMB ; documents et outils de bureautique ; photos jointes aux demandes de travaux | Service informatique ; photos : délégué à la protection des données | Grande |
+
+Dépendances : le contact direct des référents (C) s'appuie sur le numéro professionnel des fiches agents ; le « bris de glace » (F) suppose le modèle des rôles et des services de C ; le prêt de droits (D) et les rôles de garde (C) gagnent à être conçus ensemble. Écartée pour l'instant : échéances des certificats légaux dans l'agenda.
 
 *Réalisés dans la 0.19.0 (module Vue d'ensemble, `docs/architecture.md` § 7 quinquies) : la **feuille de staff** sans données cliniques (vue partagée, colonnes réglables, places disponibles, sorties prévues, feuille préparée, complétée puis close en instantané conservé) et des **notes datées par patient** comme donnée ajoutée (rubriques réglables par service et par rôle, notes courtes et organisationnelles). Restent ci-dessous les codes CIM et le projet thérapeutique (données cliniques).*
 
@@ -309,4 +332,47 @@ Le droit d'accès d'un patient exclut les informations qui concernent un tiers o
 - **Données patient** : case « information d'un tiers » sur chaque élément qui peut l'être (note, donnée ajoutée, intervenant de la prise en charge, réponse d'une vue d'ensemble), pour qu'il ne soit pas exporté.
 - **Vérification avant l'export** : l'export du droit d'accès affiche d'abord la liste des éléments retenus et écartés (tiers, donnée clinique, commentaire interne), que l'agent vérifie, coche ou décoche, avant de produire le fichier ; la vérification est inscrite au journal.
 - **À valider** : règle d'exclusion et qui en décide (délégué à la protection des données, direction des usagers) ; trace des choix faits à l'export.
+
+## Fiches agents : coordonnées (demande du porteur, 11 novembre 2026)
+
+Complète le module Agents (ci-dessus) et la fiche agent existante (données ajoutées, 0.20.0).
+
+- **Contenu** : téléphone professionnel, téléphone personnel, courriel professionnel, courriel personnel, par agent ; champs proposés par défaut, masquables par l'établissement.
+- **Numéro professionnel accessible facilement** : affiché d'un clic là où l'agent apparaît (agenda : accompagnateurs et participants ; messagerie : destinataires ; liste des référents ; Vue d'ensemble : vue « Équipe » ; salles : auteur d'une réservation si le réglage le permet).
+- **Coordonnées personnelles** : réservées au cadre (et à l'agent lui-même) par défaut, clé propre ; usage limité aux rappels et aux urgences de service. Avis du délégué à la protection des données, information des agents, saisie par l'agent lui-même ou avec son accord.
+- **À trancher** : l'agent saisit-il ses propres coordonnées ; qui voit le numéro personnel (cadre, administrateur de garde).
+
+## Rôles « Administrateur de garde » et « Directeur des soins » (demande du porteur, 11 novembre 2026)
+
+Nouveaux rôles fournis, avec leurs accès réglables dans *Rôles et accès* comme les autres.
+
+- **Administrateur de garde** : rôle d'astreinte de direction, sans droits techniques (ni coffre, ni comptes, ni réglages) ; proposition : lecture des tableaux de bord et des alertes de l'établissement (Isocont : patients en soins libres mis en isolement ou en contention, information « sans délai » déjà prévue par les alertes), destinataire des informations d'Isocont, lecture de l'occupation des lits ; accès limité à la période de garde à étudier (planning des gardes, ou rôle permanent).
+- **Directeur des soins** : lecture de tous les services (tableaux de bord, registres, statistiques, Vue d'ensemble), destinataire des informations ; pas de saisie par défaut.
+- **Clés** : un droit = une clé : un accès à l'établissement entier remet les clés des modules concernés ; un accès « tableaux de bord seulement » demanderait des données agrégées sans clé de module (à concevoir).
+- **À trancher** : accès par défaut de chaque rôle ; identité des patients affichée ou réduite (initiales) ; lien avec les rôles d'encadrement (pôle).
+
+## Accès aux données cliniques réglable, « bris de glace » (demande du porteur, 11 novembre 2026)
+
+*Suppose la levée de la règle « aucune donnée clinique » (en tête de document) et ses avis.*
+
+- **Réglage** : accès aux données cliniques choisi par rôle et par service (lecture, écriture) ; option « patients présents seulement » (patients hospitalisés dans le service ce jour), désactivée ou activée selon le rôle.
+- **Bris de glace** : option, réglable par rôle et service (désactivée par défaut), qui permet à un agent sans accès de lire les données cliniques d'un patient pour une **durée limitée** (par exemple une heure ou la fin du poste), avec **justification obligatoire**, inscription au journal et **notification du cadre** (onglet Informations, message) ; consultation tracée sur le modèle de la messagerie chiffrée (0.24.0).
+- **Clés** : avec « un droit = une clé », un accès limité aux patients présents ou un bris de glace ne peut pas reposer sur la seule interface si l'agent détient la clé ; à concevoir avec le responsable de la sécurité informatique (clé par patient ou par séjour, remise temporaire par un tiers de confiance, ou garantie par l'application seulement, comme la consultation tracée).
+- **À trancher** : durée du bris de glace ; qui est notifié (cadre, cadre de garde) ; relecture des bris de glace (revue périodique par le cadre ou le délégué à la protection des données).
+
+## Isocont : tâche de surveillance de la CSI dans l'agenda (demande du porteur, 11 novembre 2026)
+
+Quand une mesure est en cours dans une chambre de soins intensifs (CSI), une tâche de surveillance apparaît dans l'agenda du service.
+
+- **Fonctionnement envisagé** : tâche lue à la volée dans Isocont (aucune copie dans l'agenda), répétée selon une fréquence réglable par l'établissement ou le service (par exemple toutes les heures, ou par poste), pour les rôles choisis (IDE, AS) ; cochée « faite » par l'agent avec l'heure ; retard signalé.
+- **Aucune donnée clinique** : la tâche rappelle et trace le passage (heure, agent) ; le contenu de la surveillance reste dans le dossier patient informatisé (DPI). Lien avec les traces de surveillance déjà prévues pour les mesures hors CSI (réglage qualité d'Isocont) à étudier pour ne pas faire deux fois la même saisie.
+- **À trancher** : fréquences par défaut (isolement, contention) ; tâche par mesure ou par CSI ; trace inscrite au journal d'Isocont ou de l'agenda (un module n'écrit pas dans le journal d'un autre).
+
+## Contrôle de conformité des CSI libres (demande du porteur, 11 novembre 2026)
+
+Vérifier une fois par poste, à deux agents, qu'une chambre de soins intensifs (CSI) inoccupée est prête et conforme.
+
+- **Fonctionnement envisagé** : liste des CSI du service (lieux d'isolement déjà déclarés dans Isocont) ; pour chaque CSI libre, une tâche par poste (matin, après-midi, nuit, horaires réglables) ; **check-list** réglable par l'établissement ou le service (par exemple : matelas et literie, absence d'objet dangereux, éclairage, appel malade, sanitaires, visibilité par l'oculus, matériel de contention complet et vérifié, horloge visible) ; validation par **deux agents** (le second confirme avec son propre compte) ; écart signalé au cadre, avec lien possible vers une demande de travaux.
+- **Traçabilité** : chaque contrôle est une saisie datée et signée ; historique consultable et exportable (preuve pour les visites de certification ou du Contrôleur général des lieux de privation de liberté, CGLPL).
+- **À trancher** : contenu de la check-list par défaut ; ce qui se passe si le contrôle n'est pas fait (alerte au cadre) ; module d'accueil (Isocont ou agenda) ; contrôle aussi à la libération de la CSI.
 
