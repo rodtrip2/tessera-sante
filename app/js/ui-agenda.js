@@ -49,6 +49,19 @@
     if (b === 'examen') return 'Examen' + (r.examen && r.examen.type ? ' : ' + r.examen.type : '');
     return libNature(r.nature, r.service) || 'Élément';
   }
+  /** Étape de validation d'une permission, dans la couleur réglée pour l'étape (0.21.0) ; le délai dépassé est signalé. */
+  function etatPermissionDe(r, occurrence, debut) {
+    var v = A.etatValidations(r, occurrence, debut, fiches(), U.config(), Date.now()).filter(function (y) { return y.type === 'permission'; })[0];
+    return v ? v.permission : null;
+  }
+  function pastilleEtape(x) {
+    var ep = etatPermissionDe(x.rdv, x.occurrence, x.debut);
+    if (!ep) return null;
+    var pe = ep.prochaineEcheance, retard = ep.niveau === 'retard';
+    var el = h('span', { class: 'badge ag-etape-badge' + (retard ? ' retard' : ''), title: ep.processus.etapes.map(function (e, i) { return (i <= ep.index && !ep.refusee ? '✓ ' : '· ') + e.libelle; }).join('\n') + (ep.mention ? '\n' + ep.mention : '') + (pe ? '\nÀ faire : ' + (pe.etape.tache || pe.etape.libelle) + ' avant ' + libJour(pe.quand) + ' ' + hm(pe.quand) : ''),
+      text: ep.libelle + (retard ? ' — délai dépassé' : '') + (ep.mention ? ' *' : '') });
+    return teinter(el, ep.couleur);
+  }
   var occurrenceCourante = null;   // occurrence du bloc en cours de dessin (statut de la permission de cette date)
   function statutAffiche(r) { return A.statutPermission(r, occurrenceCourante || ''); }
   function memeJour(a, b) { return minuit(a) === minuit(b); }
@@ -101,7 +114,7 @@
         x.annulee ? h('span', { class: 'badge bad', text: 'Annulée' + (r.motifAnnulation ? ' : ' + r.motifAnnulation : '') }) : null,
         !x.annulee && A.enAttente(r, U.config()) ? h('span', { class: 'badge', text: 'Aucun patient prévu' }) : null,
         (r.surchargee || []).length && !x.annulee ? h('span', { class: 'badge', title: 'Réglages propres à cette date : ' + r.surchargee.map(function (k) { return LIB_CHAMPS[k] || k; }).join(', '), text: 'Date modifiée' }) : null,
-        sp ? h('span', { class: 'badge ' + (sp === 'validee' ? 'ok' : (sp === 'refusee' ? 'bad' : 'warn')), text: sp === 'validee' ? 'Validée' : (sp === 'refusee' ? 'Refusée' : 'Demande') }) : null,
+        sp ? pastilleEtape(x) || h('span', { class: 'badge ' + (sp === 'validee' ? 'ok' : (sp === 'refusee' ? 'bad' : 'warn')), text: sp === 'validee' ? 'Validée' : (sp === 'refusee' ? 'Refusée' : 'Demande') }) : null,
         (function () { var vs = A.etatValidations(r, x.occurrence, x.debut, fiches(), U.config(), Date.now()).filter(function (v) { return v.type !== 'permission' || !sp; }); var att = vs.filter(function (v) { return !v.fait; });
           return vs.length ? h('span', { class: 'badge ' + (att.some(function (v) { return v.niveau === 'retard'; }) ? 'bad' : (att.length ? 'warn' : 'ok')), title: vs.map(function (v) { return v.libelle + (v.fait ? ' : ' + (v.fait.statut === 'validee' ? 'validée' : 'refusée') : ' : à faire valider'); }).join(' ; '), text: att.length ? att.length + ' à valider' : 'Validé' }) : null; })(),
         A.etatTransports(r, x.occurrence).map(function (t) { return h('span', { class: 'badge ' + (t.reserve ? 'ok' : 'warn'), text: (t.nombre > 1 ? t.nombre + ' ' : '') + A.TRANSPORTS[t.type] + (t.reserve ? ' réservé' : ' à réserver') }); }),
@@ -860,7 +873,7 @@
           h('div', { class: 'agenda-point' }, selV, lib, delai ? h('label', { class: 'en-ligne nowrap' }, delai, h('span', { text: 'h avant' })) : null,
             lecture ? null : h('button', { class: 'btn petit danger', type: 'button', onclick: function () { validations.splice(i, 1); if (!validations.length) visibles.validations = false; majVisibles(); dessinerValidations(); } }, 'Retirer')),
           h('small', { class: 'muted', text: v.type === 'permission' ? 'Validation médicale attendue ' + (e.delai ? e.delai + ' h avant le début' : 'au plus tard au début') + (e.modes && e.modes.length ? ' (mode : ' + e.modes.join(', ') + ')' : ' (selon le mode d’hospitalisation des patients)') + '.' : 'Validation attendue ' + (e.delai ? e.delai + ' h avant le début' : 'au plus tard au début') + '.' }),
-          !nouveau && occurrence ? h('div', { class: 'barre' },
+          !nouveau && occurrence && v.type === 'permission' && e.permission ? zoneEtapes(v, e) : !nouveau && occurrence ? h('div', { class: 'barre' },
             fait ? h('span', { class: 'badge ' + (fait.statut === 'validee' ? 'ok' : 'bad'), text: (fait.statut === 'validee' ? 'Validée' : 'Refusée') + (fait.nom ? ' par ' + fait.nom : '') + (fait.le ? ', ' + U.date(Date.parse(fait.le)) : '') })
               : h('span', { class: 'badge ' + (e.niveau === 'retard' ? 'bad' : 'warn'), text: (e.niveau === 'retard' ? 'En retard — ' : 'À faire valider — ') + 'avant ' + libJour(e.echeance) + ' ' + hm(e.echeance) }),
             peut('VALIDATION') && !externe ? (fait ? h('button', { class: 'btn petit', type: 'button', onclick: function () { valider(v.id, 'attente'); } }, 'Remettre en attente')
@@ -869,6 +882,53 @@
       if (!lecture) zoneVal.appendChild(h('div', { class: 'actions gauche' },
         h('button', { class: 'btn petit', type: 'button', onclick: function () { validations.push({ id: 'p' + C.hex(C.aleatoire(3)), type: 'permission' }); dessinerValidations(); } }, '+ Permission à faire valider'),
         h('button', { class: 'btn petit', type: 'button', onclick: function () { validations.push({ id: 'v' + C.hex(C.aleatoire(3)), type: 'medicale', delai: 24 }); dessinerValidations(); } }, '+ Validation médicale ou autre')));
+    }
+    // Étapes de validation de la permission (0.21.0) : processus du mode d'hospitalisation, réglé par service
+    function zoneEtapes(v, e) {
+      var ep = e.permission, es = ep.processus.etapes, PM = A.permissions, roles = moi.roles || [];
+      var permis = function (et) { return peut('VALIDATION') && !externe && !s.apercu && PM.rolesEtape(et).some(function (r) { return roles.indexOf(r) >= 0; }); };
+      var fil = h('div', { class: 'ag-etapes' }, es.map(function (et, i) {
+        return teinter(h('span', { class: 'ag-etape' + (ep.refusee ? ' avenir' : i < ep.index ? ' faite' : i === ep.index ? ' courante' : ' avenir'), title: (et.tache ? 'À faire : ' + et.tache : '') + (et.delai !== undefined ? (et.tache ? ' — ' : '') + (et.delai ? et.delai + ' h avant le début' : 'au plus tard au début') : ''), text: (i < ep.index && !ep.refusee ? '✓ ' : '') + et.libelle }), et.couleur);
+      }), ep.refusee ? teinter(h('span', { class: 'ag-etape courante', text: 'Refusée' }), PM.COULEUR_REFUS) : null);
+      var infos = [h('small', { class: 'muted', text: 'Processus : ' + (PM.FAMILLES[ep.processus.famille] || '') + (e.modes && e.modes.length ? ' (mode : ' + e.modes.join(', ') + ')' : ' (selon le mode d’hospitalisation des patients)') + '.' })];
+      if (ep.mention) infos.push(h('p', { class: 'ag-mention', text: ep.mention }));
+      if (!ep.terminee && !ep.refusee) ep.taches.forEach(function (t) {
+        var dep = t.echeance !== null && Date.now() > t.echeance, deja = checklist.some(function (it) { return it.libelle === t.libelle; });
+        infos.push(h('div', { class: 'barre' }, h('span', { class: 'badge ' + (dep ? 'bad' : 'warn'), text: t.libelle + (t.echeance !== null ? ' — avant ' + libJour(t.echeance) + ' ' + hm(t.echeance) + (dep ? ' (délai dépassé)' : '') : '') }),
+          deja || lecture ? (deja ? h('small', { class: 'muted', text: 'dans la check-list' }) : null) : h('button', { class: 'btn petit', type: 'button', onclick: function () { checklist.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: t.libelle, delai: t.delaiJours }); dessinerChecklist(); dessinerValidations(); U.toast('Ajouté à la check-list : enregistrez l’événement.'); } }, 'Ajouter à la check-list')));
+      });
+      var actions = h('div', { class: 'actions gauche' }), sv0 = ep.suivante;
+      async function ecrire(d, msg) {
+        try { await s.enregistrer('VALIDATION', Object.assign({ rdv: x.id, validation: v.id, occurrence: occurrence, processus: ep.processus.cle, service: x.service }, d)); U.toast(msg); dessinerValidations(); }
+        catch (err) { alert(err.message); }
+      }
+      function passer(et, extra) {
+        var finale = et.code === es[es.length - 1].code, nom = '';
+        if (finale || /sign/i.test(et.libelle)) { nom = prompt('« ' + et.libelle + ' » — par (facultatif) :', ''); if (nom === null) return; }
+        ecrire(Object.assign({ statut: 'etape', etape: et.code, finale: finale || undefined, nom: nom.trim() || undefined }, extra || {}), 'Étape enregistrée : ' + et.libelle + '.');
+      }
+      if (sv0 && permis(sv0)) {
+        if (sv0.retour) {
+          actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { passer(sv0, { retourARS: 'accord' }); } }, 'Accord reçu'));
+          [['complement', 'Demande d’éléments complémentaires…'], ['avis', 'Demande d’un 2e avis…']].forEach(function (o) {
+            actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () {
+              var m = prompt(PM.RETOURS[o[0]] + ' — précision (courte, sans donnée de santé) :', ''); if (!m || !m.trim()) return;
+              var ret = PM.etapeApresDemande(ep.processus);
+              ecrire({ statut: 'etape', etape: ret.code, retourARS: o[0], mention: PM.RETOURS[o[0]] + ' : ' + m.trim() }, 'Demande notée : retour à « ' + ret.libelle + ' ».');
+            } }, o[1]));
+          });
+        } else actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { passer(sv0); } }, 'Étape suivante : ' + sv0.libelle));
+      } else if (sv0 && peut('VALIDATION') && !externe) actions.appendChild(h('small', { class: 'muted', text: 'Étape suivante (« ' + sv0.libelle + ' ») enregistrée par : ' + PM.rolesEtape(sv0).map(function (r) { return SIC.model.libRole(U.config(), r) || r; }).join(', ') + '.' }));
+      if (peut('VALIDATION') && !externe && !s.apercu) {
+        if (!ep.terminee && !ep.refusee) actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { valider(v.id, 'refusee'); } }, 'Refusée…'));
+        if (ep.index > 0 && !ep.refusee && !ep.terminee) actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { ecrire({ statut: 'etape', etape: es[ep.index - 1].code }, 'Retour à l’étape précédente.'); } }, 'Revenir à l’étape précédente'));
+        if (ep.terminee || ep.refusee) actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { valider(v.id, 'attente'); } }, 'Remettre en attente'));
+      }
+      var hist = ep.historique.length ? h('details', {}, h('summary', { text: 'Historique des étapes' }), h('ul', { class: 'liste-simple' }, ep.historique.map(function (hh) {
+        var et = es.filter(function (y) { return y.code === hh.etape; })[0];
+        return h('li', {}, h('small', { class: 'muted', text: U.date(Date.parse(hh.le)) + ' — ' + s.nomAuteur(hh.par) + ' : ' }), (et ? et.libelle : hh.etape) + (hh.nom ? ' (par ' + hh.nom + ')' : '') + (hh.mention ? ' — ' + hh.mention : ''));
+      }))) : null;
+      return h('div', { class: 'pile' }, fil, infos, actions, hist);
     }
     async function valider(id, statut) {
       var nom = '';
@@ -1034,6 +1094,12 @@
             if (!confirm('Véhicule ' + y.avertissement + '.\n\nForcer la réservation ? L’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.\n(Annuler : revenir à l’événement.)')) throw new Error('Choisissez un autre véhicule ou d’autres horaires, ou forcez la réservation.');
             forcerVehicules = true;
           }
+        });
+      }
+      // Tâches des étapes d'une permission ajoutées d'office à la check-list à la création (réglage du service, 0.21.0)
+      if (nouveau && A.tachesPermission(U.config(), sv.value) === 'office') {
+        A.etatValidations(d, jourISO(d0), d0, fiches(), U.config()).forEach(function (ev0) {
+          if (ev0.permission) ev0.permission.taches.forEach(function (t) { if (!d.checklist.some(function (it) { return it.libelle === t.libelle; })) d.checklist.push({ id: 'i' + C.hex(C.aleatoire(4)), libelle: t.libelle, delai: t.delaiJours }); });
         });
       }
       if (bv === 'entretien') d.entretien = { type: selEnt.value, avec: selAvec.value };

@@ -327,8 +327,14 @@
     rdv({ nature: 'entretien', entretien: { type: 'medical', avec: 'famille' }, titre: '', debut: jour(1, 11), fin: jour(1, 12), lieu: 'Bureau médical', service: U1, patients: ['P01'], professionnels: [{ id: null, nom: 'Dr Arnaud (fictif)' }, profA] });
     rdv({ nature: 'entretien', entretien: { type: 'infirmier', avec: 'individuel' }, titre: '', debut: jour(0, 15), fin: jour(0, 15, 45), lieu: 'Bureau infirmier', service: U1, patients: ['P05'], professionnels: [profC] });
     // Permissions : demande d'un patient en SDRE (validation 48 h avant), demande en SDT, permission de week-end validée
-    rdv({ nature: 'permission', titre: '', debut: jour(2, 14), fin: jour(2, 18), service: U2, patients: ['P04'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
-    rdv({ nature: 'permission', titre: 'Permission en famille', debut: jour(4, 10), fin: jour(4, 17), service: U1, patients: ['P01'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
+    // Étapes de validation (0.21.0) : SDRE, certificat envoyé puis demande d'un 2e avis par l'ARS (retour à « certificat
+    // en attente de signature », délai de 48 h dépassé) ; SDT, validation orale obtenue, certificat à faire signer
+    var permSdre = rdv({ nature: 'permission', titre: '', debut: jour(2, 14), fin: jour(2, 18), service: U2, patients: ['P04'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
+    [['orale'], ['asigner'], ['envoye'], ['asigner', 'avis', 'Demande d’un 2e avis : avis d’un second psychiatre attendu (fictif)']].forEach(function (e, i) {
+      ajouter(avant + (i + 1) * 6e4, 'VALIDATION', { rdv: permSdre, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(2)), statut: 'etape', etape: e[0], processus: 'sdre', retourARS: e[1], mention: e[2], service: U2 });
+    });
+    var permSdt = rdv({ nature: 'permission', titre: 'Permission en famille', debut: jour(4, 10), fin: jour(4, 17), service: U1, patients: ['P01'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
+    ajouter(avant + 6e4, 'VALIDATION', { rdv: permSdt, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(4)), statut: 'etape', etape: 'orale', processus: 'contrainte', service: U1 });
     var samedi = (6 - new Date(now).getDay() + 7) % 7 || 7;
     var permWe = rdv({ nature: 'permission', titre: 'Permission de week-end', debut: jour(samedi, 10), fin: jour(samedi + 1, 18), service: U2, patients: ['P06'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
     ajouter(avant, 'VALIDATION', { rdv: permWe, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(samedi)), statut: 'validee', nom: 'Dr Diallo (fictif)', service: U2 });

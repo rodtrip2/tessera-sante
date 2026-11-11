@@ -152,3 +152,51 @@ test('Événement de plusieurs services : co-organisateur ou invité', () => {
   assert.equal(A.partageDefaut({ agendaReglages: { U1: { partageDefaut: 'co' } } }, 'U1'), 'co');
   assert.equal(A.partageDefaut({}, 'U1'), 'invites');
 });
+
+test('Permissions : processus par mode d’hospitalisation, étapes, délais, retour de l’ARS', () => {
+  const Pm = A.permissions;
+  const config = { modesHospitalisation: [{ code: 'SL', contrainte: false }, { code: 'SDT', contrainte: true }, { code: 'SDRE', contrainte: true }] };
+  assert.deepEqual(['SL', 'SDT', 'SDRE', ''].map(m => Pm.famille(config, m)), ['libre', 'contrainte', 'sdre', 'libre']);
+  assert.equal(Pm.processusPour(config, {}, ['SL', 'SDRE', 'SDT']).famille, 'sdre');   // le plus exigeant
+  assert.deepEqual(Pm.processus(config, {}, 'SDT').etapes.map(e => e.code), ['demandee', 'orale', 'medecin', 'directeur']);
+  // Réglage du service : processus propre à la famille, ou à un mode
+  const rg = { processPermissions: { contrainte: { etapes: [{ code: 'demandee', libelle: 'Demandée' }, { code: 'envoi', libelle: 'Certificat envoyé', delai: 72 }, { code: 'ok', libelle: 'Accord' }] }, 'mode:SL': { etapes: [{ code: 'a', libelle: 'x' }] } } };
+  assert.deepEqual(Pm.processus(config, rg, 'SDT').etapes.map(e => e.code), ['demandee', 'envoi', 'ok']);
+  assert.equal(Pm.processus(config, rg, 'SL').cle, 'libre');   // processus mal formé (une seule étape) : écarté
+  // Événement : permission d'un patient en SDRE
+  const fiches = { P1: { id: 'P1', nom: 'ALPHA', prenom: 'Un (fictif)', service: 'U1', modes: [{ mode: 'SDRE', date: 0 }] } };
+  const debut = Date.UTC(2026, 10, 20, 9);
+  const perm = ev('auteur', 'RDV', { id: 'R1', nature: 'permission', debut, fin: debut + 4 * 36e5, service: 'U1', patients: ['P1'], validations: [{ id: 'pv', type: 'permission' }] });
+  const val = d => ev('ide1', 'VALIDATION', Object.assign({ rdv: 'R1', validation: 'pv', occurrence: OCC, processus: 'sdre', service: 'U1' }, d));
+  const etat = (evts, maintenant) => A.etatValidations(A.reduire(evts).rdv.R1, OCC, debut, fiches, config, maintenant)[0];
+  let e = etat([perm], debut - 72 * 36e5);
+  assert.deepEqual([e.permission.etape.code, e.permission.suivante.code, e.niveau, e.echeance, e.delai], ['demandee', 'orale', 'attente', debut - 48 * 36e5, 48]);
+  assert.equal(etat([perm], debut - 40 * 36e5).niveau, 'retard');   // moins de 48 h : le certificat n'est pas parti
+  assert.deepEqual(e.permission.taches.map(t => t.libelle), ['Demander l’accord du médecin', 'Certificat à rédiger et à faire signer', 'Certificat à envoyer à l’ARS', 'Retour de l’ARS à recevoir']);
+  e = etat([perm, val({ statut: 'etape', etape: 'orale' }), val({ statut: 'etape', etape: 'asigner' }), val({ statut: 'etape', etape: 'envoye' })], debut - 40 * 36e5);
+  assert.deepEqual([e.permission.etape.code, e.permission.suivante.retour, e.niveau, A.statutPermission(A.reduire([perm]).rdv.R1, OCC)], ['envoye', true, 'attente', 'demande']);
+  // Demande de 2e avis : retour au certificat à signer, avec la mention
+  const ret = Pm.etapeApresDemande(e.permission.processus);
+  assert.equal(ret.code, 'asigner');
+  const suite = [perm, val({ statut: 'etape', etape: 'envoye' }), val({ statut: 'etape', etape: 'asigner', retourARS: 'avis', mention: 'Demande d’un 2e avis : second psychiatre' })];
+  e = etat(suite, debut - 40 * 36e5);
+  assert.deepEqual([e.permission.etape.code, e.permission.mention, e.permission.historique.length], ['asigner', 'Demande d’un 2e avis : second psychiatre', 2]);
+  // Accord : dernière étape, la permission est validée ; refus : refusée
+  let st = A.reduire(suite.concat([val({ statut: 'etape', etape: 'retour', finale: true, retourARS: 'accord' })]));
+  assert.equal(A.statutPermission(st.rdv.R1, OCC), 'validee');
+  assert.equal(A.etatValidations(st.rdv.R1, OCC, debut, fiches, config, debut)[0].permission.terminee, true);
+  st = A.reduire(suite.concat([val({ statut: 'refusee', nom: 'ARS' })]));
+  assert.deepEqual([A.statutPermission(st.rdv.R1, OCC), A.etatValidations(st.rdv.R1, OCC, debut, fiches, config, debut)[0].permission.libelle], ['refusee', 'Refusée']);
+  // Remise en attente : retour au début
+  st = A.reduire(suite.concat([val({ statut: 'attente' })]));
+  assert.equal(A.etatValidations(st.rdv.R1, OCC, debut, fiches, config, debut)[0].permission.etape.code, 'demandee');
+  // Contrôle : étape du processus, rôle permis, précision de la demande
+  const ctl = (d, roles) => () => A.contrat.saisies.controler('VALIDATION', Object.assign({ rdv: 'R1', validation: 'pv', occurrence: OCC, statut: 'etape', processus: 'sdre' }, d), { etat: A.reduire([perm]), config, peut: () => true, compte: { id: 'z', roles, services: ['U1'] } });
+  assert.doesNotThrow(ctl({ etape: 'orale' }, ['IDE']));
+  assert.throws(ctl({ etape: 'medecin' }, ['IDE']), /Étape inconnue/);
+  assert.throws(ctl({ etape: 'orale' }, ['AS']), /Votre rôle/);
+  assert.throws(ctl({ etape: 'asigner', retourARS: 'complement' }, ['IDE']), /Précisez la demande/);
+  // Ancien réglage du délai par mode gardé tant que le processus fourni n'est pas remplacé
+  assert.equal(A.processusPermission({ modesHospitalisation: config.modesHospitalisation, agenda: { delaisPermission: { SDRE: 72 } } }, 'U1', ['SDRE']).etapes.filter(x => x.code === 'envoye')[0].delai, 72);
+  assert.equal(A.tachesPermission({ agendaReglages: { U1: { tachesPermission: 'office' } } }, 'U1'), 'office');
+});
