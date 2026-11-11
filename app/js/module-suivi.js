@@ -78,7 +78,7 @@
         return;
     }
   }
-  function reduire(evts) { return N.reduire(evts, { etat: function () { return { presences: {}, suivis: {} }; }, appliquer: appliquer }); }
+  function reduire(evts) { return N.reduire(evts, { cle: 'suivi', etat: function () { return { presences: {}, suivis: {} }; }, appliquer: appliquer }); }
 
   // ------------------------------------------------------------ Présences
   /** La présence s'applique-t-elle à ce jour (ISO) ? Selon les jours de la semaine, la répétition et la période. */

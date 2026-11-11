@@ -137,13 +137,15 @@ function chrono(libelle, f, n) {
   const etats = {};
   mods.forEach(m => { const x = chrono('module ' + m.id, () => m.saisies.reduire(evts)); etats[m.id] = x.r; total += x.ms; });
   console.log('  ' + 'total, état déjà trié (meilleur cas)'.padEnd(58) + Math.round(total).toString().padStart(7) + ' ms');
-  // Cas réel : une saisie arrive (poste ou synchronisation), puis tous les modules sont recalculés une fois
+  // Cas réel : une saisie arrive (poste ou synchronisation), puis tous les modules sont recalculés une fois ; le journal
+  // est celui de la session (recalcul incrémental, 0.21.2) ; le premier recalcul est complet
+  require(R + 'noyau-journal.js').suivre(evts); mods.forEach(m => m.saisies.reduire(evts));
   let pire = 0;
   for (let k = 0; k < 3; k++) {
-    evts.push(ev(JOURS + k, 'TACHE_FAITE', { tache: 'U1T0', occurrence: iso(JOURS + k), service: 'U1' }));
+    evts.push(ev(JOURS + 2 + k, 'TACHE_FAITE', { tache: 'U1T0', occurrence: iso(JOURS + 2 + k), service: 'U1' }));
     const d0 = performance.now(); mods.forEach(m => m.saisies.reduire(evts)); pire = Math.max(pire, performance.now() - d0);
   }
-  console.log('  ' + 'total après l\'arrivée d\'une saisie (cas réel)'.padEnd(58) + Math.round(pire).toString().padStart(7) + ' ms');
+  console.log('  ' + 'total après l\'arrivée d\'une saisie (cas réel, incrémental)'.padEnd(58) + Math.round(pire).toString().padStart(7) + ' ms');
   const copie = evts.slice(); copie.reverse(); let d1 = performance.now(); mods.forEach(m => m.saisies.reduire(copie));
   console.log('  ' + 'total sans tri mémorisé (première lecture, ordre quelconque)'.padEnd(58) + Math.round(performance.now() - d1).toString().padStart(7) + ' ms');
   const parMois = Math.round(evts.length / (JOURS / 30.4));

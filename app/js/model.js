@@ -301,9 +301,15 @@
     return (reg && reg.fournir('patients.fiches', evts)) || { fiches: {}, fusions: {} };
   }
 
+  var TYPES_FICHE = { PATIENT: 1, MODE_HOSPI: 1, FUSION: 1, SEJOUR: 1, COMPLEMENT: 1, INTERVENANT: 1, PRISE_EN_CHARGE: 1 };
   function reduire(evts, contexte) {
     var fp = fichesPatients(evts, contexte);
     return N.reduire(evts, {
+      // Recalcul incrémental (0.21.2) : fiches patient remises à jour à chaque fois ; recalcul complet dès qu'une saisie
+      // de la fiche arrive (un mode d'hospitalisation rétroactif, une fusion changent ce qui a été calculé avant)
+      cle: contexte && contexte.patients ? null : 'isocont',
+      rafraichir: function (st) { st.patients = fp.fiches; st.fusions = fp.fusions; },
+      complet: function (nouvelles) { return nouvelles.some(function (e) { return TYPES_FICHE[e.type]; }); },
       etat: function () {
         return { config: cloner(CONFIG_DEFAUT), fusions: fp.fusions, propositions: {}, patients: fp.fiches, mesures: {}, professionnels: [], saisiesStats: {} };
       },

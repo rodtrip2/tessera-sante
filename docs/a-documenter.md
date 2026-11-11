@@ -38,7 +38,14 @@ Améliorations faites (sans changement de résultat, tests d'équivalence) :
 - **Lecture rapide** (`store.js` `lireNouveaux` option `recents`, `session.js` `LECTURE_COMPLETE`) : toutes les 5 s, seuls le mois en cours et le précédent sont listés sur le partage ; lecture complète à la connexion puis toutes les 10 minutes (rattrape une saisie arrivée tard dans un mois clos : poste hors réseau, dossier de secours).
 - **Absences lues une fois par période affichée** dans l'Agenda (`prevusAbsents`).
 
-Restes (décision du porteur à prendre) : le recalcul reste proportionnel à tout l'historique (~1 s à 3 ans pour 3 services) ; piste : **recalcul incrémental** (n'appliquer que les nouvelles saisies, recalcul complet sur une annulation ou une saisie en retard). Le partage réseau liste encore ~10 000 fichiers toutes les 5 s pour 3 services ; piste : un sous-dossier par jour. À documenter : fiche technique (performances, lecture rapide), architecture (§ journal).
+## Version 0.21.2 (recalcul incrémental, décision du porteur du 11 novembre 2026)
+
+- **Recalcul incrémental** (`noyau-journal.js` : `suivre`, `oublierEtats`, `def.cle`, `def.rafraichir`, `def.complet`) : l'état de chaque module est gardé ; les saisies nouvelles, ajoutées à la fin du journal de la session et postérieures aux autres, sont appliquées à l'état précédent. Recalcul complet : saisie arrivée en retard, annulation, prise d'acte d'intégrité, saisie de la fiche patient pour Isolement et contention (mode rétroactif, fusion), tout autre tableau de saisies (simulation, import, test), et à chaque lecture complète des journaux (toutes les 10 minutes). Un état rendu a toujours une nouvelle identité.
+- Mesures (cas réel, après l'arrivée d'une saisie) : 3 services, 1 an : 230 → 12 ms ; 6 services, 1 an : 820 → 31 ms ; 3 services, 3 ans : 1 100 → 47 ms. Une saisie de fiche patient recalcule entièrement Isolement et contention (quelques centaines de millisecondes à plusieurs années d'historique).
+- Tests : `tests/recalcul-incremental.test.js` (12 suites aléatoires de 220 saisies, arrivées par paquets ou une à une, en retard, annulations, lots, chaînage : état identique au recalcul complet après chaque arrivée, pour chaque module ; plusieurs milliers de recalculs incrémentaux comparés).
+- Rangement des saisies par jour sur le partage : versé dans `docs/evolutions-futures.md` (décision du porteur), à décider après un essai sur place.
+
+À documenter : fiche technique (performances : lecture rapide, tri mémorisé, recalcul incrémental ; test de charge), architecture (§ journal du socle).
 
 ## Par document
 

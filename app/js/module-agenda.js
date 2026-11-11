@@ -855,7 +855,7 @@
     }
   }
   function reduire(evts) {
-    return N.reduire(evts, { etat: function () { return { rdv: {}, taches: {}, absences: {}, alertes: {}, avis: [] }; }, appliquer: appliquer });
+    return N.reduire(evts, { cle: 'agenda', etat: function () { return { rdv: {}, taches: {}, absences: {}, alertes: {}, avis: [] }; }, appliquer: appliquer });
   }
 
   /** Services sur lesquels agit une saisie de l'Agenda (activation du module par service). */

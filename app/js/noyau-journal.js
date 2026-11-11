@@ -98,7 +98,58 @@
     return tries;
   }
 
+  /**
+   * Recalcul incrémental (0.21.2, décision du porteur du 11 novembre 2026, test de charge) : l'état d'un module est gardé
+   * entre deux recalculs ; quand les saisies nouvelles s'ajoutent à la fin du journal suivi par la session et sont toutes
+   * postérieures aux autres, elles sont appliquées à l'état précédent au lieu de tout recalculer. Recalcul complet si une
+   * saisie arrive en retard, si une annulation ou une prise d'acte d'intégrité arrive, si le module le demande
+   * (`def.complet(nouvelles)`), pour tout autre tableau de saisies (simulation, import, test), et à chaque lecture
+   * complète des journaux (`oublierEtats`, toutes les 10 minutes) : un écart éventuel ne dure pas.
+   * Seuls les tableaux marqués par `suivre` (le journal de la session) en profitent ; un état rendu a toujours une
+   * nouvelle identité. Condition : `def.cle` (nom du module) ; `def.rafraichir(st)` remet ce qui vient d'ailleurs.
+   */
+  var suivis = typeof WeakSet === 'function' ? new WeakSet() : null, memoEtats = {};
+  function suivre(evts) { if (suivis && evts) suivis.add(evts); return evts; }
+  function oublierEtats() { memoEtats = {}; }
+  function finirManquants(st) {
+    var acq = st.integrite.manquants;
+    st.manquantsAcquis = st.manquantsBruts.filter(function (x) { return acq[x.manque]; });
+    st.manquants = st.manquantsBruts.filter(function (x) { return !acq[x.manque]; });
+  }
+  function nouvellesSaisies(m, evts) {
+    if (!m || !suivis || !suivis.has(evts) || !suivis.has(m.entree) || evts.length < m.n) return null;
+    for (var i = 0; i < m.n; i++) if (evts[i] !== m.entree[i]) return null;
+    return evts.slice(m.n);
+  }
+  function poursuivre(m, nouvelles, def) {
+    var dep = deplier(nouvelles), dernier = m.dernier;
+    if (!dep.every(function (e) { return e.at > dernier && e.type !== 'ANNULATION' && e.type !== 'INTEGRITE'; })) return null;
+    if (def.complet && def.complet(dep)) return null;
+    var st = Object.assign({}, m.st), tries = trierEvenements(dep);
+    if (def.rafraichir) def.rafraichir(st);
+    tries.forEach(function (e) { st.parId[e.id] = e; });
+    var bruts = st.manquantsBruts.filter(function (x) { return !st.parId[x.manque]; });
+    tries.forEach(function (e) { if (!e.lot && e.prec && !st.parId[e.prec]) bruts.push({ evt: e.id, manque: e.prec, by: e.by }); });
+    st.manquantsBruts = bruts;
+    tries.forEach(function (e) {
+      if (!e.lot) st.journal.push(e);
+      if (e.type === 'LOT' || st.annules[e.id] || (e.lot && st.annules[e.lot])) return;
+      def.appliquer(st, e);
+    });
+    finirManquants(st);
+    return { st: st, dernier: tries.length ? tries[tries.length - 1].at : dernier };
+  }
+
   function reduire(evts, def) {
+    var cle = def.cle, m = cle ? memoEtats[cle] : null, nouvelles = nouvellesSaisies(m, evts);
+    if (nouvelles) {
+      var suite = nouvelles.length ? poursuivre(m, nouvelles, def) : { st: Object.assign({}, m.st), dernier: m.dernier };
+      if (suite) {
+        if (!nouvelles.length && def.rafraichir) def.rafraichir(suite.st);
+        memoEtats[cle] = { entree: evts, n: evts.length, st: suite.st, dernier: suite.dernier };
+        return suite.st;
+      }
+    }
     var st = etatCommun(def.etat());
     var tries = trierMemorise(evts);
 
@@ -132,9 +183,9 @@
       if (e.type === 'ANNULATION' || e.type === 'LOT' || st.annules[e.id] || (e.lot && st.annules[e.lot])) return;
       def.appliquer(st, e);
     });
-    var acq = st.integrite.manquants;
-    st.manquantsAcquis = st.manquants.filter(function (x) { return acq[x.manque]; });
-    st.manquants = st.manquants.filter(function (x) { return !acq[x.manque]; });
+    st.manquantsBruts = st.manquants.slice();
+    finirManquants(st);
+    if (cle && suivis && suivis.has(evts)) memoEtats[cle] = { entree: evts, n: evts.length, st: st, dernier: tries.length ? tries[tries.length - 1].at : '' };
     return st;
   }
 
@@ -220,7 +271,7 @@
   }
 
   return {
-    cloner: cloner, trierEvenements: trierEvenements, deplier: deplier, reduire: reduire, appliquerIntegrite: appliquerIntegrite,
+    cloner: cloner, trierEvenements: trierEvenements, deplier: deplier, reduire: reduire, suivre: suivre, oublierEtats: oublierEtats, appliquerIntegrite: appliquerIntegrite,
     detecterConflit: detecterConflit, cheminEvenement: cheminEvenement, filtrerIntegrite: filtrerIntegrite, annulabilite: annulabilite
   };
 });

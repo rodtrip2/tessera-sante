@@ -149,7 +149,7 @@
   function cadreCapacites(ancien, nouveau, compte) { var K = (typeof self !== 'undefined' && self.SIC && self.SIC.capacites) || require('./capacites.js'); return K.controlerCadre(ancien, nouveau, compte); }
 
   function reduire(evts) {
-    return N.reduire(evts, { etat: function () { return { fiches: {}, fusions: {}, intervenants: {} }; }, appliquer: appliquer });
+    return N.reduire(evts, { cle: 'patients', etat: function () { return { fiches: {}, fusions: {}, intervenants: {} }; }, appliquer: appliquer });
   }
 
   /** Séjour en cours d'une fiche (le dernier sans date de sortie), ou null. */

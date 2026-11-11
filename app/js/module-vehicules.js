@@ -89,7 +89,7 @@
     }
   }
   function reduire(evts) {
-    return N.reduire(evts, { etat: function () { return { vehicules: {}, prets: {}, reservations: {}, signalements: {}, avis: [] }; }, appliquer: appliquer });
+    return N.reduire(evts, { cle: 'vehicules', etat: function () { return { vehicules: {}, prets: {}, reservations: {}, signalements: {}, avis: [] }; }, appliquer: appliquer });
   }
 
   // ------------------------------------------------------------ Disponibilité
