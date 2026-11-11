@@ -793,6 +793,39 @@
     return peutEnvoyer() ? { texte: 'Envoyer par message', action: function () { envoyer(module, genre, id, service); return false; } } : null;
   }
 
+  // ------------------------------------------------------------ Recherche générale (0.26.4)
+  /** Éléments des modules auxquels l'agent a accès (mêmes que pour un rattachement) : [{ module, titre, detail, ouvrir }]. */
+  function elements() {
+    var res = [];
+    Object.keys(ADAPT).forEach(function (k) {
+      if (!s().detientCle || !s().detientCle(k)) return;
+      var l = [];
+      try { l = ADAPT[k].lister() || []; } catch (e) { l = []; }
+      l.forEach(function (x) {
+        var r = Object.assign({ module: k }, x), y = null;
+        if (!accesElement(r)) return;
+        try { y = ADAPT[k].resoudre(r); } catch (e) { y = null; }
+        if (y) res.push({ module: k, libModule: MS.RATTACHABLES[k] || k, titre: y.titre, detail: y.detail || '', ouvrir: function () { ADAPT[k].ouvrir(r); } });
+      });
+    });
+    return res;
+  }
+  /** Messages reçus et envoyés qui contiennent la recherche (objet, texte, auteur) : [{ titre, detail, ouvrir }]. */
+  function chercher(q) {
+    if (!q || !s().detientCle || !s().detientCle('messagerie')) return [];
+    var c = compte(), vus = {}, res = [];
+    ['recus', 'envoyes'].forEach(function (onglet) {
+      var l = [];
+      try { l = MS.liste(st(), c, c.groupes, U.config(), Date.now(), onglet, { filtre: 'tous', recherche: q }); } catch (e) { l = []; }
+      l.forEach(function (m) {
+        if (vus[m.id]) return; vus[m.id] = 1;
+        res.push({ module: 'messagerie', libModule: 'Messagerie', titre: m.objet || '(sans objet)', detail: (onglet === 'envoyes' ? 'Envoyé' : 'De ' + (m.nom || '')) + ' — ' + U.date(Date.parse(m.le || m.cree || '')).slice(0, 10),
+          ouvrir: function () { selection[onglet] = m.id; recherche = ''; U.ouvrirFenetre('messagerie'); U.App.onglet = onglet; U.rendreContenu(); } });
+      });
+    });
+    return res;
+  }
+
   SIC.modules.completerInterface('messagerie', {
     vues: { recus: function () { return vueListe('recus'); }, envoyes: function () { return vueListe('envoyes'); }, archives: function () { return vueListe('archives'); }, informations: vueInformations, consultation: vueConsultation },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'Le message revient à son état précédent.'; } },
@@ -800,5 +833,5 @@
     // Pastille : messages qui vous attendent et informations non vues
     pastille: function () { try { var c = compte(); return MS.enAttente(st(), c, c.groupes, U.config(), Date.now()) + informationsNonVues().length; } catch (e) { return 0; } }
   });
-  U.messagerie = { ligneRattache: ligneRattache, modaleRattacher: modaleRattacher, nouveau: modaleNouveau, bouton: bouton, boutonModale: boutonModale, peutEnvoyer: peutEnvoyer, envoyer: envoyer, informations: informations };
+  U.messagerie = { elements: elements, chercher: chercher, ligneRattache: ligneRattache, modaleRattacher: modaleRattacher, nouveau: modaleNouveau, bouton: bouton, boutonModale: boutonModale, peutEnvoyer: peutEnvoyer, envoyer: envoyer, informations: informations };
 })();

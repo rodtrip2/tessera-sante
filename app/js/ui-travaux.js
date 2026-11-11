@@ -115,6 +115,7 @@
     var modifiable = peut('TRAVAUX') && !s.apercu && !traitee;
     var dis = modifiable ? {} : { disabled: true }, o = opts(x.service);
     var sv = h('select', Object.assign({ 'aria-label': 'Service' }, nouveau ? {} : { disabled: true }), U.services().map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === x.service }); }));
+    if (nouveau && U.dernierChoix && !x.service) U.dernierChoix('travaux.service', sv, true);
     function options(l, val, vide) { return (vide ? [h('option', { value: '', text: vide })] : []).concat(l.map(function (c) { return h('option', { value: c.code, text: c.libelle, selected: c.code === val }); })); }
     var type = h('select', Object.assign({ 'aria-label': 'Type de travaux' }, dis), options(o.types, x.type, '— Choisir —'));
     // Salle ou bureau (module Salles et bureaux, 0.25.1) : choisie dans la liste du service
