@@ -126,3 +126,29 @@ test('À répondre et à confirmer', () => {
   assert.deepEqual(A.aConfirmer(st, {}, {}, { id: 'auteur', roles: ['IDE'] }, ['U1'], t0).map(x => x.demande.agent), ['ide4']);
   assert.equal(A.aConfirmer(st, {}, {}, { id: 'ide8', roles: ['IDE'] }, ['U1'], t0).length, 0);
 });
+
+test('Événement de plusieurs services : co-organisateur ou invité', () => {
+  const fiches = { P1: { id: 'P1', nom: 'ALPHA', prenom: 'Un (fictif)', service: 'U1' }, P9: { id: 'P9', nom: 'INDIA', prenom: 'Neuf (fictif)', service: 'U2' } };
+  const t0 = Date.UTC(2026, 10, 18), fin = Date.UTC(2026, 10, 25);
+  const base = partage => A.reduire([rdv({ mode: 'min', nombre: 2, libre: true }, { patients: ['P1', 'P9'], services: ['U2'], partage })]);
+  let x = A.elements(base('invites'), fiches, ['U2'], t0, fin)[0];
+  assert.deepEqual([x.externe, x.partage, x.patients], [false, 'invites', ['P9']]);   // l'invité ne voit nommément que ses patients
+  x = A.elements(base('co'), fiches, ['U2'], t0, fin)[0];
+  assert.deepEqual([x.partage, x.patients], ['co', ['P1', 'P9']]);
+  assert.equal(A.elements(base('co'), fiches, ['U1'], t0, fin)[0].partage, null);   // l'organisateur
+  assert.equal(A.elements(base('co'), fiches, ['U3'], t0, fin).length, 0);
+  // Contrôle : l'invité ne modifie pas, le co-organisateur oui ; personne d'autre ne change le service
+  const ctl = (st, type, d, services) => () => A.contrat.saisies.controler(type, d, { etat: st, config: {}, peut: () => true, compte: { id: 'z', roles: ['IDE'], services } });
+  assert.throws(ctl(base('invites'), 'RDV', { id: 'R1', titre: 'Autre' }, ['U2']), /invité/);
+  assert.doesNotThrow(ctl(base('co'), 'RDV', { id: 'R1', titre: 'Autre' }, ['U2']));
+  assert.throws(ctl(base('co'), 'RDV', { id: 'R1', service: 'U2' }, ['U2']), /service organisateur/);
+  assert.throws(ctl(base('co'), 'OCCURRENCE', { rdv: 'R1', occurrence: OCC, lieu: 'x' }, ['U3']), /autre service/);
+  assert.doesNotThrow(ctl(base('invites'), 'PATIENT_INSCRIT', { rdv: 'R1', patient: 'P9' }, ['U2']));
+  assert.throws(ctl(base('invites'), 'PATIENT_INSCRIT', { rdv: 'R1', patient: 'P9' }, ['U3']), /ne participe pas/);
+  // Le service invité inscrit puis retire un patient
+  const evts = [rdv({ mode: 'min', nombre: 1 }, { patients: ['P1'], services: ['U2'], partage: 'invites' }), ev('ide-u2', 'PATIENT_INSCRIT', { rdv: 'R1', patient: 'P9', service: 'U1' })];
+  assert.deepEqual(A.reduire(evts).rdv.R1.patients, ['P1', 'P9']);
+  assert.deepEqual(A.reduire(evts.concat([ev('ide-u2', 'PATIENT_INSCRIT', { rdv: 'R1', patient: 'P9', retrait: true, service: 'U1' })])).rdv.R1.patients, ['P1']);
+  assert.equal(A.partageDefaut({ agendaReglages: { U1: { partageDefaut: 'co' } } }, 'U1'), 'co');
+  assert.equal(A.partageDefaut({}, 'U1'), 'invites');
+});
