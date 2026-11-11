@@ -300,6 +300,20 @@
     // Activité répétée mardi et vendredi, deux accompagnateurs, un agent déjà inscrit cette semaine
     var piscine = rdv({ nature: 'activite', titre: 'Piscine', debut: lundiDe(-6, 14), fin: lundiDe(-6, 16), lieu: 'Piscine municipale (fictive)', service: U1, patients: ['P01', 'P05'], accompagnateurs: 2, consigneAccompagnateurs: '1 IDE et 1 AS de préférence', regularite: { type: 'semaine', jours: [2, 5] } });
     ajouter(avant, 'INSCRIPTION', { rdv: piscine, occurrence: SIC.model.dateLocaleISO(lundiDe(1, 12)), agent: 'demo-b', nom: 'Agent B (fictif)', service: U1 });
+    // « Quel(s) professionnel(s) ? » et « Quel(s) patient(s) ? » (0.21.0) :
+    // - sortie avec exactement 3 professionnels (un désigné), inscription libre, liste d'attente ; 3 à 4 patients, un en attente
+    var marche = rdv({ nature: 'accompagnement', titre: 'Marché de Noël (fictif)', debut: jour(3, 9, 30), fin: jour(3, 12), lieu: 'Centre-ville (fictif)', service: U1, patients: ['P01', 'P02', 'P03', 'P05', 'P07'], professionnels: [profA],
+      participation: { mode: 'exact', nombre: 3, libre: true, patientsMin: 3, patientsMax: 4 }, consigneAccompagnateurs: '1 IDE au moins' });
+    var occMarche = SIC.model.dateLocaleISO(jour(3));
+    ['demo-b', 'demo-c', 'demo-d'].forEach(function (id, i) { ajouter(avant + i * 6e4, 'INSCRIPTION', { rdv: marche, occurrence: occMarche, agent: id, nom: 'Agent ' + id.slice(-1).toUpperCase() + ' (fictif)', etat: 'inscrit', service: U1 }); });
+    // - activité où il manque des patients (au moins 4), inscription à confirmer : une demande à confirmer, un collègue proposé sans réponse
+    var relax = rdv({ nature: 'activite', titre: 'Relaxation', debut: jour(2, 10), fin: jour(2, 11), lieu: 'Salle d’activités', service: U1, patients: ['P02', 'P05'],
+      participation: { mode: 'min', nombre: 2, max: 3, aConfirmer: true, patientsMin: 4 } });
+    ajouter(avant, 'INSCRIPTION', { rdv: relax, occurrence: SIC.model.dateLocaleISO(jour(2)), agent: 'demo-c', nom: 'Agent C (fictif)', etat: 'demande', service: U1 });
+    ajouter(avant, 'INSCRIPTION', { rdv: relax, occurrence: SIC.model.dateLocaleISO(jour(2)), agent: 'demo-b', nom: 'Agent B (fictif)', etat: 'propose', service: U1 });
+    // - réunion sur invitation (un groupe d'agents et un rôle), deux places : l'agent connecté y est invité
+    rdv({ nature: 'reunion', titre: 'Groupe de travail : accueil des familles', debut: jour(4, 14), fin: jour(4, 15), lieu: 'Salle de réunion', service: U1,
+      participation: { mode: 'exact', nombre: 2, invites: [{ t: 'groupe', id: 'equipe-jour-u1', nom: 'Équipe de jour' }, { t: 'role', id: 'CADRE', nom: 'Cadre de santé' }] } });
     rdv({ nature: 'activite', titre: 'Atelier terre', debut: lundiDe(2, 10, 30), fin: lundiDe(2, 11, 30), lieu: 'Salle d’activités', service: U1, patients: ['P01', 'P02', 'P05'], professionnels: [profC], regularite: { type: 'semaine', jours: [3], intervalle: 2 } });
     // Activité sans patient inscrit pour l'instant (transparente, réglage de démonstration)
     rdv({ nature: 'activite', titre: 'Atelier cuisine', debut: jour(2, 15), fin: jour(2, 17), lieu: 'Cuisine thérapeutique', service: U1, patients: [], accompagnateurs: 1 });
