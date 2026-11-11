@@ -152,3 +152,46 @@ test('Réglages : le cadre règle la durée d’affichage de ses services, l’�
   assert.equal(MS.controlerCadre(a, Object.assign({}, a, { U1: { piecesJointes: true } }), cadre), false);
   assert.deepEqual(MS.options({ messagerie: { '*': { informations: { travaux: true } } } }).informations, { agenda: false, vehicules: false, travaux: true, suivi: false });
 });
+
+test('Sondages : choix unique, multiples, dates ; résultats publics après le vote, privés pour l’auteur ; noms masqués ; clôture', () => {
+  const sondage = (plus) => Object.assign({ question: 'Quel jour pour la réunion ? (fictif)', genre: 'unique', options: [{ id: 'oa', libelle: 'Lundi' }, { id: 'ob', libelle: 'Mardi' }], resultats: 'public', anonyme: false, cloture: '2026-11-10' }, plus || {});
+  const evts = [message({ sondage: sondage() }), ev('ide1', 'VOTE', { message: 'M1', choix: ['oa'], nom: 'IDE 1' }, 2), ev('ide1', 'VOTE', { message: 'M1', choix: ['ob'], nom: 'IDE 1' }, 3)];
+  let st = MS.reduire(evts), m = st.messages.M1;
+  // Dernier vote seulement
+  let r = MS.resultats(m, cadre, NOV(4));
+  assert.deepEqual([r.ouvert, r.votants, r.options.map(o => o.n), r.options[1].noms], [true, 1, [0, 1], ['IDE 1']]);
+  // Public : l'AS ne voit pas les chiffres avant d'avoir voté ; puis les chiffres, sans les noms
+  assert.equal(MS.resultats(m, as1, NOV(4)).visibles, false);
+  assert.equal(MS.liste(st, as1, gr(as1), config, NOV(4), 'recus')[0].situation.aVoter, true);
+  st = MS.reduire(evts.concat([ev('as1', 'VOTE', { message: 'M1', choix: ['oa', 'ob'] }, 4)]));
+  r = MS.resultats(st.messages.M1, as1, NOV(4));
+  assert.deepEqual([r.visibles, r.options.map(o => o.n), r.options[0].noms], [true, [1, 1], []]);   // choix unique : un seul gardé
+  // Clôture à la date : plus de vote, résultats publics pour tous
+  assert.equal(MS.sondageOuvert(st.messages.M1, NOV(11)), false);
+  const tard = MS.reduire(evts.concat([ev('as1', 'VOTE', { message: 'M1', choix: ['oa'] }, 12)]));
+  assert.equal(tard.messages.M1.sondage.votes.as1, undefined);
+  assert.equal(MS.resultats(st.messages.M1, ide2, NOV(11)).visibles, true);
+  // Privé et anonyme : l'auteur voit les chiffres sans les noms, les destinataires ne voient rien
+  const stP = MS.reduire([message({ sondage: sondage({ resultats: 'prive', anonyme: true, cloture: '', genre: 'multiple', autre: true }) }), ev('ide1', 'VOTE', { message: 'M1', choix: ['oa', 'ob'], autre: 'Jeudi (fictif)' }, 2)]);
+  r = MS.resultats(stP.messages.M1, cadre, NOV(3));
+  assert.deepEqual([r.options.map(o => o.n), r.options[0].noms, r.autres], [[1, 1], [], [{ texte: 'Jeudi (fictif)', nom: '' }]]);
+  assert.equal(MS.resultats(stP.messages.M1, ide1, NOV(3)).visibles, false);
+  assert.deepEqual(MS.participation(stP.messages.M1, comptes, config).ont.map(c => c.id), ['ide1']);
+  // Clôture par l'auteur
+  const stC = MS.reduire([message({ sondage: sondage({ cloture: '' }) }), ev('cadre', 'SONDAGE_CLOTURE', { message: 'M1' }, 2)]);
+  assert.equal(MS.sondageOuvert(stC.messages.M1, NOV(3)), false);
+  assert.throws(() => MS.controler('VOTE', { message: 'M1', choix: ['oa'] }, { etat: stC, compte: Object.assign({ groupes: [] }, ide1), config }), /clos/);
+});
+
+test('Sondages : création réservée aux rôles autorisés (cadre par défaut), 2 à 10 réponses, dates', () => {
+  const d = (sd) => ({ id: 'MX', objet: 'Objet', texte: 'Texte', destinataires: [{ genre: 'service', code: 'U1' }], services: ['U1'], sondage: sd });
+  const ctl = (data, peut) => () => MS.controler('MESSAGE', data, { etat: { messages: {} }, compte: Object.assign({ groupes: [] }, cadre), config, peut: () => peut });
+  const dates = { genre: 'dates', options: [{ id: 'o1', jour: '2026-11-20', heure: '14:00' }, { id: 'o2', jour: '2026-11-21' }] };
+  assert.doesNotThrow(ctl(d(dates), true));
+  assert.throws(ctl(d(dates), false), /ne permet pas de créer un sondage/);
+  assert.throws(ctl(d({ genre: 'unique', options: [{ id: 'o1', libelle: 'Seul' }] }), true), /2 à 10/);
+  assert.throws(ctl(d({ genre: 'dates', options: [{ id: 'o1', jour: '' }, { id: 'o2', jour: '2026-11-21' }] }), true), /chaque date/);
+  assert.deepEqual([MS.droits.peut(['IDE'], 'SONDAGE_CLOTURE', {}), MS.droits.peut(['CADRE'], 'SONDAGE_CLOTURE', {}), MS.droits.peut(['AS'], 'VOTE', {})], [false, true, true]);
+  const st = MS.reduire([message({ sondage: dates })]);
+  assert.deepEqual(st.messages.M1.sondage.options.map(o => [o.jour, o.heure]), [['2026-11-20', '14:00'], ['2026-11-21', '']]);
+});
