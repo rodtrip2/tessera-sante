@@ -256,6 +256,14 @@
         ajouter(x.jour, el);
       });
     }
+    // Interventions programmées des demandes de travaux (0.22.0), lues à la volée si l'agent a la clé du module
+    try {
+      var stT = U.App.session.detientCle && U.App.session.detientCle('travaux') ? U.App.session.etatModule('travaux') : null;
+      (stT ? SIC.modules.lire('travaux.interventions', stT, { services: svs, debut: A.jourISO(debut), fin: A.jourISO(plusJours(debut, n - 1)) }) || [] : []).forEach(function (x) {
+        var t = stT.demandes[x.demande], T = SIC.travaux;
+        ajouter(x.jour, puce('travaux', 'Travaux : ' + T.lib(T.options(U.config(), x.service).types, x.type) + ' — ' + T.libLieu(t, U.config()), function () { if (U.travaux) U.travaux.modaleDemande(t); }));
+      });
+    } catch (e) { /* module des travaux absent ou illisible : rien à afficher */ }
     A.alertesChecklists(st(), fiches(), svs, maintenant).forEach(function (c) { ajouter(aujourdhui, puce('alerte', 'Check-list en retard : ' + c.item.libelle + ' (' + libelleElement(c.rdv) + ')', function () { modaleElement(c.rdv, null, !peut('RDV'), null, false, c.occurrence); }, couleurs().alerte)); });
     return res;
   }

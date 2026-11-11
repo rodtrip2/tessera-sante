@@ -10,7 +10,8 @@
 | Rangement des saisies par jour sur le partage | Test de charge, 11 novembre 2026 | À décider après un essai sur le partage de l’établissement | Moyenne |
 | Agenda : échéances des certificats légaux | Tessera Santé, 7 novembre 2026 | Écartée pour l'instant | Petite à moyenne (règles juridiques à valider) |
 | Module Messagerie | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
-| Module Demandes de travaux et de réparation | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
+| Module Demandes de travaux et de réparation | Tessera Santé, 8 novembre 2026 | **Réalisé en 0.22.0** | Moyenne |
+| Demandes de travaux : photos jointes | Tessera Santé, 11 novembre 2026 | Piste : stockage chiffré des images, risque de photographier un patient à étudier avec le délégué à la protection des données | Moyenne |
 | Planning d'occupation des bureaux | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Petite à moyenne |
 | Feuille de staff : codes CIM et projet thérapeutique | Tessera Santé, 8 novembre 2026 | Feuille de staff réalisée en 0.19.0 sans ces colonnes ; **données cliniques** (décision préalable ; option « donnée clinique » par donnée disponible) | Petite (liste CIM à embarquer) |
 | Notes par patient : notes cliniques | Tessera Santé, 8 novembre 2026 | Notes organisationnelles réalisées en 0.19.0 ; **données cliniques** (décision préalable) | Petite |
@@ -136,7 +137,9 @@ Calcul des échéances des certificats médicaux des soins sans consentement (24
 - **Fonctionnement** : journal `modules\messagerie\` en ajout seul (un message, une lecture, une validation = une saisie datée, jamais modifiée) ; clé propre ; lecture sur le partage, comme le reste de Tessera : pas d'envoi par courriel, pas de notification hors de l'outil.
 - **À trancher avant développement** : durée de conservation des messages et des accusés ; possibilité de répondre (fil de discussion) ou information descendante seulement ; pièces jointes (liées à l'évolution « Documents ») ; rôles qui peuvent écrire à tout l'établissement ; lien avec l'information du cadre et de la secrétaire déjà faite par le module Véhicules (pré-réservation remplacée).
 
-## Module Demandes de travaux et de réparation (demande du porteur, 8 novembre 2026)
+## Module Demandes de travaux et de réparation (demande du porteur, 8 novembre 2026) — réalisé en 0.22.0
+
+*Réalisé en 0.22.0 avec les décisions du 11 novembre 2026 (`docs/a-documenter.md`). Reste une piste : joindre une photo à une demande (stockage chiffré des images ; avis du délégué à la protection des données sur le risque de photographier un patient).*
 
 Bons de travaux par service, **visibles par tous les agents du service**, pour signaler une réparation ou une intervention et suivre sa réalisation.
 
