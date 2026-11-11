@@ -33,7 +33,7 @@
     var sel = h('select'), chambre = h('input', { type: 'text', placeholder: 'N° de chambre', hidden: true });
     function remplir(sv) {
       U.vider(sel);
-      ((U.config().lieuxCSI || {})[sv] || []).forEach(function (l) { sel.appendChild(h('option', { value: l, text: l, selected: l === valeur })); });
+      SIC.chambres.lieuxCSI(U.config(), sv).forEach(function (l) { sel.appendChild(h('option', { value: l, text: l, selected: l === valeur })); });
       sel.appendChild(h('option', { value: '__hors', text: U.lieu('Hors CSI (chambre)') }));
       chambre.hidden = sel.value !== '__hors';
     }
