@@ -907,3 +907,17 @@ tr.chambre-travaux th { background: color-mix(in srgb, var(--warn, #b97a00) 12%,
 tr.grise td { opacity: .55; }
 .psy-absence { border-style: dashed; }
 .psy-ent { display: block; margin-top: 3px; padding: 2px 6px; background: var(--surface); border: 1px solid #7a3f96; border-radius: 4px; font-size: .75rem; }
+
+/* Tri, filtre et affichage des tableaux (0.26.0) */
+th.triable { cursor: pointer; user-select: none; }
+th.triable:hover, th.triable:focus-visible { color: var(--ink); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); }
+th.triable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+th[aria-sort="ascending"], th[aria-sort="descending"] { color: var(--accent); }
+.tri-fleche { font-size: .75em; }
+.filtre-rapide { margin: 4px 0 6px; }
+html.lignes-compactes th, html.lignes-compactes td { padding-top: 2px; padding-bottom: 2px; }
+html.lignes-aerees th, html.lignes-aerees td { padding-top: 12px; padding-bottom: 12px; }
+html.lignes-tres-aerees th, html.lignes-tres-aerees td { padding-top: 18px; padding-bottom: 18px; }
+html.taille-grande body { zoom: 1.15; }
+html.taille-tres-grande body { zoom: 1.3; }
+@media print { html.taille-grande body, html.taille-tres-grande body { zoom: 1; } }
