@@ -228,7 +228,7 @@
     return h('article', { class: 'doc-suivi doc-travaux' },
       h('header', {}, h('div', {}, h('h1', { text: titre }), h('p', { text: sousTitre + (U.etablissement() ? ' — ' + U.etablissement() : '') })),
         h('p', { class: 'droite', text: 'Imprimé le ' + d.toLocaleDateString('fr-FR') + ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) })),
-      corps, h('footer', {}, h('span', { text: 'Aucune donnée concernant un patient.' }), h('span', { text: 'Tessera Santé — Demandes de travaux' })));
+      corps, h('footer', {}, h('span', { text: 'Document sans donnée concernant un patient : ne rien y ajouter à la main.' }), h('span', { text: 'Tessera Santé — Demandes de travaux' })));
   }
   function imprimerBon(x) {
     var o = opts(x.service), u = urgenceDe(x), ligne = function (l, v) { return v ? h('tr', {}, h('th', { text: l }), h('td', { text: v })) : null; };

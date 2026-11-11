@@ -49,7 +49,7 @@ Améliorations faites (sans changement de résultat, tests d'équivalence) :
 
 ## Version 0.22.0 (module Demandes de travaux, décisions du porteur du 11 novembre 2026)
 
-Demande du porteur du 8 novembre 2026 (`docs/evolutions-futures.md`), précisée le 11 novembre. Questions 1 à 6 tranchées par le porteur ; 7 à 11 sans réponse : propositions appliquées (à confirmer).
+Demande du porteur du 8 novembre 2026 (`docs/evolutions-futures.md`), précisée le 11 novembre. Questions 1 à 6 tranchées par le porteur ; propositions des questions 7 à 11 confirmées par le porteur (11 novembre 2026). Bon de travaux : **les commentaires y restent** (décision du porteur) ; pied de page « Document sans donnée concernant un patient : ne rien y ajouter à la main » (0.22.1).
 
 | Sujet | Décision | Réalisation |
 | --- | --- | --- |
@@ -67,7 +67,7 @@ Demande du porteur du 8 novembre 2026 (`docs/evolutions-futures.md`), précisée
 
 Écrans : fenêtre *Demandes de travaux* (onglets *Demandes*, *Historique*), bandeau des urgences et des informations, filtres (type, lieu, état), fenêtre d'une demande (saisie, suivi, commentaires, bon) ; *Administration → Demandes de travaux* (établissement et services ; le cadre : ses services). Démonstration : urgence immédiate, chambre indisponible programmée, réalisée à confirmer (auteur : l'agent connecté), confirmée, rouverte, doublon, refusée, ancienne, Unité 2. Tests : `tests/travaux.test.js` ; parcours des écrans complété.
 
-À documenter : architecture (nouveau module, § 7 sexies), fiche projet, fiche technique (module, saisies, fournitures), kit RGPD (nouveau traitement : demandes de travaux ; aucune donnée de patient ; auteurs des demandes), guide utilisateur, `CLAUDE.md` § 1 (liste des modules) et § 7 (questions 7 à 11 à confirmer).
+À documenter : architecture (nouveau module, § 7 sexies), fiche projet, fiche technique (module, saisies, fournitures), kit RGPD (nouveau traitement : demandes de travaux ; aucune donnée de patient ; auteurs des demandes), guide utilisateur, `CLAUDE.md` § 1 (liste des modules).
 
 ## Par document
 
