@@ -144,9 +144,17 @@
       return classeCouleur && l.mode ? teinter(tr, o.couleursModes[l.mode]) : tr;
     }
     var corps;
-    if (r.regroupement === 'chambre') corps = L.parChambre(ls).map(function (g) {
-      return [h('tr', { class: 'groupe-chambre' }, h('th', { colspan: cols.length + 1, text: g.chambre ? 'Chambre ' + g.chambre : 'Sans chambre indiquée' }))].concat(g.lignes.map(ligne));
-    });
+    if (r.regroupement === 'chambre') {
+      // Chambres indisponibles pendant des travaux (0.22.0) : signalées, même sans patient
+      var tv = U.chambresTravaux ? U.chambresTravaux(servicesAffiches()) : [], groupes = L.parChambre(ls);
+      tv.forEach(function (t) { if (!groupes.some(function (g) { return g.chambre === t.chambre; })) groupes.push({ chambre: t.chambre, lignes: [] }); });
+      if (tv.length) groupes.sort(function (a, b) { return L.compNaturel ? L.compNaturel(a.chambre, b.chambre) : String(a.chambre).localeCompare(String(b.chambre)); });
+      corps = groupes.map(function (g) {
+        var t = tv.filter(function (x) { return x.chambre === g.chambre; })[0];
+        return [h('tr', { class: 'groupe-chambre' + (t ? ' chambre-travaux' : '') }, h('th', { colspan: cols.length + 1 }, g.chambre ? 'Chambre ' + g.chambre + ' ' : 'Sans chambre indiquée',
+          t ? h('span', { class: 'badge warn', text: 'Indisponible : travaux en cours' + (t.lits > 1 ? ' (' + t.lits + ' lits)' : '') }) : null))].concat(g.lignes.map(ligne));
+      });
+    }
     else corps = ls.map(ligne);
     function entete(c) {
       var triable = L.TRIS.indexOf(c.code) >= 0 && r.regroupement !== 'chambre', actif = r.tri === c.code;

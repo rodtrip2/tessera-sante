@@ -47,6 +47,28 @@ Améliorations faites (sans changement de résultat, tests d'équivalence) :
 
 À documenter : fiche technique (performances : lecture rapide, tri mémorisé, recalcul incrémental ; test de charge), architecture (§ journal du socle).
 
+## Version 0.22.0 (module Demandes de travaux, décisions du porteur du 11 novembre 2026)
+
+Demande du porteur du 8 novembre 2026 (`docs/evolutions-futures.md`), précisée le 11 novembre. Questions 1 à 6 tranchées par le porteur ; 7 à 11 sans réponse : propositions appliquées (à confirmer).
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Listes | Types (plomberie, électricité, serrurerie, menuiserie, chauffage et ventilation, informatique et téléphonie, mobilier, nettoyage particulier, autre), gravité (gêne, dégradation, danger pour la sécurité), **urgence : immédiate (appel aux services techniques, numéro réglé pour l'établissement) ou non urgente** ; listes modifiables par le cadre pour ses services | `module-travaux.js` `options` ; réglage commun `travaux` { '*', <service> } contrôlé par `controlerCadre` (numéro : établissement, administrateur seul) |
+| Étapes | À transmettre → transmise (référence du bon **facultative**) → programmée (date) → réalisée → confirmée par le cadre ; refusée par les services techniques, doublon, annulée (motif), rouverte (motif) | saisies `TRAVAUX`, `TRAVAUX_ETAPE`, `TRAVAUX_CONFIRMATION`, `TRAVAUX_COMMENTAIRE` ; `controler` (étape permise depuis l'état, motifs, date, doublon) |
+| Droits | Créer et commenter : IDE, AS, secrétaire, cadre ; suivre : secrétaire et cadre ; confirmer ou rouvrir : cadre ; l'auteur annule sa demande | accès `travaux.consulter`, `travaux.signaler`, `travaux.suivre`, `travaux.confirmer` ; `permisPourSoi` |
+| Lieux | Liste du service réglable (salle de soins, office, salon, bureau médical, bureau infirmier, couloir, sanitaires communs, extérieur), « Chambre n° » (chambres connues des séjours proposées), « Autre lieu », précision | `LIEUX_DEFAUT`, `libLieu` |
+| Information de l'auteur | Demande réalisée, confirmée ou rouverte par un autre agent : bandeau dans sa session, pastille | `avisPour`, préférence `avisTravauxVus` |
+| Chambre indisponible | Case proposée sur option (**désactivée par défaut**, réglage par service) ; lits retirés des places disponibles (bandeau de la Vue d'ensemble : « dont n pour travaux ») ; chambre signalée dans la liste des patients par chambre, même vide | fourniture `travaux.chambres` ; `capacites.situation(…, travaux)` ; `U.chambresTravaux` |
+| Agenda (proposition, question 7) | Intervention programmée affichée à sa date | fourniture `travaux.interventions`, puce dans `reperesParJour` |
+| Plusieurs services (proposition, question 8) | Une demande appartient à un seul service | — |
+| Export (proposition, question 9) | Bon de travaux imprimable (PDF par l'impression), liste imprimée et tableur ; nom de l'auteur sur le bon : option désactivée par défaut | `imprimerBon`, `imprimerListe`, `exporterListe` (catégorie d'export `travaux`) |
+| Photos (proposition, question 10) | Pas maintenant : notées dans les évolutions futures | — |
+| Délai d'affichage (proposition, question 11) | Demandes traitées en grisé 30 jours, réglable par le cadre ; puis onglet *Historique* | `options.delaiAffichage`, `demandes(…, { historique })` |
+
+Écrans : fenêtre *Demandes de travaux* (onglets *Demandes*, *Historique*), bandeau des urgences et des informations, filtres (type, lieu, état), fenêtre d'une demande (saisie, suivi, commentaires, bon) ; *Administration → Demandes de travaux* (établissement et services ; le cadre : ses services). Démonstration : urgence immédiate, chambre indisponible programmée, réalisée à confirmer (auteur : l'agent connecté), confirmée, rouverte, doublon, refusée, ancienne, Unité 2. Tests : `tests/travaux.test.js` ; parcours des écrans complété.
+
+À documenter : architecture (nouveau module, § 7 sexies), fiche projet, fiche technique (module, saisies, fournitures), kit RGPD (nouveau traitement : demandes de travaux ; aucune donnée de patient ; auteurs des demandes), guide utilisateur, `CLAUDE.md` § 1 (liste des modules) et § 7 (questions 7 à 11 à confirmer).
+
 ## Par document
 
 - **`docs/architecture.md`** : § 7 bis (Agenda) : remplacer les lignes « Accompagnateurs » et « Consigne des accompagnateurs » par les deux rubriques ; ajouter événements de plusieurs services, étapes des permissions, tâches suggérées, sorties dans l'agenda, organisation par service. § 7 (Patients) : prise en charge et répertoire ; sortie envisagée ou actée. § 7 quinquies : colonne renommée, couleurs par état. Tableau des décisions (11 novembre 2026) ; état du plan (ligne 0.21.0).

@@ -36,7 +36,7 @@
    * Situation d'un ou plusieurs services un jour donné (`quand` : ms ou AAAA-MM-JJ) avec `presents` patients présents :
    * { lits, fermes, ouverts, reserves, presents, places, motifs } ; null si aucun service n'a de capacité réglée.
    */
-  function situation(config, codes, quand, presents) {
+  function situation(config, codes, quand, presents, travaux) {
     var j = typeof quand === 'string' && JOUR.test(quand) ? quand : jourISO(quand || Date.now());
     var r = { lits: 0, fermes: 0, reserves: 0, presents: presents || 0, motifs: [] }, n = 0;
     (Array.isArray(codes) ? codes : [codes]).forEach(function (c) {
@@ -45,6 +45,8 @@
       r.lits += x.lits;
       x.fermetures.filter(function (p) { return couvre(p, j); }).forEach(function (p) { r.fermes += p.lits; if (p.motif) r.motifs.push(p.motif); });
       x.reserves.filter(function (p) { return couvre(p, j); }).forEach(function (p) { r.reserves += p.lits; });
+      // Chambres indisponibles pendant des travaux (0.22.0) : lits fermés tant que la demande est en cours
+      (travaux || []).filter(function (t) { return t.service === c; }).forEach(function (t) { r.fermes += t.lits; r.travaux = (r.travaux || 0) + t.lits; });
     });
     if (!n) return null;
     r.ouverts = Math.max(0, r.lits - r.fermes);
