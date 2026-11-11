@@ -348,7 +348,9 @@ with sync_playwright() as p:
     a.evaluate("""async () => { const s = SIC.ui.App.session;
       await s.creerCompte({ nom: 'Cadre Deux (fictif)', login: 'cadre.u2', motDePasse: 'motdepasse-cadre-u2', roles: ['CADRE'], services: ['U2'] });
       await s.creerCompte({ nom: 'Ide Deux (fictif)', login: 'ide.u2', motDePasse: 'motdepasse-ide-u2', roles: ['IDE'], services: ['U2'] });
-      await s.modifierCoffre(async (coffre, comptes) => { comptes.filter(c => /\\.u2$/.test(c.login)).forEach(c => { c.mdpProvisoire = false; }); }); }""")
+      await s.creerCompte({ nom: 'Garde (fictif)', login: 'garde', motDePasse: 'motdepasse-garde', roles: ['ADMIN_GARDE'], services: [] });
+      await s.creerCompte({ nom: 'Directrice des soins (fictif)', login: 'ds', motDePasse: 'motdepasse-ds-01', roles: ['DIRECTEUR_SOINS'], services: [] });
+      await s.modifierCoffre(async (coffre, comptes) => { comptes.filter(c => /\\.u2$|^garde$|^ds$/.test(c.login)).forEach(c => { c.mdpProvisoire = false; }); }); }""")
     a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
     connecter(a, 'cadre', MDP)   # l'administrateur se reconnecte : remise des clés aux nouveaux comptes
     a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
@@ -406,6 +408,18 @@ with sync_playwright() as p:
     fenetre(a, 'Informations du service')
     verifier(a.locator('.is-rubrique', has_text='Numéros utiles de l’établissement').count() == 1 and a.get_by_role('button', name='+ Nouvelle rubrique').count() == 0, 'informations : page de l’établissement lue par l’IDE, sans modification')
     verifier('pas encore rempli' in a.locator('main').inner_text(), 'informations : page du service pas encore remplie')
+    print('Administrateur de garde et directeur des soins (0.27.3)')
+    a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
+    connecter(a, 'garde', 'motdepasse-garde')
+    ids = a.evaluate("(() => { const p = SIC.ui.App.session.etat.patients || {}; return Object.keys(p).slice(0, 5).map(k => (p[k].nom || '') + '|' + (p[k].ipp || '')); })()")
+    verifier(len(ids) > 0 and all(len(x.split('|')[0]) <= 2 and x.split('|')[1] == '' for x in ids), 'administrateur de garde : patients en initiales, sans IPP (' + ', '.join(ids[:3]) + ')')
+    verifier(a.locator('.barre-modules button', has_text='Isolement et contention').count() == 1 and a.locator('.barre-modules button', has_text='Administration').count() == 0, 'administrateur de garde : lecture des modules, sans administration')
+    capture(a, 'admin-garde')
+    a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
+    connecter(a, 'ds', 'motdepasse-ds-01')
+    ids = a.evaluate("(() => { const p = SIC.ui.App.session.etat.patients || {}; return Object.keys(p).slice(0, 3).map(k => p[k].nom || ''); })()")
+    verifier(len(ids) > 0 and all(len(x) > 2 for x in ids), 'directeur des soins : identité complète, tous les services')
+    verifier(a.evaluate("SIC.ui.services().length") >= 2, 'directeur des soins : tous les services sans affectation')
     nav.close()
 
 if erreurs: print('\nErreurs du navigateur :'); [print('  ' + e) for e in erreurs[:20]]

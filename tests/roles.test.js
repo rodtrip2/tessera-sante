@@ -13,7 +13,7 @@ test('Sans réglage, les rôles fournis gardent exactement leurs droits historiq
     TYPES.forEach((t) => assert.equal(M.peut([r], t, {}), M.DROITS[r].indexOf(t) >= 0, r + ' ' + t));
   });
   assert.ok(M.peut(['CADRE'], 'EDITION_CADA', {}) && M.peut(['CADRE'], 'EXPORT_PATIENT', {}) && !M.peut(['IDE'], 'EXPORT_PATIENT', {}));
-  assert.deepEqual(M.rolesConfig({}).map((r) => r.code), ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'ADMIN']);
+  assert.deepEqual(M.rolesConfig({}).map((r) => r.code), ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS', 'ADMIN']);
 });
 
 test('Cadre supérieur de santé (0.27.2) : droits du cadre par défaut, rôle Cadre ajouté d’office ; pôles validés', () => {
@@ -153,4 +153,18 @@ test('Onglets masquables par rôle (tous sauf journal et administration) ; le pl
   assert.ok(!M2.ongletVisible(['R_REG'], cfg, 'stats'));
   assert.ok(M2.ongletVisible(['IDE'], {}, 'stats'));                          // par défaut, rien n'est masqué
   assert.ok(!M2.ongletVisible([], {}, 'stats'));
+});
+
+test('Rôles de lecture (0.27.3) : médecins chefs, administrateur de garde, directeur des soins', () => {
+  const rc = (c, cfg) => M.rolesConfig(cfg || {}).find((r) => r.code === c);
+  ['MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS'].forEach((c) => {
+    assert.ok(TYPES.every((t) => !M.peut([c], t, {})), c + ' : aucune saisie par défaut dans le module');
+    assert.equal(rc(c).journal, 'aucun', c + ' : journal fermé par défaut');
+  });
+  assert.equal(rc('ADMIN_GARDE').services, false); assert.equal(rc('DIRECTEUR_SOINS').services, false); assert.equal(rc('MEDECIN_CHEF_SERVICE').services, true);
+  assert.equal(rc('ADMIN_GARDE').identite, 'initiales'); assert.equal(rc('DIRECTEUR_SOINS').identite, 'complete');
+  assert.equal(M.droits.identiteReduite(['ADMIN_GARDE'], {}), true);
+  assert.equal(M.droits.identiteReduite(['ADMIN_GARDE', 'CADRE'], {}), false);   // un autre rôle voit l'identité complète
+  assert.equal(M.droits.identiteReduite(['ADMIN_GARDE', 'ADMIN'], {}), false);
+  assert.equal(M.droits.identiteReduite(['DIRECTEUR_SOINS'], { roles: { DIRECTEUR_SOINS: { identite: 'initiales' } } }), true);   // réglable
 });

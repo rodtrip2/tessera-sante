@@ -17,7 +17,7 @@
 | Notes par patient : notes cliniques | Tessera Santé, 8 novembre 2026 | Notes organisationnelles réalisées en 0.19.0 ; **données cliniques** (décision préalable) | Petite |
 | Module Agents (fiches des agents et des psychiatres) | Tessera Santé, 8 novembre 2026 | Demande, à préciser ; une première fiche agent avec données ajoutées existe depuis la 0.20.0 ; **données du personnel** (avis préalable) | Moyenne à grande |
 | Planning des psychologues | Tessera Santé, 9 novembre 2026 | **Réalisé en 0.25.0** | Petite à moyenne |
-| Rôles d'encadrement : cadre supérieur de santé, médecin chef de service, médecin chef de pôle | Tessera Santé, 8 et 11 novembre 2026 | **Cadre supérieur réalisé en 0.27.2** (pôles) ; médecins chefs : 0.27.3 | Moyenne |
+| Rôles d'encadrement : cadre supérieur de santé, médecin chef de service, médecin chef de pôle | Tessera Santé, 8 et 11 novembre 2026 | **Réalisé en 0.27.2 et 0.27.3** (pôles, cadre supérieur, médecins chefs en lecture) ; reste : réglages du Suivi médical ouverts au cadre et aux médecins chefs | Moyenne |
 | Tri des colonnes d'un tableau par clic sur le titre | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.0** (avec filtre rapide, taille d'affichage, hauteur des lignes, raccourcis clavier) | Petite |
 | Liste de tâches personnelle, reliée aux autres modules | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.3** (« Mes tâches ») | Moyenne |
 | Page d'accueil de l'administration : modules activés ou désactivés | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.26.1** | Petite |
@@ -28,8 +28,8 @@
 | Module Demandes de congés | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **données du personnel** (avis du délégué à la protection des données) | Grande |
 | Prêt de droits pendant une absence | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; touche aux clés et aux droits (avis du responsable de la sécurité informatique) | Moyenne |
 | Module Signalement (lanceur d'alerte) | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **cadre légal et confidentialité renforcée** (avis du délégué à la protection des données et de la direction juridique) | Moyenne à grande |
-| Fiches agents : téléphones et courriels professionnels et personnels ; numéro professionnel accessible dans les autres modules | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; complète le module Agents ; **données du personnel** (coordonnées personnelles : avis du délégué à la protection des données) | Petite à moyenne |
-| Rôles « Administrateur de garde » et « Directeur des soins », accès réglables | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Petite à moyenne |
+| Fiches agents : téléphones et courriels professionnels et personnels ; numéro professionnel accessible dans les autres modules | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.27.0** (module Équipe) ; reste : fiche de contact à brancher dans l'agenda, les salles, la messagerie ; complète le module Agents ; **données du personnel** (coordonnées personnelles : avis du délégué à la protection des données) | Petite à moyenne |
+| Rôles « Administrateur de garde » et « Directeur des soins », accès réglables | Tessera Santé, 11 novembre 2026 | **Réalisé en 0.27.3** (identité en initiales pour l'administrateur de garde) ; reste : périodes de garde | Petite à moyenne |
 | Accès aux données cliniques réglable par rôle et par service, limité aux patients présents, « bris de glace » | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; suppose la levée de la règle « aucune donnée clinique » ; touche aux clés (avis du responsable de la sécurité informatique) | Moyenne à grande |
 | Isocont : tâche de surveillance de la CSI dans l'agenda | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Petite à moyenne |
 | Contrôle de conformité des CSI libres, une fois par poste, par deux agents, avec check-list | Tessera Santé, 11 novembre 2026 | Demande, à préciser (contenu de la check-list) | Moyenne |

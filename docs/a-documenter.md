@@ -115,6 +115,19 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.27.3 (lot C, étape 4 : médecins chefs, administrateur de garde, directeur des soins ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Médecin chef de service, médecin chef de pôle | Lecture des tableaux de bord, registres, statistiques, Vue d'ensemble et Suivi médical de leur service ou pôle ; numéro personnel des médecins | Rôles fournis `MEDECIN_CHEF_SERVICE`, `MEDECIN_CHEF_POLE` (rôles de service : services du pôle cochés d'un clic) ; aucune saisie par défaut dans les modules (accès « consulter » seulement), journal fermé ; Équipe : numéro personnel des médecins (lecture par les clés `e-m.<service>`, saisie). **Reste** : réglages du Suivi médical, aujourd'hui réservés à l'administrateur (le cadre ne les a pas non plus) : à ouvrir au cadre et aux médecins chefs dans une prochaine version |
+| Administrateur de garde | Rôle de l'établissement, sans droit technique ; lecture ; identité des patients en initiales | Rôle fourni `ADMIN_GARDE` : tous les services, aucune saisie, journal fermé, **identité réduite** (initiales, sans IPP ni date de naissance, année seulement) appliquée aux états d'affichage de la session (`patientReduit`, `identiteReduite`) : le journal n'est pas touché ; réglage « Identité des patients » par rôle dans *Rôles et accès* ; un compte qui a aussi un rôle à identité complète voit l'identité complète. Destinataire des informations « sans délai » : à désigner dans les alertes de l'établissement (Isocont) |
+| Directeur des soins | Lecture de tous les services, sans saisie, identité complète | Rôle fourni `DIRECTEUR_SOINS` : tous les services, aucune saisie, journal fermé |
+| Réglages | Accès par défaut, réglables dans « Rôles et accès » | « Rétablir les droits par défaut » rétablit aussi les services et l'identité du rôle fourni |
+
+Tests : `tests/roles.test.js` ; parcours (compte d'administrateur de garde : initiales ; directeur des soins : identité complète, tous les services). À documenter : guide d'administration, architecture (rôles fournis, identité réduite), kit RGPD (minimisation pour l'administrateur de garde), `CLAUDE.md` § 7 (nouveaux rôles à valider).
+
+Points à valider : accès par défaut de chaque rôle ; identité en initiales pour l'administrateur de garde (suffisante pour joindre le service ?) ; limitation aux périodes de garde (planning des gardes, plus tard).
+
 ## Version 0.27.2 (lot C, étape 3 : pôles et cadre supérieur de santé ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |
