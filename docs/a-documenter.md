@@ -115,6 +115,17 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.27.1 (lot C, étape 2 : référents ; décisions du porteur du 11 novembre 2026)
+
+| Sujet | Décision | Réalisation |
+| --- | --- | --- |
+| Domaines | Proposés par défaut, complétés ou masqués par le cadre (et l'administrateur pour l'établissement) | 12 domaines proposés (plaies et escarres, pharmacie, restriction des libertés, hygiène, douleur, identitovigilance, matériovigilance, hémovigilance, sécurité incendie, urgences vitales, éducation thérapeutique, droits des patients) ; saisie `DOMAINE_REFERENT` (domaine ajouté, masqué ou affiché), par service ou établissement (« * ») |
+| Référents | Un ou plusieurs, avec ou sans compte, suppléant éventuel | Saisie `REFERENTS` (titulaires, suppléants, précision) ; choisis parmi les comptes et les membres des groupes d'agents ; accès « Tenir la liste des référents » (cadre de ses services ; établissement : administrateur) |
+| Consultation | Onglet « Référents » de la fenêtre Équipe, repris dans les Informations du service ; numéro et « Écrire » | Onglet *Référents* (établissement puis service ; l'agent voit les domaines dont il est référent) ; rubrique « Référents » ajoutée d'office aux pages des Informations du service ; fiche de contact d'un clic, numéro professionnel à copier, « Écrire » ; fourniture `equipe.referents` |
+| Droits | Aucun droit particulier pour l'instant | Mention seulement ; droits par domaine dans les évolutions futures |
+
+Démonstration : référents de l'Unité 1 (dont un suppléant, un domaine ajouté, un domaine masqué) et de l'établissement. Tests : `tests/equipe.test.js` ; parcours complété. À documenter : guide utilisateur, guide du cadre, fiche technique.
+
 ## Version 0.27.0 (lot C, étape 1 : fiches des agents et contact d'un clic ; décisions du porteur du 11 novembre 2026)
 
 | Sujet | Décision | Réalisation |
