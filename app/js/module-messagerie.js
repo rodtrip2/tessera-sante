@@ -78,7 +78,10 @@
         break;
       case 'MESSAGE_REPONSE':
         if (!m || !d.id || m.reponsesListe.some(function (r) { return r.id === d.id; })) break;
-        m.reponsesListe.push({ id: d.id, par: e.by, nom: d.nom || '', le: e.at, texte: d.texte || '', evt: e.id });
+        var rp = { id: d.id, par: e.by, nom: d.nom || '', le: e.at, texte: d.texte || '', evt: e.id };
+        // Réponse de l'auteur à un seul agent (`a`) : visible par l'auteur et cet agent ; sinon au groupe des destinataires
+        if (e.by === m.par && typeof d.a === 'string' && d.a) { rp.a = d.a; rp.nomA = d.nomA || ''; }
+        m.reponsesListe.push(rp);
         // Écrire une réponse vaut lecture du message et des réponses précédentes
         var lr = m.lectures[e.by] || (m.lectures[e.by] = { ouvert: e.at });
         lr.vu = e.at;
@@ -155,12 +158,19 @@
     var lim = new Date(maintenant); lim.setMonth(lim.getMonth() - options(config).conservationMois);
     return Date.parse(m.cree) >= lim.getTime();
   }
-  /** Réponses visibles par l'agent : toutes pour l'auteur et si les réponses vont à tous ; sinon les siennes et celles de l'auteur. */
+  /**
+   * Réponses visibles par l'agent. L'auteur voit tout. Réponses de l'auteur : au groupe (tous les destinataires) ou à un
+   * seul agent (`a`, visible par lui seul). Réponses des destinataires : à tous si le message le permet, sinon à l'auteur
+   * seulement (chacun voit les siennes).
+   */
   function reponsesVisibles(m, compte) {
     if (!m || !compte) return [];
-    if (m.par === compte.id || m.reponses === 'tous') return m.reponsesListe.slice();
-    // Réponses à l'auteur seulement : l'agent voit les siennes et celles de l'auteur (qui répond à tous)
-    return m.reponsesListe.filter(function (r) { return r.par === compte.id || r.par === m.par; });
+    if (m.par === compte.id) return m.reponsesListe.slice();
+    return m.reponsesListe.filter(function (r) {
+      if (r.par === compte.id) return true;
+      if (r.par === m.par) return !r.a || r.a === compte.id;
+      return m.reponses === 'tous';
+    });
   }
   /**
    * Situation d'un message pour l'agent : lu (ouvert), confirmé, à confirmer, nouvelles réponses, relancé (relance après
@@ -295,6 +305,7 @@
     if (type === 'MESSAGE_REPONSE') {
       if (m.reponses === 'aucune') throw new Error('L’auteur n’attend pas de réponse à ce message.');
       if (!concerne(m, compte, groupes)) throw new Error('Ce message ne vous est pas adressé.');
+      if (d.a !== undefined && d.a !== '' && (!compte || m.par !== compte.id)) throw new Error('Seul l’auteur répond à un agent en particulier.');
       if (!String(d.texte || '').trim()) throw new Error('La réponse est vide.');
       if (String(d.texte).length > 2000) throw new Error('Réponse trop longue (2 000 caractères au plus).');
       return;
