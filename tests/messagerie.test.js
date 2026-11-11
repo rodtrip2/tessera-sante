@@ -150,7 +150,7 @@ test('Réglages : le cadre règle la durée d’affichage de ses services, l’�
   assert.equal(MS.controlerCadre(a, Object.assign({}, a, { '*': { piecesJointes: true } }), cadre), false);
   assert.equal(MS.controlerCadre(a, Object.assign({}, a, { U2: { affichageJours: 7 } }), cadre), false);
   assert.equal(MS.controlerCadre(a, Object.assign({}, a, { U1: { piecesJointes: true } }), cadre), false);
-  assert.deepEqual(MS.options({ messagerie: { '*': { informations: { travaux: true } } } }).informations, { agenda: false, vehicules: false, travaux: true, suivi: false });
+  assert.deepEqual(MS.options({ messagerie: { '*': { informations: { travaux: true } } } }).informations, { agenda: false, vehicules: false, travaux: true, suivi: false, salles: false });
 });
 
 test('Sondages : choix unique, multiples, dates ; résultats publics après le vote, privés pour l’auteur ; noms masqués ; clôture', () => {

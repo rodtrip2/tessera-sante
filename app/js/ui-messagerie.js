@@ -106,6 +106,20 @@
   function etat(id) { try { return s().etatModule(id) || null; } catch (e) { return null; } }
   function patients() { return (U.st() && U.st().patients) || {}; }
   var ADAPT = {
+    salles: {
+      lister: function () {
+        var e = etat('salles'), auj = SIC.salles ? SIC.salles.jourISO(Date.now()) : '';
+        if (!e) return [];
+        return Object.keys(e.reservations).map(function (k) { return e.reservations[k]; }).filter(function (r) { return !r.annulee && (r.jour >= auj || (r.repetition && r.repetition.type === 'semaine')); })
+          .map(function (r) { var x = e.salles[r.salle]; return { genre: 'reservation', id: r.id, service: (x && x.service) || r.service, quand: Date.parse(r.jour) || 0 }; });
+      },
+      resoudre: function (r) {
+        var e = etat('salles'), x = e && e.reservations[r.id]; if (!x || x.annulee) return null;
+        var sa = e.salles[x.salle];
+        return { titre: 'Salle : ' + (sa ? sa.nom : 'salle') + ' — ' + (x.titre || ''), detail: jourFr(x.jour) + ' ' + x.de + '–' + x.a + (x.repetition && x.repetition.type === 'semaine' ? ' (répétée)' : '') };
+      },
+      ouvrir: function () { U.ouvrirFenetre('salles'); }
+    },
     agenda: {
       lister: function () {
         var e = etat('agenda'), now = Date.now(), res = [];
