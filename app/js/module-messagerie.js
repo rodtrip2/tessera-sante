@@ -19,11 +19,14 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, G) {
   'use strict';
 
-  var TYPES = ['MESSAGE', 'MESSAGE_REPONSE', 'MESSAGE_LU', 'MESSAGE_RETRAIT', 'MESSAGE_ARCHIVE', 'MESSAGE_RELANCE', 'VOTE', 'SONDAGE_CLOTURE'];
+  var TYPES = ['MESSAGE', 'MESSAGE_REPONSE', 'MESSAGE_LU', 'MESSAGE_RETRAIT', 'MESSAGE_ARCHIVE', 'MESSAGE_RELANCE', 'VOTE', 'SONDAGE_CLOTURE', 'CONSULTATION'];
   // Sondages (décisions du porteur du 11 novembre 2026) : choix unique, choix multiples, dates ; résultats publics (les
   // destinataires voient les chiffres, après avoir voté ou à la clôture) ou privés (l'auteur seul) ; noms masqués en option
   var GENRES_SONDAGE = { unique: 'Choix unique', multiple: 'Choix multiples', dates: 'Dates (chacun coche les dates qui lui conviennent)' };
   var MAX_OPTIONS = 10;
+  // Chiffrement réservé aux destinataires (0.24.0, décision du porteur du 11 novembre 2026) : réglage de l'établissement
+  var CHIFFREMENTS = { desactive: 'Désactivé', choix: 'Au choix de l’auteur (case décochée au départ)', choixCoche: 'Au choix de l’auteur (case cochée au départ)', impose: 'Imposé pour tous les messages' };
+  var MOTIFS_CONSULTATION = ['Signalement ou plainte', 'Enquête interne ou administrative', 'Demande d’un agent concerné', 'Autre (à préciser)'];
   var GENRES_DEST = ['agent', 'groupe', 'role', 'service', 'etablissement'];
   var ACCUSES = { auto: 'Automatique à l’ouverture', confirmer: 'À confirmer (« J’ai lu »)' };
   var REPONSES = { auteur: 'À l’auteur seulement', tous: 'À tous les destinataires', aucune: 'Pas de réponse' };
@@ -58,7 +61,9 @@
       informations: info,
       piecesJointes: et.piecesJointes === true,
       tailleMaxMo: isFinite(taille) && taille > 0 && taille <= 50 ? taille : 5,
-      typesPieces: types.length ? types : TYPES_PIECES_DEFAUT.slice()
+      typesPieces: types.length ? types : TYPES_PIECES_DEFAUT.slice(),
+      chiffrement: CHIFFREMENTS[et.chiffrement] ? et.chiffrement : 'desactive',
+      consultation: et.consultation !== false
     };
   }
 
@@ -72,7 +77,8 @@
           destinataires: Array.isArray(d.destinataires) ? d.destinataires : [], services: Array.isArray(d.services) ? d.services : [],
           important: !!d.important, accuse: ACCUSES[d.accuse] ? d.accuse : 'auto', reponses: REPONSES[d.reponses] ? d.reponses : 'auteur',
           jusquau: JOUR.test(d.jusquau || '') ? d.jusquau : '', rattaches: Array.isArray(d.rattaches) ? d.rattaches : [], pieces: Array.isArray(d.pieces) ? d.pieces : [],
-          lectures: {}, reponsesListe: [], archives: {}, relances: [], retire: null, sondage: sondageDe(d.sondage) };
+          lectures: {}, reponsesListe: [], archives: {}, relances: [], retire: null, sondage: sondageDe(d.sondage), consultations: [] };
+        if (d.chiffre && typeof d.chiffre === 'object') st.messages[d.id].chiffre = d.chiffre;
         break;
       case 'VOTE':
         // Dernier vote de l'agent : il remplace le précédent ; vote après la clôture ignoré
@@ -83,6 +89,11 @@
         m.sondage.votes[e.by] = { choix: choix, autre: m.sondage.autre ? String(d.autre || '').slice(0, 200) : '', le: e.at, nom: d.nom || '' };
         var lv = m.lectures[e.by] || (m.lectures[e.by] = { ouvert: e.at });
         lv.vu = lv.vu && lv.vu > e.at ? lv.vu : e.at;
+        break;
+      case 'CONSULTATION':
+        // Consultation d'un message chiffré par le cadre ou un auditeur : toujours gardée ; montrée à l'auteur et aux
+        // destinataires seulement si le consultant l'a choisi
+        if (m) m.consultations.push({ par: e.by, nom: d.nom || '', le: e.at, motif: d.motif || '', precision: d.precision || '', informer: d.informer === true });
         break;
       case 'SONDAGE_CLOTURE':
         if (m && m.sondage && !m.sondage.close) m.sondage.close = { par: e.by, le: e.at };
@@ -96,6 +107,7 @@
       case 'MESSAGE_REPONSE':
         if (!m || !d.id || m.reponsesListe.some(function (r) { return r.id === d.id; })) break;
         var rp = { id: d.id, par: e.by, nom: d.nom || '', le: e.at, texte: d.texte || '', evt: e.id };
+        if (d.chiffre) rp.chiffre = d.chiffre;
         // Réponse de l'auteur à un seul agent (`a`) : visible par l'auteur et cet agent ; sinon au groupe des destinataires
         if (e.by === m.par && typeof d.a === 'string' && d.a) { rp.a = d.a; rp.nomA = d.nomA || ''; }
         m.reponsesListe.push(rp);
@@ -301,6 +313,70 @@
     return Object.assign({}, compte, { services: sv });
   }
 
+  // ------------------------------------------------------------ Clés du chiffrement réservé aux destinataires (0.24.0)
+  // Noms : m-s.<service>, m-r.<rôle>.<service>, m-g.<groupe>, m-a.<agent>, m-c.<service> (consultation par le cadre ou
+  // l'auteur d'un service). Créées par l'administrateur quand l'établissement active le chiffrement, remises par la
+  // règle `aDroitCle` (les services et les rôles sont traités comme des groupes).
+  function nomCle(d) {
+    switch (d && d.genre) {
+      case 'service': return ['m-s.' + d.code];
+      case 'role': return ['m-r.' + d.code + '.' + d.service];
+      case 'groupe': return ['m-g.' + d.code];
+      case 'agent': return ['m-a.' + d.code];
+    }
+    return [];
+  }
+  /** Clés à créer : tout service (et ses rôles, et sa clé de consultation), tout groupe actif, tout compte actif. */
+  function clesNecessaires(config, comptes, roles) {
+    var o = options(config);
+    if (o.chiffrement === 'desactive') return [];
+    var res = [], svs = (config.services || []).map(function (x) { return x.code; });
+    svs.forEach(function (sv) {
+      res.push('m-s.' + sv);
+      (roles || M.ROLES_DE_SERVICE).forEach(function (r) { res.push('m-r.' + r + '.' + sv); });
+      if (o.consultation) res.push('m-c.' + sv);
+    });
+    G.liste(config).filter(function (g) { return g.actif; }).forEach(function (g) { res.push('m-g.' + g.code); });
+    (comptes || []).filter(function (c) { return c && c.actif !== false && c.id !== 'secours'; }).forEach(function (c) { res.push('m-a.' + c.id); });
+    return res;
+  }
+  /**
+   * Remise d'une clé de la messagerie à un compte. `acces` : { messagerie (accès au module), consulter (droit de
+   * consultation tracée) }. Le rôle d'administrateur n'y donne aucun droit propre (il détient techniquement toutes les
+   * clés, comme pour chaque module : la lecture ne lui est proposée qu'en destinataire ou par une consultation tracée).
+   */
+  function aDroitCle(nom, compte, config, acces) {
+    if (!compte || !acces) return false;
+    var c = normaliser(compte, config), sv = c.services || [], p = String(nom).split('.'), genre = p[0];
+    if (genre === 'm-c') return !!acces.consulter && options(config).consultation && sv.indexOf(p[1]) >= 0;
+    if (!acces.messagerie) return false;
+    if (genre === 'm-a') return p.slice(1).join('.') === c.id;
+    if (genre === 'm-s') return sv.indexOf(p[1]) >= 0;
+    if (genre === 'm-r') return (c.roles || []).indexOf(p[1]) >= 0 && sv.indexOf(p[2]) >= 0;
+    if (genre === 'm-g') return G.de(config, c.id).indexOf(p.slice(1).join('.')) >= 0;
+    return false;
+  }
+  /**
+   * Clés pour lesquelles un message chiffré est emballé : ses destinataires (tout l'établissement : chaque service),
+   * l'auteur, et la consultation des services concernés et de ceux de l'auteur.
+   */
+  function clesPourMessage(dest, auteur, config, comptes) {
+    var res = [], o = options(config);
+    function aj(n) { if (res.indexOf(n) < 0) res.push(n); }
+    (dest || []).forEach(function (d) {
+      if (d.genre === 'etablissement') (config.services || []).forEach(function (x) { aj('m-s.' + x.code); });
+      else nomCle(d).forEach(aj);
+    });
+    if (auteur) aj('m-a.' + auteur.id);
+    if (o.consultation) {
+      // Agents nommés : services de chacun (`comptes`), pour que le cadre de leur service puisse consulter
+      var svsAgents = [];
+      (dest || []).forEach(function (d) { if (d.genre === 'agent') { var c = (comptes || []).filter(function (x) { return x.id === d.code; })[0]; if (c) svsAgents = svsAgents.concat(normaliser(c, config).services || []); } });
+      servicesDe(dest, config).concat((normaliser(auteur, config) || {}).services || [], svsAgents).forEach(function (sv) { aj('m-c.' + sv); });
+    }
+    return res;
+  }
+
   // ------------------------------------------------------------ Contrôles
   function estEncadrement(compte) { var r = (compte && compte.roles) || []; return r.indexOf('CADRE') >= 0 || r.indexOf('ADMIN') >= 0; }
   /**
@@ -335,6 +411,17 @@
     var st = (ctx && ctx.etat) || { messages: {} }, config = (ctx && ctx.config) || {}, compte = normaliser(ctx && ctx.compte, config), m;
     if (type === 'MESSAGE') {
       if (!d.id || st.messages[d.id]) throw new Error('Message déjà enregistré.');
+      var oc = options(config);
+      if (oc.chiffrement === 'impose' && !d.chiffre) throw new Error('L’établissement impose le chiffrement réservé aux destinataires.');
+      if (d.chiffre) {
+        // Contenu chiffré (objet, texte, éléments rattachés, pièces jointes, libellés du sondage) : contrôlé avant le chiffrement
+        if (oc.chiffrement === 'desactive') throw new Error('Le chiffrement réservé aux destinataires n’est pas activé dans cet établissement.');
+        if (typeof d.chiffre.ct !== 'string' || !d.chiffre.cles || typeof d.chiffre.cles !== 'object' || !Object.keys(d.chiffre.cles).length) throw new Error('Message chiffré mal formé.');
+        if (d.objet || d.texte || (d.pieces && d.pieces.length) || (d.rattaches && d.rattaches.length)) throw new Error('Message chiffré : le contenu ne doit pas être en clair.');
+        controlerDestinataires(d.destinataires, compte, config);
+        if (d.sondage && !(ctx && typeof ctx.peut === 'function' && ctx.peut('SONDAGE_CLOTURE'))) throw new Error('Votre rôle ne permet pas de créer un sondage (réglage de l’établissement : cadre et administrateur par défaut).');
+        return;
+      }
       if (!texte(d.objet)) throw new Error('Indiquez l’objet du message.');
       if (String(d.objet).length > 150) throw new Error('Objet trop long (150 caractères au plus).');
       if (!String(d.texte || '').trim()) throw new Error('Le message est vide.');
@@ -383,8 +470,9 @@
       if (m.reponses === 'aucune') throw new Error('L’auteur n’attend pas de réponse à ce message.');
       if (!concerne(m, compte, groupes)) throw new Error('Ce message ne vous est pas adressé.');
       if (d.a !== undefined && d.a !== '' && (!compte || m.par !== compte.id)) throw new Error('Seul l’auteur répond à un agent en particulier.');
-      if (!String(d.texte || '').trim()) throw new Error('La réponse est vide.');
-      if (String(d.texte).length > 2000) throw new Error('Réponse trop longue (2 000 caractères au plus).');
+      if (m.chiffre && !d.chiffre) throw new Error('Message chiffré : la réponse doit l’être aussi.');
+      if (!d.chiffre && !String(d.texte || '').trim()) throw new Error('La réponse est vide.');
+      if (String(d.texte || '').length > 2000) throw new Error('Réponse trop longue (2 000 caractères au plus).');
       return;
     }
     if (type === 'MESSAGE_LU' && !concerne(m, compte, groupes)) throw new Error('Ce message ne vous est pas adressé.');
@@ -396,6 +484,14 @@
       var ok = (d.choix || []).filter(function (c) { return m.sondage.options.some(function (x) { return x.id === c; }); });
       if (!ok.length && !(m.sondage.autre && String(d.autre || '').trim())) throw new Error('Choisissez au moins une réponse.');
       if (m.sondage.genre === 'unique' && ok.length > 1) throw new Error('Une seule réponse possible.');
+      return;
+    }
+    if (type === 'CONSULTATION') {
+      if (!m.chiffre) throw new Error('Seul un message chiffré se consulte : les autres sont lisibles par les destinataires.');
+      if (MOTIFS_CONSULTATION.indexOf(d.motif) < 0) throw new Error('Choisissez le motif de la consultation.');
+      if (!texte(d.precision, 500)) throw new Error('Précisez le motif de la consultation.');
+      if (concerne(m, compte, groupes)) throw new Error('Ce message vous est adressé : ouvrez-le simplement.');
+      if (!options(config).consultation) throw new Error('La consultation par le cadre n’est pas activée dans cet établissement.');
       return;
     }
     if (type === 'SONDAGE_CLOTURE') {
@@ -426,11 +522,12 @@
   var ACCES = [
     { code: 'messagerie.lire', libelle: 'Lire les messages reçus, confirmer la lecture, archiver, répondre aux sondages', types: ['MESSAGE_LU', 'MESSAGE_ARCHIVE', 'VOTE'] },
     { code: 'messagerie.ecrire', libelle: 'Écrire, répondre, relancer et retirer ses messages', types: ['MESSAGE', 'MESSAGE_REPONSE', 'MESSAGE_RELANCE', 'MESSAGE_RETRAIT'] },
-    { code: 'messagerie.sondage', libelle: 'Créer des sondages et les clore', types: ['SONDAGE_CLOTURE'] }
+    { code: 'messagerie.sondage', libelle: 'Créer des sondages et les clore', types: ['SONDAGE_CLOTURE'] },
+    { code: 'messagerie.consulter', libelle: 'Consulter un message chiffré qui ne vous est pas adressé (motif obligatoire, inscrit au journal) : cadre, auditeur', types: ['CONSULTATION'] }
   ];
   // Droits proposés : tous les rôles lisent et écrivent ; l'appartenance aux services et aux groupes fait le reste
   // Sondages : cadre (et administrateur) par défaut, réglable dans Rôles et accès (décision du porteur du 11 novembre 2026)
-  var SANS_SONDAGE = TYPES.filter(function (t) { return t !== 'SONDAGE_CLOTURE'; });
+  var SANS_SONDAGE = TYPES.filter(function (t) { return t !== 'SONDAGE_CLOTURE' && t !== 'CONSULTATION'; });
   var DROITS = { IDE: SANS_SONDAGE.slice(), AS: SANS_SONDAGE.slice(), SECRETAIRE: SANS_SONDAGE.slice(), CADRE: TYPES.slice() };
   var D = Droits.creer({
     roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
@@ -454,7 +551,8 @@
     droits: D,
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { messagerie: controlerCadre } },
-    vues: { onglets: [{ code: 'recus', libelle: 'Reçus' }, { code: 'envoyes', libelle: 'Envoyés' }, { code: 'informations', libelle: 'Informations' }, { code: 'archives', libelle: 'Archives' }] },
+    vues: { onglets: [{ code: 'recus', libelle: 'Reçus' }, { code: 'envoyes', libelle: 'Envoyés' }, { code: 'informations', libelle: 'Informations' }, { code: 'archives', libelle: 'Archives' },
+      { code: 'consultation', libelle: 'Consultation', droit: 'CONSULTATION' }] },
     migrations: [],
     fournitures: [],
     besoins: []
@@ -464,6 +562,7 @@
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, ACCUSES: ACCUSES, REPONSES: REPONSES, RATTACHABLES: RATTACHABLES, INFORMATIONS: INFORMATIONS,
     TYPES_PIECES_DEFAUT: TYPES_PIECES_DEFAUT, MAX_PIECES: MAX_PIECES, MAX_RATTACHES: MAX_RATTACHES,
     options: options, estDestinataire: estDestinataire, servicesDe: servicesDe, destinatairesResolus: destinatairesResolus, suiviLectures: suiviLectures,
+    CHIFFREMENTS: CHIFFREMENTS, MOTIFS_CONSULTATION: MOTIFS_CONSULTATION, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, clesPourMessage: clesPourMessage,
     GENRES_SONDAGE: GENRES_SONDAGE, MAX_OPTIONS: MAX_OPTIONS, sondageOuvert: sondageOuvert, resultats: resultats, participation: participation,
     concerne: concerne, reponsesVisibles: reponsesVisibles, situation: situation, liste: liste, enAttente: enAttente, messagesDe: messagesDe,
     affichable: affichable, ext: ext, normaliser: normaliser, controler: controler, controlerDestinataires: controlerDestinataires, controlerCadre: controlerCadre, jourISO: jourISO, plusJours: plusJours };

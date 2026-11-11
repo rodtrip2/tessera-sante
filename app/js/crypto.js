@@ -304,6 +304,25 @@
     var j = await subtle.exportKey('jwk', k), x = deb64(j.x.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - j.x.length % 4) % 4)), y = deb64(j.y.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - j.y.length % 4) % 4));
     return b64(concat(new Uint8Array([4]), x, y));
   }
+  /**
+   * Paire ECDH P-256 tirée d'une génération d'une clé de droit (messagerie, 0.24.0) : la partie privée se recalcule à
+   * partir des octets de la génération (seuls ses détenteurs l'ont), la partie publique est attestée par
+   * l'administrateur. Permet d'écrire à un groupe dont on n'est pas membre. Retourne { privee, publique (b64) }.
+   */
+  var PKCS8_P256 = [0x30, 0x41, 0x02, 0x01, 0x00, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x04, 0x27, 0x30, 0x25, 0x02, 0x01, 0x01, 0x04, 0x20];
+  var ORDRE_P256 = 'ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551';
+  async function paireDepuisOctets(octets, contexte) {
+    for (var i = 0; i < 8; i++) {
+      var d = await deriverOctets(octets, 'Tessera paire ' + contexte + (i ? ':' + i : '')), h = hex(d);
+      if (h === '0'.repeat(64) || h >= ORDRE_P256) continue;   // hors de l'intervalle [1, n - 1] : probabilité ~2^-32
+      var der = new Uint8Array(PKCS8_P256.length + 32); der.set(PKCS8_P256); der.set(d, PKCS8_P256.length); d.fill(0);
+      var publique = await publiqueDePrivee(der);
+      var privee = await subtle.importKey('pkcs8', der, ECDH, false, ['deriveBits']);
+      der.fill(0);
+      return { privee: privee, publique: publique };
+    }
+    throw new Error('Paire de clés impossible à tirer.');
+  }
   /** Ancre : empreinte de la clé publique d'attestation, gardée dans chaque emballage (protégée par le mot de passe). */
   async function ancreDe(publique) { return hex(await sha256(deb64(publique))); }
   var MAGIC_ANCRE = enc.encode('ANC1');
@@ -338,6 +357,6 @@
     exporterPrivee: exporterPrivee, importerPrivee: importerPrivee, envelopper: envelopper, ouvrirEnveloppe: ouvrirEnveloppe,
     nouvelleMaitresse: nouvelleMaitresse, octetsGeneration: octetsGeneration, importerCleOctets: importerCleOctets,
     sha256: sha256, concat: concat, nouvellePaireSignature: nouvellePaireSignature, signer: signer, verifierSignature: verifierSignature,
-    deriverOctets: deriverOctets, hmac: hmac, secretPartage: secretPartage, ancreDe: ancreDe, publiqueDePrivee: publiqueDePrivee, paquet: paquet, ouvrirPaquet: ouvrirPaquet
+    deriverOctets: deriverOctets, hmac: hmac, secretPartage: secretPartage, ancreDe: ancreDe, publiqueDePrivee: publiqueDePrivee, paireDepuisOctets: paireDepuisOctets, paquet: paquet, ouvrirPaquet: ouvrirPaquet
   };
 });
