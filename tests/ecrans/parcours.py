@@ -200,6 +200,17 @@ with sync_playwright() as p:
     a.locator('nav.onglets button', has_text='Par salle').click(); time.sleep(1)
     verifier(a.locator('.sb-pret').count() >= 1, 'semaine d’une salle : prêt répété à un autre service')
     capture(a, 'salles-semaine')
+    verifier(a.evaluate("Object.keys(SIC.ui.App.session.etatModule('salles').reflets || {}).sort().join(',')") == 'agenda,suivi,travaux', 'relevé « occupé » des autres plannings enregistré')
+    # Agent sans la clé du Suivi médical : la présence apparaît « Occupé », sans le nom du médecin
+    a.evaluate("() => { const s = SIC.ui.App.session; s._cle = s.detientCle; s.detientCle = (m) => m !== 'suivi' && s._cle(m); }")
+    a.locator('nav.onglets button', has_text='Journée').click(); time.sleep(1)
+    a.get_by_role('button', name='Aujourd’hui').click(); time.sleep(0.6)
+    for _ in range(7):
+        if a.locator('.sb-occupe').count(): break
+        a.get_by_role('button', name='Suivant').first.click(); time.sleep(0.6)
+    verifier(a.locator('.sb-occupe').count() >= 1 and a.locator('.sb-occupe', has_text='Dr').count() == 0, 'occupation d’un planning non accessible : « Occupé », sans détail')
+    capture(a, 'salles-occupe')
+    a.evaluate("() => { const s = SIC.ui.App.session; s.detientCle = s._cle; delete s._cle; }")
     fenetre(a, 'Agenda du service')
     a.locator('.ag-bloc', has_text='Entretien infirmier').first.click(); time.sleep(1)
     verifier(a.locator('dialog[open]').get_by_label('Salle réservée').count() == 1, 'agenda : salle réservée par l’événement')

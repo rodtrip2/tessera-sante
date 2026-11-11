@@ -59,7 +59,7 @@
       u ? h('span', { class: 'badge ' + (u.appel && !t.traitee ? 'bad' : ''), text: u.libelle }) : null,
       g ? h('span', { class: 'badge' + (t.gravite === 'danger' ? ' bad' : ''), text: g }) : null,
       t.chambreIndisponible && opts(t.service).chambreIndisponible ? h('span', { class: 'badge warn', text: 'Chambre indisponible' }) : null,
-      t.salleIndisponible && opts(t.service).salleIndisponible ? h('span', { class: 'badge warn', text: 'Salle indisponible' }) : null,
+      t.salleIndisponible && opts(t.service).salleIndisponible ? h('span', { class: 'badge warn', text: 'Salle indisponible' + (t.salleJusquau ? ' jusqu’au ' + t.salleJusquau.split('-').reverse().join('/') : '') }) : null,
       t.reference ? h('span', { class: 'badge', text: 'Bon ' + t.reference }) : null,
       t.commentaires.length ? h('span', { class: 'badge', text: t.commentaires.length + ' commentaire' + (t.commentaires.length > 1 ? 's' : '') }) : null);
   }
@@ -122,8 +122,13 @@
     var lieu = h('select', Object.assign({ 'aria-label': 'Lieu' }, dis), options(o.lieux.concat([{ code: 'chambre', libelle: 'Chambre…' }], avecSalles || x.lieu === 'salle' ? [{ code: 'salle', libelle: 'Salle ou bureau…' }] : [], [{ code: 'autre', libelle: 'Autre lieu' }]), x.lieu, '— Choisir —'));
     var selSalle = h('select', Object.assign({ 'aria-label': 'Salle ou bureau' }, dis), [h('option', { value: '', text: '— Choisir la salle —' })].concat(avecSalles ? SIC.salles.sallesDuService(stS, x.service || sv.value).map(function (y) { return h('option', { value: y.id, text: y.nom, selected: y.id === x.salle }); }) : x.salle ? [h('option', { value: x.salle, text: x.salleNom || 'Salle', selected: true })] : []));
     var cbSalleIndispo = h('input', Object.assign({ type: 'checkbox', checked: !!x.salleIndisponible }, dis));
+    // Fermée jusqu'à la fin des travaux par défaut ; date de réouverture facultative
+    var jusquau = h('input', Object.assign({ type: 'date', value: x.salleJusquau || '', 'aria-label': 'Fermée jusqu’au' }, dis));
+    var zoneJusquau = h('label', { class: 'en-ligne' }, 'jusqu’au', jusquau, h('small', { class: 'muted', text: 'vide : jusqu’à la fin des travaux' }));
     var zoneSalle = h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Salle', selSalle),
-      o.salleIndisponible ? h('label', { class: 'case' }, cbSalleIndispo, h('span', { text: 'Salle indisponible pendant les travaux' })) : null);
+      o.salleIndisponible ? h('label', { class: 'case' }, cbSalleIndispo, h('span', { text: 'Salle indisponible pendant les travaux' })) : null, o.salleIndisponible ? zoneJusquau : null);
+    cbSalleIndispo.addEventListener('change', function () { zoneJusquau.hidden = !cbSalleIndispo.checked; });
+    zoneJusquau.hidden = !cbSalleIndispo.checked;
     var idListe = 'chambres-' + C.hex(C.aleatoire(3));
     var chambre = h('input', Object.assign({ type: 'text', maxlength: 20, value: x.chambre || '', list: idListe, placeholder: 'n°', 'aria-label': 'Numéro de chambre', class: 'champ-court' }, dis));
     var datalist = h('datalist', { id: idListe }, chambresConnues(x.service).map(function (c) { return h('option', { value: c }); }));
@@ -167,11 +172,13 @@
         var d = { id: x.id || 'TR' + C.hex(C.aleatoire(6)), service: sv.value, type: type.value, lieu: lieu.value, chambre: lieu.value === 'chambre' ? chambre.value.trim() : '',
           precisionLieu: precision.value.trim(), gravite: gravite.value, urgence: urgence.value, description: description.value.trim(),
           chambreIndisponible: lieu.value === 'chambre' && o.chambreIndisponible && cbIndispo.checked, lits: Math.max(1, Math.min(6, Math.round(+lits.value || 1))),
-          salle: lieu.value === 'salle' ? selSalle.value : '', salleNom: lieu.value === 'salle' && selSalle.value ? selSalle.options[selSalle.selectedIndex].text : '', salleIndisponible: lieu.value === 'salle' && o.salleIndisponible && cbSalleIndispo.checked };
+          salle: lieu.value === 'salle' ? selSalle.value : '', salleNom: lieu.value === 'salle' && selSalle.value ? selSalle.options[selSalle.selectedIndex].text : '', salleIndisponible: lieu.value === 'salle' && o.salleIndisponible && cbSalleIndispo.checked,
+          salleJusquau: lieu.value === 'salle' && o.salleIndisponible && cbSalleIndispo.checked ? jusquau.value : '' };
         if (nouveau) d.nom = moi().nom;
         else Object.keys(d).forEach(function (k) { if (k !== 'id' && k !== 'service' && JSON.stringify(d[k]) === JSON.stringify(x[k] === undefined ? (typeof d[k] === 'boolean' ? false : '') : x[k])) delete d[k]; });
         if (!nouveau && Object.keys(d).length <= 2) return true;
         await s.enregistrer('TRAVAUX', d);
+        if (d.salleIndisponible && U.salles) U.salles.synchroniser(true);
         var u = o.urgences.filter(function (y) { return y.code === d.urgence; })[0];
         U.toast(nouveau ? 'Demande enregistrée.' : 'Demande modifiée.');
         if (nouveau && u && u.appel) setTimeout(function () { alert('Urgence immédiate : appelez maintenant les services techniques' + (numeroST() ? ' au ' + numeroST() : '') + '.'); }, 50);
@@ -184,7 +191,7 @@
   function zoneSuivi(x) {
     var s = U.App.session, zone = h('div', { class: 'pile' }), apercu = s.apercu;
     var suivre = peut('TRAVAUX_ETAPE') && !apercu, confirmer = peut('TRAVAUX_CONFIRMATION') && !apercu, auteur = x.par === moi().id && !apercu;
-    async function etape(d, msg) { try { await s.enregistrer('TRAVAUX_ETAPE', Object.assign({ demande: x.id, service: x.service }, d)); U.toast(msg); fermerEtRouvrir(); } catch (e) { alert(e.message); } }
+    async function etape(d, msg) { try { await s.enregistrer('TRAVAUX_ETAPE', Object.assign({ demande: x.id, service: x.service }, d)); if (x.salleIndisponible && U.salles) U.salles.synchroniser(true); U.toast(msg); fermerEtRouvrir(); } catch (e) { alert(e.message); } }
     async function confirmation(d, msg) { try { await s.enregistrer('TRAVAUX_CONFIRMATION', Object.assign({ demande: x.id, service: x.service }, d)); U.toast(msg); fermerEtRouvrir(); } catch (e) { alert(e.message); } }
     function fermerEtRouvrir() { var d = document.querySelector('dialog[open]'); if (d) d.dispatchEvent(new Event('cancel')); setTimeout(function () { modaleDemande(st().demandes[x.id]); }, 0); }
     function peutDepuis(et) { return T.DEPUIS[et].indexOf(x.etat) >= 0; }
