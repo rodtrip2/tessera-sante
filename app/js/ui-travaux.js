@@ -154,6 +154,7 @@
       nouveau ? null : badges(x), formulaire, suivi), [
       { texte: modifiable ? 'Annuler' : 'Fermer' },
       nouveau ? null : { texte: 'Bon de travaux…', action: function () { imprimerBon(x); return false; } },
+      nouveau || !U.messagerie ? null : U.messagerie.boutonModale('travaux', 'demande', x.id, x.service),
       modifiable ? { texte: nouveau ? 'Enregistrer la demande' : 'Enregistrer les modifications', classe: 'primaire', action: async function () {
         var d = { id: x.id || 'TR' + C.hex(C.aleatoire(6)), service: sv.value, type: type.value, lieu: lieu.value, chambre: lieu.value === 'chambre' ? chambre.value.trim() : '',
           precisionLieu: precision.value.trim(), gravite: gravite.value, urgence: urgence.value, description: description.value.trim(),
@@ -334,6 +335,22 @@
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'La demande revient à son état précédent.'; } },
     admin: { onglets: function () { return [['travaux', 'Demandes de travaux', [panneauReglages()]]]; }, cadre: function () { return [panneauReglages()]; } },
     // Pastille : demandes urgentes en cours et informations non vues
+    // Onglet Informations de la messagerie (0.23.0, réglage de l'établissement) : urgences et informations sur ses demandes
+    informations: function () {
+      var res = [];
+      try {
+        T.urgentes(st(), U.config(), U.services().map(function (x) { return x.code; })).forEach(function (t) {
+          res.push({ id: 'tr-u-' + t.id, niveau: 'bad', titre: 'Urgence immédiate : ' + libType(t) + ' — ' + T.libLieu(t, U.config()),
+            detail: 'Signalée le ' + dateFr(t.cree) + (numeroST() ? ' — services techniques : ' + numeroST() : ''), ouvrir: function () { modaleDemande(t); } });
+        });
+        mesAvis().forEach(function (a) {
+          var t = st().demandes[a.demande];
+          res.push({ id: 'tr-a-' + a.id, niveau: a.genre === 'rouverte' ? 'warn' : '', titre: U.App.session.nomAuteur(a.par) + ' ' + GENRES[a.genre] + ' votre demande ' + libType(t) + ' — ' + T.libLieu(t, U.config()),
+            detail: dateFr(a.le) + (a.motif ? ' : ' + a.motif : ''), ouvrir: function () { modaleDemande(t); }, vu: function () { return marquerVus([a.id]); } });
+        });
+      } catch (e) { /* module illisible : rien à afficher */ }
+      return res;
+    },
     pastille: function () { try { return T.urgentes(st(), U.config(), U.services().map(function (x) { return x.code; })).length + mesAvis().length; } catch (e) { return 0; } }
   });
   U.travaux = { modaleDemande: modaleDemande };

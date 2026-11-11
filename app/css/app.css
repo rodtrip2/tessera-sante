@@ -802,3 +802,63 @@ tr.traitee td { opacity: .55; }
 .ag-puce.ag-travaux { border-left: 4px solid #8a5a2b; }
 tr.chambre-travaux th { background: color-mix(in srgb, var(--warn, #b97a00) 12%, transparent); }
 .travaux-filtres select { width: auto; max-width: 16rem; }
+
+/* Messagerie (0.23.0) */
+.ms-cadre { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .ms-cadre { grid-template-columns: 1fr; } }
+.ms-liste { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ms-outils { display: flex; flex-direction: column; gap: 8px; }
+.ms-lignes { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.ms-ligne { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--line); border-left: 4px solid transparent; background: transparent; color: inherit; font: inherit; cursor: pointer; min-height: 44px; }
+.ms-ligne:last-child { border-bottom: 0; }
+.ms-ligne:hover { background: var(--surface-2); }
+.ms-ligne.actif { background: var(--accent-soft); border-left-color: var(--accent); }
+.ms-ligne.important { border-left-color: var(--bad); }
+.ms-ligne.non-lu .ms-ligne-objet { font-weight: 700; }
+.ms-ligne.retire { opacity: .6; }
+.ms-ligne-tete { display: flex; justify-content: space-between; gap: 8px; }
+.ms-ligne-tete b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-ligne-apercu { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-ligne-marques, .ms-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.ms-lecture { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; background: var(--surface, transparent); }
+.ms-lecteur { display: flex; flex-direction: column; gap: 12px; }
+.ms-objet { margin: 0; font-size: 1.3rem; }
+.ms-entete { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0; font-size: .9rem; }
+.ms-entete dt { color: var(--ink-2); }
+.ms-entete dd { margin: 0; }
+.ms-texte { white-space: pre-wrap; line-height: 1.55; margin: 0; overflow-wrap: anywhere; }
+.ms-bandeau { background: var(--bad-soft); color: var(--bad); padding: 8px 12px; border-radius: var(--radius); }
+.ms-confirmer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius); background: var(--warn-soft); }
+.ms-confirmer span { flex: 1 1 260px; }
+.ms-suivi { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.ms-suivi-groupe summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 6px; }
+.ms-reponse { border-left: 3px solid var(--line); padding: 4px 10px; }
+.ms-reponse.mienne { border-left-color: var(--accent); }
+.ms-repondre { display: flex; gap: 8px; align-items: flex-end; }
+.ms-repondre textarea { flex: 1 1 auto; }
+.ms-rattache { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); }
+.ms-rattache.reserve { border-style: dashed; background: var(--surface-2); }
+.ms-rattache-texte { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.ms-module { flex: none; font-size: .78rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--surface-2); color: var(--ink); }
+.ms-module-travaux { background: var(--bad-soft); color: var(--bad); }
+.ms-module-agenda { background: var(--warn-soft); color: var(--warn); }
+.ms-module-vehicules, .ms-module-patients { background: var(--accent-soft); color: var(--accent); }
+.ms-pieces { display: flex; flex-wrap: wrap; gap: 8px; }
+.ms-piece { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius); }
+.ms-image { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+.ms-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); min-height: 40px; align-items: center; }
+.ms-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-soft); color: var(--ink); border-radius: 999px; padding: 2px 4px 2px 10px; font-size: .88rem; }
+.ms-chip-agent { background: var(--surface-2); }
+.ms-chip-etablissement { background: var(--warn-soft); }
+.ms-joindre { position: relative; overflow: hidden; }
+.ms-fichier { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.ms-choix-elements { max-height: 50vh; overflow: auto; }
+.ms-infos { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin: 8px 0; }
+.ms-info { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); border-left: 4px solid var(--accent); }
+.ms-info:last-child { border-bottom: 0; }
+.ms-info.bad { border-left-color: var(--bad); }
+.ms-info.warn { border-left-color: var(--warn); }
+.ms-info.vue { opacity: .6; }
+.ms-info > div:nth-child(2) { display: flex; flex-direction: column; }
+.ms-info .ms-module { justify-self: start; }
+@media (max-width: 700px) { .ms-info { grid-template-columns: 1fr; } }
