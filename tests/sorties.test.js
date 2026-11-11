@@ -41,3 +41,12 @@ test('Sortie : couleur selon l’état, réglable ; affichage jour par jour', ()
   assert.deepEqual(r.sansDate.map(x => x.patientId), ['P2']);
   assert.equal(SO.parJour(st.fiches, '2026-11-16', '2026-11-22').sorties.length, 0);
 });
+
+test('Sortie : réglage dédié des couleurs, sans toucher aux autres règles de la donnée', () => {
+  assert.deepEqual(SO.couleursDe(SO.REGLES_DEFAUT), { passee: 'rouge', actee: 'vert', envisagee: 'jaune' });
+  const autre = { si: { op: 'dansMoinsDe', n: 2 }, couleur: 'orange', rendu: 'fond', libelle: 'Sortie dans 2 jours ou moins' };
+  const r = SO.reglesAvec(SO.REGLES_DEFAUT.concat([autre]), { passee: '', actee: 'bleu', envisagee: 'gris' });
+  assert.deepEqual(r.map(x => x.couleur), ['orange', 'bleu', 'gris']);   // date passée sans couleur ; la règle ajoutée par le cadre est gardée
+  assert.deepEqual(SO.couleursDe(r), { passee: '', actee: 'bleu', envisagee: 'gris' });
+  assert.equal(CO.evaluer(r, { valeur: '2026-11-14', cle: 'actee', maintenant: Date.UTC(2026, 10, 1) }).couleur, 'bleu');
+});

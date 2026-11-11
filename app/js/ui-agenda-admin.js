@@ -276,8 +276,8 @@
     var tout = JSON.parse(JSON.stringify(U.config().agendaReglages || {})), propre = tout[niveauService] || {};
     var herite = niveauService === '*' ? {} : (tout['*'] || {});
     var sel = h('select', { 'aria-label': 'Niveau des réglages', onchange: function () { niveauService = sel.value; U.rendreContenu(); } }, niveaux.map(function (n) { return h('option', { value: n.code, text: n.libelle, selected: n.code === niveauService }); }));
-    var lecteurs = [];
-    var corps = RUBRIQUES.map(function (f) { var r = f({ niveau: niveauService, propre: propre, herite: herite, effectif: Object.assign({}, herite, propre) }); lecteurs.push(r.lire); return h('div', { class: 'pile ag-section' }, h('b', { text: r.titre }), r.noeud); });
+    var lecteurs = [], autres = [];   // `autres` : rubriques qui écrivent aussi un autre réglage commun (ex. couleurs d'une donnée)
+    var corps = RUBRIQUES.map(function (f) { var r = f({ niveau: niveauService, propre: propre, herite: herite, effectif: Object.assign({}, herite, propre) }); lecteurs.push(r.lire); if (r.config) autres.push(r.config); return h('div', { class: 'pile ag-section' }, h('b', { text: r.titre }), r.noeud); });
     return h('section', { class: 'panneau' }, h('h2', { text: 'Organisation par service' }),
       h('p', { class: 'muted', text: 'Réglages de l’établissement, que chaque service peut remplacer : l’administrateur règle l’établissement et les services, le cadre règle ses services. Un réglage laissé « comme l’établissement » suit l’établissement.' }),
       h('label', { class: 'en-ligne' }, 'Réglages pour', sel), corps,
@@ -286,7 +286,8 @@
           var v = {};
           lecteurs.forEach(function (l) { var x = l(); Object.keys(x).forEach(function (k) { if (x[k] !== undefined) v[k] = x[k]; }); });
           if (Object.keys(v).length) tout[niveauService] = v; else delete tout[niveauService];
-          await U.enregistrerConfig([['agendaReglages', tout]]);
+          var plus = []; autres.forEach(function (f) { plus = plus.concat(f() || []); });
+          await U.enregistrerConfig([['agendaReglages', tout]].concat(plus));
           U.toast('Réglages enregistrés.');
         } catch (e) { alert(e.message); }
       } }, 'Enregistrer')));
@@ -389,9 +390,29 @@
   ajouterRubrique(function (ctx) {
     var suit = ctx.niveau !== '*' && ctx.propre.sortieEvenement === undefined;
     var sel = h('select', { 'aria-label': 'Événement de sortie' }, (ctx.niveau === '*' ? [] : [h('option', { value: '', text: 'Comme l’établissement', selected: suit })]).concat([['suggere', 'Proposé : l’agent choisit de créer l’événement de sortie et sa check-list'], ['office', 'Créé d’office avec sa check-list']].map(function (o) { return h('option', { value: o[0], text: o[1], selected: !suit && (ctx.effectif.sortieEvenement === 'office' ? 'office' : 'suggere') === o[0] }); })));
-    return { titre: 'Sortie actée (date arrêtée par le médecin avec le patient) : événement de l’agenda', noeud: h('div', { class: 'pile' }, sel,
-      h('small', { class: 'muted', text: 'Les couleurs des sorties envisagées et actées se règlent avec la donnée « Sortie envisagée ou actée » (Vue d’ensemble → Régler la vue → réglages de la colonne) ; elles sont reprises dans l’agenda.' })),
-      lire: function () { return { sortieEvenement: sel.value || undefined }; } };
+    // Couleurs dédiées (décision du porteur du 11 novembre 2026) : envisagée, actée, date passée ; écrites dans les
+    // réglages de la donnée « patients.sortiePrevue », donc reprises dans la Vue d'ensemble, sa légende et l'agenda
+    var CO = SIC.couleurs, SO = SIC.sorties, CODE = 'patients.sortiePrevue';
+    var tousRD = JSON.parse(JSON.stringify(U.config().reglagesDonnees || {})), donnee = tousRD[CODE] || {}, blocN = donnee[ctx.niveau];
+    var enVigueur = CO.reglages(U.config(), CODE, ctx.niveau === '*' ? null : ctx.niveau, { regles: SO.REGLES_DEFAUT });
+    var cs = SO.couleursDe(enVigueur.regles), suitC = ctx.niveau !== '*' && !blocN;
+    function choix(g) {
+      var s0 = h('select', { 'aria-label': SO.LIBELLES[g], onchange: function () { cs[g] = s0.value; } }, [h('option', { value: '', text: 'Sans couleur', selected: !cs[g] })].concat(CO.PALETTE.map(function (p) { return h('option', { value: p.code, text: p.symbole + ' ' + p.libelle, selected: cs[g] === p.code }); })));
+      return h('label', {}, SO.LIBELLES[g], s0);
+    }
+    var zoneC = h('div', { class: 'grille-3', hidden: suitC }, choix('envisagee'), choix('actee'), choix('passee'));
+    var cbC = ctx.niveau === '*' ? null : h('input', { type: 'checkbox', checked: suitC, onchange: function () { suitC = cbC.checked; zoneC.hidden = suitC; } });
+    return { titre: 'Sorties envisagées et actées', noeud: h('div', { class: 'pile' },
+      h('b', { class: 'ag-sous-titre', text: 'Couleurs (Vue d’ensemble et agenda)' }), cbC ? h('label', { class: 'case' }, cbC, h('span', { text: 'Comme l’établissement' })) : null, zoneC,
+      h('small', { class: 'muted', text: 'En noir et blanc, chaque couleur garde son symbole, repris dans la légende.' }),
+      h('label', {}, 'Sortie actée : événement de l’agenda', sel)),
+      lire: function () { return { sortieEvenement: sel.value || undefined }; },
+      config: function () {
+        if (suitC) { if (!blocN) return []; delete donnee[ctx.niveau]; }
+        else donnee[ctx.niveau] = { regles: SO.reglesAvec(enVigueur.regles, cs), delai: (blocN && blocN.delai) || enVigueur.delai || null };
+        if (Object.keys(donnee).length) tousRD[CODE] = donnee; else delete tousRD[CODE];
+        return [['reglagesDonnees', tousRD]];
+      } };
   });
 
   I.panneauReglages = panneauReglages;

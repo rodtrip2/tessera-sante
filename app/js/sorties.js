@@ -68,5 +68,25 @@
     res.sort(function (a, b) { return a.jour.localeCompare(b.jour) || (a.heure || '').localeCompare(b.heure || ''); });
     return { sorties: res, sansDate: sansDate };
   }
-  return { ETATS: ETATS, REGLES_DEFAUT: REGLES_DEFAUT, etat: etat, normaliser: normaliser, libelle: libelle, sejourEnCours: sejourEnCours, parJour: parJour };
+  /**
+   * Réglage dédié des couleurs (décision du porteur du 11 novembre 2026) : couleur de la sortie envisagée, de la sortie
+   * actée et de la date passée, lues dans les règles de la donnée et réécrites sans toucher aux autres règles.
+   */
+  var LIBELLES = { passee: 'Date de sortie passée', actee: 'Sortie actée (date arrêtée avec le patient)', envisagee: 'Sortie envisagée (à confirmer)' };
+  function genre(r) {
+    var si = (r && r.si) || {};
+    if (si.op === 'egal' && (si.valeur === 'actee' || si.valeur === 'envisagee')) return si.valeur;
+    return si.op === 'depuisPlusDe' && +si.n === 0 ? 'passee' : null;
+  }
+  function couleursDe(regles) {
+    var c = { passee: '', actee: '', envisagee: '' };
+    (regles || []).forEach(function (r) { var g = genre(r); if (g && !c[g]) c[g] = r.couleur; });
+    return c;
+  }
+  function reglesAvec(regles, couleurs) {
+    var autres = (regles || []).filter(function (r) { return !genre(r); }), c = couleurs || {};
+    function regle(g, si) { return c[g] ? [{ si: si, couleur: c[g], rendu: 'fond', libelle: LIBELLES[g] }] : []; }
+    return regle('passee', { op: 'depuisPlusDe', n: 0 }).concat(autres, regle('actee', { op: 'egal', valeur: 'actee' }), regle('envisagee', { op: 'egal', valeur: 'envisagee' }));
+  }
+  return { couleursDe: couleursDe, reglesAvec: reglesAvec, LIBELLES: LIBELLES, ETATS: ETATS, REGLES_DEFAUT: REGLES_DEFAUT, etat: etat, normaliser: normaliser, libelle: libelle, sejourEnCours: sejourEnCours, parJour: parJour };
 });
