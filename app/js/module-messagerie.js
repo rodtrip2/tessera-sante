@@ -19,7 +19,11 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, G) {
   'use strict';
 
-  var TYPES = ['MESSAGE', 'MESSAGE_REPONSE', 'MESSAGE_LU', 'MESSAGE_RETRAIT', 'MESSAGE_ARCHIVE', 'MESSAGE_RELANCE'];
+  var TYPES = ['MESSAGE', 'MESSAGE_REPONSE', 'MESSAGE_LU', 'MESSAGE_RETRAIT', 'MESSAGE_ARCHIVE', 'MESSAGE_RELANCE', 'VOTE', 'SONDAGE_CLOTURE'];
+  // Sondages (décisions du porteur du 11 novembre 2026) : choix unique, choix multiples, dates ; résultats publics (les
+  // destinataires voient les chiffres, après avoir voté ou à la clôture) ou privés (l'auteur seul) ; noms masqués en option
+  var GENRES_SONDAGE = { unique: 'Choix unique', multiple: 'Choix multiples', dates: 'Dates (chacun coche les dates qui lui conviennent)' };
+  var MAX_OPTIONS = 10;
   var GENRES_DEST = ['agent', 'groupe', 'role', 'service', 'etablissement'];
   var ACCUSES = { auto: 'Automatique à l’ouverture', confirmer: 'À confirmer (« J’ai lu »)' };
   var REPONSES = { auteur: 'À l’auteur seulement', tous: 'À tous les destinataires', aucune: 'Pas de réponse' };
@@ -68,7 +72,20 @@
           destinataires: Array.isArray(d.destinataires) ? d.destinataires : [], services: Array.isArray(d.services) ? d.services : [],
           important: !!d.important, accuse: ACCUSES[d.accuse] ? d.accuse : 'auto', reponses: REPONSES[d.reponses] ? d.reponses : 'auteur',
           jusquau: JOUR.test(d.jusquau || '') ? d.jusquau : '', rattaches: Array.isArray(d.rattaches) ? d.rattaches : [], pieces: Array.isArray(d.pieces) ? d.pieces : [],
-          lectures: {}, reponsesListe: [], archives: {}, relances: [], retire: null };
+          lectures: {}, reponsesListe: [], archives: {}, relances: [], retire: null, sondage: sondageDe(d.sondage) };
+        break;
+      case 'VOTE':
+        // Dernier vote de l'agent : il remplace le précédent ; vote après la clôture ignoré
+        if (!m || !m.sondage || m.sondage.close || (m.sondage.cloture && jourISO(Date.parse(e.at)) > m.sondage.cloture)) break;
+        var ids = m.sondage.options.map(function (o) { return o.id; });
+        var choix = (Array.isArray(d.choix) ? d.choix : []).filter(function (c, i, t) { return ids.indexOf(c) >= 0 && t.indexOf(c) === i; });
+        if (m.sondage.genre === 'unique') choix = choix.slice(0, 1);
+        m.sondage.votes[e.by] = { choix: choix, autre: m.sondage.autre ? String(d.autre || '').slice(0, 200) : '', le: e.at, nom: d.nom || '' };
+        var lv = m.lectures[e.by] || (m.lectures[e.by] = { ouvert: e.at });
+        lv.vu = lv.vu && lv.vu > e.at ? lv.vu : e.at;
+        break;
+      case 'SONDAGE_CLOTURE':
+        if (m && m.sondage && !m.sondage.close) m.sondage.close = { par: e.by, le: e.at };
         break;
       case 'MESSAGE_LU':
         if (!m) break;
@@ -78,7 +95,10 @@
         break;
       case 'MESSAGE_REPONSE':
         if (!m || !d.id || m.reponsesListe.some(function (r) { return r.id === d.id; })) break;
-        m.reponsesListe.push({ id: d.id, par: e.by, nom: d.nom || '', le: e.at, texte: d.texte || '', evt: e.id });
+        var rp = { id: d.id, par: e.by, nom: d.nom || '', le: e.at, texte: d.texte || '', evt: e.id };
+        // Réponse de l'auteur à un seul agent (`a`) : visible par l'auteur et cet agent ; sinon au groupe des destinataires
+        if (e.by === m.par && typeof d.a === 'string' && d.a) { rp.a = d.a; rp.nomA = d.nomA || ''; }
+        m.reponsesListe.push(rp);
         // Écrire une réponse vaut lecture du message et des réponses précédentes
         var lr = m.lectures[e.by] || (m.lectures[e.by] = { ouvert: e.at });
         lr.vu = e.at;
@@ -93,6 +113,18 @@
         if (m) m.relances.push({ par: e.by, le: e.at });
         break;
     }
+  }
+  /** Sondage d'un message, validé à la lecture (null sans sondage). */
+  function sondageDe(x) {
+    if (!x || typeof x !== 'object' || !Array.isArray(x.options)) return null;
+    var vus = {}, genre = GENRES_SONDAGE[x.genre] ? x.genre : 'unique';
+    var options = x.options.filter(function (o) { return o && /^o[0-9a-z]{1,12}$/.test(o.id || '') && !vus[o.id] && (vus[o.id] = 1); }).slice(0, MAX_OPTIONS).map(function (o) {
+      var r = { id: o.id, libelle: texte(o.libelle, 120) };
+      if (genre === 'dates') { r.jour = JOUR.test(o.jour || '') ? o.jour : ''; r.heure = /^\d{2}:\d{2}$/.test(o.heure || '') ? o.heure : ''; }
+      return r;
+    });
+    return { question: texte(x.question, 200), genre: genre, options: options, autre: x.autre === true && genre !== 'dates', resultats: x.resultats === 'prive' ? 'prive' : 'public',
+      anonyme: x.anonyme === true, cloture: JOUR.test(x.cloture || '') ? x.cloture : '', votes: {}, close: null };
   }
   function reduire(evts) { return N.reduire(evts, { cle: 'messagerie', etat: function () { return { messages: {} }; }, appliquer: appliquer }); }
 
@@ -155,28 +187,37 @@
     var lim = new Date(maintenant); lim.setMonth(lim.getMonth() - options(config).conservationMois);
     return Date.parse(m.cree) >= lim.getTime();
   }
-  /** Réponses visibles par l'agent : toutes pour l'auteur et si les réponses vont à tous ; sinon les siennes et celles de l'auteur. */
+  /**
+   * Réponses visibles par l'agent. L'auteur voit tout. Réponses de l'auteur : au groupe (tous les destinataires) ou à un
+   * seul agent (`a`, visible par lui seul). Réponses des destinataires : à tous si le message le permet, sinon à l'auteur
+   * seulement (chacun voit les siennes).
+   */
   function reponsesVisibles(m, compte) {
     if (!m || !compte) return [];
-    if (m.par === compte.id || m.reponses === 'tous') return m.reponsesListe.slice();
-    // Réponses à l'auteur seulement : l'agent voit les siennes et celles de l'auteur (qui répond à tous)
-    return m.reponsesListe.filter(function (r) { return r.par === compte.id || r.par === m.par; });
+    if (m.par === compte.id) return m.reponsesListe.slice();
+    return m.reponsesListe.filter(function (r) {
+      if (r.par === compte.id) return true;
+      if (r.par === m.par) return !r.a || r.a === compte.id;
+      return m.reponses === 'tous';
+    });
   }
   /**
    * Situation d'un message pour l'agent : lu (ouvert), confirmé, à confirmer, nouvelles réponses, relancé (relance après
    * sa dernière lecture alors qu'il n'a pas lu ou pas confirmé), en tête (important ou relancé, pas encore lu ou confirmé).
    */
-  function situation(m, compte) {
+  function situation(m, compte, maintenant) {
     var l = m.lectures[compte.id] || null, auteur = m.par === compte.id;
     var aConfirmer = !auteur && m.accuse === 'confirmer' && !(l && l.confirme);
     var lu = auteur || !!l;
     var vu = l ? l.vu : auteur ? m.cree : '';
     var nouvellesReponses = reponsesVisibles(m, compte).filter(function (r) { return r.par !== compte.id && (!vu || r.le > vu); }).length;
     var derniereRelance = m.relances.length ? m.relances[m.relances.length - 1].le : '';
-    var relance = !auteur && !!derniereRelance && (!l || (m.accuse === 'confirmer' ? !l.confirme : false));
+    var sd = m.sondage, ouvert = !!sd && sondageOuvert(m, maintenant), aVoter = !!sd && ouvert && !auteur && !sd.votes[compte.id];
+    // Relance : pas encore lu (ou pas confirmé) ; pour un sondage ouvert, pas encore voté
+    var relance = !auteur && !!derniereRelance && (!l || (m.accuse === 'confirmer' ? !l.confirme : false) || aVoter);
     var attente = !auteur && (m.accuse === 'confirmer' ? !(l && l.confirme) : !l);
     return { lu: lu, confirme: !!(l && l.confirme), aConfirmer: aConfirmer, nouvellesReponses: nouvellesReponses, relance: relance,
-      enTete: attente && (m.important || relance), nonLu: !lu || nouvellesReponses > 0, archive: !!m.archives[compte.id] };
+      enTete: (attente || aVoter) && (m.important || relance), nonLu: !lu || nouvellesReponses > 0, archive: !!m.archives[compte.id], aVoter: aVoter };
   }
   /**
    * Messages de l'agent. `onglet` : 'recus' (affichés : pas retirés, pas archivés, avant leur date de fin ou encore en
@@ -191,10 +232,11 @@
       if (!conserve(m, config, maintenant)) return false;
       if (onglet === 'envoyes') return m.par === compte.id;
       if (m.par === compte.id || !estDestinataire(m, compte, groupes) || m.retire) return false;
-      var s = situation(m, compte), fini = m.jusquau && m.jusquau < auj && !s.enTete;
+      var s = situation(m, compte, maintenant), fini = m.jusquau && m.jusquau < auj && !s.enTete;
       return onglet === 'archives' ? s.archive || fini : !s.archive && !fini;
-    }).map(function (m) { return Object.assign({ situation: situation(m, compte) }, m); });
-    if (o.filtre === 'nonlus') res = res.filter(function (m) { return m.situation.nonLu || m.situation.aConfirmer; });
+    }).map(function (m) { return Object.assign({ situation: situation(m, compte, maintenant) }, m); });
+    if (o.filtre === 'nonlus') res = res.filter(function (m) { return m.situation.nonLu || m.situation.aConfirmer || m.situation.aVoter; });
+    if (o.filtre === 'sondages') res = res.filter(function (m) { return !!m.sondage; });
     if (o.filtre === 'importants') res = res.filter(function (m) { return m.important; });
     if (q) res = res.filter(function (m) {
       return [m.objet, m.texte, m.nom].concat(reponsesVisibles(m, compte).map(function (r) { return r.texte + ' ' + r.nom; })).join(' ').toLowerCase().indexOf(q) >= 0;
@@ -204,9 +246,41 @@
       return String(b.cree).localeCompare(String(a.cree));
     });
   }
+  /** Le sondage est-il ouvert (pas clos par l'auteur, date de clôture pas dépassée) ? */
+  function sondageOuvert(m, maintenant) {
+    var sd = m && m.sondage;
+    return !!sd && !sd.close && !m.retire && (!sd.cloture || jourISO(maintenant || Date.now()) <= sd.cloture);
+  }
+  /**
+   * Résultats d'un sondage pour l'agent : { ouvert, monVote, visibles (chiffres), noms (qui a voté quoi : l'auteur, sauf
+   * vote anonyme), options: [{ id, libelle, n, noms }], autres: [{ texte, nom }], votants }. Résultats publics : visibles
+   * des destinataires après leur vote, et de tous à la clôture ; privés : de l'auteur seul.
+   */
+  function resultats(m, compte, maintenant) {
+    var sd = m && m.sondage;
+    if (!sd || !compte) return null;
+    var auteur = m.par === compte.id, ouvert = sondageOuvert(m, maintenant), monVote = sd.votes[compte.id] || null;
+    var visibles = auteur || (sd.resultats === 'public' && (!!monVote || !ouvert));
+    var noms = auteur && !sd.anonyme;
+    var ids = Object.keys(sd.votes);
+    var opts = sd.options.map(function (o) {
+      var qui = ids.filter(function (a) { return sd.votes[a].choix.indexOf(o.id) >= 0; });
+      return { id: o.id, libelle: o.libelle, jour: o.jour, heure: o.heure, n: qui.length, noms: noms ? qui.map(function (a) { return sd.votes[a].nom || a; }) : [] };
+    });
+    var autres = sd.autre ? ids.filter(function (a) { return sd.votes[a].autre; }).map(function (a) { return { texte: sd.votes[a].autre, nom: noms ? sd.votes[a].nom || a : '' }; }) : [];
+    return { ouvert: ouvert, monVote: monVote, visibles: visibles, noms: noms, options: visibles ? opts : [], autres: visibles ? autres : [], votants: visibles ? ids.length : null,
+      max: visibles ? Math.max.apply(null, [0].concat(opts.map(function (o) { return o.n; }))) : 0 };
+  }
+  /** Participation (auteur et cadre) : { ont: [agents], nont: [agents] } parmi les destinataires attendus ; noms vides si anonyme. */
+  function participation(m, comptes, config) {
+    var r = destinatairesResolus(m, comptes, config), sd = m.sondage || { votes: {} }, res = { ont: [], nont: [] };
+    r.sansCompte.forEach(function (x) { if (sd.votes[x.id]) r.agents.push(x); });
+    r.agents.forEach(function (c) { (sd.votes[c.id] ? res.ont : res.nont).push(c); });
+    return res;
+  }
   /** Nombre de messages qui attendent l'agent (reçus non lus ou à confirmer, nouvelles réponses à ses messages). */
   function enAttente(st, compte, groupes, config, maintenant) {
-    return liste(st, compte, groupes, config, maintenant, 'recus').filter(function (m) { return m.situation.nonLu || m.situation.aConfirmer; }).length
+    return liste(st, compte, groupes, config, maintenant, 'recus').filter(function (m) { return m.situation.nonLu || m.situation.aConfirmer || m.situation.aVoter; }).length
       + liste(st, compte, groupes, config, maintenant, 'envoyes').filter(function (m) { return !m.retire && m.situation.nouvellesReponses > 0; }).length;
   }
   /** Messages qui rattachent un élément (module, id), lisibles par l'agent : section « Messages » d'un élément. */
@@ -272,6 +346,19 @@
       var r = d.rattaches || [];
       if (!Array.isArray(r) || r.length > MAX_RATTACHES) throw new Error('Dix éléments rattachés au plus.');
       r.forEach(function (x) { if (!x || !RATTACHABLES[x.module] || !texte(x.id, 80) || !texte(x.genre, 40)) throw new Error('Élément rattaché mal formé.'); });
+      if (d.sondage) {
+        if (!(ctx && typeof ctx.peut === 'function' && ctx.peut('SONDAGE_CLOTURE'))) throw new Error('Votre rôle ne permet pas de créer un sondage (réglage de l’établissement : cadre et administrateur par défaut).');
+        var sd = d.sondage, n0 = Array.isArray(sd.options) ? sd.options.length : 0;
+        if (!GENRES_SONDAGE[sd.genre]) throw new Error('Type de sondage inconnu.');
+        if (n0 < 2 || n0 > MAX_OPTIONS) throw new Error('Un sondage propose de 2 à 10 réponses.');
+        var vusO = {};
+        sd.options.forEach(function (x) {
+          if (!x || !/^o[0-9a-z]{1,12}$/.test(x.id || '') || vusO[x.id]) throw new Error('Réponse du sondage mal formée.');
+          vusO[x.id] = 1;
+          if (sd.genre === 'dates' ? !JOUR.test(x.jour || '') : !texte(x.libelle)) throw new Error(sd.genre === 'dates' ? 'Indiquez chaque date proposée.' : 'Une réponse du sondage est vide.');
+        });
+        if (sd.cloture && !JOUR.test(sd.cloture)) throw new Error('Date de clôture invalide.');
+      }
       var p = d.pieces || [], o = options(config);
       if (!Array.isArray(p)) throw new Error('Pièces jointes mal formées.');
       if (p.length && !o.piecesJointes) throw new Error('Les pièces jointes ne sont pas activées dans cet établissement.');
@@ -295,12 +382,28 @@
     if (type === 'MESSAGE_REPONSE') {
       if (m.reponses === 'aucune') throw new Error('L’auteur n’attend pas de réponse à ce message.');
       if (!concerne(m, compte, groupes)) throw new Error('Ce message ne vous est pas adressé.');
+      if (d.a !== undefined && d.a !== '' && (!compte || m.par !== compte.id)) throw new Error('Seul l’auteur répond à un agent en particulier.');
       if (!String(d.texte || '').trim()) throw new Error('La réponse est vide.');
       if (String(d.texte).length > 2000) throw new Error('Réponse trop longue (2 000 caractères au plus).');
       return;
     }
     if (type === 'MESSAGE_LU' && !concerne(m, compte, groupes)) throw new Error('Ce message ne vous est pas adressé.');
     if (type === 'MESSAGE_ARCHIVE' && !concerne(m, compte, groupes)) throw new Error('Ce message ne vous est pas adressé.');
+    if (type === 'VOTE') {
+      if (!m.sondage) throw new Error('Ce message n’a pas de sondage.');
+      if (!sondageOuvert(m, ctx && ctx.maintenant)) throw new Error('Le sondage est clos.');
+      if (!concerne(m, compte, groupes)) throw new Error('Ce message ne vous est pas adressé.');
+      var ok = (d.choix || []).filter(function (c) { return m.sondage.options.some(function (x) { return x.id === c; }); });
+      if (!ok.length && !(m.sondage.autre && String(d.autre || '').trim())) throw new Error('Choisissez au moins une réponse.');
+      if (m.sondage.genre === 'unique' && ok.length > 1) throw new Error('Une seule réponse possible.');
+      return;
+    }
+    if (type === 'SONDAGE_CLOTURE') {
+      if (!m.sondage) throw new Error('Ce message n’a pas de sondage.');
+      if (m.sondage.close) throw new Error('Le sondage est déjà clos.');
+      if (!compte || (m.par !== compte.id && (compte.roles || []).indexOf('ADMIN') < 0)) throw new Error('Seul l’auteur clôt son sondage.');
+      return;
+    }
     if (type === 'MESSAGE_RELANCE' && !(compte && (m.par === compte.id || estEncadrement(compte)))) throw new Error('Seuls l’auteur et le cadre relancent un message.');
   }
   /**
@@ -321,11 +424,14 @@
 
   // ------------------------------------------------------------ Droits et contrat
   var ACCES = [
-    { code: 'messagerie.lire', libelle: 'Lire les messages reçus, confirmer la lecture, archiver', types: ['MESSAGE_LU', 'MESSAGE_ARCHIVE'] },
-    { code: 'messagerie.ecrire', libelle: 'Écrire, répondre, relancer et retirer ses messages', types: ['MESSAGE', 'MESSAGE_REPONSE', 'MESSAGE_RELANCE', 'MESSAGE_RETRAIT'] }
+    { code: 'messagerie.lire', libelle: 'Lire les messages reçus, confirmer la lecture, archiver, répondre aux sondages', types: ['MESSAGE_LU', 'MESSAGE_ARCHIVE', 'VOTE'] },
+    { code: 'messagerie.ecrire', libelle: 'Écrire, répondre, relancer et retirer ses messages', types: ['MESSAGE', 'MESSAGE_REPONSE', 'MESSAGE_RELANCE', 'MESSAGE_RETRAIT'] },
+    { code: 'messagerie.sondage', libelle: 'Créer des sondages et les clore', types: ['SONDAGE_CLOTURE'] }
   ];
   // Droits proposés : tous les rôles lisent et écrivent ; l'appartenance aux services et aux groupes fait le reste
-  var DROITS = { IDE: TYPES.slice(), AS: TYPES.slice(), SECRETAIRE: TYPES.slice(), CADRE: TYPES.slice() };
+  // Sondages : cadre (et administrateur) par défaut, réglable dans Rôles et accès (décision du porteur du 11 novembre 2026)
+  var SANS_SONDAGE = TYPES.filter(function (t) { return t !== 'SONDAGE_CLOTURE'; });
+  var DROITS = { IDE: SANS_SONDAGE.slice(), AS: SANS_SONDAGE.slice(), SECRETAIRE: SANS_SONDAGE.slice(), CADRE: TYPES.slice() };
   var D = Droits.creer({
     roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
     ongletsMasquables: [], rolesJournalComplet: [], module: 'messagerie', rolesEncadrement: ['CADRE'],
@@ -358,6 +464,7 @@
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, ACCUSES: ACCUSES, REPONSES: REPONSES, RATTACHABLES: RATTACHABLES, INFORMATIONS: INFORMATIONS,
     TYPES_PIECES_DEFAUT: TYPES_PIECES_DEFAUT, MAX_PIECES: MAX_PIECES, MAX_RATTACHES: MAX_RATTACHES,
     options: options, estDestinataire: estDestinataire, servicesDe: servicesDe, destinatairesResolus: destinatairesResolus, suiviLectures: suiviLectures,
+    GENRES_SONDAGE: GENRES_SONDAGE, MAX_OPTIONS: MAX_OPTIONS, sondageOuvert: sondageOuvert, resultats: resultats, participation: participation,
     concerne: concerne, reponsesVisibles: reponsesVisibles, situation: situation, liste: liste, enAttente: enAttente, messagesDe: messagesDe,
     affichable: affichable, ext: ext, normaliser: normaliser, controler: controler, controlerDestinataires: controlerDestinataires, controlerCadre: controlerCadre, jourISO: jourISO, plusJours: plusJours };
 });

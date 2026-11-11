@@ -204,6 +204,7 @@
       m.important ? h('span', { class: 'badge bad', text: 'Important' }) : null,
       m.accuse === 'confirmer' ? h('span', { class: 'badge', text: si.aConfirmer ? 'Lecture à confirmer' : 'Accusé de lecture demandé' }) : null,
       si.relance ? h('span', { class: 'badge warn', text: 'Relancé' }) : null,
+      m.sondage ? h('span', { class: 'badge' + (si.aVoter ? ' warn' : ''), text: si.aVoter ? 'Sondage à remplir' : MS.sondageOuvert(m, Date.now()) ? 'Sondage ouvert' : 'Sondage clos' }) : null,
       h('span', { class: 'badge', text: 'Réponses : ' + MS.REPONSES[m.reponses].toLowerCase() }),
       m.jusquau ? h('span', { class: 'badge', text: 'Affiché jusqu’au ' + jourFr(m.jusquau) }) : null);
   }
@@ -217,6 +218,7 @@
       h('span', { class: 'ms-ligne-marques' },
         si.aConfirmer ? h('span', { class: 'badge bad', text: 'À confirmer' }) : null,
         si.relance ? h('span', { class: 'badge warn', text: 'Relancé' }) : null,
+        si.aVoter ? h('span', { class: 'badge warn', text: 'Sondage à remplir' }) : m.sondage ? h('span', { class: 'badge', text: 'Sondage' }) : null,
         si.nouvellesReponses ? h('span', { class: 'badge', text: si.nouvellesReponses + ' réponse' + (si.nouvellesReponses > 1 ? 's' : '') + ' nouvelle' + (si.nouvellesReponses > 1 ? 's' : '') }) : null,
         m.pieces.length ? h('span', { class: 'badge', text: m.pieces.length + ' PJ' }) : null,
         m.rattaches.length ? h('span', { class: 'badge', text: m.rattaches.length + ' élément' + (m.rattaches.length > 1 ? 's' : '') }) : null));
@@ -241,19 +243,81 @@
       m.relances.length ? h('small', { class: 'muted', text: 'Relancé ' + m.relances.map(function (x) { return 'le ' + dateHeure(x.le); }).join(', ') }) : null);
   }
   function sectionReponses(m) {
-    var c = moi(), rs = MS.reponsesVisibles(m, c), z = h('section', { class: 'pile ms-reponses', 'aria-label': 'Réponses' });
+    var c = moi(), auteur = m.par === c.id, rs = MS.reponsesVisibles(m, c), z = h('section', { class: 'pile ms-reponses', 'aria-label': 'Réponses' });
     if (m.reponses === 'aucune') return rs.length ? z : null;
-    z.appendChild(h('b', {}, 'Réponses (' + rs.length + ') ', h('small', { class: 'muted', text: '— ' + (m.reponses === 'tous' ? 'visibles par tous les destinataires' : 'chaque réponse n’est visible que par l’auteur ; ses réponses à lui, par tous') })));
+    z.appendChild(h('b', {}, 'Réponses (' + rs.length + ') ', h('small', { class: 'muted', text: '— ' + (m.reponses === 'tous' ? 'visibles par tous les destinataires' : 'chaque réponse n’est visible que par l’auteur') + ' ; l’auteur répond au groupe ou à un seul agent' })));
+    // Auteur : « À tous les destinataires » ou à l'un des agents qui ont répondu
+    var dest = null, t = null;
     rs.forEach(function (r) {
-      z.appendChild(h('div', { class: 'ms-reponse' + (r.par === c.id ? ' mienne' : '') }, h('small', { class: 'muted', text: (r.nom || s().nomAuteur(r.par)) + ' — ' + dateHeure(r.le) }), h('p', { class: 'ms-texte', text: r.texte })));
+      var lib = (r.nom || s().nomAuteur(r.par)) + (r.a ? ' → ' + (r.a === c.id ? 'vous seulement' : (r.nomA || s().nomAuteur(r.a)) + ' seulement') : '') + ' — ' + dateHeure(r.le);
+      z.appendChild(h('div', { class: 'ms-reponse' + (r.par === c.id ? ' mienne' : '') + (r.a ? ' individuelle' : '') }, h('small', { class: 'muted', text: lib }), h('p', { class: 'ms-texte', text: r.texte })));
     });
     if (!m.retire && !s().apercu && s().peut('MESSAGE_REPONSE')) {
-      var t = h('textarea', { rows: 2, maxlength: 2000, placeholder: m.par === c.id ? 'Répondre (visible par les destinataires)' : m.reponses === 'tous' ? 'Répondre à tous' : 'Répondre à l’auteur', 'aria-label': 'Votre réponse' });
-      z.appendChild(h('div', { class: 'ms-repondre' }, t, h('button', { class: 'btn primaire', type: 'button', onclick: function () {
+      var vus = {}, repondants = rs.filter(function (r) { return r.par !== c.id && !vus[r.par] && (vus[r.par] = 1); });
+      dest = auteur ? h('select', { 'aria-label': 'Destinataire de la réponse' }, [h('option', { value: '', text: 'À tous les destinataires' })]
+        .concat(repondants.map(function (r) { return h('option', { value: r.par, text: 'À ' + (r.nom || s().nomAuteur(r.par)) + ' seulement' }); }))) : null;
+      t = h('textarea', { rows: 2, maxlength: 2000, placeholder: auteur ? 'Votre réponse' : m.reponses === 'tous' ? 'Répondre à tous' : 'Répondre à l’auteur', 'aria-label': 'Votre réponse' });
+      // Boutons « Répondre à … seulement » : ajoutés maintenant que le choix existe
+      if (auteur) Array.prototype.forEach.call(z.querySelectorAll('.ms-reponse'), function (el, i) {
+        var r = rs[i]; if (r.par === c.id) return;
+        el.appendChild(h('button', { class: 'btn lien', type: 'button', onclick: function () { dest.value = r.par; t.focus(); } }, 'Répondre à ' + (r.nom || s().nomAuteur(r.par)) + ' seulement'));
+      });
+      z.appendChild(h('div', { class: 'ms-repondre' }, dest ? h('div', { class: 'pile ms-repondre-champ' }, dest, t) : t, h('button', { class: 'btn primaire', type: 'button', onclick: function () {
         if (!t.value.trim()) return;
-        ecrire('MESSAGE_REPONSE', { message: m.id, id: 'R' + SIC.crypto.hex(SIC.crypto.aleatoire(5)), texte: t.value.trim(), nom: moi().nom }, 'Réponse envoyée.');
+        var d = { message: m.id, id: 'R' + SIC.crypto.hex(SIC.crypto.aleatoire(5)), texte: t.value.trim(), nom: moi().nom };
+        if (dest && dest.value) { d.a = dest.value; var r0 = repondants.filter(function (r) { return r.par === dest.value; })[0]; d.nomA = r0 ? r0.nom || '' : ''; }
+        ecrire('MESSAGE_REPONSE', d, d.a ? 'Réponse envoyée à ' + (d.nomA || 'l’agent') + ' seulement.' : 'Réponse envoyée.');
       } }, 'Envoyer')));
     }
+    return z;
+  }
+  var JOURS_C = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+  function libOption(o, sd) {
+    if (sd.genre !== 'dates') return o.libelle;
+    var p = String(o.jour || '').split('-').map(Number), d = new Date(p[0], p[1] - 1, p[2]);
+    return JOURS_C[d.getDay()] + ' ' + d.getDate() + '/' + String(d.getMonth() + 1).padStart(2, '0') + (o.heure ? ' ' + o.heure.replace(/^0?(\d+):(\d\d)$/, function (x, hh, mm) { return hh + ' h' + (mm === '00' ? '' : ' ' + mm); }) : '') + (o.libelle ? ' — ' + o.libelle : '');
+  }
+  /** Sondage : vote (ou modification du vote) tant qu'il est ouvert, résultats selon leur visibilité, participation, clôture. */
+  function sectionSondage(m) {
+    var sd = m.sondage, c = compte(), r = MS.resultats(m, c, Date.now()), auteur = m.par === c.id, z = h('section', { class: 'ms-sondage pile', 'aria-label': 'Sondage' });
+    z.appendChild(h('div', { class: 'barre' }, h('b', { text: 'Sondage' + (sd.question ? ' : ' + sd.question : '') }), h('div', { class: 'espace' }),
+      h('small', { class: 'muted', text: [MS.GENRES_SONDAGE[sd.genre].replace(/ \(.*/, ''), sd.resultats === 'public' ? 'résultats publics' : 'résultats visibles par l’auteur seulement', sd.anonyme ? 'noms masqués' : '',
+        r.ouvert ? (sd.cloture ? 'clos le ' + jourFr(sd.cloture) + ' au soir' : 'ouvert') : 'clos' + (sd.close ? ' le ' + dateHeure(sd.close.le) : '')].filter(Boolean).join(' · ') })));
+    var peutVoter = r.ouvert && !s().apercu && s().peut('VOTE') && MS.concerne(m, c, c.groupes);
+    if (peutVoter && (!auteur || sd.genre === 'dates')) {
+      var choix = (r.monVote && r.monVote.choix) || [], multiple = sd.genre !== 'unique', entrees = [];
+      var cases = sd.options.map(function (o) {
+        var inp = h('input', { type: multiple ? 'checkbox' : 'radio', name: 'vote-' + m.id, value: o.id, checked: choix.indexOf(o.id) >= 0 });
+        entrees.push(inp);
+        return h('label', { class: 'case' }, inp, h('span', { text: libOption(o, sd) }));
+      });
+      var autre = sd.autre ? h('input', { type: 'text', maxlength: 200, value: (r.monVote && r.monVote.autre) || '', placeholder: 'Autre (précisez)', 'aria-label': 'Autre réponse' }) : null;
+      z.appendChild(h('div', { class: 'pile ms-vote' }, cases, autre,
+        h('div', { class: 'actions gauche' }, h('button', { class: 'btn primaire', type: 'button', onclick: function () {
+          var ch = entrees.filter(function (x) { return x.checked; }).map(function (x) { return x.value; });
+          ecrire('VOTE', { message: m.id, choix: ch, autre: autre ? autre.value.trim() : '', nom: moi().nom }, r.monVote ? 'Vote modifié.' : 'Vote enregistré.');
+        } }, r.monVote ? 'Modifier mon vote' : 'Voter'),
+          r.monVote ? h('small', { class: 'muted', text: 'Vous avez voté le ' + dateHeure(r.monVote.le) + ' ; vous pouvez changer jusqu’à la clôture.' }) : null),
+        sd.anonyme ? h('small', { class: 'muted', text: 'Noms masqués à l’écran, y compris pour l’auteur. Chaque vote reste au journal au nom de son auteur, comme toute saisie.' }) : null));
+    } else if (r.monVote) z.appendChild(h('small', { class: 'muted', text: 'Votre vote : ' + sd.options.filter(function (o) { return r.monVote.choix.indexOf(o.id) >= 0; }).map(function (o) { return libOption(o, sd); }).concat(r.monVote.autre ? ['Autre : ' + r.monVote.autre] : []).join(', ') }));
+    if (r.visibles) {
+      z.appendChild(h('div', { class: 'ms-resultats' }, r.options.map(function (o) {
+        var pct = r.votants ? Math.round(100 * o.n / r.votants) : 0, barre = h('span', { class: 'ms-barre' + (o.n && o.n === r.max ? ' tete' : '') });
+        barre.style.width = pct + '%';
+        return h('div', { class: 'ms-resultat' }, h('span', { class: 'ms-resultat-lib', text: libOption(o, sd) }), h('span', { class: 'ms-barre-fond' }, barre),
+          h('span', { class: 'ms-resultat-n', text: o.n + (r.votants ? ' (' + pct + ' %)' : '') }),
+          o.noms.length ? h('small', { class: 'muted ms-resultat-noms', text: o.noms.join(', ') }) : null);
+      })));
+      if (r.autres.length) z.appendChild(h('div', {}, h('small', { class: 'muted', text: 'Autres réponses : ' + r.autres.map(function (a) { return a.texte + (a.nom ? ' (' + a.nom + ')' : ''); }).join(' ; ') })));
+      z.appendChild(h('small', { class: 'muted', text: r.votants + ' vote' + (r.votants > 1 ? 's' : '') + (sd.genre !== 'unique' ? ' (plusieurs réponses possibles)' : '') }));
+    } else z.appendChild(h('small', { class: 'muted', text: sd.resultats === 'public' ? 'Résultats visibles après votre vote, ou à la clôture.' : 'Résultats visibles par l’auteur seulement.' }));
+    if (auteur || cadreDuMessage(m)) {
+      var p = MS.participation(m, comptes(), U.config());
+      z.appendChild(h('small', { class: 'muted', text: p.ont.length + ' ont voté' + (p.nont.length ? ' ; n’ont pas encore voté : ' + p.nont.map(function (x) { return x.nom || x.id; }).join(', ') : '') + '.' }));
+    }
+    if ((auteur || admin()) && r.ouvert && !s().apercu) z.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () {
+      if (confirm('Clore le sondage maintenant ? Plus personne ne pourra voter.')) ecrire('SONDAGE_CLOTURE', { message: m.id }, 'Sondage clos.');
+    } }, 'Clore le sondage')));
     return z;
   }
   function lecteurMessage(m, onglet) {
@@ -280,6 +344,7 @@
       m.pieces.length ? h('section', { class: 'pile ms-section', 'aria-label': 'Pièces jointes' }, h('b', { text: 'Pièces jointes (' + m.pieces.length + ')' }),
         h('div', { class: 'ms-pieces' }, m.pieces.map(function (p) { return puce(p, null, m); })),
         h('small', { class: 'muted', text: 'Images et PDF s’affichent sans être enregistrés sur le poste. Les autres fichiers sont téléchargés après avertissement : ils sortent alors du coffre chiffré.' })) : null,
+      m.sondage ? sectionSondage(m) : null,
       si.aConfirmer && !s().apercu && !m.retire ? h('div', { class: 'ms-confirmer' }, h('span', { text: m.important ? 'Ce message reste en tête de vos messages tant que vous n’avez pas confirmé l’avoir lu.' : 'L’auteur demande une confirmation de lecture.' }),
         h('button', { class: 'btn primaire', type: 'button', onclick: function () { ecrire('MESSAGE_LU', { message: m.id, confirme: true }, 'Lecture confirmée.'); } }, 'J’ai lu')) : null,
       actions.length ? h('div', { class: 'actions gauche' }, actions.map(function (a) { return h('button', { class: 'btn petit' + (a[2] ? ' ' + a[2] : ''), type: 'button', onclick: a[1] }, a[0]); })) : null,
@@ -303,7 +368,7 @@
       h('div', { class: 'ms-cadre' },
         h('div', { class: 'ms-liste' },
           h('div', { class: 'ms-outils' }, peutEcrire() ? h('button', { class: 'btn primaire', type: 'button', onclick: function () { modaleNouveau(); } }, '+ Nouveau message') : null, champ,
-            h('div', { class: 'actions gauche', role: 'group', 'aria-label': 'Filtrer' }, bf('tous', 'Tous'), bf('nonlus', 'Non lus'), bf('importants', 'Importants'))),
+            h('div', { class: 'actions gauche', role: 'group', 'aria-label': 'Filtrer' }, bf('tous', 'Tous'), bf('nonlus', 'Non lus'), bf('importants', 'Importants'), bf('sondages', 'Sondages'))),
           l.length ? h('div', { class: 'ms-lignes' }, l.map(function (m) { return ligneListe(m, onglet); }))
             : h('p', { class: 'muted', text: recherche || filtre !== 'tous' ? 'Aucun message pour cette recherche.' : onglet === 'envoyes' ? 'Aucun message envoyé.' : onglet === 'archives' ? 'Aucun message archivé.' : 'Aucun message reçu.' })),
         h('div', { class: 'ms-lecture' }, choisi ? lecteurMessage(choisi, onglet) : h('p', { class: 'muted', text: 'Choisissez un message.' }))));
@@ -382,6 +447,34 @@
     var reponses = h('select', { 'aria-label': 'Réponses' }, Object.keys(MS.REPONSES).map(function (k) { return h('option', { value: k, text: MS.REPONSES[k] }); }));
     var jusquau = h('input', { type: 'date', value: MS.plusJours(MS.jourISO(Date.now()), opts(svDefaut).affichageJours), 'aria-label': 'Affiché jusqu’au' });
     var zoneR = h('div', { class: 'pile' }), zoneP = h('div', { class: 'ms-pieces' });
+    // Sondage (rôles autorisés : cadre et administrateur par défaut)
+    var peutSondage = s().peut('SONDAGE_CLOTURE'), avecSondage = h('input', { type: 'checkbox' }), zoneS = h('div', { class: 'pile ms-sondage-saisie', hidden: true });
+    var sGenre = h('select', { 'aria-label': 'Type de sondage' }, Object.keys(MS.GENRES_SONDAGE).map(function (k) { return h('option', { value: k, text: MS.GENRES_SONDAGE[k] }); }));
+    var sQuestion = h('input', { type: 'text', maxlength: 200, placeholder: 'ex. Quel jour pour la réunion ?', 'aria-label': 'Question du sondage' });
+    var sRes = h('select', { 'aria-label': 'Résultats' }, [h('option', { value: 'public', text: 'Publics : les destinataires voient les chiffres après avoir voté' }), h('option', { value: 'prive', text: 'Privés : vous seul voyez les résultats' })]);
+    var sAnonyme = h('input', { type: 'checkbox' }), sAutre = h('input', { type: 'checkbox' }), sCloture = h('input', { type: 'date', 'aria-label': 'Clôture du sondage' });
+    var sOptions = [{ libelle: '', jour: '', heure: '' }, { libelle: '', jour: '', heure: '' }], zoneO = h('div', { class: 'pile' });
+    function dessinerO() {
+      U.vider(zoneO);
+      var dates = sGenre.value === 'dates';
+      sOptions.forEach(function (o, i) {
+        var champs = dates ? [h('input', { type: 'date', value: o.jour, 'aria-label': 'Date proposée ' + (i + 1), onchange: function (e) { o.jour = e.target.value; } }),
+          h('input', { type: 'time', value: o.heure, 'aria-label': 'Heure (facultative) ' + (i + 1), onchange: function (e) { o.heure = e.target.value; } }),
+          h('input', { type: 'text', maxlength: 120, value: o.libelle, placeholder: 'Précision (facultative)', 'aria-label': 'Précision ' + (i + 1), oninput: function (e) { o.libelle = e.target.value; } })]
+          : [h('input', { type: 'text', maxlength: 120, value: o.libelle, placeholder: 'Réponse ' + (i + 1), 'aria-label': 'Réponse ' + (i + 1), oninput: function (e) { o.libelle = e.target.value; } })];
+        zoneO.appendChild(h('div', { class: 'actions gauche ms-option' }, champs, sOptions.length > 2 ? h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Retirer la réponse ' + (i + 1), onclick: function () { sOptions.splice(i, 1); dessinerO(); } }, '✕') : null));
+      });
+      if (sOptions.length < MS.MAX_OPTIONS) zoneO.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { sOptions.push({ libelle: '', jour: '', heure: '' }); dessinerO(); } }, dates ? '+ Ajouter une date' : '+ Ajouter une réponse')));
+      sAutre.closest && sAutre.parentNode && (sAutre.parentNode.hidden = dates);
+    }
+    sGenre.addEventListener('change', dessinerO);
+    avecSondage.addEventListener('change', function () { zoneS.hidden = !avecSondage.checked; });
+    zoneS.appendChild(h('div', { class: 'grille-2' }, h('label', {}, 'Type', sGenre), h('label', {}, 'Question (facultative si l’objet suffit)', sQuestion)));
+    zoneS.appendChild(zoneO);
+    zoneS.appendChild(h('label', { class: 'case' }, sAutre, h('span', { text: 'Ajouter une réponse « Autre », libre' })));
+    zoneS.appendChild(h('div', { class: 'grille-2' }, h('label', {}, 'Résultats', sRes), h('label', {}, 'Clôture (facultative : sinon vous le clôturez vous-même)', sCloture)));
+    zoneS.appendChild(h('label', { class: 'case' }, sAnonyme, h('span', {}, 'Masquer les noms des votants (même pour vous)', h('br'), h('small', { class: 'muted', text: 'Chaque vote reste au journal au nom de son auteur, comme toute saisie : l’anonymat n’est que d’affichage.' }))));
+    dessinerO();
     function libelleEnvoi() {
       var m = { par: c.id, destinataires: dest }, n = MS.destinatairesResolus(m, comptes(), U.config()).agents.length;
       return dest.length ? 'Envoyer à ' + n + ' agent' + (n > 1 ? 's' : '') : 'Envoyer';
@@ -428,6 +521,7 @@
         h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (rattaches.length >= MS.MAX_RATTACHES) return alert('Dix éléments au plus.'); modaleRattacher(function (r) { if (!rattaches.some(function (x) { return x.module === r.module && x.id === r.id; })) rattaches.push(r); dessinerR(); }); } }, 'Rattacher un élément…'),
           entree ? h('label', { class: 'btn petit ms-joindre' }, 'Joindre un fichier…', entree) : null),
         entree ? h('small', { class: 'muted', text: 'Fichiers : ' + o.typesPieces.join(', ') + ' ; ' + o.tailleMaxMo + ' Mo au plus chacun. Ils sont chiffrés et conservés avec le message.' }) : null),
+      peutSondage ? h('div', { class: 'pile' }, h('label', { class: 'case' }, avecSondage, h('b', { text: 'Ajouter un sondage' })), zoneS) : null,
       h('p', { class: 'alerte', text: 'Information d’organisation : pas de message personnel ni de donnée clinique' + (entree ? ', y compris dans les pièces jointes.' : '.') }),
       h('div', { class: 'grille-2' },
         h('label', { class: 'case' }, important, h('span', {}, h('b', { text: 'Message important' }), h('br'), h('small', { class: 'muted', text: 'reste en tête jusqu’à la lecture' }))),
@@ -435,8 +529,13 @@
     [{ texte: 'Annuler' }, { texte: libelleEnvoi(), classe: 'primaire ms-envoyer', action: async function () {
       var d = { id: 'MS' + SIC.crypto.hex(SIC.crypto.aleatoire(6)), objet: objet.value.trim(), texte: texte.value.trim(), nom: moi().nom, destinataires: dest,
         services: MS.servicesDe(dest, U.config()), important: important.checked, accuse: accuse.value, reponses: reponses.value, jusquau: jusquau.value, rattaches: rattaches, pieces: [] };
+      if (peutSondage && avecSondage.checked) {
+        var dates = sGenre.value === 'dates';
+        d.sondage = { question: sQuestion.value.trim(), genre: sGenre.value, resultats: sRes.value, anonyme: sAnonyme.checked, autre: !dates && sAutre.checked, cloture: sCloture.value,
+          options: sOptions.filter(function (o) { return dates ? o.jour : o.libelle.trim(); }).map(function (o, i) { var x = { id: 'o' + (i + 1), libelle: o.libelle.trim() }; if (dates) { x.jour = o.jour; x.heure = o.heure; } return x; }) };
+      }
       // Contrôle avant d'écrire les fichiers (aucun fichier orphelin si le message est refusé)
-      MS.controler('MESSAGE', Object.assign({}, d, { pieces: fichiers.map(function (f) { return { id: 'PJ0000000000000000', nom: f.name, taille: f.size }; }) }), { etat: st(), compte: c, config: U.config() });
+      MS.controler('MESSAGE', Object.assign({}, d, { pieces: fichiers.map(function (f) { return { id: 'PJ0000000000000000', nom: f.name, taille: f.size }; }) }), { etat: st(), compte: c, config: U.config(), peut: function (t) { return s().peut(t); } });
       if (fichiers.length && !confirm('Les pièces jointes ne doivent contenir aucune donnée clinique ni nominative sur un patient. Envoyer ?')) return false;
       for (var i = 0; i < fichiers.length; i++) {
         var oct = new Uint8Array(await fichiers[i].arrayBuffer());
@@ -500,7 +599,7 @@
   }
 
   // ------------------------------------------------------------ Journal (sans le contenu des messages)
-  var LIB = { MESSAGE: 'Messagerie : message', MESSAGE_REPONSE: 'Messagerie : réponse', MESSAGE_LU: 'Messagerie : lecture', MESSAGE_RETRAIT: 'Messagerie : retrait', MESSAGE_ARCHIVE: 'Messagerie : archive', MESSAGE_RELANCE: 'Messagerie : relance' };
+  var LIB = { MESSAGE: 'Messagerie : message', MESSAGE_REPONSE: 'Messagerie : réponse', MESSAGE_LU: 'Messagerie : lecture', MESSAGE_RETRAIT: 'Messagerie : retrait', MESSAGE_ARCHIVE: 'Messagerie : archive', MESSAGE_RELANCE: 'Messagerie : relance', VOTE: 'Messagerie : vote', SONDAGE_CLOTURE: 'Messagerie : clôture d’un sondage' };
   function resume(e) {
     var d = e.data || {}, m = st().messages[d.id || d.message], c = compte(), lisible = m && MS.concerne(m, c, c.groupes);
     var nom = lisible ? '« ' + m.objet + ' »' : 'un message';
@@ -511,6 +610,8 @@
       case 'MESSAGE_RETRAIT': return 'Retrait de ' + nom + (d.motif ? ' : ' + d.motif : '');
       case 'MESSAGE_ARCHIVE': return (d.archive === false ? 'Remis dans les reçus : ' : 'Archivé : ') + nom;
       case 'MESSAGE_RELANCE': return 'Relance de ' + nom;
+      case 'VOTE': return 'Vote au sondage de ' + nom;
+      case 'SONDAGE_CLOTURE': return 'Clôture du sondage de ' + nom;
     }
     return e.type;
   }
