@@ -54,7 +54,7 @@
     return {
       types: liste(r.types, TYPES_DEFAUT), gravites: liste(r.gravites, GRAVITES_DEFAUT), urgences: liste(r.urgences, URGENCES_DEFAUT, true), lieux: liste(r.lieux, LIEUX_DEFAUT),
       delaiAffichage: isFinite(delai) && delai >= 0 && delai <= 365 ? delai : 30,
-      chambreIndisponible: r.chambreIndisponible === true, auteurSurBon: r.auteurSurBon === true,
+      chambreIndisponible: r.chambreIndisponible === true, salleIndisponible: r.salleIndisponible === true, auteurSurBon: r.auteurSurBon === true,
       telephone: texte(et.telephone, 40)
     };
   }
@@ -68,7 +68,7 @@
         if (!d.id) break;
         t = st.demandes[d.id];
         if (!t) t = st.demandes[d.id] = { id: d.id, cree: e.at, par: e.by, etat: 'transmettre', etapes: [], commentaires: [], evts: [] };
-        ['service', 'type', 'lieu', 'chambre', 'precisionLieu', 'gravite', 'urgence', 'description', 'chambreIndisponible', 'lits', 'nom'].forEach(function (k) { if (d[k] !== undefined) t[k] = d[k]; });
+        ['service', 'type', 'lieu', 'chambre', 'salle', 'salleNom', 'salleIndisponible', 'precisionLieu', 'gravite', 'urgence', 'description', 'chambreIndisponible', 'lits', 'nom'].forEach(function (k) { if (d[k] !== undefined) t[k] = d[k]; });
         t.modifie = e.at; t.evts.push(e.id);
         break;
       case 'TRAVAUX_ETAPE':
@@ -149,9 +149,18 @@
       .filter(function (t) { return services.indexOf(t.service) >= 0 && t.etat === 'programmee' && t.datePrevue && t.datePrevue >= debut && t.datePrevue <= fin; })
       .map(function (t) { return { demande: t.id, service: t.service, jour: t.datePrevue, type: t.type, lieu: t.lieu, chambre: t.chambre || '', precisionLieu: t.precisionLieu || '' }; });
   }
+  /**
+   * Salles et bureaux indisponibles pendant des travaux (0.25.1 : demande ouverte sur une salle, case cochée, case
+   * proposée par le réglage du service, désactivée par défaut) : [{ salle, demande, type, service, depuis }], lu par Salles.
+   */
+  function sallesIndisponibles(st, config) {
+    return Object.keys(st.demandes).map(function (k) { return st.demandes[k]; })
+      .filter(function (t) { return t.lieu === 'salle' && t.salle && t.salleIndisponible && ouverte(t) && (!config || options(config, t.service).salleIndisponible); })
+      .map(function (t) { return { salle: t.salle, demande: t.id, type: t.type, service: t.service, depuis: t.cree, titre: lib(options(config || {}, t.service).types, t.type) || 'Travaux' }; });
+  }
   /** Lieu en clair : « Chambre 12 », « Salle de soins — robinet du fond ». */
   function libLieu(t, config) {
-    var o = options(config, t.service), l = t.lieu === 'chambre' ? 'Chambre ' + (t.chambre || '?') : lib(o.lieux, t.lieu) || (t.lieu === 'autre' ? 'Autre lieu' : '');
+    var o = options(config, t.service), l = t.lieu === 'chambre' ? 'Chambre ' + (t.chambre || '?') : t.lieu === 'salle' ? (t.salleNom || 'Salle') : lib(o.lieux, t.lieu) || (t.lieu === 'autre' ? 'Autre lieu' : '');
     return [l, t.precisionLieu || ''].filter(Boolean).join(' — ');
   }
 
@@ -163,7 +172,7 @@
       t = st.demandes[d.id];
       if (!t && !d.service) throw new Error('Indiquez le service.');
       if (!t || d.type !== undefined) { if (!texte(d.type)) throw new Error('Choisissez le type de travaux.'); }
-      if (!t || d.lieu !== undefined) { if (!texte(d.lieu)) throw new Error('Indiquez le lieu.'); if (d.lieu === 'chambre' && !texte(d.chambre)) throw new Error('Indiquez le numéro de la chambre.'); }
+      if (!t || d.lieu !== undefined) { if (!texte(d.lieu)) throw new Error('Indiquez le lieu.'); if (d.lieu === 'salle' && !texte(d.salle)) throw new Error('Choisissez la salle ou le bureau.'); if (d.lieu === 'chambre' && !texte(d.chambre)) throw new Error('Indiquez le numéro de la chambre.'); }
       if (!t || d.urgence !== undefined) { if (!texte(d.urgence)) throw new Error('Indiquez l’urgence.'); }
       if (!t || d.description !== undefined) { if (!texte(d.description, 2000)) throw new Error('Décrivez le problème en quelques mots.'); }
       if (d.description !== undefined && String(d.description).length > 2000) throw new Error('Description trop longue (2 000 caractères au plus).');
@@ -250,6 +259,8 @@
       { nom: 'travaux.chambres', version: 1, acces: 'lecture', champs: ['service', 'chambre', 'lits', 'demande', 'type'],
         lire: function (st, o) { return chambresIndisponibles(st, o && o.services, o && o.config); } },
       // Lue par l'Agenda : interventions programmées
+      // Lue par Salles et bureaux (0.25.1) : salles indisponibles pendant des travaux
+      { nom: 'travaux.salles', version: 1, acces: 'lecture', champs: ['salle', 'demande', 'type', 'service', 'depuis', 'titre'], lire: function (st, o) { return sallesIndisponibles(st, o && o.config); } },
       { nom: 'travaux.interventions', version: 1, acces: 'lecture', champs: ['demande', 'service', 'jour', 'type', 'lieu', 'chambre', 'precisionLieu'],
         lire: function (st, o) { return interventions(st, o.services, o.debut, o.fin); } }
     ],
@@ -260,5 +271,5 @@
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, ETAPES: ETAPES, OUVERTES: OUVERTES, TRAITEES: TRAITEES, DEPUIS: DEPUIS,
     TYPES_DEFAUT: TYPES_DEFAUT, GRAVITES_DEFAUT: GRAVITES_DEFAUT, URGENCES_DEFAUT: URGENCES_DEFAUT, LIEUX_DEFAUT: LIEUX_DEFAUT,
     options: options, lib: lib, libLieu: libLieu, demandes: demandes, urgentes: urgentes, urgente: urgente, ouverte: ouverte, avisPour: avisPour,
-    chambresIndisponibles: chambresIndisponibles, interventions: interventions, controler: controler, controlerCadre: controlerCadre, jourISO: jourISO };
+    chambresIndisponibles: chambresIndisponibles, sallesIndisponibles: sallesIndisponibles, interventions: interventions, controler: controler, controlerCadre: controlerCadre, jourISO: jourISO };
 });

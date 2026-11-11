@@ -30,6 +30,15 @@
     var sources = [], o = opts();
     try { var a = s().detientCle('agenda') ? s().etatModule('agenda') : null; if (a) sources = sources.concat(SIC.modules.lire('agenda.occupations', a, { debut: debut, fin: fin }) || []); } catch (e) { /* agenda absent */ }
     try { var m = s().detientCle('suivi') ? s().etatModule('suivi') : null; if (m) sources = sources.concat(SIC.modules.lire('suivi.occupations', m, { config: U.config(), debut: debut, fin: fin, horaires: { matin: o.matin, apresmidi: o.apresmidi } }) || []); } catch (e) { /* suivi absent */ }
+    // Salles fermées pendant des travaux (Demandes de travaux, case cochée) : journées entières, jusqu'à la fin des travaux
+    try {
+      var tv = s().detientCle('travaux') ? s().etatModule('travaux') : null;
+      if (tv) (SIC.modules.lire('travaux.salles', tv, { config: U.config() }) || []).forEach(function (x) {
+        for (var j = S.jourISO(Math.max(debut, Date.parse(x.depuis) || debut)), n = 0; S.instant(j, '00:00') < fin && n < 400; j = S.plusJours(j, 1), n++) {
+          sources.push({ ref: 'travaux|' + x.demande + '|' + j, salle: x.salle, debut: S.instant(j, '00:00'), fin: S.instant(S.plusJours(j, 1), '00:00'), titre: 'Travaux : ' + x.titre, genre: 'ferme', service: x.service, par: '' });
+        }
+      });
+    } catch (e) { /* travaux absent */ }
     return S.occupations(st(), sources, debut, fin);
   }
   function journee(j) { return [S.instant(j, '00:00'), S.instant(S.plusJours(j, 1), '00:00')]; }
@@ -454,5 +463,13 @@
       } catch (e) { return []; }
     }
   });
-  U.salles = { selecteur: selecteur, verifier: verifier, envoyer: envoyer, libelle: libelle, occupations: occupations, modaleReserver: modaleReserver };
+  /** Pour « Mon agenda » : réservations simples et demandes de l'agent sur [debut, fin[, triées. */
+  function miennes(debut, fin) {
+    var c = moi(), o = occupations(debut, fin);
+    return o.occupations.filter(function (x) { return x.par === c.id && x.genre === 'simple'; }).map(function (x) { return Object.assign({ etat: '' }, x); })
+      .concat(o.enAttente.filter(function (x) { return x.par === c.id; }).map(function (x) { var d = st().demandes[x.demande]; return Object.assign({ etat: d && d.validation ? 'à valider' : 'demande en conflit' }, x); }))
+      .concat(o.refusees.filter(function (x) { return x.par === c.id; }).map(function (x) { return Object.assign({ etat: 'demande refusée' }, x); }))
+      .sort(function (a, b) { return a.debut - b.debut; });
+  }
+  U.salles = { miennes: miennes, nomSalle: nomSalle, selecteur: selecteur, verifier: verifier, envoyer: envoyer, libelle: libelle, occupations: occupations, modaleReserver: modaleReserver };
 })();

@@ -59,6 +59,7 @@
       u ? h('span', { class: 'badge ' + (u.appel && !t.traitee ? 'bad' : ''), text: u.libelle }) : null,
       g ? h('span', { class: 'badge' + (t.gravite === 'danger' ? ' bad' : ''), text: g }) : null,
       t.chambreIndisponible && opts(t.service).chambreIndisponible ? h('span', { class: 'badge warn', text: 'Chambre indisponible' }) : null,
+      t.salleIndisponible && opts(t.service).salleIndisponible ? h('span', { class: 'badge warn', text: 'Salle indisponible' }) : null,
       t.reference ? h('span', { class: 'badge', text: 'Bon ' + t.reference }) : null,
       t.commentaires.length ? h('span', { class: 'badge', text: t.commentaires.length + ' commentaire' + (t.commentaires.length > 1 ? 's' : '') }) : null);
   }
@@ -116,7 +117,13 @@
     var sv = h('select', Object.assign({ 'aria-label': 'Service' }, nouveau ? {} : { disabled: true }), U.services().map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === x.service }); }));
     function options(l, val, vide) { return (vide ? [h('option', { value: '', text: vide })] : []).concat(l.map(function (c) { return h('option', { value: c.code, text: c.libelle, selected: c.code === val }); })); }
     var type = h('select', Object.assign({ 'aria-label': 'Type de travaux' }, dis), options(o.types, x.type, '— Choisir —'));
-    var lieu = h('select', Object.assign({ 'aria-label': 'Lieu' }, dis), options(o.lieux.concat([{ code: 'chambre', libelle: 'Chambre…' }, { code: 'autre', libelle: 'Autre lieu' }]), x.lieu, '— Choisir —'));
+    // Salle ou bureau (module Salles et bureaux, 0.25.1) : choisie dans la liste du service
+    var avecSalles = !!(SIC.salles && s.detientCle && s.detientCle('salles')), stS = avecSalles ? s.etatModule('salles') : null;
+    var lieu = h('select', Object.assign({ 'aria-label': 'Lieu' }, dis), options(o.lieux.concat([{ code: 'chambre', libelle: 'Chambre…' }], avecSalles || x.lieu === 'salle' ? [{ code: 'salle', libelle: 'Salle ou bureau…' }] : [], [{ code: 'autre', libelle: 'Autre lieu' }]), x.lieu, '— Choisir —'));
+    var selSalle = h('select', Object.assign({ 'aria-label': 'Salle ou bureau' }, dis), [h('option', { value: '', text: '— Choisir la salle —' })].concat(avecSalles ? SIC.salles.sallesDuService(stS, x.service || sv.value).map(function (y) { return h('option', { value: y.id, text: y.nom, selected: y.id === x.salle }); }) : x.salle ? [h('option', { value: x.salle, text: x.salleNom || 'Salle', selected: true })] : []));
+    var cbSalleIndispo = h('input', Object.assign({ type: 'checkbox', checked: !!x.salleIndisponible }, dis));
+    var zoneSalle = h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Salle', selSalle),
+      o.salleIndisponible ? h('label', { class: 'case' }, cbSalleIndispo, h('span', { text: 'Salle indisponible pendant les travaux' })) : null);
     var idListe = 'chambres-' + C.hex(C.aleatoire(3));
     var chambre = h('input', Object.assign({ type: 'text', maxlength: 20, value: x.chambre || '', list: idListe, placeholder: 'n°', 'aria-label': 'Numéro de chambre', class: 'champ-court' }, dis));
     var datalist = h('datalist', { id: idListe }, chambresConnues(x.service).map(function (c) { return h('option', { value: c }); }));
@@ -132,6 +139,7 @@
     var appel = h('div', { class: 'travaux-urgence', role: 'alert' });
     function maj() {
       zoneChambre.hidden = lieu.value !== 'chambre';
+      zoneSalle.hidden = lieu.value !== 'salle';
       var u = o.urgences.filter(function (y) { return y.code === urgence.value; })[0];
       U.vider(appel); appel.hidden = !(u && u.appel && !traitee);
       if (!appel.hidden) appel.appendChild(h('span', { text: 'Urgence immédiate : appelez les services techniques' + (numeroST() ? ' au ' + numeroST() : '') + ', puis enregistrez la demande pour en garder la trace.' }));
@@ -142,7 +150,7 @@
 
     var formulaire = h('div', { class: 'pile' },
       h('div', { class: 'grille-2' }, h('label', {}, 'Service', sv), h('label', {}, 'Type de travaux', type)),
-      h('div', { class: 'grille-2' }, h('label', {}, 'Lieu', lieu), h('label', {}, 'Précision', precision)), zoneChambre,
+      h('div', { class: 'grille-2' }, h('label', {}, 'Lieu', lieu), h('label', {}, 'Précision', precision)), zoneChambre, zoneSalle,
       h('div', { class: 'grille-2' }, h('label', {}, 'Gravité', gravite), h('label', {}, 'Urgence', urgence)), appel,
       h('label', {}, 'Description', description));
 
@@ -158,7 +166,8 @@
       modifiable ? { texte: nouveau ? 'Enregistrer la demande' : 'Enregistrer les modifications', classe: 'primaire', action: async function () {
         var d = { id: x.id || 'TR' + C.hex(C.aleatoire(6)), service: sv.value, type: type.value, lieu: lieu.value, chambre: lieu.value === 'chambre' ? chambre.value.trim() : '',
           precisionLieu: precision.value.trim(), gravite: gravite.value, urgence: urgence.value, description: description.value.trim(),
-          chambreIndisponible: lieu.value === 'chambre' && o.chambreIndisponible && cbIndispo.checked, lits: Math.max(1, Math.min(6, Math.round(+lits.value || 1))) };
+          chambreIndisponible: lieu.value === 'chambre' && o.chambreIndisponible && cbIndispo.checked, lits: Math.max(1, Math.min(6, Math.round(+lits.value || 1))),
+          salle: lieu.value === 'salle' ? selSalle.value : '', salleNom: lieu.value === 'salle' && selSalle.value ? selSalle.options[selSalle.selectedIndex].text : '', salleIndisponible: lieu.value === 'salle' && o.salleIndisponible && cbSalleIndispo.checked };
         if (nouveau) d.nom = moi().nom;
         else Object.keys(d).forEach(function (k) { if (k !== 'id' && k !== 'service' && JSON.stringify(d[k]) === JSON.stringify(x[k] === undefined ? (typeof d[k] === 'boolean' ? false : '') : x[k])) delete d[k]; });
         if (!nouveau && Object.keys(d).length <= 2) return true;
@@ -307,6 +316,7 @@
       h('div', { class: 'grille-3' },
         choix('delaiAffichage', 'Demandes traitées affichées pendant', [[7, '7 jours'], [15, '15 jours'], [30, '30 jours'], [60, '60 jours'], [90, '90 jours']]),
         choix('chambreIndisponible', 'Case « chambre indisponible pendant les travaux »', [[false, 'Non proposée'], [true, 'Proposée (retirée des places disponibles)']]),
+        choix('salleIndisponible', 'Case « salle indisponible pendant les travaux »', [[false, 'Non proposée'], [true, 'Proposée (salle fermée dans Salles et bureaux)']]),
         choix('auteurSurBon', 'Nom de l’auteur sur le bon imprimé', [[false, 'Non'], [true, 'Oui']])),
       h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
         try {

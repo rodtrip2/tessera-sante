@@ -413,6 +413,14 @@
       h('div', { class: 'barre' }, h('h1', { text: 'Mon agenda' }), h('div', { class: 'espace' }), h('button', { class: 'btn', onclick: function () { modaleAbsence(null); } }, '+ Absence')),
       bandeauAvis(),
       m.alertes.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Alertes qui me sont adressées' }), h('div', { class: 'pile' }, m.alertes.map(function (a) { return carteAlerte(a, svs.length > 1); }))) : null,
+      // Salles réservées par l'agent cette semaine (Salles et bureaux, 0.25.1) ; celles de ses événements figurent sur leur carte
+      (function () {
+        if (!U.salles || !s.detientCle('salles')) return null;
+        var l = U.salles.miennes(debut, fin);
+        return l.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Mes salles cette semaine' }), h('ul', { class: 'liste-simple' }, l.map(function (o) {
+          return h('li', {}, h('b', { text: libJour(minuit(o.debut)) + ' ' + hm(o.debut) + '–' + hm(o.fin) }), ' ' + U.salles.nomSalle(o.salle) + ' — ' + o.titre + (o.etat ? ' (' + o.etat + ')' : ''));
+        }))) : null;
+      })(),
       h('div', { class: 'barre' },
         h('button', { class: 'btn petit', type: 'button', onclick: function () { vue.ref = plusJours(vue.ref, -7); U.rendreContenu(); } }, '◀'),
         h('button', { class: 'btn petit', type: 'button', onclick: function () { vue.ref = minuit(Date.now()); U.rendreContenu(); } }, 'Aujourd’hui'),
