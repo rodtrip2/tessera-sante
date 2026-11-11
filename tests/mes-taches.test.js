@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: EUPL-1.2
-// Mes tâches : liste personnelle chiffrée par la clé personnelle de l'agent (0.26.3). Données fictives : npm test
+// Mes tâches : liste personnelle chiffrée par la clé de liste de l'agent, tenue par le trousseau (0.26.3, 0.26.5). Données fictives : npm test
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -62,6 +62,11 @@ test('Mes tâches : contenu lisible par le seul agent (pas l’administrateur), 
   assert.equal(a.annulableParAuteur(e2), false);
   assert.ok(!SIC.agenda.tachesPerso(a.etatModule('agenda'), a.utilisateur.id).some((t) => t.id === 'TP2'));
   assert.equal(a.annulableParAuteur(Object.assign({}, e2, { id: 'vieux', at: '2020-01-01T00:00:00.000Z' })), false);
+  // Ancien format (0.26.3, clé dérivée de la clé personnelle) : encore lu, pour être réenregistré au nouveau format
+  const C = SIC.crypto, kOld = 'perso:taches:' + a.utilisateur.id;
+  const ancien = C.b64(await C.chiffrerJSON(await C.cleUsagePersonnel(a.privee8, kOld), { titre: 'Ancienne tâche (fictif)' }, kOld));
+  assert.equal(a.formatPersonnelAncien(ancien), true);
+  assert.equal((await a.dechiffrerPersonnel('taches', ancien)).titre, 'Ancienne tâche (fictif)');
   const a2 = await co(racine, 'ide.a', 'mot de passe ide a');
   assert.equal((await a2.dechiffrerPersonnel('taches', ch)).titre, 'Appeler la pharmacie (fictif)');
   const b = await co(racine, 'ide.b', 'mot de passe ide b');
@@ -72,6 +77,22 @@ test('Mes tâches : contenu lisible par le seul agent (pas l’administrateur), 
   await assert.rejects(b.enregistrer('ANNULATION', { cible: e1.id, motif: 'x', immediate: true }), /rôle/);
   const ad = await co(racine, 'admin', 'mot de passe solide');
   assert.equal(await ad.dechiffrerPersonnel('taches', ch), null);
+  // Clé de liste remise à l'agent seul (et à l'administrateur, qui détient les clés maîtresses)
+  const ida = a.utilisateur.id, idb = b.utilisateur.id;
+  const remis = (cle) => [...new Set(admin.coffre.enveloppes.filter((e) => e.cle === cle).map((e) => e.pour))];
+  assert.ok(remis('t-a.' + ida).includes(ida) && !remis('t-a.' + ida).includes(idb));
+  // Mot de passe oublié (décision du porteur, option 1) : la liste reste lisible ; puis « Tout renouveler »
+  await admin.reinitialiserMotDePasse(ida, 'provisoire 2026 a');
+  const a3 = await co(racine, 'ide.a', 'provisoire 2026 a');
+  assert.equal((await a3.dechiffrerPersonnel('taches', ch)).titre, 'Appeler la pharmacie (fictif)');
+  const r = await admin.renouvelerTout('mot de passe solide');
+  const a4 = await co(racine, 'ide.a', r.provisoires.find((x) => x.login === 'ide.a').motDePasse);
+  assert.equal((await a4.dechiffrerPersonnel('taches', ch)).titre, 'Appeler la pharmacie (fictif)');
+  assert.ok(a4.aClePersonnelle());
+  const ch2 = await a4.chiffrerPersonnel('taches', { titre: 'Après renouvellement (fictif)' });
+  assert.equal((await a4.dechiffrerPersonnel('taches', ch2)).titre, 'Après renouvellement (fictif)');
+  assert.equal(a4.formatPersonnelAncien(ch2), false);
+  assert.equal(a4.formatPersonnelAncien('ancien-format'), true);
   const st = SIC.agenda.reduire([{ v: 1, id: 'x1', at: '2026-11-11T08:00:00.000Z', by: 'u', type: 'TACHE_PERSO', data: { id: 'T', agent: 'u', chiffre: 'abc' } },
     { v: 1, id: 'x2', at: '2026-11-11T09:00:00.000Z', by: 'v', type: 'TACHE_PERSO', data: { id: 'T', agent: 'v', chiffre: 'def' } }]);
   assert.equal(st.perso.T.chiffre, 'abc');   // une tâche n'appartient qu'à son agent

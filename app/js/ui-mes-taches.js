@@ -5,7 +5,7 @@
  * Onglet « Mes tâches » de la fenêtre de l'Agenda, à côté de « Mon agenda ». Trois rubriques : mes tâches (titre,
  * échéance, heure, rappel, note courte, élément d'un autre module rattaché) ; ce que les modules me demandent (leurs
  * informations : réponses attendues, demandes à arbitrer, tâches attribuées… à traiter dans leur module ; messages qui
- * attendent) ; les tâches faites, gardées un mois à l'écran. Contenu chiffré par la clé personnelle de l'agent
+ * attendent) ; les tâches faites, gardées un mois à l'écran. Contenu chiffré par la clé de liste de l'agent (trousseau, 0.26.5)
  * (session.chiffrerPersonnel) : personne d'autre ne le lit, administrateur compris ; le journal de l'Agenda ne garde
  * qu'une saisie opaque (`TACHE_PERSO`). Confier une tâche passe par la messagerie (message avec l'élément rattaché).
  * Rappels : onglet Informations de la messagerie et pastille de l'Agenda. « + Ma liste » depuis un élément d'un module.
@@ -33,7 +33,10 @@
     var liste = A.tachesPerso(e, moi().id), manque = liste.filter(function (t) { return !cache[t.evt]; });
     if (manque.length && !enCours) {
       enCours = true;
-      Promise.all(manque.map(function (t) { return s().dechiffrerPersonnel(USAGE, t.chiffre).then(function (c) { cache[t.evt] = c || { illisible: true }; }); }))
+      var anciennes = [];
+      Promise.all(manque.map(function (t) { return s().dechiffrerPersonnel(USAGE, t.chiffre).then(function (c) { cache[t.evt] = c || { illisible: true }; if (c && s().formatPersonnelAncien(t.chiffre)) anciennes.push({ id: t.id, c: c }); }); }))
+        // Ancien format (0.26.3, clé dérivée de la clé personnelle) : réenregistrée avec la clé de liste du trousseau (0.26.5)
+        .then(async function () { for (var i = 0; i < anciennes.length; i++) { try { await enregistrer(anciennes[i].id, anciennes[i].c); } catch (e) { /* reprise à la prochaine ouverture */ } } })
         .then(function () { enCours = false; U.rendreContenu(); }, function () { enCours = false; });
     }
     return liste.filter(function (t) { return cache[t.evt]; }).map(function (t) { return Object.assign({ id: t.id, cree: t.cree, le: t.le }, cache[t.evt]); });
@@ -74,7 +77,7 @@
       h('label', {}, 'Rappel (dans l’onglet Informations et la pastille de l’Agenda)', rappel),
       (U.plusOptions || function (o) { return h('div', { class: 'pile' }, [].slice.call(arguments, 1)); })(!!(t.note || t.element), h('label', {}, 'Note (facultatif ; aucune donnée clinique)', note),
         h('h3', { text: 'Élément rattaché' }), zoneE),
-      h('small', { class: 'muted', text: 'Votre liste est chiffrée par votre clé personnelle : personne d’autre ne la lit, administrateur compris. Pour confier une tâche à un collègue, envoyez-lui un message avec l’élément rattaché.' })),
+      h('small', { class: 'muted', text: 'Votre liste est chiffrée par votre clé de liste, remise à vous seul : l’application ne l’ouvre pour personne d’autre, administrateur compris, et elle reste lisible après un mot de passe oublié. Pour confier une tâche à un collègue, envoyez-lui un message avec l’élément rattaché.' })),
     [{ texte: 'Annuler' }, nouveau ? null : { texte: 'Retirer', classe: 'danger', action: async function () { if (!confirm('Retirer cette tâche de votre liste ?')) return false; await retirer(t); U.toast('Tâche retirée.'); } },
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         if (!titre.value.trim()) { titre.focus(); throw new Error('Indiquez la tâche.'); }
@@ -91,7 +94,7 @@
     return h('li', { class: 'mt-tache' + (t.fait ? ' faite' : '') + (retard ? ' retard' : '') },
       cb,
       h('div', { class: 'mt-corps' },
-        h('button', { class: 'btn lien mt-titre', type: 'button', onclick: function () { modaleTache(t); } }, t.illisible ? 'Tâche illisible (clé personnelle renouvelée)' : t.titre || '(sans titre)'),
+        h('button', { class: 'btn lien mt-titre', type: 'button', onclick: function () { modaleTache(t); } }, t.illisible ? 'Tâche illisible' : t.titre || '(sans titre)'),
         h('small', { class: 'muted', text: [t.echeance ? 'Échéance ' + jourFr(t.echeance) + (t.heure ? ' à ' + t.heure : '') : '', retard ? 'en retard' : '', rap && !t.fait ? 'rappel le ' + jourFr(rap) : '', t.fait && t.faitLe ? 'faite le ' + U.date(Date.parse(t.faitLe)).slice(0, 10) : ''].filter(Boolean).join(' · ') }),
         t.note ? h('div', { class: 'mt-note', text: t.note }) : null,
         t.element && U.messagerie && U.messagerie.ligneRattache ? U.messagerie.ligneRattache(t.element) : null));
@@ -111,7 +114,7 @@
     return res;
   }
   function vueMesTaches() {
-    if (!disponible()) return h('section', { class: 'panneau' }, h('h2', { text: 'Mes tâches' }), h('p', { class: 'muted', text: s().apercu ? 'Aperçu de l’affichage d’un rôle : la liste personnelle n’est pas affichée.' : 'Votre liste demande votre clé personnelle : reconnectez-vous avec votre propre compte.' }));
+    if (!disponible()) return h('section', { class: 'panneau' }, h('h2', { text: 'Mes tâches' }), h('p', { class: 'muted', text: s().apercu ? 'Aperçu de l’affichage d’un rôle : la liste personnelle n’est pas affichée.' : 'Votre liste demande votre clé de liste : elle est créée à la prochaine connexion de l’administrateur (ou reconnectez-vous avec votre propre compte).' }));
     var toutes = taches(), auj = jourISO(Date.now()), limite = Date.now() - GARDE_FAITES * J;
     var aFaire = toutes.filter(function (t) { return !t.fait; }).sort(function (a, b) { return (a.echeance || '9999') < (b.echeance || '9999') ? -1 : (a.echeance || '9999') > (b.echeance || '9999') ? 1 : String(a.heure || '').localeCompare(String(b.heure || '')) || String(a.cree).localeCompare(String(b.cree)); });
     var faites = toutes.filter(function (t) { return t.fait && (vueFaites || Date.parse(t.faitLe || t.le) >= limite); }).sort(function (a, b) { return String(b.faitLe || '').localeCompare(String(a.faitLe || '')); });
