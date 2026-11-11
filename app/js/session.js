@@ -159,7 +159,9 @@
   function controlerModule(s, type, data) {
     var m = moduleDe(type);
     if (!m || !m.saisies || typeof m.saisies.controler !== 'function') return;
-    m.saisies.controler(type, data || {}, { etat: etatDe(s, m), config: config(s), peut: function (t) { return s.peut(t); } });
+    var c = s.compteEffectif && s.compteEffectif(), G = c && socle('groupes', './groupes.js');
+    m.saisies.controler(type, data || {}, { etat: etatDe(s, m), config: config(s), peut: function (t) { return s.peut(t); },
+      compte: c ? Object.assign({}, c, { groupes: G ? G.de(config(s), c.id) : [] }) : null });
   }
   // ---------------------------------------------------------- Trousseau (étape 4)
   function v2(s) { return !!(s.coffre && s.coffre.version === 2); }

@@ -10,9 +10,9 @@
  * Sous-étape 6.1 : contrat, droits et reconstitution de l'état ; les écrans viennent aux sous-étapes suivantes.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./droits.js'), require('./model.js'), require('./modules.js'));
-  else (root.SIC = root.SIC || {}).agenda = factory(root.SIC.noyauJournal, root.SIC.droits, root.SIC.model, root.SIC.modules);
-})(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./droits.js'), require('./model.js'), require('./modules.js'), require('./agenda-participants.js'));
+  else (root.SIC = root.SIC || {}).agenda = factory(root.SIC.noyauJournal, root.SIC.droits, root.SIC.model, root.SIC.modules, root.SIC.agendaParticipants);
+})(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, P) {
   'use strict';
 
   var TYPES = ['RDV', 'OCCURRENCE', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE'];
@@ -174,7 +174,7 @@
   }
   // Réglages propres à une date d'un élément répété (décision du porteur du 8 novembre 2026 : patients, accompagnateurs,
   // transports, check-list… peuvent changer à chaque date ; une date peut être décalée ou annulée)
-  var CHAMPS_OCCURRENCE = ['debut', 'fin', 'lieu', 'titre', 'patients', 'professionnels', 'accompagnateurs', 'consigneAccompagnateurs', 'transports', 'validations', 'checklist', 'annulee', 'motifAnnulation'];
+  var CHAMPS_OCCURRENCE = ['debut', 'fin', 'lieu', 'titre', 'patients', 'professionnels', 'accompagnateurs', 'consigneAccompagnateurs', 'participation', 'transports', 'validations', 'checklist', 'annulee', 'motifAnnulation'];
   /**
    * Élément tel qu'il est à une date : réglages de toutes les dates, remplacés par ceux propres à cette date
    * (`surcharges[occurrence]`). `surchargee` : liste des champs propres à la date (vide : aucun).
@@ -240,11 +240,34 @@
    * eux-mêmes. { requis, prevus, inscrits: [{ agent, nom, le }], total, manque }.
    */
   function accompagnateurs(r, occurrence) {
-    var requis = Math.max(0, Math.round(+r.accompagnateurs || 0)), inscrits = ((r.inscriptions || {})[occurrence] || []).slice();
-    var prevus = (r.professionnels || []).filter(function (p) { return !p.id || !inscrits.some(function (i) { return i.agent === p.id; }); }).length;
-    var total = prevus + inscrits.length;
-    // Consigne en texte libre (ex. « 1 IDE le matin, 1 AS l'après-midi ») : indicative, sans effet sur l'inscription (décision du 8 novembre 2026)
-    return { requis: requis, prevus: prevus, inscrits: inscrits, total: total, manque: Math.max(0, requis - total), consigne: String(r.consigneAccompagnateurs || '').trim() };
+    // Depuis la 0.21.0 : rubrique « Quel(s) professionnel(s) ? » (agenda-participants.js) ; mêmes champs qu'avant
+    // (requis, prevus, inscrits, total, manque, consigne), plus la liste d'attente, les propositions, les demandes et les refus
+    return P.professionnels(rdvOccurrence(r, occurrence), occurrence);
+  }
+  /** Patients d'une date : inscrits, liste d'attente, minimum manquant (0.21.0). */
+  function placesPatients(r, occurrence) { return P.patients(rdvOccurrence(r, occurrence)); }
+  function rolesConfirmation(config) { var v = ((config || {}).agenda || {}).rolesConfirmation; return Array.isArray(v) && v.length ? v.filter(function (x) { return typeof x === 'string'; }) : P.ROLES_CONFIRMATION_DEFAUT.slice(); }
+  /**
+   * Ce qui attend une réponse de l'agent (0.21.0) : propositions d'un collègue et invitations sans réponse, pour les dates
+   * des `jours` prochains jours. [{ rdv, occurrence, debut, situation }].
+   */
+  function aRepondre(st, fiches, compte, services, maintenant, jours) {
+    return elements(st, fiches, services, maintenant, plusJours(maintenant, jours || 30)).filter(function (x) { return !x.externe && !x.annulee; })
+      .map(function (x) { return { rdv: x.rdv, occurrence: x.occurrence, debut: x.debut, situation: P.situation(rdvOccurrence(x.rdv, x.occurrence), x.occurrence, compte) }; })
+      .filter(function (x) { return x.situation.etat === 'propose' || x.situation.etat === 'invite'; });
+  }
+  /** Demandes d'inscription que l'agent peut confirmer ou refuser (auteur, organisateur, cadre, rôle réglé). */
+  function aConfirmer(st, fiches, config, compte, services, maintenant, jours) {
+    var res = [], rc = rolesConfirmation(config);
+    elements(st, fiches, services, maintenant, plusJours(maintenant, jours || 30)).forEach(function (x) {
+      if (x.externe || x.annulee || !x.accompagnateurs.demandes.length || !P.peutConfirmer(rdvOccurrence(x.rdv, x.occurrence), compte, rc)) return;
+      x.accompagnateurs.demandes.forEach(function (d) { if (d.agent !== compte.id) res.push({ rdv: x.rdv, occurrence: x.occurrence, debut: x.debut, demande: d }); });
+    });
+    return res;
+  }
+  /** Événements des `jours` prochains jours où il manque des patients (minimum de places non atteint). */
+  function patientsManquants(st, fiches, services, maintenant, jours) {
+    return elements(st, fiches, services, maintenant, plusJours(maintenant, jours || 7)).filter(function (x) { return !x.externe && !x.annulee && placesPatients(x.rdv, x.occurrence).manque > 0; });
   }
 
   // ------------------------------------------------------------ Permissions de sortie (décision du 7 novembre 2026)
@@ -614,7 +637,7 @@
         if (!d.id) break;
         var r = st.rdv[d.id] || { id: d.id, cree: e.at, par: e.by, evts: [] };
         ['nature', 'titre', 'debut', 'fin', 'lieu', 'service', 'patients', 'professionnels', 'motif', 'supprime', 'regularite', 'exceptions', 'checklist',
-          'entretien', 'accompagnateurs', 'consigneAccompagnateurs', 'statut', 'validation', 'examen', 'transports', 'validations'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
+          'entretien', 'accompagnateurs', 'consigneAccompagnateurs', 'participation', 'statut', 'validation', 'examen', 'transports', 'validations'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
         r.evts.push(e.id);
         st.rdv[d.id] = r;
         break;
@@ -641,12 +664,19 @@
         // Agent qui s'inscrit (ou se désinscrit) comme accompagnateur d'une occurrence
         var ri = st.rdv[d.rdv];
         if (!ri || !d.agent || !d.occurrence) break;
-        ri.inscriptions = ri.inscriptions || {};
-        var liste = (ri.inscriptions[d.occurrence] || []).filter(function (x) { return x.agent !== d.agent; });
-        if (!d.retrait) liste.push({ agent: d.agent, nom: d.nom || '', le: e.at, evt: e.id, par: e.by });
-        ri.inscriptions[d.occurrence] = liste;
-        // Inscription ou désinscription par un collègue : l'agent en est informé dans sa session (décision du 8 novembre 2026)
-        if (e.by && e.by !== d.agent) st.avis.push({ id: e.id, agent: d.agent, par: e.by, le: e.at, rdv: d.rdv, occurrence: d.occurrence, retrait: !!d.retrait });
+        ri.participations = ri.participations || {};
+        var avantI = (ri.participations[d.occurrence] || []).filter(function (x) { return x.agent === d.agent; })[0];
+        ri.participations[d.occurrence] = P.appliquer(ri.participations[d.occurrence], d, e);
+        // Information de l'agent dans sa session (décisions des 8 et 11 novembre 2026) : inscrit ou désinscrit par un
+        // collègue (sans confirmation : saisies d'avant la 0.21.0), demande confirmée ou refusée ; la proposition d'un
+        // collègue n'est pas un avis : elle attend une réponse (`aRepondre`). L'agent qui refuse une proposition : avis à
+        // celui qui l'avait proposé, avec le motif.
+        if (e.by && e.by !== d.agent) {
+          if (d.etat !== 'propose') st.avis.push({ id: e.id, agent: d.agent, par: e.by, le: e.at, rdv: d.rdv, occurrence: d.occurrence, retrait: !!d.retrait,
+            genre: d.retrait ? 'retrait' : d.etat === 'refuse' ? 'refus' : avantI && avantI.etat === 'demande' ? 'confirmation' : 'inscription', motif: d.etat === 'refuse' ? String(d.motif || '') : '' });
+        } else if (avantI && avantI.etat === 'propose' && avantI.par && avantI.par !== d.agent && !d.retrait) {
+          st.avis.push({ id: e.id, agent: avantI.par, par: e.by, le: e.at, rdv: d.rdv, occurrence: d.occurrence, genre: d.etat === 'refuse' ? 'propositionRefusee' : 'propositionAcceptee', motif: d.etat === 'refuse' ? String(d.motif || '') : '' });
+        }
         break;
       case 'VALIDATION':
         // Validation d'une occurrence (permission signée, validation médicale ou autre) ; `statut` 'attente' la retire
@@ -748,6 +778,10 @@
    */
   function controler(type, d, ctx) {
     var st = ctx.etat || { taches: {} }, t = d && (st.taches[d.id] || st.taches[d.tache]), o = optionsTaches(ctx.config);
+    // Inscription d'un professionnel (0.21.0) : selon le réglage de l'événement (libre, à confirmer, invitation, places)
+    if (type === 'INSCRIPTION' && ctx.compte && st.rdv && st.rdv[d.rdv] && d.occurrence) {
+      P.controler(rdvOccurrence(st.rdv[d.rdv], d.occurrence), d.occurrence, d, { compte: ctx.compte, rolesConfirmation: rolesConfirmation(ctx.config), peutInscrire: ctx.peut('INSCRIPTION') });
+    }
     if (type === 'TACHE_EQUIPE') {
       if (t && t.niveau === 'service') throw new Error('Cette tâche est une tâche du service : seuls les rôles qui règlent les tâches la modifient ou la suppriment.');
       var inchangee = t && JSON.stringify(regularite(t.regularite)) === JSON.stringify(regularite(d.regularite));
@@ -785,7 +819,7 @@
   return { contrat: contrat, reduire: reduire, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
-    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
+    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
     enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
     alertesEquipe: alertesEquipe, alertePour: alertePour, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
