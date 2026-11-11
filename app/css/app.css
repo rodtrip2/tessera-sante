@@ -772,3 +772,19 @@ th.largeur-reglee { white-space: normal; overflow-wrap: anywhere; }
 
 /* Jour modifié ou retiré dans une série (Suivi médical, 0.20.0) */
 .jour-modifie { font-weight: 700; color: var(--accent, inherit); margin-left: .2em; cursor: help; }
+
+/* Agenda : rubriques « Quel(s) professionnel(s) ? » et « Quel(s) patient(s) ? » (0.21.0) */
+.ag-sous-titre { font-size: .9em; opacity: .8; }
+.ag-reponses { border-left: 4px solid var(--warn, #b97a00); }
+.ag-section .actions.gauche select, .ag-section label.en-ligne select { width: auto; max-width: 100%; }
+
+/* Permissions : étapes de validation, dans la couleur réglée pour chaque étape (0.21.0) */
+.ag-etapes { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.ag-etape { border: 2px solid var(--c, #6b7280); border-radius: 999px; padding: .15rem .6rem; font-size: .85em; }
+.ag-etape.faite { background: color-mix(in srgb, var(--c, #6b7280) 18%, transparent); }
+.ag-etape.courante { background: var(--c, #6b7280); color: #fff; font-weight: 600; }
+.ag-etape.avenir { opacity: .6; border-style: dashed; }
+.ag-etape-badge { background: var(--c, #6b7280); color: #fff; border-color: transparent; }
+.ag-etape-badge.retard { outline: 2px solid var(--bad, #a12b2b); outline-offset: 1px; }
+.ag-mention { border-left: 3px solid var(--warn, #b97a00); padding-left: .5rem; margin: 0; }
+@media print { .ag-etape.courante, .ag-etape-badge { color: #000; background: none; border: 2px solid var(--c, #000); font-weight: 700; } }

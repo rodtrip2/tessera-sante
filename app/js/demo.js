@@ -85,7 +85,7 @@
           { si: { op: 'egal', valeur: 'm-chen' }, couleur: 'turquoise', rendu: 'pastille', libelle: 'Dr Chen (fictif)' },
           { si: { op: 'vide' }, couleur: 'rouge', rendu: 'fond', libelle: 'Sans médecin de 1re ligne' }] },
           U2: { regles: [{ si: { op: 'egal', valeur: 'm-diallo' }, couleur: 'brun', rendu: 'pastille', libelle: 'Dr Diallo (fictif)' }, { si: { op: 'vide' }, couleur: 'rouge', rendu: 'fond', libelle: 'Sans médecin de 1re ligne' }] } },
-        'patients.sortiePrevue': { '*': { regles: [{ si: { op: 'depuisPlusDe', n: 0 }, couleur: 'rouge', rendu: 'fond', libelle: 'Date de sortie passée' }, { si: { op: 'dansMoinsDe', n: 2 }, couleur: 'orange', rendu: 'fond', libelle: 'Sortie dans 2 jours ou moins' }, { si: { op: 'dansMoinsDe', n: 7 }, couleur: 'jaune', rendu: 'fond', libelle: 'Sortie dans la semaine' }] } },
+        'patients.sortiePrevue': { '*': { regles: [{ si: { op: 'depuisPlusDe', n: 0 }, couleur: 'rouge', rendu: 'fond', libelle: 'Date de sortie passée' }, { si: { op: 'egal', valeur: 'actee' }, couleur: 'vert', rendu: 'fond', libelle: 'Sortie actée (date arrêtée avec le patient)' }, { si: { op: 'egal', valeur: 'envisagee' }, couleur: 'jaune', rendu: 'fond', libelle: 'Sortie envisagée (à confirmer)' }] } },
         'c:accueil': { '*': { regles: [{ si: { op: 'complete' }, couleur: 'vert', rendu: 'fond', libelle: 'Check-list complète' }, { si: { op: 'avancementMoins', n: 50 }, couleur: 'orange', rendu: 'fond', libelle: 'Moins de la moitié faite' }] } },
         'c:afgsu': { '*': { regles: [{ si: { op: 'depuisPlusDe', n: 0 }, couleur: 'rouge', rendu: 'fond', libelle: 'Formation à renouveler' }, { si: { op: 'dansMoinsDe', n: 60 }, couleur: 'orange', rendu: 'fond', libelle: 'À renouveler dans les 2 mois' }] } },
         'c:demarches': { '*': { regles: [{ si: { op: 'importance', valeur: 'urgent' }, couleur: 'rouge', rendu: 'texte', libelle: 'Note urgente' }, { si: { op: 'importance', valeur: 'important' }, couleur: 'orange', rendu: 'texte', libelle: 'Note importante' }] } }
@@ -216,7 +216,19 @@
       ajouter(t(-24 * 30), 'VALEUR', { entite: 'medecin', id: 'm-benoit', champ: 'tel-pro', valeur: '01 00 00 00 12', journal: 'suivi' });
       ajouter(t(-24 * 30), 'VALEUR', { entite: 'medecin', id: 'm-arnaud', champ: 'jours-presence', valeur: ['Lundi', 'Mardi', 'Jeudi'], journal: 'suivi' });
     }
-    ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { debut: jISO(24 * 1) } });
+    // Professionnels ou structures participant à la prise en charge (0.21.0) : répertoire commun et fiches des patients ;
+    // l'agenda en tire des tâches suggérées (ex. « Appeler l'infirmier libéral » avant une sortie ou une permission)
+    [['IV001', 'idel', 'Cabinet infirmier du Centre (fictif)', '02 00 00 00 01', 'Passages matin et soir ; prévenir 48 h avant'],
+      ['IV002', 'foyer', 'Foyer Les Tilleuls (fictif)', '02 00 00 00 02', 'Référente : éducatrice du foyer (fictif)'],
+      ['IV003', 'hdj', 'Hôpital de jour du secteur (fictif)', '02 00 00 00 03', ''],
+      ['IV004', 'cmp', 'Centre médico-psychologique du secteur (fictif)', '02 00 00 00 04', '']].forEach(function (i) {
+      ajouter(t(-24 * 20), 'INTERVENANT', { id: i[0], type: i[1], nom: i[2], contact: i[3], commentaire: i[4], champs: {} });
+    });
+    [['P03', 'IV001', 'Prévenir le cabinet de la date de sortie'], ['P03', 'IV004', ''], ['P01', 'IV002', ''], ['P01', 'IV003', 'Mardi et jeudi'], ['P05', 'IV001', '']].forEach(function (l, i) {
+      ajouter(t(-24 * 19), 'PRISE_EN_CHARGE', { patientId: l[0], lien: 'LD' + i, intervenant: l[1], commentaire: l[2] });
+    });
+    // Sorties (0.21.0) : une sortie actée (date et heure arrêtées avec le patient), une envisagée en fourchette, une approximation seule
+    ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { etat: 'actee', debut: jISO(24 * 3), heure: '11:00' } });
     ajouter(t(-24 * 2), 'SEJOUR', { patientId: 'P01', sejourId: 'SP01', sortiePrevue: { debut: jISO(24 * 6), fin: jISO(24 * 10), precision: 'après la synthèse (fictif)' } });
     ajouter(t(-24 * 1), 'SEJOUR', { patientId: 'P04', sejourId: 'SP04', sortiePrevue: { precision: 'selon place en appartement thérapeutique (fictif)' } });
     // Rappel : P01 soins sans consentement (SDT), P03 soins libres, P04 SDRE (Unité 2)
@@ -300,6 +312,24 @@
     // Activité répétée mardi et vendredi, deux accompagnateurs, un agent déjà inscrit cette semaine
     var piscine = rdv({ nature: 'activite', titre: 'Piscine', debut: lundiDe(-6, 14), fin: lundiDe(-6, 16), lieu: 'Piscine municipale (fictive)', service: U1, patients: ['P01', 'P05'], accompagnateurs: 2, consigneAccompagnateurs: '1 IDE et 1 AS de préférence', regularite: { type: 'semaine', jours: [2, 5] } });
     ajouter(avant, 'INSCRIPTION', { rdv: piscine, occurrence: SIC.model.dateLocaleISO(lundiDe(1, 12)), agent: 'demo-b', nom: 'Agent B (fictif)', service: U1 });
+    // « Quel(s) professionnel(s) ? » et « Quel(s) patient(s) ? » (0.21.0) :
+    // - sortie avec exactement 3 professionnels (un désigné), inscription libre, liste d'attente ; 3 à 4 patients, un en attente
+    var marche = rdv({ nature: 'accompagnement', titre: 'Marché de Noël (fictif)', debut: jour(3, 9, 30), fin: jour(3, 12), lieu: 'Centre-ville (fictif)', service: U1, patients: ['P01', 'P02', 'P03', 'P05', 'P07'], professionnels: [profA],
+      participation: { mode: 'exact', nombre: 3, libre: true, patientsMin: 3, patientsMax: 4 }, consigneAccompagnateurs: '1 IDE au moins' });
+    var occMarche = SIC.model.dateLocaleISO(jour(3));
+    ['demo-b', 'demo-c', 'demo-d'].forEach(function (id, i) { ajouter(avant + i * 6e4, 'INSCRIPTION', { rdv: marche, occurrence: occMarche, agent: id, nom: 'Agent ' + id.slice(-1).toUpperCase() + ' (fictif)', etat: 'inscrit', service: U1 }); });
+    // - activité où il manque des patients (au moins 4), inscription à confirmer : une demande à confirmer, un collègue proposé sans réponse
+    var relax = rdv({ nature: 'activite', titre: 'Relaxation', debut: jour(2, 10), fin: jour(2, 11), lieu: 'Salle d’activités', service: U1, patients: ['P02', 'P05'],
+      participation: { mode: 'min', nombre: 2, max: 3, aConfirmer: true, patientsMin: 4 } });
+    ajouter(avant, 'INSCRIPTION', { rdv: relax, occurrence: SIC.model.dateLocaleISO(jour(2)), agent: 'demo-c', nom: 'Agent C (fictif)', etat: 'demande', service: U1 });
+    ajouter(avant, 'INSCRIPTION', { rdv: relax, occurrence: SIC.model.dateLocaleISO(jour(2)), agent: 'demo-b', nom: 'Agent B (fictif)', etat: 'propose', service: U1 });
+    // - réunion sur invitation (un groupe d'agents et un rôle), deux places : l'agent connecté y est invité
+    rdv({ nature: 'reunion', titre: 'Groupe de travail : accueil des familles', debut: jour(4, 14), fin: jour(4, 15), lieu: 'Salle de réunion', service: U1,
+      participation: { mode: 'exact', nombre: 2, invites: [{ t: 'groupe', id: 'equipe-jour-u1', nom: 'Équipe de jour' }, { t: 'role', id: 'CADRE', nom: 'Cadre de santé' }] } });
+    // - événements de plusieurs services (0.21.0) : l'Unité 2 invitée (elle inscrit ses patients et ses agents) ; l'Unité 1 co-organisatrice
+    rdv({ nature: 'activite', titre: 'Tournoi de pétanque inter-unités (fictif)', debut: jour(5, 14), fin: jour(5, 16), lieu: 'Parc de l’établissement', service: U1, services: [U2], partage: 'invites', patients: ['P01', 'P03', 'P04'],
+      participation: { mode: 'min', nombre: 3, libre: true, patientsMax: 8 } });
+    rdv({ nature: 'reunion', titre: 'Réunion des deux unités', debut: jour(6, 11), fin: jour(6, 12), lieu: 'Salle du pôle (fictive)', service: U2, services: [U1], partage: 'co' });
     rdv({ nature: 'activite', titre: 'Atelier terre', debut: lundiDe(2, 10, 30), fin: lundiDe(2, 11, 30), lieu: 'Salle d’activités', service: U1, patients: ['P01', 'P02', 'P05'], professionnels: [profC], regularite: { type: 'semaine', jours: [3], intervalle: 2 } });
     // Activité sans patient inscrit pour l'instant (transparente, réglage de démonstration)
     rdv({ nature: 'activite', titre: 'Atelier cuisine', debut: jour(2, 15), fin: jour(2, 17), lieu: 'Cuisine thérapeutique', service: U1, patients: [], accompagnateurs: 1 });
@@ -309,8 +339,14 @@
     rdv({ nature: 'entretien', entretien: { type: 'medical', avec: 'famille' }, titre: '', debut: jour(1, 11), fin: jour(1, 12), lieu: 'Bureau médical', service: U1, patients: ['P01'], professionnels: [{ id: null, nom: 'Dr Arnaud (fictif)' }, profA] });
     rdv({ nature: 'entretien', entretien: { type: 'infirmier', avec: 'individuel' }, titre: '', debut: jour(0, 15), fin: jour(0, 15, 45), lieu: 'Bureau infirmier', service: U1, patients: ['P05'], professionnels: [profC] });
     // Permissions : demande d'un patient en SDRE (validation 48 h avant), demande en SDT, permission de week-end validée
-    rdv({ nature: 'permission', titre: '', debut: jour(2, 14), fin: jour(2, 18), service: U2, patients: ['P04'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
-    rdv({ nature: 'permission', titre: 'Permission en famille', debut: jour(4, 10), fin: jour(4, 17), service: U1, patients: ['P01'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
+    // Étapes de validation (0.21.0) : SDRE, certificat envoyé puis demande d'un 2e avis par l'ARS (retour à « certificat
+    // en attente de signature », délai de 48 h dépassé) ; SDT, validation orale obtenue, certificat à faire signer
+    var permSdre = rdv({ nature: 'permission', titre: '', debut: jour(2, 14), fin: jour(2, 18), service: U2, patients: ['P04'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
+    [['orale'], ['asigner'], ['envoye'], ['asigner', 'avis', 'Demande d’un 2e avis : avis d’un second psychiatre attendu (fictif)']].forEach(function (e, i) {
+      ajouter(avant + (i + 1) * 6e4, 'VALIDATION', { rdv: permSdre, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(2)), statut: 'etape', etape: e[0], processus: 'sdre', retourARS: e[1], mention: e[2], service: U2 });
+    });
+    var permSdt = rdv({ nature: 'permission', titre: 'Permission en famille', debut: jour(4, 10), fin: jour(4, 17), service: U1, patients: ['P01'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
+    ajouter(avant + 6e4, 'VALIDATION', { rdv: permSdt, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(4)), statut: 'etape', etape: 'orale', processus: 'contrainte', service: U1 });
     var samedi = (6 - new Date(now).getDay() + 7) % 7 || 7;
     var permWe = rdv({ nature: 'permission', titre: 'Permission de week-end', debut: jour(samedi, 10), fin: jour(samedi + 1, 18), service: U2, patients: ['P06'], validations: [{ id: 'pv', type: 'permission', libelle: '' }] });
     ajouter(avant, 'VALIDATION', { rdv: permWe, validation: 'pv', occurrence: SIC.model.dateLocaleISO(jour(samedi)), statut: 'validee', nom: 'Dr Diallo (fictif)', service: U2 });

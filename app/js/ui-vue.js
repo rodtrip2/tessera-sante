@@ -144,14 +144,7 @@
       await session().enregistrer('PATIENT', { patientId: l.p.id, suiviAS: sel.value ? { suivi: sel.value === 'oui', nom: nom.value.trim() } : null }); U.toast('Enregistré.');
     } }]);
   }
-  function modaleSortie(l) {
-    var sj = sejourEnCours(l.p), w = U.champs.saisie({ type: 'dateFenetre', libelle: 'Sortie prévisionnelle' }, sj.sortiePrevue || null);
-    var hist = (sj.historiqueSortiePrevue || []).slice().reverse().map(function (x) { return h('li', {}, U.court(Date.parse(x.le)) + ' — ' + session().nomAuteur(x.par) + ' : ' + (x.valeur ? CH.lib({ type: 'dateFenetre' }, x.valeur) : 'retirée')); });
-    U.modale('Sortie prévisionnelle — ' + titreLigne(l), h('div', { class: 'pile' }, w.el, h('small', { class: 'muted', text: 'Une date, une période (du… au…) ou une précision seule. Chaque changement est gardé.' }),
-      hist.length ? h('details', {}, h('summary', { text: 'Historique (' + hist.length + ')' }), h('ul', {}, hist)) : null), [{ texte: 'Annuler' },
-      sj.sortiePrevue ? { texte: 'Retirer', classe: 'danger', action: async function () { await session().enregistrer('SEJOUR', { patientId: l.p.id, sejourId: sj.id, sortiePrevue: null }); U.toast('Sortie prévisionnelle retirée.'); } } : null,
-      { texte: 'Enregistrer', classe: 'primaire', action: async function () { var v = CH.valeur({ type: 'dateFenetre', libelle: 'Sortie prévisionnelle' }, w.lire()); await session().enregistrer('SEJOUR', { patientId: l.p.id, sejourId: sj.id, sortiePrevue: v }); U.toast('Enregistré.'); } }].filter(Boolean));
-  }
+  function modaleSortie(l) { U.sorties.modale(l.p, function () { U.rendreContenu(); }); }
   function modaleSuivi(l, quoi) {
     var S = SIC.suivi, date = h('input', { type: 'date', value: S.jourISO(Date.now()), max: S.jourISO(Date.now()) });
     var m = U.medecins.champ({ valeur: l.p.medecin1, id: l.p.medecin1Id, service: l.service, libelle: 'médecin', vide: '— Choisir —' });
@@ -555,7 +548,7 @@
         F.analyser(zoneTexte.value);
         var ls = V.lignes({ lignes: ent, services: [], perimetre: 'hospitalises' }, ctx).slice(0, 3);
         apercu.textContent = 'Formule correcte.' + (ls.length ? ' Aperçu : ' + ls.map(function (l) {
-          try { var r = F.evaluer(zoneTexte.value, { maintenant: ctx.maintenant, valeur: function (n) { var c = cat.filter(function (x) { return x.libelle.toLowerCase() === n.toLowerCase(); })[0]; if (!c) { var e = new Error('Colonne inconnue « ' + n + ' ».'); e.formule = true; throw e; } return c.lire(l).brute; } }); return titreLigne(l) + ' → ' + (F.texte(r) || 'vide'); }
+          try { var r = F.evaluer(zoneTexte.value, { maintenant: ctx.maintenant, valeur: function (n) { var c = cat.filter(function (x) { return x.libelle.toLowerCase() === n.toLowerCase() || (x.alias || []).indexOf(n.toLowerCase()) >= 0; })[0]; if (!c) { var e = new Error('Colonne inconnue « ' + n + ' ».'); e.formule = true; throw e; } return c.lire(l).brute; } }); return titreLigne(l) + ' → ' + (F.texte(r) || 'vide'); }
           catch (e) { return titreLigne(l) + ' → ⚠ ' + e.message; }
         }).join(' ; ') : '');
         apercu.className = 'apercu-formule';
