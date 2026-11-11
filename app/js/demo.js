@@ -20,14 +20,14 @@
     var t = function (h) { return arrondi(now + h * H); };
     var seq = 0;
     var file = [];
-    function ajouter(at, type, data) { file.push({ at: at, type: type, data: data, n: seq++ }); }
+    function ajouter(at, type, data, by) { file.push({ at: at, type: type, data: data, n: seq++, by: by }); }
 
     var cfg = function (cle, valeur) { ajouter(t(-24 * 300), 'CONFIG', { cle: cle, valeur: valeur }); };
     var U1 = 'U1', U2 = 'U2', CSI1 = 'CSI 1', CSI2 = 'CSI 2', CSIA = 'CSI A';
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -121,6 +121,8 @@
         { code: 'equipe-nuit-u1', libelle: 'Équipe de nuit', services: ['U1'], membres: [{ id: 'demo-b', nom: 'Agent B (fictif)' }, { id: 'demo-d', nom: 'Agent D (fictif)' }] },
         { code: 'groupe-qualite', libelle: 'Groupe de travail qualité', services: ['U1', 'U2'], membres: [{ id: 'demo-b', nom: 'Agent B (fictif)' }].concat(moiG) }]);
       // Information des pré-réservations remplacées : l'Unité 2 informe le cadre et le groupe qualité (sans la secrétaire)
+      // Demandes de travaux (0.22.0) : numéro des services techniques ; case « chambre indisponible » proposée en Unité 1
+      cfg('travaux', { '*': { telephone: '5555 (fictif)' }, U1: { chambreIndisponible: true } });
       cfg('vehiculesInformation', { U2: { roles: ['CADRE'], groupes: ['groupe-qualite'], agents: [] } });
       // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
       cfg('agenda', { categories: {
@@ -362,6 +364,38 @@
     if (options.moi && options.moi.id) ajouter(avant, 'INSCRIPTION', { rdv: audience, occurrence: occ1, agent: options.moi.id, nom: options.moi.nom || '', service: U1 });
     ajouter(avant, 'OCCURRENCE', { rdv: audience, occurrence: occ2, annulee: true, motifAnnulation: 'Aucun patient convoqué', service: U1 });
     ajouter(avant, 'OCCURRENCE', { rdv: audience, occurrence: occ3, debut: mercredi(3) + 864e5 + 14 * 36e5, fin: mercredi(3) + 864e5 + 16 * 36e5, patients: ['P04'], transports: [{ id: 'tb', type: 'vsl', nombre: 1 }], service: U1 });
+    // Demandes de travaux (0.22.0) : une urgence immédiate, une chambre indisponible avec intervention programmée (agenda,
+    // places disponibles), une réalisée à confirmer (l'agent connecté, auteur, en est informé), une confirmée récemment
+    // (en grisé), une rouverte, un doublon, un refus, une ancienne (historique seulement), une en Unité 2
+    (function () {
+      var moiT = options.moi && options.moi.id, nT = 0;
+      function dt(h0, d, by) { d.id = 'TR' + String(++nT).padStart(3, '0'); d.service = d.service || U1; ajouter(t(h0), 'TRAVAUX', d, by); return d.id; }
+      function et(h0, id, d, svc) { ajouter(t(h0), 'TRAVAUX_ETAPE', Object.assign({ demande: id, service: svc || U1 }, d)); }
+      function cf(h0, id, d) { ajouter(t(h0), 'TRAVAUX_CONFIRMATION', Object.assign({ demande: id, service: U1 }, d)); }
+      function com(h0, id, texte, by) { ajouter(t(h0), 'TRAVAUX_COMMENTAIRE', { demande: id, id: 'K' + nT + '-' + h0, texte: texte, service: U1 }, by); }
+      var jH = function (n) { return jISO(24 * n); };
+      var ancienne = dt(-24 * 70, { type: 'menuiserie', lieu: 'salon', gravite: 'gene', urgence: 'non', description: 'Porte de placard qui ne ferme plus (fictif)', nom: 'Agent A (fictif)' });
+      et(-24 * 65, ancienne, { etape: 'realisee' }); cf(-24 * 64, ancienne, {});
+      var refus = dt(-24 * 20, { type: 'mobilier', lieu: 'office', gravite: 'gene', urgence: 'non', description: 'Demande d’un second réfrigérateur pour l’office (fictif)', nom: 'Agent C (fictif)' });
+      et(-24 * 19, refus, { etape: 'transmise', reference: 'BT-2026-0398 (fictif)' }); et(-24 * 15, refus, { etape: 'refusee', motif: 'Relève d’une demande d’équipement, pas de travaux (fictif)' });
+      var confirmee = dt(-24 * 9, { type: 'menuiserie', lieu: 'chambre', chambre: '5', gravite: 'degradation', urgence: 'non', description: 'Poignée de fenêtre cassée (fictif)', nom: 'Agent B (fictif)' });
+      et(-24 * 8, confirmee, { etape: 'transmise', reference: '' }); et(-24 * 6, confirmee, { etape: 'realisee' }); cf(-24 * 5, confirmee, {});
+      var rouverte = dt(-24 * 12, { type: 'chauffage', lieu: 'salon', gravite: 'gene', urgence: 'non', description: 'Radiateur froid côté fenêtre (fictif)', nom: 'Agent A (fictif)' });
+      et(-24 * 11, rouverte, { etape: 'transmise', reference: 'BT-2026-0402 (fictif)' }); et(-24 * 7, rouverte, { etape: 'realisee' });
+      cf(-24 * 3, rouverte, { rouvrir: true, motif: 'Le radiateur est de nouveau froid (fictif)' });
+      com(-24 * 2, rouverte, 'Les services techniques passent à nouveau cette semaine (fictif).');
+      var fuite = dt(-24 * 4, { type: 'plomberie', lieu: 'chambre', chambre: '12', precisionLieu: 'lavabo', gravite: 'degradation', urgence: 'non', description: 'Fuite d’eau sous le lavabo ; le sol reste mouillé (fictif)', chambreIndisponible: true, lits: 1, nom: 'Agent C (fictif)' });
+      et(-24 * 3, fuite, { etape: 'transmise', reference: 'BT-2026-0412 (fictif)' }); et(-24 * 2, fuite, { etape: 'programmee', date: jH(2) });
+      com(-24 * 2, fuite, 'Patient changé de chambre en attendant (fictif).');
+      var doublon = dt(-24 * 3, { type: 'plomberie', lieu: 'chambre', chambre: '12', gravite: 'degradation', urgence: 'non', description: 'Lavabo qui fuit (fictif)', nom: 'Agent D (fictif)' });
+      et(-24 * 3 + 2, doublon, { etape: 'doublon', doublonDe: fuite });
+      var serrure = dt(-24 * 5, { type: 'serrurerie', lieu: 'office', gravite: 'degradation', urgence: 'non', description: 'La serrure de l’office accroche, la clé force (fictif)', nom: (options.moi && options.moi.nom) || 'Agent (fictif)' }, moiT || undefined);
+      et(-24 * 4, serrure, { etape: 'transmise', reference: '' }); et(-20, serrure, { etape: 'realisee' });
+      dt(-3, { type: 'electricite', lieu: 'soins', precisionLieu: 'prise près du chariot', gravite: 'danger', urgence: 'immediate', description: 'Prise murale arrachée, fils apparents ; zone balisée (fictif)', nom: 'Agent B (fictif)' });
+      var u2 = dt(-24 * 2, { service: U2, type: 'informatique', lieu: 'medical', gravite: 'gene', urgence: 'non', description: 'Imprimante du bureau médical hors service (fictif)', nom: 'Agent D (fictif)' });
+      et(-24 * 1, u2, { etape: 'transmise', reference: 'INFO-7781 (fictif)' }, U2);
+    })();
+
     // Véhicules de l'établissement (0.14.0) : trois véhicules fictifs, un prêt, une mise à disposition, réservations directes
     // et depuis l'agenda (une réservée, une à réserver), signalements en cours et fait
     var vh = function (d) { ajouter(t(-24 * 60), 'VEHICULE', d); return d.id; };
@@ -443,7 +477,7 @@
     ajouter(avant, 'ALERTE', { id: 'AL003', type: 'rdv', libelle: '', patientId: 'P04', service: U2, avant: '', heure: '', pour: null, precision: '' });
 
     file.sort(function (a, b) { return a.at - b.at || a.n - b.n; });
-    return file.map(function (x, i) { return { at: new Date(Math.min(x.at, now) + i).toISOString(), by: 'demo', type: x.type, data: x.data }; });
+    return file.map(function (x, i) { return { at: new Date(Math.min(x.at, now) + i).toISOString(), by: x.by || 'demo', type: x.type, data: x.data }; });
   };
 
   SIC.chargerDemo = async function (session) {

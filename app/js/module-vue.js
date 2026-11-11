@@ -367,7 +367,7 @@
     var presents = ls.filter(function (l) { return l.situation === 'hospitalise'; });
     v.synthese.forEach(function (k) {
       if (k === 'effectif') res.push({ code: k, libelle: 'Patients', valeur: String(presents.length) });
-      if (k === 'places') { var s = K.situation(ctx.config, svs, ctx.maintenant, presents.length); res.push({ code: k, libelle: 'Places disponibles', valeur: s ? String(s.places) : 'capacité non renseignée', detail: s ? s.ouverts + ' lit(s) ouvert(s)' + (s.fermes ? ', ' + s.fermes + ' fermé(s)' : '') + (s.reserves ? ', ' + s.reserves + ' réservé(s)' : '') : '', alerte: !!s && s.places < 0 }); }
+      if (k === 'places') { var s = K.situation(ctx.config, svs, ctx.maintenant, presents.length, ctx.chambresTravaux || []); res.push({ code: k, libelle: 'Places disponibles', valeur: s ? String(s.places) : 'capacité non renseignée', detail: s ? s.ouverts + ' lit(s) ouvert(s)' + (s.fermes ? ', ' + s.fermes + ' fermé(s)' + (s.travaux ? ' dont ' + s.travaux + ' pour travaux' : '') : '') + (s.reserves ? ', ' + s.reserves + ' réservé(s)' : '') : '', alerte: !!s && s.places < 0 }); }
       if (k === 'sorties') {
         var auj = jourISO(ctx.maintenant), j7 = jourISO(ctx.maintenant + 7 * 864e5), n0 = 0, n7 = 0;
         presents.forEach(function (l) { var sp = (sejourEnCours(l.p) || {}).sortiePrevue; if (sp && sp.debut) { if (sp.debut <= auj) n0++; if (sp.debut <= j7) n7++; } });
