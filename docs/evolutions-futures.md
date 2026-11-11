@@ -18,6 +18,10 @@
 | Module Agents (fiches des agents et des psychiatres) | Tessera Santé, 8 novembre 2026 | Demande, à préciser ; une première fiche agent avec données ajoutées existe depuis la 0.20.0 ; **données du personnel** (avis préalable) | Moyenne à grande |
 | Planning des psychologues | Tessera Santé, 9 novembre 2026 | Piste : liste commune des psychologues réalisée en 0.20.0, planning sur le modèle des présences médicales | Petite à moyenne |
 | Rôle Cadre supérieur de santé | Tessera Santé, 8 novembre 2026 | Demande, à préciser | Moyenne |
+| Tri des colonnes d'un tableau par clic sur le titre | Tessera Santé, 11 novembre 2026 | Demande, à préciser | Petite |
+| Module Demandes de congés | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **données du personnel** (avis du délégué à la protection des données) | Grande |
+| Prêt de droits pendant une absence | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; touche aux clés et aux droits (avis du responsable de la sécurité informatique) | Moyenne |
+| Module Signalement (lanceur d'alerte) | Tessera Santé, 11 novembre 2026 | Demande, à préciser ; **cadre légal et confidentialité renforcée** (avis du délégué à la protection des données et de la direction juridique) | Moyenne à grande |
 
 *Réalisés dans la 0.19.0 (module Vue d'ensemble, `docs/architecture.md` § 7 quinquies) : la **feuille de staff** sans données cliniques (vue partagée, colonnes réglables, places disponibles, sorties prévues, feuille préparée, complétée puis close en instantané conservé) et des **notes datées par patient** comme donnée ajoutée (rubriques réglables par service et par rôle, notes courtes et organisationnelles). Restent ci-dessous les codes CIM et le projet thérapeutique (données cliniques).*
 
@@ -213,4 +217,38 @@ Le test de charge (`scripts/charge.cjs`, données fictives) estime environ 1 700
 - **Piste** : un sous-dossier par jour (`evenements/AAAA/MM/JJ/`) ; la lecture rapide ne parcourrait que les jours récents (quelques centaines de fichiers).
 - **Ce qui serait touché** : lecture et écriture des saisies (`store.js`), instantanés mensuels, contrôle d'intégrité (fichiers disparus), dossier de secours et script robocopy, déplacement du dossier, restauration ; lecture des deux rangements pendant la transition (les saisies déjà écrites ne sont jamais déplacées, le journal étant en ajout seul).
 - **Alternative à étudier** : un fichier d'index par poste, mis à jour à chaque saisie, lu à la place de la liste du dossier.
+
+## Tri des colonnes d'un tableau (demande du porteur, 11 novembre 2026)
+
+Trier un tableau en cliquant sur le titre d'une colonne (un clic : ordre croissant, un second : décroissant), dans tous les tableaux de la plateforme.
+
+- **Fonctionnement envisagé** : une aide commune de l'interface, comme la largeur des colonnes (`ui.js` `activerLargeurs`) ; tri selon le type de la colonne (texte, nombre, date, durée) ; flèche dans le titre ; accessible au clavier (titre en bouton, `aria-sort`).
+- **À trancher** : tri retenu sur le poste (comme la largeur des colonnes) ou oublié en quittant l'écran ; tableaux qui ont déjà un ordre réglé (Vue d'ensemble, liste des patients par chambre, groupes) : le clic remplace-t-il l'ordre réglé le temps de l'écran ; tableaux imprimés et exportés dans l'ordre affiché ou dans l'ordre d'origine.
+
+## Module Demandes de congés (demande du porteur, 11 novembre 2026)
+
+Demander et valider les congés des agents et des médecins, avec un tableau annuel.
+
+- **Tableau annuel** : vue à la semaine et vue à la journée ; sélection des agents concernés dans le tableau (service, groupe, rôle, agents nommés).
+- **Décompte** : nombre de congés auxquels chaque agent a droit (congés annuels, RTT, jours fériés…) et solde après chaque demande.
+- **Validation par le responsable** : cadre pour les paramédicaux, chef de pôle pour les médecins (rôle « chef de pôle » à créer, ou rôle réglé dans *Rôles et accès*) ; demande, validation ou refus motivé, information de l'agent.
+- **À trancher** : règles de décompte (propres à chaque établissement et à chaque statut : à régler par l'établissement plutôt que codées) ; lien avec le logiciel de gestion du temps de l'établissement (Tessera ne doit pas devenir la référence : export ou simple aide à la planification ?) ; lien avec les absences de l'Agenda et les présences du Suivi médical ; visibilité (un agent voit-il les congés de ses collègues ?) ; durée de conservation.
+- **Données du personnel** : inscription au registre des traitements, avis du délégué à la protection des données ; clé propre (cadre et responsable), comme les données des agents (0.20.0).
+
+## Prêt de droits pendant une absence (demande du porteur, 11 novembre 2026)
+
+Confier pour une durée limitée les droits d'un agent absent à un autre (un cadre qui part en congé confie ses validations à un collègue ou au cadre supérieur).
+
+- **Fonctionnement envisagé** : délégation datée (début, fin), choisie par l'agent ou par l'administrateur ; rôles et services prêtés, ou seulement certains accès (validations des permissions, confirmation des travaux, consultation de la messagerie…) ; fin automatique à la date prévue ; chaque saisie faite au titre de la délégation garde le nom de celui qui l'a faite et la mention « pour le compte de… ».
+- **Clés** : un droit = une clé : le délégataire reçoit les clés des droits prêtés, retirées à la fin (nouvelle génération, comme tout retrait de droit) ; remise par la session de l'administrateur, comme aujourd'hui. Les messages chiffrés adressés personnellement à l'agent absent ne font pas partie du prêt, sauf décision contraire.
+- **À trancher** : qui peut prêter (l'agent lui-même, le cadre supérieur, l'administrateur) ; prêt partiel ou complet ; information des équipes ; lien avec le rôle « cadre supérieur de santé ». Avis du responsable de la sécurité informatique.
+
+## Module Signalement (lanceur d'alerte, demande du porteur, 11 novembre 2026)
+
+Permettre à un agent de signaler un fait (atteinte, manquement, danger) de façon confidentielle, avec un suivi par la personne chargée de recueillir les signalements.
+
+- **Cadre légal** : procédure de recueil des signalements des lanceurs d'alerte (loi du 9 décembre 2016 dite « Sapin II », modifiée par la loi du 21 mars 2022) ; l'établissement a déjà sa procédure et son référent : Tessera ne la remplace pas, il peut seulement offrir un canal interne conforme à celle-ci. **À valider avec la direction juridique et le délégué à la protection des données avant tout développement.**
+- **Confidentialité** : contenu chiffré pour le seul référent (sur le modèle du chiffrement réservé aux destinataires de la messagerie) ; **l'administrateur ne doit pas pouvoir lire**, ce que le trousseau actuel ne garantit pas (il détient toutes les clés) : clé hors du trousseau de l'administrateur à concevoir ; identité de l'auteur protégée, possibilité d'un signalement anonyme (limites : le journal en ajout seul garde l'auteur de chaque saisie) ; aucune consultation par le cadre.
+- **Suivi** : accusé de réception, échanges entre l'auteur et le référent, retour sur les suites données, délais légaux ; journal des accès.
+- **À trancher** : faisabilité au regard de l'anonymat et de l'administrateur ; à distinguer de la déclaration des événements indésirables (outil qualité de l'établissement).
 
