@@ -21,8 +21,9 @@
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./droits.js'), require('./model.js'), require('./modules.js'),
     require('./champs.js'), require('./couleurs.js'), require('./formules.js'), require('./medecins.js'), require('./liste-patients.js'), require('./capacites.js'));
-  else (root.SIC = root.SIC || {}).vue = factory(root.SIC.noyauJournal, root.SIC.droits, root.SIC.model, root.SIC.modules, root.SIC.champs, root.SIC.couleurs, root.SIC.formules, root.SIC.medecins, root.SIC.listePatients, root.SIC.capacites);
-})(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, CH, CO, F, MED, L, K) {
+  else (root.SIC = root.SIC || {}).vue = factory(root.SIC.noyauJournal, root.SIC.droits, root.SIC.model, root.SIC.modules, root.SIC.champs, root.SIC.couleurs, root.SIC.formules, root.SIC.medecins, root.SIC.listePatients, root.SIC.capacites, root.SIC.sorties);
+})(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, CH, CO, F, MED, L, K, SO) {
+  SO = SO || require('./sorties.js');
   'use strict';
 
   var TYPES = ['INSTANTANE', 'INSTANTANE_PART', 'INSTANTANE_NOTE'];
@@ -183,9 +184,10 @@
         var a = l.p.suiviAS; return { v: a ? !!a.suivi : null, lib: !a ? '—' : (a.suivi ? 'Oui' + (a.nom ? ' (' + a.nom + ')' : '') : 'Non'), brute: a ? (a.suivi ? 1 : 0) : null };
       } });
       col({ code: 'protection', libelle: 'Mesure de protection', type: 'texte', journal: 'patients', lire: function (l) { return { v: l.p.protection || null, lib: l.p.protection || '—', brute: l.p.protection || null }; } });
-      col({ code: 'sortiePrevue', libelle: 'Sortie prévisionnelle', type: 'dateFenetre', journal: 'patients', reglage: 'patients.sortiePrevue', edition: { type: 'sortiePrevue' }, lire: function (l) {
+      col({ code: 'sortiePrevue', libelle: 'Sortie envisagée ou actée', alias: ['sortie prévisionnelle'], type: 'dateFenetre', journal: 'patients', reglage: 'patients.sortiePrevue', defaut: { regles: SO.REGLES_DEFAUT }, edition: { type: 'sortiePrevue' }, lire: function (l) {
+        // Une seule donnée, deux états (0.21.0) : la couleur suit l'état (règles « est égal à actee / envisagee », réglables)
         var s = sejourEnCours(l.p), v = s && s.sortiePrevue;
-        return { v: v || null, lib: v ? CH.lib({ type: 'dateFenetre' }, v) : '—', brute: v && v.debut ? v.debut : null };
+        return { v: v || null, lib: v ? SO.libelle(v) : '—', brute: v && v.debut ? v.debut : null, cle: v ? SO.etat(v) : undefined };
       } });
       if (ctx.suivi) {
         col({ code: 'dernierEntretien', libelle: 'Dernier entretien médical', type: 'date', journal: 'suivi', reglage: 'suivi.entretien', defaut: { regles: CO.reglesEcheance() }, delaiSuivi: true, edition: { type: 'suivi', quoi: 'entretien' }, lire: function (l) { return suiviDe(ctx, l.p, 'entretien') || { v: null, lib: '—', brute: null }; } });
@@ -292,7 +294,7 @@
     if (col.champ && col.champ.type === 'formule') {
       try {
         var res = F.evaluer(col.champ.formule, { maintenant: ctx.maintenant, valeur: function (nom) {
-          var c = (cols || []).filter(function (x) { return x.libelle.toLowerCase() === nom.toLowerCase() || x.code === nom; })[0];
+          var c = (cols || []).filter(function (x) { return x.libelle.toLowerCase() === nom.toLowerCase() || x.code === nom || (x.alias || []).indexOf(nom.toLowerCase()) >= 0; })[0];
           if (!c || c === col) { var e = new Error('Colonne « ' + nom + ' » inconnue ou non visible.'); e.formule = true; throw e; }
           if (c.champ && c.champ.type === 'formule') { var e2 = new Error('Une formule ne cite pas une autre formule (« ' + nom + ' »).'); e2.formule = true; throw e2; }
           return (c.lire(l) || {}).brute;

@@ -247,6 +247,12 @@
         .map(function (c) { var v = U.champs.valeurDe(c, 'patient', p.id, p); return [c.libelle, c.type === 'notes' ? SIC.champs.notes(c, v, true).map(function (n) { return U.date(Date.parse(n.le)) + ' : ' + n.texte + (n.retire ? ' (retirée le ' + U.date(Date.parse(n.retire.le)) + ')' : ''); }).join(' | ') : SIC.champs.lib(c, v)]; }), [[],
       ['Séjours'], ['Numéro de séjour', 'Entrée', 'Sortie', 'Unité', 'Chambre', 'Lit']])
       .concat((p.sejours || []).map(function (x) { return [x.iep || '', jour(x.entree), x.sortie ? jour(x.sortie) : 'en cours', x.service ? U.libService(x.service) : '', x.chambre || '', x.lit || '']; }))
+      // Professionnels ou structures de la prise en charge (0.21.0) : type et nom, sans coordonnées ni commentaires internes
+      .concat((function () {
+        var ep = null; try { ep = U.App.session.etatModule('patients'); } catch (e) { ep = null; }
+        var l = ep && SIC.intervenants ? SIC.intervenants.pourExport(ep, (ep.fiches || {})[p.id] || p, U.config()) : [];
+        return l.length ? [[], ['Professionnels ou structures participant à la prise en charge'], ['Type', 'Nom']].concat(l) : [];
+      })())
       .concat([[], ['Modes d’hospitalisation'], ['Date', 'Mode']])
       .concat((p.modes || []).map(function (x) { return [U.date(x.date), x.mode]; }))
       .concat([[], ['Changements de la fiche'], ['Date', 'Donnée', 'Valeur']], changementsFiche(p))

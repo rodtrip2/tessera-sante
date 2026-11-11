@@ -59,6 +59,22 @@
         var hc = (pc.historique = pc.historique || {})['c:' + d.champ] = (pc.historique['c:' + d.champ] || []);
         hc.push({ le: e.at, valeur: d.op ? null : (d.valeur === undefined ? null : d.valeur), op: d.op || undefined, par: e.by, evt: e.id });
         break;
+      case 'INTERVENANT':
+        // Répertoire commun des professionnels ou structures de la prise en charge (0.21.0)
+        if (!d.id) break;
+        var iv = st.intervenants[d.id] || { id: d.id, cree: e.at, par: e.by };
+        ['type', 'nom', 'contact', 'commentaire', 'champs', 'supprime'].forEach(function (k) { if (d[k] !== undefined) iv[k] = d[k]; });
+        iv.modifie = e.at;
+        st.intervenants[d.id] = iv;
+        break;
+      case 'PRISE_EN_CHARGE':
+        // Intervenant rattaché à la fiche d'un patient, avec un commentaire propre à ce patient ; `retire` le détache
+        var pp = st.fiches[id];
+        if (!pp || !d.lien) break;
+        var lpc = (pp.priseEnCharge || []).filter(function (l) { return l.lien !== d.lien; });
+        if (!d.retire) lpc.push({ lien: d.lien, intervenant: d.intervenant, commentaire: d.commentaire || '', le: e.at, par: e.by });
+        pp.priseEnCharge = lpc;
+        break;
       case 'SEJOUR':
         // Séjours successifs (décision du 7 novembre 2026) : un par numéro de séjour, complété saisie après saisie
         var ps = st.fiches[id];
@@ -128,11 +144,12 @@
   /** Réglages des données (couleurs, délais) : le cadre règle ceux de ses services, l'établissement reste à l'administrateur. */
   function cadreReglagesDonnees(ancien, nouveau, compte) { return CO().controlerCadre(ancien, nouveau, compte); }
   /** Capacité d'accueil (0.18.2) : le cadre règle celle de ses services. */
+  function cadreIntervenants(ancien, nouveau, compte) { var K = (typeof self !== 'undefined' && self.SIC && self.SIC.intervenants) || require('./intervenants.js'); return K.controlerCadre(ancien, nouveau, compte); }
   function cadreLargeurs(ancien, nouveau, compte) { var K = (typeof self !== 'undefined' && self.SIC && self.SIC.largeurs) || require('./largeurs.js'); return K.controlerCadre(ancien, nouveau, compte); }
   function cadreCapacites(ancien, nouveau, compte) { var K = (typeof self !== 'undefined' && self.SIC && self.SIC.capacites) || require('./capacites.js'); return K.controlerCadre(ancien, nouveau, compte); }
 
   function reduire(evts) {
-    return N.reduire(evts, { etat: function () { return { fiches: {}, fusions: {} }; }, appliquer: appliquer });
+    return N.reduire(evts, { etat: function () { return { fiches: {}, fusions: {}, intervenants: {} }; }, appliquer: appliquer });
   }
 
   /** Séjour en cours d'une fiche (le dernier sans date de sortie), ou null. */
@@ -180,19 +197,19 @@
 
     acces: [],                  // les saisies de la fiche sont permises par les accès des modules qui en dépendent
     saisies: {
-      types: ['PATIENT', 'MODE_HOSPI', 'FUSION', 'SEJOUR', 'COMPLEMENT'],
+      types: ['PATIENT', 'MODE_HOSPI', 'FUSION', 'SEJOUR', 'COMPLEMENT', 'INTERVENANT', 'PRISE_EN_CHARGE'],
       champ: function () { return null; },   // conflits : comme dans Isocont, aucune saisie de la fiche n'en crée
       permisPourSoi: permisPourSoi,
       reduire: reduire
     },
     // Réglages que le cadre écrit pour ses services (contrôle appelé par la session avant l'enregistrement)
-    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { champsAjoutes: cadreChamps, reglagesDonnees: cadreReglagesDonnees, capacites: cadreCapacites, largeursColonnes: cadreLargeurs } },
+    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { champsAjoutes: cadreChamps, reglagesDonnees: cadreReglagesDonnees, capacites: cadreCapacites, largeursColonnes: cadreLargeurs, intervenants: cadreIntervenants } },
     // Fenêtre du module Patients (décision du porteur du 7 novembre 2026) : liste réglable des patients (ui-liste-patients.js)
     vues: { onglets: [{ code: 'fiches', libelle: 'Liste des patients' }] },
     migrations: [],
     fournitures: [
       { nom: 'patients.fiches', version: 1, acces: 'lecture', calculer: fiches,
-        champs: ['id', 'ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'detenu', 'service', 'medecin1', 'medecin2', 'medecin1Id', 'medecin2Id', 'referents', 'psychologue', 'psychologueId', 'suiviAS', 'complements', 'sejours', 'modes', 'fusionnes', 'historique'] }
+        champs: ['id', 'ipp', 'nom', 'prenom', 'nomNaissance', 'sexe', 'naissance', 'protection', 'detenu', 'service', 'medecin1', 'medecin2', 'medecin1Id', 'medecin2Id', 'referents', 'psychologue', 'psychologueId', 'suiviAS', 'complements', 'sejours', 'modes', 'priseEnCharge', 'fusionnes', 'historique'] }
     ],
     besoins: []
   };
