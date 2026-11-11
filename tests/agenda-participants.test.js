@@ -215,6 +215,8 @@ test('Prise en charge : répertoire, fiche patient, tâches suggérées de l’a
   assert.deepEqual(K.dePatient(st, st.fiches.P1).map(l => l.intervenant.contact), ['02 00 00 00 09']);   // fiche commune corrigée une fois
   assert.equal(K.repertoire(Pt.reduire(evts.concat([e2('INTERVENANT', { id: 'IV2', supprime: true })]))).length, 1);
   assert.throws(() => K.normaliser({ id: 'x', nom: ' ' }, {}), /nom/);
+  // Export du droit d'accès : type et nom seulement (ni contact ni commentaire)
+  assert.deepEqual(K.pourExport(Pt.reduire(evts), Pt.reduire(evts).fiches.P1, {}), [['Infirmier libéral à domicile (IDEL)', 'Cabinet infirmier (fictif)'], ['Hôpital de jour (HDJ)', 'Hôpital de jour (fictif)']]);
   assert.equal(K.reglages({ intervenants: { types: [{ code: 'aide', libelle: 'Aide à domicile' }], champs: [{ code: 'jours', libelle: 'Jours de passage' }] } }).types.length, 1);
   assert.equal(K.reglages({}).types[0].code, 'idel');
   assert.ok(K.controlerCadre({}, { types: [] }, { roles: ['CADRE'] }) && !K.controlerCadre({}, { types: [] }, { roles: ['IDE'] }));

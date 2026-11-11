@@ -1,10 +1,10 @@
 # À documenter (fichier de travail)
 
-Mise à jour des documents reportée à la demande du porteur (11 novembre 2026) pour avancer sur le développement. Ce fichier garde tout ce qu'il faudra écrire, pour ne rien perdre. **Chaque nouveau développement de la branche y ajoute ses lignes.** Il est supprimé quand les documents sont à jour, juste avant la fusion dans `main`.
+Mise à jour des documents reportée à la demande du porteur (11 novembre 2026) pour avancer sur le développement ; la fusion dans `main` peut se faire sans elle (`CLAUDE.md` § 6). Ce fichier garde tout ce qu'il faudra écrire, pour ne rien perdre. **Chaque nouveau développement y ajoute ses lignes**, sur `main` comme dans une branche. Il est vidé quand le porteur demande la mise à jour des documents.
 
 Le détail des décisions est aussi dans le document de projet claude.ai `claude/plan-agenda-participants-permissions-sorties.md`.
 
-## Ce que la branche `agenda-participants` contient (version prévue : 0.21.0)
+## Version 0.21.0 (branche `agenda-participants`, fusionnée le 11 novembre 2026 sans documentation)
 
 | Sujet | Décisions du porteur (11 novembre 2026) | Fichiers, saisies, réglages |
 | --- | --- | --- |
@@ -17,6 +17,7 @@ Le détail des décisions est aussi dans le document de projet claude.ai `claude
 | Tâches suggérées | Règle « type → tâche, délai d'anticipation, sortie et / ou permission » par service ; proposée, jamais ajoutée d'office ; tâche obligatoire ajoutée d'office, retirée par le cadre seul, alerte ; blocage de la dernière étape d'une permission en option (désactivé par défaut) | `A.suggestions`, `A.tachesSuggerees` ; réglages `suggestions`, `tachesObligatoiresBloquent` ; `obligatoire` sur un point de check-list |
 | Sorties envisagées ou actées | Une seule donnée du séjour : envisagée (jour, fourchette ou approximation) ou actée (date arrêtée par le médecin avec le patient, heure facultative) ; sorties déjà saisies : envisagées ; couleurs par état réglées à part (envisagée, actée, date passée), reprises dans la Vue d'ensemble et l'agenda ; sortie actée : événement de sortie et check-list proposés, ou créés d'office (réglage) | `sorties.js`, `ui-sorties.js` ; `sortiePrevue.etat`, `heure` ; colonne « Sortie envisagée ou actée » (ancien nom gardé pour les formules) ; réglage `sortieEvenement` ; couleurs dans `reglagesDonnees['patients.sortiePrevue']` |
 | Réglages par service ouverts au cadre | Principe permanent du porteur : modifiables par le cadre dans l'administration quand c'est possible | Réglage commun `agendaReglages` { '*', <service> } contrôlé par `controlerCadreReglages` ; onglet *Organisation par service* ; le cadre trouve *Patients* et *Agenda du service* dans sa fenêtre Administration (`interface.admin.cadre`) |
+| Export du droit d'accès | Décision du porteur : la prise en charge y figure par le type et le nom de chaque professionnel ou structure, sans les coordonnées ni les commentaires internes du service | `intervenants.pourExport`, `ui-qualite.js` (`exporterPatient`) |
 | Parcours des écrans versionné | Suggestion de la relecture, acceptée | `tests/ecrans/parcours.py`, `npm run ecrans` (serveur local sur le port 8765) |
 
 ## Par document
@@ -28,12 +29,13 @@ Le détail des décisions est aussi dans le document de projet claude.ai `claude
 - **`kit/06-guide-utilisateur.md`** : Agenda (les deux rubriques, réponse attendue, liste d'attente, plusieurs services, étapes des permissions, tâches suggérées), fiche patient (prise en charge, sortie), administration (organisation par service, prise en charge).
 - **`kit/08-guide-ide-as.md`** : écran de l'événement changé ; captures à régénérer (`python3 scripts/captures-guide-ide-as.py`).
 - **`docs/evolutions-futures.md`** : rien de réalisé à retirer ; ajouter si besoin les restes ci-dessous.
-- **`CLAUDE.md`** § 6 : ajouter le parcours des écrans (`npm run ecrans`) à la procédure ; § 7 : nouveaux points à valider.
-- **`CHANGELOG.md`**, `app/js/version.js`, `package.json` : 0.21.0 ; PDF (`python3 scripts/docs-pdf.py`) ; empreintes (`node scripts/empreintes.mjs`).
+- **`CLAUDE.md`** § 7 : nouveaux points à valider (ci-dessous). Le § 6 est déjà à jour (parcours des écrans, documentation reportable).
+- **`kit/05-elements-rgpd-aipd.md`** et guide utilisateur : l'export du droit d'accès contient la prise en charge (type et nom).
+- **`CHANGELOG.md`** : entrée 0.21.0 (version et empreintes déjà faites à la fusion) ; PDF (`python3 scripts/docs-pdf.py`) ; empreintes (`node scripts/empreintes.mjs`).
 
 ## Points à faire valider (pour CLAUDE.md § 7 et le kit)
 
-- **Export du droit d'accès** : la prise en charge (professionnels et structures qui suivent le patient) n'y figure pas encore. À trancher avec le délégué à la protection des données : l'inclure (proposition : type et nom de la structure, sans les coordonnées ni les commentaires internes) ou l'exclure comme information concernant un tiers.
+- **Export du droit d'accès** : la prise en charge y figure par le type et le nom (décision du porteur du 11 novembre 2026), sans coordonnées ni commentaires internes ; à faire confirmer par le délégué à la protection des données.
 - Répertoire des professionnels et structures extérieurs : inscription au registre des traitements, durée de conservation.
 - Inscriptions, refus motivés et listes d'attente des agents : information des agents.
 - Processus des permissions : relecture par les médecins et le secrétariat, surtout en SDRE et selon l'évolution annoncée par l'ARS.

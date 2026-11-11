@@ -56,10 +56,17 @@
     var m = (st && st.intervenants) || {};
     return ((fiche && fiche.priseEnCharge) || []).map(function (l) { return { lien: l.lien, intervenant: m[l.intervenant], commentaire: l.commentaire || '' }; }).filter(function (x) { return x.intervenant && !x.intervenant.supprime; });
   }
+  /**
+   * Lignes de l'export du droit d'accès (décision du porteur du 11 novembre 2026) : type et nom de chaque professionnel
+   * ou structure qui suit le patient, sans les coordonnées ni les commentaires internes du service. [[type, nom]].
+   */
+  function pourExport(st, fiche, config) {
+    return dePatient(st, fiche).map(function (l) { return [libType(config, l.intervenant.type), l.intervenant.nom]; });
+  }
   /** Réglage écrit par le cadre ou l'administrateur (types et champs : communs à l'établissement). */
   function controlerCadre(ancien, nouveau, compte) {
     var roles = (compte && compte.roles) || [];
     return (roles.indexOf('ADMIN') >= 0 || roles.indexOf('CADRE') >= 0) && !!nouveau && typeof nouveau === 'object' && !Array.isArray(nouveau);
   }
-  return { TYPES_DEFAUT: TYPES_DEFAUT, reglages: reglages, libType: libType, normaliser: normaliser, repertoire: repertoire, dePatient: dePatient, controlerCadre: controlerCadre };
+  return { TYPES_DEFAUT: TYPES_DEFAUT, reglages: reglages, libType: libType, normaliser: normaliser, repertoire: repertoire, dePatient: dePatient, pourExport: pourExport, controlerCadre: controlerCadre };
 });
