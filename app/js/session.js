@@ -71,7 +71,7 @@
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
   var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
-    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, messagerie: 1, salles: 1, infos: 1, poles: 1, chambres: 1, delegations: 1, comptesDemandes: 1, charteIntervenants: 1 };
+    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, messagerie: 1, documents: 1, salles: 1, infos: 1, poles: 1, chambres: 1, delegations: 1, comptesDemandes: 1, charteIntervenants: 1 };
   /** Champs ajoutés (0.18.0) : définitions, droits réglés pour chaque donnée, clés propres (`d-<id>`). */
   function CH() { return socle('champs', './champs.js'); }
   /** Clés propres à une donnée détenues par la session (journaux `modules\d-<id>\`). */
@@ -1622,6 +1622,35 @@
       } catch (err) { /* clé suivante */ }
     }
     return null;
+  };
+  /**
+   * Transfert de la gestion d'un document dont l'auteur n'a plus de compte actif (0.34.1, session de l'administrateur) :
+   * la clé de chaque génération est ouverte par une clé que l'administrateur détient (sans être gardée en mémoire), puis
+   * emballée pour les clés d'agent des destinataires (`noms`, ex. « k-a.<cadre> »).
+   */
+  Session.prototype.transfererCleDocument = async function (id, noms) {
+    var s = this, c = this.compteEffectif && this.compteEffectif();
+    if (!c || (c.roles || []).indexOf('ADMIN') < 0) throw new Error('Transfert réservé à l’administrateur.');
+    var d = dossierActif(this), f = await d.lireClesDocument(id);
+    if (!f) throw new Error('Clés du document introuvables.');
+    var ok = noms.filter(function (n) { return !s.clesMessagerieManquantes([n]).length; }), gens = Object.keys(f.gens);
+    for (var i = 0; i < gens.length; i++) {
+      var gen = gens[i], e = f.gens[gen], k8 = null, ns = Object.keys(e).filter(function (n) { return s.trousseau && s.trousseau[n]; });
+      for (var j = 0; j < ns.length && !k8; j++) {
+        try {
+          var o = await this.trousseau[ns[j]].octetsDe(e[ns[j]].g);
+          if (!o) continue;
+          var paire = await C.paireDepuisOctets(o, ns[j] + ':' + e[ns[j]].g);
+          k8 = await C.ouvrirEnveloppe(e[ns[j]].env, paire.privee, aadDoc(id, ns[j], e[ns[j]].g, gen));
+        } catch (err) { k8 = null; }
+      }
+      if (!k8) throw new Error('Clé du document illisible : transfert impossible.');
+      var aj = ok.filter(function (n) { return !e[n]; });
+      if (aj.length) Object.assign(e, await emballerDoc(this, id, gen, k8, aj));
+      k8.fill(0);
+    }
+    await d.ecrireClesDocument(id, f);
+    return { cles: ok, absentes: noms.filter(function (n) { return ok.indexOf(n) < 0; }) };
   };
   /** Génération courante du fichier de clés d'un document. */
   Session.prototype.generationDocument = async function (id) {

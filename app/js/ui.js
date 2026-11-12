@@ -591,7 +591,7 @@
     try { SIC.ui.miroir.demarrer(); } catch (e) { /* sans effet sur la session */ }
     retenirAccueil();
     setTimeout(purgeAutomatique, 4000);
-    setTimeout(function () { if (SIC.ui.documents && App.session && App.session.cle && !App.session.apercu && App.session.detientCle('documents')) SIC.ui.documents.effacementAutomatique().then(function (n) { if (n) toast(n + ' document(s) resté(s) 30 jours dans la corbeille effacé(s) définitivement.'); }).catch(function () {}); }, 6000);
+    setTimeout(function () { if (SIC.ui.documents && App.session && App.session.cle && !App.session.apercu && App.session.detientCle('documents')) SIC.ui.documents.effacementAutomatique().then(function (n) { if (n) toast(n + ' document(s) de la corbeille effacé(s) définitivement (durée de la corbeille écoulée).'); }).catch(function () {}); if (SIC.ui.documents && App.session && App.session.cle && App.session.detientCle('documents')) SIC.ui.documents.transfertsAutomatiques().then(function (n) { if (n) toast(n + ' document(s) d’un compte retiré transféré(s) au cadre de ses services.'); }).catch(function () {}); }, 6000);
     arreterMinuteurs();
     App.derniereActivite = Date.now();
     App.minuteurs.push(setInterval(function () {

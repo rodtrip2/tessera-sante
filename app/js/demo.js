@@ -782,6 +782,15 @@
             suite: [{ h: -24 * 399, type: 'DOC_VALIDATION', data: { version: 0, revision: jC(-5), message: '' } }] });
           await docD({ titre: 'Planning des formations AFGSU (fictif)', h: -24 * 9, auteur: 'demo-a', nom: 'Agent A (fictif)', partage: [{ genre: 'agent', code: moiT.id, droit: 'modifier' }],
             versions: [{ h: -24 * 9, contenu: { blocs: [ti(1, 'Formations aux gestes et soins d’urgence (fictif)'), p('Sessions prévues : 3 et 17 du mois prochain. Inscriptions auprès de l’agent A.')] } }] });
+          // Validation supplémentaire demandée à l'agent connecté par un autre cadre (0.34.1)
+          await docD({ titre: 'Charte d’utilisation du téléphone du service (fictif)', h: -24 * 4, auteur: 'demo-a', nom: 'Agent A (fictif)', partage: [{ genre: 'service', code: SVd, droit: 'lire' }, { genre: 'agent', code: moiT.id, droit: 'lire' }],
+            versions: [{ h: -24 * 4, par: 'demo-a', contenu: { blocs: [ti(1, 'Téléphone du service (fictif)'), p('Le téléphone portable du service reste dans le bureau infirmier ; il est rechargé chaque nuit.'), li('Appels professionnels seulement'), li('Messages effacés à la fin de chaque poste')] } }],
+            suite: [{ h: -24 * 3, par: 'demo-a', type: 'DOC_STATUT', data: { statut: 'a-valider', message: '' } },
+              { h: -24 * 2, par: 'demo-cadre', type: 'DOC_VALIDATION', data: { nom: 'Cadre de santé (fictif)', version: 0, revision: jC(365), message: 'Validé pour l’unité ; avis du cadre de pôle demandé. (fictif)', supplementaire: moiT.id } }] });
+          // Document d'un agent dont le compte a été retiré : gestion transférée au cadre (0.34.1)
+          await docD({ titre: 'Fiches réflexes de l’équipe de nuit (fictif)', h: -24 * 120, auteur: 'demo-ancien', nom: 'Ancien agent (fictif)', partage: [{ genre: 'agent', code: moiT.id, droit: 'gerer' }],
+            versions: [{ h: -24 * 120, contenu: { blocs: [ti(1, 'Fiches réflexes — nuit (fictif)'), p('Appel du médecin de garde : numéro affiché au bureau infirmier.')] } }],
+            suite: [{ h: -24 * 30, par: 'demo', type: 'DOC_TRANSFERT', data: { vers: [moiT.id] } }] });
           await docD({ titre: 'Ancienne note sur les visites (fictif)', h: -24 * 90,
             versions: [{ h: -24 * 90, contenu: { blocs: [p('Note remplacée par le règlement intérieur. (fictif)')] } }],
             suite: [{ h: -24 * 25, type: 'DOC_CORBEILLE', data: { corbeille: true } }] });
