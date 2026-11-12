@@ -99,3 +99,51 @@ test('Import CSV et formats refusés', async () => {
   assert.equal(r.contenu.feuilles[0].cellules.A2.v, 'Dupont; fictif'); assert.equal(r.contenu.feuilles[0].cellules.B2.v, 12.5); assert.equal(r.contenu.feuilles[0].cellules.C2.s.fmt, 'date');
   await assert.rejects(I.importer('ancien.doc', new Uint8Array(4)), /réenregistrer/);
 });
+
+// ------------------------------------------------------------ Images et masques de fond (0.42.0)
+// Petite image JPEG valide (1 × 1 pixel) et PNG (1 × 1 pixel), fictives
+const JPEG = new Uint8Array(Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64'));
+const PNG = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
+const avecImages = DM.contenu({ blocs: [{ t: 'p', runs: [{ x: 'Avant (fictif)' }] }, { t: 'img', id: 'im0000a1a1a1', l: 60, al: 'c', leg: 'Plan (fictif)' }, { t: 'p', runs: [{ x: 'Après' }] }],
+  page: { masque: { image: 'im0000e1e1e1', pages: 'premiere', opacite: 0.5, source: 'mqetab01', nom: 'En-tête (fictif)' } } });
+const imgs = { im0000a1a1a1: { type: 'png', octets: PNG, jpeg: JPEG, largeur: 1200, hauteur: 700 }, im0000e1e1e1: { type: 'jpeg', octets: JPEG, jpeg: JPEG, largeur: 1654, hauteur: 2339 } };
+
+test('Images : bloc validé (largeur, alignement, légende), masque de page validé', () => {
+  assert.deepEqual(DM.bloc({ t: 'img', id: 'im00ab12', l: 300, al: 'x' }), { t: 'img', id: 'im00ab12', l: 50, al: 'c' });
+  assert.equal(DM.bloc({ t: 'img', id: '../x' }), null);
+  assert.equal(avecImages.blocs[1].leg, 'Plan (fictif)');
+  assert.deepEqual(avecImages.page.masque, { image: 'im0000e1e1e1', pages: 'premiere', opacite: 0.5, source: 'mqetab01', nom: 'En-tête (fictif)' });
+  assert.equal(DM.page({ masque: { image: 'nimporte' } }).masque, undefined);
+  assert.equal(DM.page({ masque: { image: 'im0000e1e1e1', opacite: 7 } }).masque.opacite, 1);
+  assert.equal(DM.texteBloc(avecImages.blocs[1]).indexOf('[image'), 0);
+});
+
+test('Export Word : image en ligne (word/media), masque ancré derrière le texte dans l’en-tête de la 1re page, opacité', async () => {
+  const f = await fichiersZip(X.docx(avecImages, { titre: 'Images (fictif)' }, { images: imgs }));
+  const d = f['word/document.xml'];
+  assert.match(d, /<wp:inline/); assert.match(d, /r:embed="rIdImg1"/); assert.match(d, /Plan \(fictif\)/); assert.match(d, /<w:titlePg\/>/); assert.match(d, /w:type="first" r:id="rIdHeader2"/);
+  assert.ok(f['word/media/image1.png'] !== undefined && f['word/media/image2.jpeg'] !== undefined);
+  assert.match(f['word/header2.xml'], /behindDoc="1"/); assert.match(f['word/header2.xml'], /alphaModFix amt="50000"/); assert.doesNotMatch(f['word/header1.xml'], /<w:drawing/);
+  assert.match(f['word/_rels/header2.xml.rels'], /media\/image2\.jpeg/); assert.match(f['[Content_Types].xml'], /Extension="png"/);
+  // Toutes les pages : masque dans l'en-tête par défaut
+  const g = await fichiersZip(X.docx(DM.contenu(Object.assign({}, avecImages, { page: Object.assign({}, avecImages.page, { masque: Object.assign({}, avecImages.page.masque, { pages: 'toutes' }) }) })), {}, { images: imgs }));
+  assert.match(g['word/header1.xml'], /behindDoc="1"/); assert.ok(!g['word/header2.xml']);
+  // Sans les octets de l'image : repère texte
+  assert.match((await fichiersZip(X.docx(avecImages, {}, {})))['word/document.xml'], /\[image\]/);
+});
+
+test('Export RTF et PDF avec images ; masque de fond du PDF avec son opacité', () => {
+  const r = X.rtf(avecImages, {}, { images: imgs });
+  assert.match(r, /\\pict\\pngblip\\picw1200\\pich700/); assert.match(r, /Plan \(fictif\)/);
+  const pdf = new TextDecoder('latin1').decode(X.pdfTexte(avecImages, { titre: 'Images (fictif)' }, { images: imgs }));
+  assert.match(pdf, /\/Im1 Do/); assert.match(pdf, /\/Fond Do/); assert.match(pdf, /\/GSfond gs/); assert.match(pdf, /\/ca 0\.5/);
+  assert.equal((pdf.match(/\/Subtype \/Image/g) || []).length, 2);
+});
+
+test('Import Word : images reprises (bloc, largeur, légende) et octets rendus pour être chiffrés', async () => {
+  const r = await I.importer('Images (fictif).docx', X.docx(avecImages, { titre: 'Images (fictif)' }, { images: imgs }));
+  const im = r.contenu.blocs.filter((b) => b.t === 'img');
+  assert.equal(im.length, 1); assert.equal(im[0].l, 60); assert.equal(im[0].al, 'c'); assert.equal(im[0].leg, 'Plan (fictif)');
+  assert.ok(DM.ID_IMAGE.test(im[0].id)); assert.equal(r.images[im[0].id].type, 'image/png'); assert.deepEqual(Array.from(r.images[im[0].id].octets), Array.from(PNG));
+  assert.ok(!r.alertes.some((a) => /image/.test(a)));
+});

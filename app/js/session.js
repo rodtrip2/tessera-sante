@@ -71,7 +71,7 @@
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
   var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
-    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, messagerie: 1, documents: 1, salles: 1, infos: 1, poles: 1, chambres: 1, delegations: 1, comptesDemandes: 1, charteIntervenants: 1 };
+    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, messagerie: 1, documents: 1, masquesDocuments: 1, salles: 1, infos: 1, poles: 1, chambres: 1, delegations: 1, comptesDemandes: 1, charteIntervenants: 1 };
   /** Champs ajoutés (0.18.0) : définitions, droits réglés pour chaque donnée, clés propres (`d-<id>`). */
   function CH() { return socle('champs', './champs.js'); }
   /** Clés propres à une donnée détenues par la session (journaux `modules\d-<id>\`). */
@@ -1669,6 +1669,18 @@
     var k = await this.cleDocument(id, g);
     if (!k) return null;
     try { return await C.dechiffrerJSON(k, C.deb64(ct), 'docv:' + id + ':' + g); } catch (e) { return null; }
+  };
+  /** Image d'un document (0.42.0) : chiffrée par la clé du document, données additionnelles propres aux images. */
+  Session.prototype.chiffrerImageDocument = async function (id, imageId, objet) {
+    var g = await this.generationDocument(id), k = g && await this.cleDocument(id, g);
+    if (!k) throw new Error('Clé du document indisponible : image non enregistrée.');
+    return { g: g, ct: C.b64(await C.chiffrerJSON(k, objet, 'doci:' + id + ':' + imageId + ':' + g)) };
+  };
+  Session.prototype.dechiffrerImageDocument = async function (id, imageId, g, ct) {
+    if (!ct) return null;
+    var k = await this.cleDocument(id, g);
+    if (!k) return null;
+    try { return await C.dechiffrerJSON(k, C.deb64(ct), 'doci:' + id + ':' + imageId + ':' + g); } catch (e) { return null; }
   };
   /**
    * Nouveau partage d'un document : les clés ajoutées reçoivent toutes les générations (historique lisible) ; un retrait

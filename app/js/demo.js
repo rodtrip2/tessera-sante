@@ -752,6 +752,8 @@
             var id = 'DC' + SIC.crypto.hex(SIC.crypto.aleatoire(8)), auteur = o.auteur || moiT.id, part = DMd.partage(o.partage || []);
             await session.creerCleDocument(id, DMd.clesDocument(auteur, part).filter(function (n) { return !session.clesDocumentManquantes([n]).length; }));
             var lotD = [{ at: at(o.h), by: auteur, type: 'DOC', data: { id: id, nom: o.nom || moiT.nom, genre: o.genre || 'texte', modele: !!o.modele, partage: part, services: o.services || [], depuis: '' } }];
+            // Images du document (0.42.0) : chiffrées par sa clé, inscrites avant les versions qui les citent
+            for (var ki in (o.images || {})) { var ci = await session.chiffrerImageDocument(id, ki, o.images[ki]); lotD.push({ at: at(o.h), by: auteur, type: 'DOC_IMAGE', data: { doc: id, id: ki, g: ci.g, ct: ci.ct } }); }
             for (var i = 0; i < o.versions.length; i++) {
               var vv = o.versions[i], c = await session.chiffrerDocument(id, { meta: DMd.meta({ titre: o.titre, rattaches: o.rattaches || [] }), contenu: DMd.contenu(vv.contenu) });
               lotD.push({ at: at(vv.h), by: vv.par || auteur, type: 'DOC_VERSION', data: { doc: id, g: c.g, ct: c.ct, nom: vv.par === 'demo-a' ? 'Agent A (fictif)' : (o.nom || moiT.nom) } });
@@ -830,6 +832,36 @@
               { id: 'presentation', titre: 'Présentation', blocs: [ti(1, 'Bienvenue dans le service (fictif)'), p('Le service accueille des patients adultes. Ce livret présente l’organisation de l’équipe.')] },
               { id: 'organisation', titre: 'Organisation', blocs: [ti(2, 'Horaires des équipes'), li('Matin : 6 h 45 – 14 h 15'), li('Après-midi : 13 h 45 – 21 h 15'), li('Nuit : 21 h – 7 h'), ti(2, 'Transmissions'), p('Transmissions orales à chaque relève, au bureau infirmier.')] },
               { id: 'contacts', titre: 'Contacts utiles', blocs: [{ t: 'table', entete: true, lignes: [[{ runs: [{ x: 'Qui', g: true }] }, { runs: [{ x: 'Poste', g: true }] }], [{ runs: [{ x: 'Cadre de santé' }] }, { runs: [{ x: '4500' }] }], [{ runs: [{ x: 'Secrétariat' }] }, { runs: [{ x: '4520' }] }]] }, p('Numéros fictifs.')] }] } }] });
+          // Images et masques de fond (0.42.0) : papier à en-tête de l'établissement et filigrane du service (bibliothèque des
+          // masques), note aux familles avec un plan d'accès et le papier à en-tête en première page
+          if (typeof document !== 'undefined' && document.createElement('canvas').getContext) {
+            var dessin = function (l, ht, f) { var cv = document.createElement('canvas'); cv.width = l; cv.height = ht; var x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, l, ht); f(x, l, ht); return { donnees: cv.toDataURL('image/png'), largeur: l, hauteur: ht }; };
+            var entete = dessin(1654, 2339, function (x, l, ht) {
+              x.fillStyle = '#1f4e9c'; x.fillRect(0, 0, l, 26); x.beginPath(); x.arc(190, 170, 70, 0, 2 * Math.PI); x.fill();
+              x.fillStyle = '#fff'; x.fillRect(178, 120, 24, 100); x.fillRect(140, 158, 100, 24);
+              x.fillStyle = '#1f4e9c'; x.font = 'bold 54px sans-serif'; x.fillText('Centre hospitalier de démonstration', 300, 160); x.font = '36px sans-serif'; x.fillStyle = '#555'; x.fillText('Établissement fictif — exemple de papier à en-tête', 300, 215);
+              x.fillStyle = '#c55a11'; x.fillRect(150, 270, l - 300, 5);
+              x.fillStyle = '#777'; x.fillRect(150, ht - 150, l - 300, 3); x.font = '28px sans-serif'; x.textAlign = 'center'; x.fillText('1 rue de l’Exemple — 00000 Ville-Fictive — Standard : 00 00 00 00 00 (fictif)', l / 2, ht - 100);
+            });
+            var filigrane = dessin(1654, 2339, function (x, l, ht) { x.translate(l / 2, ht / 2); x.rotate(-Math.PI / 4); x.fillStyle = 'rgba(31, 78, 156, 0.16)'; x.font = 'bold 120px sans-serif'; x.textAlign = 'center'; x.fillText('DOCUMENT INTERNE', 0, -40); x.font = 'bold 80px sans-serif'; x.fillText('Unité de démonstration (fictif)', 0, 90); });
+            var plan = dessin(1200, 700, function (x, l, ht) {
+              x.strokeStyle = '#333'; x.lineWidth = 6; x.strokeRect(40, 40, l - 80, ht - 80);
+              [['Accueil', 80, 80, 300, 200, '#bfe3f5'], ['Salon des visites', 420, 80, 360, 200, '#c5e8b7'], ['Bureau infirmier', 820, 80, 300, 200, '#fff176'], ['Couloir des chambres', 80, 340, 1040, 120, '#eeeeee'], ['Jardin', 80, 500, 500, 140, '#c5e8b7']].forEach(function (z) {
+                x.fillStyle = z[5]; x.fillRect(z[1], z[2], z[3], z[4]); x.strokeStyle = '#555'; x.lineWidth = 3; x.strokeRect(z[1], z[2], z[3], z[4]); x.fillStyle = '#222'; x.font = 'bold 34px sans-serif'; x.textAlign = 'center'; x.fillText(z[0], z[1] + z[3] / 2, z[2] + z[4] / 2 + 12);
+              });
+              x.fillStyle = '#c00000'; x.beginPath(); x.moveTo(760, ht - 40); x.lineTo(730, ht - 100); x.lineTo(790, ht - 100); x.fill(); x.font = '28px sans-serif'; x.textAlign = 'left'; x.fillText('Entrée (fictif)', 810, ht - 60);
+            });
+            var mqE = 'mqetab01', mqS = 'mqsrv' + String(SVd).toLowerCase().replace(/[^0-9a-z]/g, '').slice(0, 10) + '01', bib = {};
+            bib[mqE] = { nom: 'Papier à en-tête de l’établissement (fictif)', services: [], image: entete, pages: 'premiere', opacite: 1, orientation: 'portrait', marges: { h: 45, b: 25, g: 20, d: 20 } };
+            bib[mqS] = { nom: 'Filigrane « Document interne » (fictif)', services: [SVd], image: filigrane, pages: 'toutes', opacite: 1, orientation: 'portrait', marges: null };
+            await session.enregistrerLot([{ at: at(-24 * 20), by: 'demo', type: 'CONFIG', data: { cle: 'masquesDocuments', valeur: bib } }], { libelle: 'Masques de fond fictifs', by: 'demo', sansControle: true });
+            await docD({ titre: 'Note aux familles : horaires de visite (fictif)', h: -24 * 8, partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
+              images: { im0000e1e1e1: Object.assign({ nom: 'papier-a-en-tete (fictif).png' }, entete), im0000a1a1a1: Object.assign({ nom: 'plan-acces (fictif).png' }, plan) },
+              versions: [{ h: -24 * 8, contenu: { blocs: [ti(1, 'Horaires de visite (fictif)'), p('Les visites ont lieu tous les jours de 14 h à 19 h, au salon des visites ou au jardin. Merci de vous présenter à l’accueil.'),
+                { t: 'img', id: 'im0000a1a1a1', l: 80, al: 'c', leg: 'Plan d’accès au salon des visites (fictif)' },
+                ti(2, 'À savoir'), li('Deux visiteurs au plus en même temps.'), li('Les objets apportés sont remis à l’équipe à l’accueil.'), p('Document d’exemple, entièrement fictif.', { al: 'd' })],
+                page: { marges: { h: 45, b: 25, g: 20, d: 20 }, pied: { gauche: '{titre}', centre: '', droite: 'Page {page}' }, masque: { image: 'im0000e1e1e1', pages: 'premiere', opacite: 1, source: mqE, nom: bib[mqE].nom } } } }] });
+          }
           await docD({ titre: 'Ancienne note sur les visites (fictif)', h: -24 * 90,
             versions: [{ h: -24 * 90, contenu: { blocs: [p('Note remplacée par le règlement intérieur. (fictif)')] } }],
             suite: [{ h: -24 * 25, type: 'DOC_CORBEILLE', data: { corbeille: true } }] });

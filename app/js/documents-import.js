@@ -109,6 +109,13 @@
               else if (c.n === 'br' && c.a.type !== 'page') texte += '\n';
               else if (c.n === 'br' && c.a.type === 'page') res.push({ saut: true });
               else if (c.n === 'noBreakHyphen') texte += '-';
+              else if (c.n === 'drawing') {
+                // Image (0.42.0) : relation de l'image (r:embed) et taille affichée (EMU)
+                var bl = trouver(c, 'blip'), ex = trouver(c, 'extent'), doc0 = trouver(c, 'docPr');
+                if (texte) { var r0 = Object.assign({ x: texte }, st); if (rev) r0[rev.genre] = rev.m; res.push(r0); texte = ''; }
+                if (bl && bl.a.embed) res.push({ image: bl.a.embed, cx: ex ? +ex.a.cx || 0 : 0, leg: doc0 && doc0.a.descr ? doc0.a.descr : '', ancre: !!trouver(c, 'anchor') });
+                else nonRepris++;
+              } else if (c.n === 'pict' || c.n === 'object') nonRepris++;
             });
             if (texte) { var r = Object.assign({ x: texte }, st); if (rev) r[rev.genre] = rev.m; res.push(r); }
           } else if (n.n === 'ins' || n.n === 'del') suivre(n, { genre: n.n, m: marqueRev(n) });
@@ -118,7 +125,16 @@
       suivre(p, null);
       return res;
     }
-    var blocs = [];
+    var blocs = [], nonRepris = 0, imagesDoc = {}, liensImages = {}, aImages = [];
+    tous(xml(await fichier('word/_rels/document.xml.rels')), 'Relationship').forEach(function (r) { if (/\/image$/.test(r.a.Type || '')) liensImages[r.a.Id] = 'word/' + String(r.a.Target || '').replace(/^\.?\//, '').replace(/^word\//, ''); });
+    function hexa(n) { var s = ''; for (var i = 0; i < n; i++) s += Math.floor(Math.random() * 16).toString(16); return s; }
+    function blocImage(r, al) {
+      var cible = liensImages[r.image];
+      if (!cible || !z[cible] || !/\.(png|jpe?g|gif)$/i.test(cible)) { nonRepris++; return null; }
+      var deja = aImages.filter(function (x) { return x.cible === cible; })[0], id = deja ? deja.id : 'im' + hexa(12);
+      if (!deja) aImages.push({ id: id, cible: cible });
+      return { t: 'img', id: id, _cx: r.cx, al: al === 'c' || al === 'd' ? al : r.ancre ? 'c' : 'g', leg: r.leg ? r.leg.slice(0, 200) : undefined };
+    }
     function paragraphe(p) {
       var pp = enfant(p, 'pPr'), style = pp && enfant(pp, 'pStyle') ? enfant(pp, 'pStyle').a.val : '', b = { t: 'p', runs: [] };
       if (titres[style]) b.t = 'h' + titres[style];
@@ -130,8 +146,11 @@
       var rmarque = pp && enfant(pp, 'rPr');
       if (rmarque && enfant(rmarque, 'ins')) b.suivi = Object.assign(marqueRev(enfant(rmarque, 'ins')), { op: 'ins' });
       if (pp && enfant(pp, 'pageBreakBefore') && vrai(enfant(pp, 'pageBreakBefore'))) blocs.push({ t: 'saut' });
-      rs.forEach(function (r) { if (r.saut) { if (courants.length) { blocs.push(Object.assign({}, b, { runs: courants })); courants = []; } blocs.push({ t: 'saut' }); } else courants.push(r); });
-      if (courants.length || !rs.some(function (r) { return r.saut; })) blocs.push(Object.assign({}, b, { runs: courants }));
+      rs.forEach(function (r) {
+        if (r.saut || r.image) { if (courants.length) { blocs.push(Object.assign({}, b, { runs: courants })); courants = []; } if (r.saut) blocs.push({ t: 'saut' }); else { var bi = blocImage(r, b.al); if (bi) blocs.push(bi); } }
+        else courants.push(r);
+      });
+      if (courants.length || !rs.some(function (r) { return r.saut || r.image; })) blocs.push(Object.assign({}, b, { runs: courants }));
     }
     function tableau(tbl) {
       var lignes = [], entete = false, grille = enfants(enfant(tbl, 'tblGrid'), 'gridCol').map(function (g) { return +g.a.w || 0; });
@@ -167,12 +186,16 @@
     var defaut = trouver(styles, 'rPrDefault'), df = defaut && trouver(defaut, 'rFonts'), ds = defaut && trouver(defaut, 'sz');
     if (df && police(df.a.ascii)) page.police = police(df.a.ascii);
     if (ds) page.taille = taille(+ds.a.val / 2);
-    if (tous(doc, 'drawing').length || tous(doc, 'pict').length) alertes.push('Les images et dessins ne sont pas repris.');
+    // Largeur des images : part de la largeur utile de la page
+    var lp = ((page.orientation === 'paysage' ? 297 : 210) - (page.marges ? page.marges.g + page.marges.d : 40)) * 36000;
+    blocs.forEach(function (b) { if (b.t === 'img') { b.l = b._cx ? Math.max(5, Math.min(100, Math.round(b._cx / lp * 20) * 5)) : 50; delete b._cx; } });
+    for (var ii = 0; ii < aImages.length; ii++) { var oc = await z[aImages[ii].cible](); imagesDoc[aImages[ii].id] = { octets: oc, type: /\.png$/i.test(aImages[ii].cible) ? 'image/png' : /\.gif$/i.test(aImages[ii].cible) ? 'image/gif' : 'image/jpeg', nom: aImages[ii].cible.replace(/^.*\//, '') }; }
+    if (nonRepris) alertes.push(nonRepris + ' image(s) ou dessin(s) dans un format non repris (dessin Word, EMF, WMF…) : à remplacer par une image PNG ou JPEG.');
     if (z['word/header1.xml'] || z['word/footer1.xml']) alertes.push('L’en-tête et le pied de page de Word ne sont pas repris : à régler dans « Mise en page ».');
     var c = DM.contenu({ blocs: blocs, page: page });
     var titre = (options && options.titre) || '', core = xml(await fichier('docProps/core.xml')), t0 = trouver(core, 'title');
     if (t0 && texteDe(t0).trim()) titre = texteDe(t0).trim();
-    return { contenu: c, titre: titre, alertes: alertes };
+    return { contenu: c, titre: titre, alertes: alertes, images: imagesDoc };
   }
 
   // ------------------------------------------------------------ Excel (.xlsx)
