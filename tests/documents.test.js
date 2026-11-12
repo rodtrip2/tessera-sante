@@ -310,3 +310,26 @@ test('Fusion à trois : deux paragraphes différents modifiés en même temps, s
   const r = DM.fusion3([p('1')], [p('1A')], [p('1B')]); assert.deepEqual(tx(r), ['1A', '1B']); assert.equal(r.conflits, 1);
   assert.equal(DM.fusion3([p('1')], [p('1A')], [p('1A')]).conflits, 0);
 });
+
+test('Suivi étendu du texte : mise en forme, nouveau paragraphe, élément ajouté ou supprimé, paragraphes fusionnés', () => {
+  const m = (op, id) => ({ op, id, p: 'a1', n: 'Agent A (fictif)', le: '2026-11-12T10:00:00.000Z' });
+  const c = DM.contenu({ blocs: [
+    { t: 'p', runs: [{ x: 'Un ' }, { x: 'mot', g: true, fmt: { id: 'f1', p: 'a1', n: 'A', le: '2026-11-12', avant: { i: true } } }] },
+    { t: 'p', runs: [{ x: 'Suite' }], suivi: m('ins', 'b1') },
+    { t: 'table', lignes: [[{ runs: [{ x: 'x' }] }]], suivi: m('ajout', 'b2') },
+    { t: 'saut', suivi: m('del', 'b3') },
+    { t: 'p', runs: [{ x: 'Fin' }], suivi: m('fusion', 'b4') },
+    { t: 'p', runs: [{ x: 'Effacé', del: m() }] }] });
+  assert.deepEqual(DM.modificationsSuivies(c).map((x) => x.genre + (x.op ? ':' + x.op : '')), ['fmt', 'bloc:ins', 'bloc:ajout', 'bloc:del', 'bloc:fusion', 'del']);
+  const tx = (x) => x.blocs.map((b) => b.t === 'p' ? DM.texteBloc(b) : b.t);
+  // Tout accepter : mise en forme gardée, tableau gardé, saut retiré, « Fin » reste seul (le bloc d'avant est un tableau), paragraphe effacé retiré
+  const a = DM.resoudreSuivi(c, true);
+  assert.deepEqual(tx(a), ['Un mot', 'Suite', 'table', 'Fin']); assert.equal(a.blocs[0].runs[1].g, true); assert.equal(DM.modificationsSuivies(a).length, 0);
+  // Tout refuser : mise en forme d'avant, « Suite » rejoint « Un mot », tableau retiré, saut gardé, « Fin » reste séparé
+  const r = DM.resoudreSuivi(c, false);
+  assert.deepEqual(tx(r), ['Un motSuite', 'saut', 'Fin', 'Effacé']); assert.deepEqual(r.blocs[0].runs.map((x) => x.i || false), [false, true, false]);
+  // Une seule modification
+  const f = DM.resoudreSuivi(c, false, 'f1');
+  assert.equal(f.blocs[0].runs[1].i, true); assert.equal(f.blocs[0].runs[1].g, undefined); assert.equal(DM.modificationsSuivies(f).length, 5);
+  assert.deepEqual(tx(DM.resoudreSuivi(c, true, 'b4')).slice(-3), ['saut', 'Fin', 'Effacé']);   // « Fin » joint au bloc d'avant (le saut) impossible : gardé seul
+});

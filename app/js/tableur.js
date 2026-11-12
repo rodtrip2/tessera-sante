@@ -54,6 +54,7 @@
     if (x.suivi && typeof x.suivi === 'object' && texte(x.suivi.p, 60)) {
       var a = x.suivi.avant || {}, av = {};
       if (typeof a.f === 'string' && a.f.charAt(0) === '=') av.f = texte(a.f, MAX_TEXTE); else if (typeof a.v === 'number' && isFinite(a.v)) av.v = a.v; else if (typeof a.v === 'string' && a.v !== '') av.v = texte(a.v, MAX_TEXTE);
+      var as = style(a.s); if (as) av.s = as;   // mise en forme d'avant (0.38.0)
       r.suivi = { p: texte(x.suivi.p, 60), n: texte(x.suivi.n, 80), le: texte(x.suivi.le, 30), avant: av };
     }
     return r.f !== undefined || r.v !== undefined || r.s || r.suivi ? r : null;
@@ -75,7 +76,10 @@
       figer: { l: f.figer && f.figer.l ? 1 : 0, c: f.figer && f.figer.c ? 1 : 0 },
       conditions: (Array.isArray(f.conditions) ? f.conditions : []).map(condition).filter(Boolean).slice(0, 100),
       validations: (Array.isArray(f.validations) ? f.validations : []).map(validation).filter(Boolean).slice(0, 100),
-      filtre: filtre(f.filtre) };
+      filtre: filtre(f.filtre),
+      // Suivi des modifications de la structure (0.38.0) : lignes et colonnes insérées ou supprimées, tris, feuille
+      lignesSuivies: marquesIndex(f.lignesSuivies, MAX_LIGNES), colonnesSuivies: marquesIndex(f.colonnesSuivies, MAX_COLONNES),
+      tris: (Array.isArray(f.tris) ? f.tris : []).map(triSuivi).filter(Boolean).slice(0, 50), suivi: marqueOp(f.suivi) };
   }
   // ------------------------------------------------------------ Mise en forme conditionnelle, validation, filtre (0.36.0)
   function plageValide(p) {
@@ -183,6 +187,13 @@
     var f = classeur.feuilles[fi], x = f.filtre, e = etendue(f), vus = {}, res = [];
     for (var l = (x ? x.l : 0) + 1; l < e.l; l++) { var cel = f.cellules[nom(l, c)], t = afficher(calc.valeur(fi, l, c), cel && cel.s); if (!vus[t]) { vus[t] = 1; res.push(t); } }
     return res.sort(function (a, b) { if (a === '') return 1; if (b === '') return -1; var na = saisir(a).v, nb = saisir(b).v; if (typeof na === 'number' && typeof nb === 'number') return na - nb; return a.localeCompare(b, 'fr'); });
+  }
+  function marqueOp(m) { return m && (m.op === 'ins' || m.op === 'del') && texte(m.p, 60) ? { op: m.op, p: texte(m.p, 60), n: texte(m.n, 80), le: texte(m.le, 30) } : null; }
+  function marquesIndex(o, max) { var r = {}; Object.keys(o || {}).forEach(function (k) { var m = marqueOp(o[k]); if (/^\d+$/.test(k) && +k < max && m) r[k] = m; }); return r; }
+  function triSuivi(x) {
+    var p = x && plageValide(x.plage); if (!p || !texte(x.p, 60)) return null;
+    var av = {}; Object.keys(x.avant || {}).forEach(function (k) { if (/^\d+:\d+$/.test(k)) { var y = caseValide(x.avant[k]); if (y) { delete y.suivi; av[k] = y; } } });
+    return { id: texte(x.id, 30) || 't' + Math.random().toString(36).slice(2, 10), plage: p, avant: av, col: Math.round(+x.col) || 0, dec: !!x.dec, p: texte(x.p, 60), n: texte(x.n, 80), le: texte(x.le, 30) };
   }
   function chevauche(a, b) { return a.l < b.l + b.nl && b.l < a.l + a.nl && a.c < b.c + b.nc && b.c < a.c + a.nc; }
   function zones(z) { z = z || {}; return { gauche: texte(z.gauche, 160), centre: texte(z.centre, 160), droite: texte(z.droite, 160) }; }
@@ -621,6 +632,9 @@
     var tl = axe === 'l' ? 'hauteurs' : 'largeurs', nt = {};
     Object.keys(f[tl]).forEach(function (key) { var i = deplace(+key); if (i !== null) nt[i] = f[tl][key]; });
     f[tl] = nt;
+    var ms = axe === 'l' ? 'lignesSuivies' : 'colonnesSuivies', nm = {};
+    Object.keys(f[ms] || {}).forEach(function (key) { var i = deplace(+key); if (i !== null) nm[i] = f[ms][key]; });
+    f[ms] = nm;
     var nl = axe === 'l' ? 'l' : 'c', nn = axe === 'l' ? 'nl' : 'nc';
     f.fusions = f.fusions.map(function (u) {
       var d = u[nl], e = u[nl] + u[nn] - 1;
@@ -639,6 +653,7 @@
     }
     f.conditions = (f.conditions || []).map(function (r) { var p = deplacerPlage(r.plage); return p ? Object.assign({}, r, { plage: p }) : null; }).filter(Boolean);
     f.validations = (f.validations || []).map(function (r) { var p = deplacerPlage(r.plage); return p ? Object.assign({}, r, { plage: p }) : null; }).filter(Boolean);
+    f.tris = (f.tris || []).map(function (r) { var p = deplacerPlage(r.plage); return p ? Object.assign({}, r, { plage: p }) : null; }).filter(Boolean);
     if (f.filtre) {
       var x = f.filtre;
       if (axe === 'l') { var nl0 = deplace(x.l); f.filtre = nl0 === null ? null : Object.assign({}, x, { l: nl0 }); }
@@ -701,43 +716,117 @@
     return c;
   }
 
-  // ------------------------------------------------------------ Suivi des modifications (0.37.0)
+  // ------------------------------------------------------------ Suivi des modifications (0.37.0, étendu en 0.38.0)
   function contenuCase(x) { return x ? (x.f !== undefined ? { f: x.f } : x.v !== undefined ? { v: x.v } : {}) : {}; }
+  /** Contenu et mise en forme d'une case (ce que le suivi garde « avant »). */
+  function etatCase(x) { var r = contenuCase(x), s = x && style(x.s); if (s) r.s = s; return r; }
   function memeContenu(a, b) { return JSON.stringify(contenuCase(a)) === JSON.stringify(contenuCase(b)); }
+  function marqueAgent(agent, maintenant, op) { var m = { p: agent.id, n: agent.nom || '', le: new Date(maintenant || Date.now()).toISOString() }; if (op) m.op = op; return m; }
   /**
-   * Nouvelle case quand le suivi est actif : la valeur d'avant est gardée (la première, si la case était déjà suivie) ;
-   * revenir à la valeur d'avant retire la marque.
+   * Nouvelle case quand le suivi est actif : contenu et mise en forme d'avant gardés (les premiers, si la case était déjà
+   * suivie) ; revenir à l'état d'avant retire la marque.
    */
   function suivre(ancienne, nouvelle, agent, maintenant) {
-    var avant = ancienne && ancienne.suivi ? ancienne.suivi.avant : contenuCase(ancienne);
+    var avant = ancienne && ancienne.suivi ? ancienne.suivi.avant : etatCase(ancienne);
     var n = nouvelle ? JSON.parse(JSON.stringify(nouvelle)) : {};
     delete n.suivi;
-    if (JSON.stringify(contenuCase(n)) === JSON.stringify(avant)) return caseValide(n);
-    if (memeContenu(ancienne, n) && !(ancienne && ancienne.suivi)) return caseValide(n);   // mise en forme seule : non suivie
-    n.suivi = { p: agent.id, n: agent.nom || '', le: new Date(maintenant || Date.now()).toISOString(), avant: avant };
+    if (JSON.stringify(etatCase(n)) === JSON.stringify(avant)) return caseValide(n);
+    n.suivi = Object.assign(marqueAgent(agent, maintenant), { avant: avant });
     return caseValide(n);
   }
-  /** Cases modifiées suivies : [{ feuille, fi, nom, avant, apres, p, n, le }]. */
+  /** Lignes ou colonnes insérées avec suivi (marquées « insérées »). */
+  function insererSuivi(classeur, fi, axe, a, n, agent, maintenant) {
+    var c = inserer(classeur, fi, axe, a, n), f = c.feuilles[fi], ms = axe === 'l' ? 'lignesSuivies' : 'colonnesSuivies';
+    for (var i = a; i < a + n && i < (axe === 'l' ? MAX_LIGNES : MAX_COLONNES); i++) f[ms][i] = marqueAgent(agent, maintenant, 'ins');
+    return c;
+  }
+  /** Suppression avec suivi : marquées « supprimées » (à accepter) ; ses propres insertions disparaissent vraiment. */
+  function supprimerSuivi(classeur, fi, axe, a, n, agent, maintenant) {
+    var c = JSON.parse(JSON.stringify(classeur)), f = c.feuilles[fi], ms = axe === 'l' ? 'lignesSuivies' : 'colonnesSuivies', reelles = [];
+    for (var i = a; i < a + n; i++) { var m = f[ms][i]; if (m && m.op === 'ins' && m.p === agent.id) reelles.push(i); else if (!m || m.op !== 'del') f[ms][i] = marqueAgent(agent, maintenant, 'del'); }
+    reelles.sort(function (x, y) { return y - x; }).forEach(function (i) { c = inserer(c, fi, axe, i, -1); });
+    return c;
+  }
+  /** Tri avec suivi : cases de la plage gardées avant le tri, pour le refuser. */
+  function trierSuivi(classeur, fi, plage, col, decroissant, agent, options) {
+    var f0 = classeur.feuilles[fi], avant = {};
+    for (var l = plage.l1; l <= plage.l2; l++) for (var c0 = plage.c1; c0 <= plage.c2; c0++) { var x = f0.cellules[nom(l, c0)]; if (x) avant[(l - plage.l1) + ':' + (c0 - plage.c1)] = x; }
+    var c = trier(classeur, fi, plage, col, decroissant, options);
+    c.feuilles[fi].tris.push(triSuivi(Object.assign(marqueAgent(agent, options && options.maintenant), { id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), plage: plage, avant: avant, col: col, dec: decroissant })));
+    return c;
+  }
+  /** Feuille supprimée avec suivi : marquée (à accepter) ; sa propre feuille ajoutée disparaît vraiment. */
+  function supprimerFeuilleSuivi(classeur, fi, agent, maintenant) {
+    var f = classeur.feuilles[fi];
+    if (f.suivi && f.suivi.op === 'ins' && f.suivi.p === agent.id) return supprimerFeuille(classeur, fi);
+    var c = JSON.parse(JSON.stringify(classeur)); c.feuilles[fi].suivi = marqueAgent(agent, maintenant, 'del'); return c;
+  }
+  var LIB_OP = { l: { ins: 'Ligne insérée', del: 'Ligne supprimée' }, c: { ins: 'Colonne insérée', del: 'Colonne supprimée' }, f: { ins: 'Feuille ajoutée', del: 'Feuille supprimée' } };
+  /**
+   * Modifications suivies d'un classeur : [{ genre: 'case' | 'ligne' | 'colonne' | 'tri' | 'feuille', fi, feuille, cle,
+   * libelle, avant, apres, p, n, le }] ; `cle` désigne la modification pour l'accepter ou la refuser.
+   */
   function modificationsSuivies(classeur) {
     var res = [];
     classeur.feuilles.forEach(function (f, fi) {
-      Object.keys(f.cellules).forEach(function (k) { var x = f.cellules[k]; if (x.suivi) res.push({ feuille: f.nom, fi: fi, nom: k, avant: texteSaisie(x.suivi.avant), apres: texteSaisie(x), p: x.suivi.p, n: x.suivi.n, le: x.suivi.le }); });
-    });
-    return res.sort(function (a, b) { return a.fi - b.fi || lire(a.nom).l - lire(b.nom).l || lire(a.nom).c - lire(b.nom).c; });
-  }
-  /** Accepter (garder la valeur) ou refuser (revenir à la valeur d'avant) une case, ou toutes si `k` est absent. */
-  function resoudreSuivi(classeur, accepter, fi, k) {
-    var c = JSON.parse(JSON.stringify(classeur));
-    c.feuilles.forEach(function (f, i) {
-      if (fi !== undefined && fi !== null && i !== fi) return;
-      Object.keys(f.cellules).forEach(function (key) {
-        if (k && key !== k) return;
-        var x = f.cellules[key]; if (!x.suivi) return;
-        var y = accepter ? Object.assign({}, x) : Object.assign({}, x.suivi.avant, x.s ? { s: x.s } : {});
-        delete y.suivi; if (!accepter) { delete y.f; delete y.v; Object.assign(y, x.suivi.avant); }
-        var z = caseValide(y); if (z) f.cellules[key] = z; else delete f.cellules[key];
+      if (f.suivi) res.push({ genre: 'feuille', fi: fi, feuille: f.nom, cle: 'f', libelle: LIB_OP.f[f.suivi.op], op: f.suivi.op, p: f.suivi.p, n: f.suivi.n, le: f.suivi.le });
+      Object.keys(f.lignesSuivies).sort(function (a, b) { return a - b; }).forEach(function (k) { var m = f.lignesSuivies[k]; res.push({ genre: 'ligne', fi: fi, feuille: f.nom, cle: 'l' + k, index: +k, libelle: LIB_OP.l[m.op] + ' : ' + (+k + 1), op: m.op, p: m.p, n: m.n, le: m.le }); });
+      Object.keys(f.colonnesSuivies).sort(function (a, b) { return a - b; }).forEach(function (k) { var m = f.colonnesSuivies[k]; res.push({ genre: 'colonne', fi: fi, feuille: f.nom, cle: 'c' + k, index: +k, libelle: LIB_OP.c[m.op] + ' : ' + lettres(+k), op: m.op, p: m.p, n: m.n, le: m.le }); });
+      f.tris.forEach(function (x) { res.push({ genre: 'tri', fi: fi, feuille: f.nom, cle: 't' + x.id, libelle: 'Tri ' + (x.dec ? 'décroissant' : 'croissant') + ' de ' + libPlage(x.plage) + ' selon la colonne ' + lettres(x.col), p: x.p, n: x.n, le: x.le }); });
+      Object.keys(f.cellules).sort(function (a, b) { var x = lire(a), y = lire(b); return x.l - y.l || x.c - y.c; }).forEach(function (k) {
+        var x = f.cellules[k]; if (!x.suivi) return;
+        var forme = JSON.stringify(contenuCase(x.suivi.avant)) === JSON.stringify(contenuCase(x));
+        res.push({ genre: 'case', fi: fi, feuille: f.nom, cle: 'k' + k, nom: k, libelle: k + (forme ? ' : mise en forme modifiée' : ' : ' + (texteSaisie(x.suivi.avant) || '(vide)') + ' → ' + (texteSaisie(x) || '(vide)')),
+          avant: texteSaisie(x.suivi.avant), apres: texteSaisie(x), forme: forme, p: x.suivi.p, n: x.suivi.n, le: x.suivi.le });
       });
     });
+    return res;
+  }
+  /**
+   * Accepter ou refuser une modification (`cible` = { fi, cle }) ou toutes (sans cible). Cases : garder ou revenir à
+   * l'état d'avant ; lignes, colonnes, feuilles : insertion gardée ou retirée, suppression faite ou annulée ; tri : gardé
+   * ou défait (cases de la plage remises comme avant le tri).
+   */
+  function resoudreSuivi(classeur, accepter, cible, k) {
+    if (typeof cible === 'number') cible = k ? { fi: cible, cle: 'k' + k } : { fi: cible };   // forme de la 0.37.0
+    var c = JSON.parse(JSON.stringify(classeur));
+    function vise(fi, cle) { return !cible || (cible.fi === fi && (!cible.cle || cible.cle === cle)); }
+    // 1. Cases
+    c.feuilles.forEach(function (f, fi) {
+      Object.keys(f.cellules).forEach(function (key) {
+        var x = f.cellules[key]; if (!x.suivi || !vise(fi, 'k' + key)) return;
+        var y = accepter ? Object.assign({}, x) : JSON.parse(JSON.stringify(x.suivi.avant));
+        delete y.suivi;
+        var z = caseValide(y); if (z) f.cellules[key] = z; else delete f.cellules[key];
+      });
+      // 2. Tris
+      f.tris = f.tris.filter(function (x) {
+        if (!vise(fi, 't' + x.id)) return true;
+        if (!accepter) {
+          for (var l = x.plage.l1; l <= x.plage.l2; l++) for (var cc = x.plage.c1; cc <= x.plage.c2; cc++) delete f.cellules[nom(l, cc)];
+          Object.keys(x.avant).forEach(function (o) { var d = o.split(':'), l2 = x.plage.l1 + +d[0], c2 = x.plage.c1 + +d[1]; if (l2 < MAX_LIGNES && c2 < MAX_COLONNES) f.cellules[nom(l2, c2)] = x.avant[o]; });
+        }
+        return false;
+      });
+    });
+    // 3. Lignes et colonnes (des plus grands index aux plus petits)
+    for (var fi = 0; fi < c.feuilles.length; fi++) {
+      [['l', 'lignesSuivies', 'l'], ['c', 'colonnesSuivies', 'c']].forEach(function (ax) {
+        Object.keys(c.feuilles[fi][ax[1]]).map(Number).sort(function (a, b) { return b - a; }).forEach(function (i) {
+          var m = c.feuilles[fi][ax[1]][i]; if (!m || !vise(fi, ax[2] + i)) return;
+          var supprimer = (m.op === 'ins') !== accepter;   // insertion refusée, suppression acceptée
+          delete c.feuilles[fi][ax[1]][i];
+          if (supprimer) c = inserer(c, fi, ax[0], i, -1);
+        });
+      });
+    }
+    // 4. Feuilles (de la dernière à la première)
+    for (fi = c.feuilles.length - 1; fi >= 0; fi--) {
+      var f = c.feuilles[fi]; if (!f.suivi || !vise(fi, 'f')) continue;
+      var sup = (f.suivi.op === 'ins') !== accepter;
+      f.suivi = null;
+      if (sup && c.feuilles.length > 1) c = supprimerFeuille(c, fi);
+    }
     return c;
   }
 
@@ -767,8 +856,8 @@
       if (!a && b) { if (JSON.stringify(m) === JSON.stringify(b)) return; feuilles.push(m); conflits++; return; }   // supprimée par l'autre
       if (!a) { feuilles.push(m); return; }                          // ajoutée par soi
       var bb = b || feuille({ nom: m.nom }, 0), x = { nom: m.nom };
-      ['cellules', 'largeurs', 'hauteurs'].forEach(function (t2) { var r = fusionTable(bb[t2], m[t2], a[t2]); x[t2] = r.table; conflits += r.conflits; });
-      ['fusions', 'figer', 'conditions', 'validations', 'filtre'].forEach(function (t2) { var r = fusionValeur(bb[t2], m[t2], a[t2]); x[t2] = r.v; if (r.c) conflits++; });
+      ['cellules', 'largeurs', 'hauteurs', 'lignesSuivies', 'colonnesSuivies'].forEach(function (t2) { var r = fusionTable(bb[t2], m[t2], a[t2]); x[t2] = r.table; conflits += r.conflits; });
+      ['fusions', 'figer', 'conditions', 'validations', 'filtre', 'tris', 'suivi'].forEach(function (t2) { var r = fusionValeur(bb[t2], m[t2], a[t2]); x[t2] = r.v; if (r.c) conflits++; });
       feuilles.push(x);
     });
     var p = fusionValeur(B.page, M.page, A.page); if (p.c) conflits++;
@@ -820,7 +909,8 @@
   }
   function ecrireTSV(lignes) { return lignes.map(function (l) { return l.map(function (x) { x = String(x == null ? '' : x); return /[\t\n"]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join('\t'); }).join('\n'); }
 
-  return { suivre: suivre, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusionner: fusionner, contenuCase: contenuCase,
+  return { suivre: suivre, insererSuivi: insererSuivi, supprimerSuivi: supprimerSuivi, trierSuivi: trierSuivi, supprimerFeuilleSuivi: supprimerFeuilleSuivi, etatCase: etatCase,
+    modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusionner: fusionner, contenuCase: contenuCase,
     OPS_CONDITION: OPS_CONDITION, GENRES_VALIDATION: GENRES_VALIDATION, condition: condition, validation: validation, styleConditionnel: styleConditionnel, regleVraie: regleVraie,
     validationDe: validationDe, controlerSaisie: controlerSaisie, conforme: conforme, lignesMasquees: lignesMasquees, valeursColonne: valeursColonne, libPlage: libPlage, plageValide: plageValide, dans: dans,
     MAX_LIGNES: MAX_LIGNES, MAX_COLONNES: MAX_COLONNES, MAX_FEUILLES: MAX_FEUILLES, FORMATS: FORMATS, TAILLES: TAILLES, FONCTIONS: LIBELLES_FONCTIONS,

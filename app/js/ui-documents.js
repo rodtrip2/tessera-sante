@@ -52,6 +52,7 @@
     var cl = classesRun(r);
     if (cl) n = [h('span', { class: cl }, n)];
     // Suivi des modifications (0.37.0)
+    if (r.fmt) n = [h('span', { class: 'suivi-fmt', 'data-p': r.fmt.p, 'data-n': r.fmt.n, 'data-le': r.fmt.le, 'data-id': r.fmt.id, 'data-avant': JSON.stringify(r.fmt.avant || {}), title: 'Mise en forme modifiée par ' + (r.fmt.n || r.fmt.p) + ' le ' + jourFr(r.fmt.le) }, n)];
     if (r.ins) n = [h('ins', { class: 'suivi-ins', 'data-p': r.ins.p, 'data-n': r.ins.n, 'data-le': r.ins.le, title: 'Ajouté par ' + (r.ins.n || r.ins.p) + ' le ' + jourFr(r.ins.le) }, n)];
     if (r.del) n = [h('del', { class: 'suivi-del', 'data-p': r.del.p, 'data-n': r.del.n, 'data-le': r.del.le, title: 'Supprimé par ' + (r.del.n || r.del.p) + ' le ' + jourFr(r.del.le) }, n)];
     return n;
@@ -59,6 +60,15 @@
   function noeudsRuns(runs) { var res = []; (runs || []).forEach(function (r) { res = res.concat(noeudsRun(r)); }); if (!res.length) res.push(h('br')); return res; }
   function classesBloc(b) { var c = []; if (b.al && b.al !== 'g') c.push('al-' + b.al); if (b.r) c.push('r-' + b.r); return c.join(' ') || null; }
   /** Rendu des blocs (page modifiable, lecture, impression). */
+  /** Attributs d'un paragraphe ou d'un élément suivi (0.38.0). */
+  function attrsSuivi(b, base) {
+    var a = Object.assign({}, base || {}), m = b && b.suivi;
+    if (!m) return a;
+    a['data-suivi'] = m.op; a['data-p'] = m.p; a['data-n'] = m.n; a['data-le'] = m.le; a['data-id'] = m.id;
+    a.title = DM.OPS_BLOC[m.op] + ' par ' + (m.n || m.p) + ' le ' + jourFr(m.le);
+    return a;
+  }
+  function suiviDe(el) { return el && el.getAttribute && el.getAttribute('data-suivi') ? { op: el.getAttribute('data-suivi'), p: el.getAttribute('data-p') || '', n: el.getAttribute('data-n') || '', le: el.getAttribute('data-le') || '', id: el.getAttribute('data-id') || '' } : undefined; }
   function rendreBlocs(blocs) {
     var res = [], pile = [];
     function fermer(n) { while (pile.length > n) pile.pop(); }
@@ -74,12 +84,12 @@
           else { var dernier = pile[pile.length - 1].lastElementChild || pile[pile.length - 1].appendChild(h('li')); dernier.appendChild(l); }
           pile.push(l);
         }
-        pile[niv].appendChild(h('li', { class: classesBloc(b) }, noeudsRuns(b.runs)));
+        pile[niv].appendChild(h('li', attrsSuivi(b, { class: classesBloc(b) }), noeudsRuns(b.runs)));
         return;
       }
-      if (b.t === 'saut') { res.push(h('div', { class: 'doc-saut', contenteditable: 'false', title: 'Saut de page' })); return; }
+      if (b.t === 'saut') { res.push(h('div', attrsSuivi(b, { class: 'doc-saut', contenteditable: 'false', title: 'Saut de page' }))); return; }
       if (b.t === 'table') {
-        var t = h('table', { class: 'doc-table' });
+        var t = h('table', attrsSuivi(b, { class: 'doc-table' }));
         if (b.largeurs) { var cg = h('colgroup'); b.largeurs.forEach(function (w) { var c = h('col'); c.style.width = w + '%'; cg.appendChild(c); }); t.appendChild(cg); }
         var tb = h('tbody');
         b.lignes.forEach(function (l, i) { tb.appendChild(h('tr', {}, l.map(function (c) { return h(b.entete && i === 0 ? 'th' : 'td', { class: c.al !== 'g' ? 'al-' + c.al : null }, noeudsRuns(c.runs)); }))); });
@@ -87,7 +97,7 @@
         res.push(t);
         return;
       }
-      res.push(h(b.t, { class: classesBloc(b) }, noeudsRuns(b.runs)));
+      res.push(h(b.t, attrsSuivi(b, { class: classesBloc(b) }), noeudsRuns(b.runs)));
     });
     return res;
   }
@@ -110,6 +120,7 @@
     if (tag === 'B' || tag === 'STRONG') x.g = true;
     if (tag === 'I' || tag === 'EM') x.i = true;
     var suivi = el.getAttribute && el.getAttribute('data-p') && (tag === 'INS' || tag === 'DEL');
+    if (tag === 'SPAN' && el.classList.contains('suivi-fmt')) { var av = {}; try { av = JSON.parse(el.getAttribute('data-avant') || '{}'); } catch (e) { av = {}; } x.fmt = { p: el.getAttribute('data-p') || '', n: el.getAttribute('data-n') || '', le: el.getAttribute('data-le') || '', id: el.getAttribute('data-id') || '', avant: av }; }
     if (suivi) x[tag === 'INS' ? 'ins' : 'del'] = { p: el.getAttribute('data-p'), n: el.getAttribute('data-n') || '', le: el.getAttribute('data-le') || '' };
     if (tag === 'U' || (tag === 'INS' && !suivi)) x.s = true;
     if (tag === 'S' || tag === 'STRIKE' || (tag === 'DEL' && !suivi)) x.b = true;
@@ -162,7 +173,7 @@
         if (li.tagName !== 'LI') return;
         var copie = li.cloneNode(true), sous = [];
         Array.prototype.slice.call(copie.children).forEach(function (c) { if (c.tagName === 'UL' || c.tagName === 'OL') { sous.push(c); copie.removeChild(c); } });
-        blocs.push({ t: 'li', liste: el.tagName === 'OL' ? 'ol' : 'ul', n: Math.min(6, niv), runs: finSansSaut(runsDe(copie, marques(li, {}), [])), al: alignDe(li) });
+        blocs.push({ t: 'li', liste: el.tagName === 'OL' ? 'ol' : 'ul', n: Math.min(6, niv), runs: finSansSaut(runsDe(copie, marques(li, {}), [])), al: alignDe(li), suivi: suiviDe(li) });
         Array.prototype.forEach.call(li.children, function (c) { if (c.tagName === 'UL' || c.tagName === 'OL') liste(c, niv + 1); });
       });
     }
@@ -174,7 +185,7 @@
       if (tag === 'BR') { if (enCours) vider(); else blocs.push({ t: 'p', runs: [], al: 'g' }); return; }
       if (!BLOC.test(tag)) { runsDe({ childNodes: [n] }, {}, (enCours = enCours || [])); return; }
       vider();
-      if (tag === 'HR' || (n.classList && n.classList.contains('doc-saut'))) { blocs.push({ t: 'saut' }); return; }
+      if (tag === 'HR' || (n.classList && n.classList.contains('doc-saut'))) { blocs.push({ t: 'saut', suivi: suiviDe(n) }); return; }
       if (tag === 'UL' || tag === 'OL') { liste(n, 0); return; }
       if (tag === 'TABLE') {
         var lignes = [], entete = false;
@@ -184,7 +195,7 @@
           lignes.push(cs.map(function (c) { return { runs: finSansSaut(runsDe(c, marques(c, {}), [])), al: alignDe(c) }; }));
         });
         var cols = n.querySelectorAll('col'), larg = cols.length ? Array.prototype.map.call(cols, function (c) { return parseFloat(c.style.width) || 0; }) : null;
-        if (lignes.length) blocs.push({ t: 'table', lignes: lignes, entete: entete, largeurs: larg && larg.every(Boolean) ? larg : null });
+        if (lignes.length) blocs.push({ t: 'table', lignes: lignes, entete: entete, largeurs: larg && larg.every(Boolean) ? larg : null, suivi: suiviDe(n) });
         return;
       }
       // Conteneur qui porte d'autres blocs (collage, div imbriquée) : ses blocs, avec le retrait d'une citation
@@ -194,7 +205,7 @@
         return;
       }
       var t2 = /^H[1-6]$/.test(tag) ? 'h' + Math.min(3, +tag[1]) : 'p';
-      blocs.push({ t: t2, runs: finSansSaut(runsDe(n, marques(n, {}), [])), al: alignDe(n), r: Math.min(8, retraitDe(n) + (tag === 'BLOCKQUOTE' ? 1 : 0) + (retraitBase || 0)) || undefined });
+      blocs.push({ t: t2, runs: finSansSaut(runsDe(n, marques(n, {}), [])), al: alignDe(n), r: Math.min(8, retraitDe(n) + (tag === 'BLOCKQUOTE' ? 1 : 0) + (retraitBase || 0)) || undefined, suivi: suiviDe(n) });
     });
     vider();
     return blocs;
@@ -328,7 +339,11 @@
       })();
       return enregistrement;
     }
-    corps.addEventListener('input', marquer);
+    corps.addEventListener('input', function (ev) {
+      // Nouveau paragraphe (Entrée) avec suivi : marqué « nouveau paragraphe » (refus : rejoint le précédent)
+      if (suiviActif() && ev.inputType === 'insertParagraph') { var b = blocDuCurseur(); if (b && b.tagName !== 'TABLE') marquerBloc(b, 'ins'); }
+      marquer();
+    });
     // Suivi des modifications (0.37.0) : texte ajouté et supprimé marqué (auteur, date) au lieu d'être écrit ou effacé
     corps.addEventListener('beforeinput', function (ev) {
       if (!suiviActif()) return;
@@ -358,9 +373,67 @@
     function supprimerSuivi(type) {
       var sel = window.getSelection(); if (!sel.rangeCount) return;
       var arriere = /Backward/.test(type);
+      if (sel.getRangeAt(0).collapsed && limiteBloc(arriere)) return;   // début ou fin de paragraphe : fusion suivie
       if (sel.getRangeAt(0).collapsed) { try { sel.modify('extend', arriere ? 'backward' : 'forward', /Word/.test(type) ? 'word' : /Line/.test(type) ? 'lineboundary' : 'character'); } catch (e) { return; } }
       var r = sel.getRangeAt(0); if (r.collapsed) return;
       supprimerPlage(r, arriere);
+    }
+    // ---- Paragraphes et mise en forme suivis (0.38.0)
+    function marquerBloc(el, op) {
+      var me = moi(), le = new Date().toISOString();
+      el.setAttribute('data-suivi', op); el.setAttribute('data-p', me.id); el.setAttribute('data-n', me.nom); el.setAttribute('data-le', le); el.setAttribute('data-id', 'b' + hex(5));
+      el.setAttribute('title', DM.OPS_BLOC[op] + ' par ' + me.nom + ' le ' + jourFr(le));
+    }
+    function demarquerBloc(el) { ['data-suivi', 'data-p', 'data-n', 'data-le', 'data-id', 'title'].forEach(function (a) { el.removeAttribute(a); }); if (el.classList.contains('doc-saut')) el.setAttribute('title', 'Saut de page'); }
+    function blocDuCurseur() {
+      var sel = window.getSelection(), n = sel.rangeCount ? sel.getRangeAt(0).startContainer : null;
+      while (n && n !== corps) { if (n.nodeType === 1 && (n.parentNode === corps || n.tagName === 'LI') && !/^(UL|OL)$/.test(n.tagName)) return n; n = n.parentNode; }
+      return null;
+    }
+    function frere(b, sens) { var x = sens < 0 ? b.previousElementSibling : b.nextElementSibling; if (!x && b.tagName === 'LI') { var l = b.parentNode; x = sens < 0 ? l.previousElementSibling : l.nextElementSibling; if (x && /^(UL|OL)$/.test(x.tagName)) x = sens < 0 ? x.lastElementChild : x.firstElementChild; } else if (x && /^(UL|OL)$/.test(x.tagName)) x = sens < 0 ? x.lastElementChild : x.firstElementChild; return x; }
+    function aLaLimite(b, debut) {
+      var sel = window.getSelection(), r = sel.getRangeAt(0), x = document.createRange();
+      x.selectNodeContents(b); if (debut) x.setEnd(r.startContainer, r.startOffset); else x.setStart(r.startContainer, r.startOffset);
+      return x.toString().replace(/\u200b/g, '') === '';
+    }
+    function joindre(prec, b) { while (b.firstChild) prec.appendChild(b.firstChild); b.parentNode.removeChild(b); }
+    function curseurFin(el) { var r = document.createRange(); r.selectNodeContents(el); r.collapse(false); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+    /**
+     * Retour arrière au début d'un paragraphe (ou Suppr à la fin) : la fusion des deux paragraphes est marquée (à
+     * accepter) ; un saut de page ou un tableau voisin est marqué supprimé ; son propre paragraphe ajouté est joint.
+     */
+    function limiteBloc(arriere) {
+      var b = blocDuCurseur(); if (!b || !aLaLimite(b, arriere)) return false;
+      var cible = arriere ? b : frere(b, 1), voisin = arriere ? frere(b, -1) : b;
+      if (!cible || !voisin || cible === voisin) return true;
+      var autre = arriere ? voisin : cible;
+      if (autre.classList && (autre.classList.contains('doc-saut') || autre.tagName === 'TABLE')) {
+        if (autre.getAttribute('data-suivi') === 'ajout' && autre.getAttribute('data-p') === moi().id) autre.parentNode.removeChild(autre); else if (autre.getAttribute('data-suivi') !== 'del') marquerBloc(autre, 'del');
+        return true;
+      }
+      if (cible.getAttribute('data-suivi') === 'ins' && cible.getAttribute('data-p') === moi().id) { var p0 = voisin; joindre(voisin, cible); curseurFin(p0); return true; }
+      if (cible.getAttribute('data-suivi') !== 'fusion') marquerBloc(cible, 'fusion');
+      if (arriere) curseurFin(voisin);
+      return true;
+    }
+    /** Mise en forme suivie : le texte sélectionné garde sa mise en forme d'avant (si elle n'est pas déjà suivie). */
+    function formeDe(n) { var chaine = []; for (var x = n.parentNode; x && x !== corps; x = x.parentNode) chaine.unshift(x); var m = {}; chaine.forEach(function (el) { m = marques(el, m); }); var r = {}; ['g', 'i', 's', 'b', 'p', 'z', 'c', 'f'].forEach(function (k) { if (m[k]) r[k] = m[k]; }); return r; }
+    function preparerFormeSuivie() {
+      var sel = window.getSelection(); if (!sel.rangeCount || sel.getRangeAt(0).collapsed) return;
+      var r = sel.getRangeAt(0), textes = [], w = document.createTreeWalker(r.commonAncestorContainer.nodeType === 3 ? r.commonAncestorContainer.parentNode : r.commonAncestorContainer, NodeFilter.SHOW_TEXT), n;
+      while ((n = w.nextNode())) if (r.intersectsNode(n) && corps.contains(n)) textes.push(n);
+      var premier = null, dernier = null, me = moi(), le = new Date().toISOString(), idf = 'f' + hex(5);
+      textes.forEach(function (tn) {
+        var a = tn === r.startContainer ? r.startOffset : 0, b = tn === r.endContainer ? r.endOffset : tn.nodeValue.length;
+        if (b <= a) return;
+        var m = tn; if (a > 0) m = tn.splitText(a); if (b - a < m.nodeValue.length) m.splitText(b - a);
+        var deja = m.parentNode.closest && m.parentNode.closest('span.suivi-fmt');
+        if (deja && corps.contains(deja)) { premier = premier || m; dernier = m; return; }
+        var sp = h('span', { class: 'suivi-fmt', 'data-p': me.id, 'data-n': me.nom, 'data-le': le, 'data-id': idf, 'data-avant': JSON.stringify(formeDe(m)), title: 'Mise en forme modifiée par ' + me.nom + ' le ' + jourFr(le) });
+        m.parentNode.insertBefore(sp, m); sp.appendChild(m);
+        premier = premier || sp; dernier = sp;
+      });
+      if (premier) { var x = document.createRange(); x.setStartBefore(premier); x.setEndAfter(dernier); sel.removeAllRanges(); sel.addRange(x); rangeGarde = x.cloneRange(); }
     }
     /** Plage supprimée avec suivi : son propre texte ajouté disparaît, le reste est marqué « supprimé ». */
     function supprimerPlage(r, arriere) {
@@ -390,10 +463,11 @@
       corps.focus();
       if (rangeGarde) { var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rangeGarde); }
     }
-    function cmd(nom, val) { remettreSelection(); try { document.execCommand('styleWithCSS', false, false); } catch (e) { /* */ } document.execCommand(nom, false, val === undefined ? null : val); normaliserPage(); marquer(); garderSelection(); }
+    function cmd(nom, val) { remettreSelection(); if (suiviActif() && /^(bold|italic|underline|strikeThrough|removeFormat)$/.test(nom)) preparerFormeSuivie(); try { document.execCommand('styleWithCSS', false, false); } catch (e) { /* */ } document.execCommand(nom, false, val === undefined ? null : val); normaliserPage(); marquer(); garderSelection(); }
     /** Police, taille, couleur, surlignage : commande du navigateur avec une valeur repère, aussitôt remplacée par une classe. */
     function marque(genre, valeur) {
       remettreSelection();
+      if (suiviActif()) preparerFormeSuivie();
       try { document.execCommand('styleWithCSS', false, false); } catch (e) { /* */ }
       // Surlignage : repère de police aussi (le surlignage du navigateur passe par un attribut style, refusé par la politique de sécurité)
       var repere = { p: ['fontName', 'TesseraRepere'], z: ['fontSize', '7'], c: ['foreColor', '#010203'], f: ['fontName', 'TesseraFond'] }[genre];
@@ -445,6 +519,7 @@
     }
     function insererApres(nouveaux) {
       var b = blocCourant(), ref = b ? b.nextSibling : null;
+      if (suiviActif()) nouveaux.forEach(function (n) { marquerBloc(n, 'ajout'); });   // tableau, saut de page ajoutés : suivis
       nouveaux.forEach(function (n) { corps.insertBefore(n, ref); });
       var p = h('p', {}, h('br')); corps.insertBefore(p, ref);
       // Curseur : première case d'un tableau inséré, sinon le paragraphe qui suit
@@ -479,7 +554,11 @@
       cmd('removeFormat');
       var sel = window.getSelection(); if (!sel.rangeCount) return;
       var r = sel.getRangeAt(0);
-      Array.prototype.forEach.call(corps.querySelectorAll('span'), function (x) { if (r.intersectsNode(x)) { while (x.firstChild) x.parentNode.insertBefore(x.firstChild, x); x.remove(); } });
+      Array.prototype.forEach.call(corps.querySelectorAll('span'), function (x) {
+        if (!r.intersectsNode(x)) return;
+        if (x.classList.contains('suivi-fmt')) { Array.prototype.slice.call(x.classList).forEach(function (c) { if (c !== 'suivi-fmt') x.classList.remove(c); }); return; }   // marque du suivi gardée
+        while (x.firstChild) x.parentNode.insertBefore(x.firstChild, x); x.remove();
+      });
       marquer();
     }
     // Collage : relu en blocs (aucun HTML recopié), inséré à la place de la sélection
@@ -570,7 +649,8 @@
     }
     // ---- Travail à plusieurs (0.37.0) : présence, édition simultanée, suivi des modifications
     var zonePresence = h('span', { class: 'doc-presence', 'aria-live': 'polite' });
-    function nombreMarques() { return tab ? tab.modifsSuivies().length : corps.querySelectorAll('ins.suivi-ins, del.suivi-del').length; }
+    var MARQUES = 'ins.suivi-ins, del.suivi-del, span.suivi-fmt, [data-suivi]';
+    function nombreMarques() { if (tab) return tab.modifsSuivies().length; var ids = {}; Array.prototype.forEach.call(corps.querySelectorAll(MARQUES), function (el, i) { ids[el.getAttribute('data-id') || 'n' + i] = 1; }); return Object.keys(ids).length; }
     function ligneTravail(dd) {
       var o = opts(), n = nombreMarques();
       function option(k, v) { return async function () { try { await s().enregistrer('DOC_OPTIONS', Object.assign({ doc: id, simultane: o.simultane, suivi: o.suivi, nom: moi().nom }, (function () { var x = {}; x[k] = v; return x; })())); dessinerBarre(); U.toast(k === 'suivi' ? (v ? 'Suivi des modifications activé : vos ajouts et suppressions sont marqués.' : 'Suivi des modifications désactivé.') : (v ? 'Édition simultanée activée : les modifications des autres s’affichent en direct.' : 'Édition simultanée désactivée.')); } catch (e) { U.toast(e.message); } }; }
@@ -599,16 +679,19 @@
           var ms = tab.modifsSuivies();
           if (!ms.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune modification suivie.' }));
           ms.forEach(function (m) {
-            zone.appendChild(h('div', { class: 'doc-suivi-ligne' }, h('b', { text: m.feuille + '!' + m.nom }), h('span', { text: ' : ' + (m.avant || '(vide)') + ' → ' + (m.apres || '(vide)') }), h('small', { class: 'muted', text: ' — ' + (m.n || nomAgent(m.p, doc(id))) + ', ' + jourFr(m.le) }),
-              modifiable ? h('span', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { tab.resoudre(true, m.fi, m.nom); liste(); dessinerBarre(); } }, 'Accepter'), h('button', { class: 'btn petit', type: 'button', onclick: function () { tab.resoudre(false, m.fi, m.nom); liste(); dessinerBarre(); } }, 'Refuser')) : null));
+            zone.appendChild(h('div', { class: 'doc-suivi-ligne' }, h('b', { text: m.feuille + ' — ' }), h('span', { class: m.op === 'del' ? 'diff-retrait' : m.op === 'ins' ? 'diff-ajout' : '', text: m.libelle }), h('small', { class: 'muted', text: ' — ' + (m.n || nomAgent(m.p, doc(id))) + ', ' + jourFr(m.le) }),
+              modifiable ? h('span', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { tab.resoudre(true, { fi: m.fi, cle: m.cle }); liste(); dessinerBarre(); } }, 'Accepter'), h('button', { class: 'btn petit', type: 'button', onclick: function () { tab.resoudre(false, { fi: m.fi, cle: m.cle }); liste(); dessinerBarre(); } }, 'Refuser')) : null));
           });
           return;
         }
-        var els = Array.prototype.slice.call(corps.querySelectorAll('ins.suivi-ins, del.suivi-del'));
+        var vus = {}, els = Array.prototype.slice.call(corps.querySelectorAll(MARQUES)).filter(function (el) { var k = el.getAttribute('data-id'); if (!k) return true; if (vus[k]) return false; vus[k] = 1; return true; });
         if (!els.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune modification suivie.' }));
         els.forEach(function (el) {
-          var ajout = el.tagName === 'INS';
-          zone.appendChild(h('div', { class: 'doc-suivi-ligne' }, h('span', { class: ajout ? 'diff-ajout' : 'diff-retrait', text: (ajout ? 'Ajout : ' : 'Suppression : ') + el.textContent.slice(0, 160) }),
+          var ajout = el.tagName === 'INS', op = el.getAttribute('data-suivi'), fmt = el.classList.contains('suivi-fmt');
+          var texteFmt = fmt ? Array.prototype.map.call(corps.querySelectorAll('span.suivi-fmt[data-id="' + el.getAttribute('data-id') + '"]'), function (x) { return x.textContent; }).join('').slice(0, 120) : '';
+          var lib = op ? DM.OPS_BLOC[op] + (el.tagName === 'TABLE' ? ' (tableau)' : el.classList.contains('doc-saut') ? ' (saut de page)' : ' : ' + el.textContent.slice(0, 120))
+            : fmt ? 'Mise en forme modifiée : ' + texteFmt : (ajout ? 'Ajout : ' : 'Suppression : ') + el.textContent.slice(0, 160);
+          zone.appendChild(h('div', { class: 'doc-suivi-ligne' }, h('span', { class: ajout || op === 'ins' || op === 'ajout' ? 'diff-ajout' : op || !fmt ? 'diff-retrait' : 'diff-modifie', text: lib }),
             h('small', { class: 'muted', text: ' — ' + (el.getAttribute('data-n') || nomAgent(el.getAttribute('data-p'), doc(id))) + ', ' + jourFr(el.getAttribute('data-le')) }),
             h('button', { class: 'btn petit lien', type: 'button', onclick: function () { el.scrollIntoView({ block: 'center' }); el.classList.add('suivi-vu'); setTimeout(function () { el.classList.remove('suivi-vu'); }, 1500); } }, 'Voir'),
             modifiable ? h('span', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { resoudreMarque(el, true); liste(); } }, 'Accepter'), h('button', { class: 'btn petit', type: 'button', onclick: function () { resoudreMarque(el, false); liste(); } }, 'Refuser')) : null));
@@ -621,6 +704,11 @@
           modifiable ? { texte: 'Tout accepter', classe: 'primaire', action: function () { toutResoudre(true); } } : null], { large: true });
     }
     function resoudreMarque(el, accepter) {
+      // Mise en forme, paragraphes : sur le contenu (Tessera retrouve la marque par son identifiant)
+      if (el.classList.contains('suivi-fmt') || el.getAttribute('data-suivi')) {
+        appliquerContenu({ meta: { titre: titre.value.trim() || 'Sans titre', rattaches: meta.rattaches }, contenu: DM.resoudreSuivi(lireContenu(), accepter, el.getAttribute('data-id')) });
+        marquer(); dessinerBarre(); return;
+      }
       var garder = (el.tagName === 'INS') === accepter;
       if (garder) { while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el); }
       el.parentNode.removeChild(el);
@@ -628,7 +716,7 @@
     }
     function toutResoudre(accepter) {
       if (tab) tab.resoudre(accepter);
-      else Array.prototype.slice.call(corps.querySelectorAll('ins.suivi-ins, del.suivi-del')).forEach(function (el) { resoudreMarque(el, accepter); });
+      else appliquerContenu({ meta: { titre: titre.value.trim() || 'Sans titre', rattaches: meta.rattaches }, contenu: DM.resoudreSuivi(lireContenu(), accepter) });
       marquer(); dessinerBarre();
     }
     // Présence toutes les 10 s ; édition simultanée : versions des autres reprises toutes les 4 s
