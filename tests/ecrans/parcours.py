@@ -398,6 +398,8 @@ with sync_playwright() as p:
     a.locator('.tr-lien').first.click(); time.sleep(0.8)
     verifier(a.locator('dialog[open]').count() == 1 and a.evaluate('SIC.ui.App.fenetre') == 'vue', 'transmissions : clic sur le patient, sa fiche sans quitter la Vue d’ensemble')
     a.keyboard.press('Escape'); time.sleep(0.4)
+    t1 = a.locator('table.tr-tableau tbody tr.tr-ligne').first.inner_text()
+    verifier('Psychiatre de 1re ligne' in t1 and 'Assistant(e) social(e) : ' in t1 and 'Mesure de protection : ' in t1, 'transmissions : psychiatre selon le service, suivi social et mesure de protection en oui ou non')
     verifier('Entrée : ' in a.locator('table.tr-tableau tbody tr.tr-ligne').first.inner_text() and '(J' in a.locator('table.tr-tableau tbody tr.tr-ligne').first.inner_text(), 'transmissions : format de date choisi (jour, mois et jours écoulés)')
     a.get_by_role('button', name='Mise en page').click(); time.sleep(1)
     d = a.locator('dialog[open]').last

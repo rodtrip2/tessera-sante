@@ -207,6 +207,7 @@
       ajouter(t(-24 * 279), 'PATIENT', { patientId: p[0], medecin1: c.medecin1, medecin2: c.medecin2 || '', referents: c.referents || [], psychologue: c.psychologue || '', psychologueId: c.psychologueId || '', suiviAS: c.suiviAS || null });
       ajouter(t(c.entree), 'SEJOUR', { patientId: p[0], sejourId: 'S' + p[0], iep: '7' + p[1], entree: jISO(c.entree), service: p[5], chambre: p[0] === 'P01' ? '18' : c.chambre, lit: c.lit });
     });
+    ajouter(t(-24 * 20), 'PATIENT', { patientId: 'P02', protection: 'Curatelle renforcée' });   // mesure de protection dans l'Unité 1 (tableau de transmissions)
     ajouter(t(-24 * 10), 'SEJOUR', { patientId: 'P01', sejourId: 'SP01', chambre: '12', lit: 'P' });   // changement de chambre (historique des lits, 0.29.0)
     [['P07', '900107', 'GOLF', 'Ilan', 'SL', U1, 52, -24 * 15, -24 * 3, '6'], ['P08', '900108', 'HOTEL', 'Maé', 'SDT', U1, 29, -24 * 50, -24 * 21, '3']].forEach(function (p) {
       ajouter(t(p[7]), 'PATIENT', { patientId: p[0], ipp: p[1], nom: p[2] + ' (fictif)', prenom: p[3], naissance: SIC.model.dateLocaleISO(now - p[6] * 365.25 * J - 40 * J), service: p[5], medecin1: 'Dr Arnaud (fictif)' });
