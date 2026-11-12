@@ -36,7 +36,7 @@ const fiches = {
 const ctx = { config, maintenant, fiches, services: ['U1'], valeurs: { patient: {}, medecin: {} }, suivi: S.reduire([]), suiviModule: S, hospitalises: Object.values(fiches), libService: (c) => c };
 
 test('Vues : vues proposées, visibilité par rôle et service, réglage par le cadre pour ses services seulement', () => {
-  assert.deepEqual(V.vues({}).map((v) => v.id), ['medicale', 'staff', 'medecins', 'equipe']);
+  assert.deepEqual(V.vues({}).map((v) => v.id), ['medicale', 'staff', 'transmissions', 'medecins', 'equipe']);
   const cfg = { vuesEnsemble: { vues: [
     { id: 'u1', nom: 'Staff U1', services: ['U1'], colonnes: ['patient'] },
     { id: 'u2', nom: 'Staff U2', services: ['U2'], roles: ['CADRE'], colonnes: ['patient'] },

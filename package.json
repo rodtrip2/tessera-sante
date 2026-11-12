@@ -1,6 +1,6 @@
 {
   "name": "tessera-sante",
-  "version": "0.29.1",
+  "version": "0.30.0",
   "private": true,
   "description": "Tessera Santé — plateforme modulaire de suivi et d'organisation d'un service de soins (socle commun et modules), application web statique, données chiffrées sur le réseau de l'établissement.",
   "scripts": {
