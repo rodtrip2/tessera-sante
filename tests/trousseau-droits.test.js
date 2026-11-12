@@ -73,8 +73,8 @@ const mesure = (id) => ({ mesureId: id, patientId: 'P', service: 'U1', typeMesur
 
 /** Fichier de saisie d'un événement (journal d'Isocont). */
 function fichierDe(racine, evt) {
-  const m = evt.at.slice(0, 7).split('-');
-  return racine.e.get('modules').e.get('isocont').e.get('evenements').e.get(m[0]).e.get(m[1]).e.get(evt.id + '.enc');
+  const m = evt.at.slice(0, 10).split('-');   // dossier du jour (0.33.0)
+  return racine.e.get('modules').e.get('isocont').e.get('evenements').e.get(m[0]).e.get(m[1]).e.get(m[2]).e.get(evt.id + '.enc');
 }
 const genIsocont = (s) => s.coffre.cles.isocont.courante;
 async function dossierEquipe() {

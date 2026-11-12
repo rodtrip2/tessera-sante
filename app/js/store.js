@@ -4,7 +4,8 @@
  * navigateur (mode démonstration, même API via navigator.storage.getDirectory).
  *
  *   coffre.json                       copies emballées de la clé + comptes chiffrés
- *   evenements/AAAA/MM/<nom>.enc      une saisie = un fichier chiffré, jamais modifié
+ *   evenements/AAAA/MM/JJ/<nom>.enc   une saisie = un fichier chiffré, jamais modifié (dossier du jour depuis la
+ *                                     0.33.0 ; les saisies plus anciennes restent dans evenements/AAAA/MM/)
  *   instantanes/AAAA-MM.enc           copie consolidée des saisies d'un mois clos
  *   coffre-historique/rev-N.json      versions du coffre, la dernière comprise (les 30 dernières)
  *   reperes/<agent>.enc               repère d'intégrité : nombre et dernière saisie de chaque agent
@@ -279,8 +280,8 @@
     for (var i = 0; i < copie.fichiers.length; i++) {
       var f = copie.fichiers[i], c = cheminSur(f.chemin);
       if (!c) continue;
-      var dir = await this.sousDossier(c.journal.concat(c.parties.slice(0, 3)), true);
-      await this.ecrireFichier(dir, c.parties[3], C.deb64(f.contenu));
+      var dir = await this.sousDossier(c.journal.concat(c.parties.slice(0, -1)), true);
+      await this.ecrireFichier(dir, c.parties[c.parties.length - 1], C.deb64(f.contenu));
     }
     // Coffre restauré : l'administrateur renouvellera les clés avant toute saisie (trousseau, 0.5.0)
     var coffre = copie.coffre.version === 2 ? Object.assign({}, copie.coffre, { restaureLe: new Date().toISOString() }) : copie.coffre;
@@ -298,7 +299,9 @@
     if (p.some(function (x) { return !x || x === '..' || x === '.'; })) return null;
     var journal = p[0] === 'socle' ? p.slice(0, 1) : p[0] === 'modules' && /^[a-z][a-z0-9-]{1,30}$/.test(p[1] || '') ? p.slice(0, 2) : [];
     var parties = p.slice(journal.length);
-    if (!(parties.length === 4 && parties[0] === 'evenements' && /^\d{4}$/.test(parties[1]) && /^\d{2}$/.test(parties[2]) && /\.enc$/.test(parties[3]))) return null;
+    // Dossier du mois (avant la 0.33.0) ou du jour : evenements/AAAA/MM[/JJ]/nom.enc
+    var jour = parties.length === 5;
+    if (!((parties.length === 4 || jour) && parties[0] === 'evenements' && /^\d{4}$/.test(parties[1]) && /^\d{2}$/.test(parties[2]) && (!jour || /^\d{2}$/.test(parties[3])) && /\.enc$/.test(parties[parties.length - 1]))) return null;
     if (!journal.length && !relatif) journal = ['modules', 'isocont'];
     return { journal: journal, parties: parties };
   }
@@ -311,15 +314,16 @@
     var c = cheminSur(chemin, true);
     if (!c) throw new Error('Chemin de fichier inattendu : ' + chemin);
     var parties = c.parties, j = c.journal;   // quarantaine du journal concerné
-    var source = await this.sousDossier(j.concat(parties.slice(0, 3)), false), nom = parties[3];
+    var source = await this.sousDossier(j.concat(parties.slice(0, -1)), false), nom = parties[parties.length - 1];
     var octets = await this.lireFichier(source, nom);
     if (!octets) throw new Error('Fichier introuvable : ' + chemin);
-    var dest = await this.sousDossier(j.concat(['quarantaine', parties[1], parties[2]]), true);
+    var sous = ['quarantaine'].concat(parties.slice(1, -1));
+    var dest = await this.sousDossier(j.concat(sous), true);
     await this.ecrireFichier(dest, nom, octets);
     var relu = await this.lireFichier(dest, nom);
     if (!relu || relu.length !== octets.length) throw new Error('La copie en quarantaine n’a pas pu être vérifiée : le fichier est laissé en place.');
     await source.removeEntry(nom);
-    return j.concat(['quarantaine', parties[1], parties[2], nom]).join('/');
+    return j.concat(sous, [nom]).join('/');
   };
 
   /**
@@ -341,13 +345,13 @@
     for (var i = 0; i < copie.fichiers.length; i++) {
       var f = copie.fichiers[i], c = cheminSur(f.chemin);
       if (!c) continue;
-      var parties = c.parties, nom = parties[3], chemin = c.journal.concat(parties).join('/');
+      var parties = c.parties, nom = parties[parties.length - 1], chemin = c.journal.concat(parties).join('/');
       if (presents.has(nom) && !illisibles.has(nom)) { res.dejaPresents++; continue; }
       var octets;
       try { octets = C.deb64(f.contenu); if (!(await verifier(nom, octets))) throw new Error('contenu inattendu'); }
       catch (e) { res.invalides.push(f.chemin); continue; }
       if (presents.has(nom)) { try { await this.mettreEnQuarantaine(chemin); } catch (e) { res.invalides.push(f.chemin); continue; } }
-      var dir = await this.sousDossier(c.journal.concat(parties.slice(0, 3)), true);
+      var dir = await this.sousDossier(c.journal.concat(parties.slice(0, -1)), true);
       await this.ecrireFichier(dir, nom, octets);
       res.remis.push(chemin);
     }
@@ -362,7 +366,10 @@
       if (an.kind !== 'directory') continue;
       for await (var mois of an.values()) {
         if (mois.kind !== 'directory') continue;
-        for await (var f of mois.values()) if (f.kind === 'file' && /\.enc$/.test(f.name)) noms.add(f.name);
+        for await (var f of mois.values()) {
+          if (f.kind === 'file' && /\.enc$/.test(f.name)) noms.add(f.name);
+          else if (f.kind === 'directory' && /^\d{2}$/.test(f.name)) for await (var g of f.values()) if (g.kind === 'file' && /\.enc$/.test(g.name)) noms.add(g.name);
+        }
       }
     }
     return noms;
@@ -493,9 +500,14 @@
   // ---------------------------------------------------------- Événements
   function horodatageCompact(iso) { return iso.replace(/[-:]/g, '').replace(/\.\d+/, ''); }
 
+  /**
+   * Rangement par jour (0.33.0, décision du porteur du 12 novembre 2026, bascule automatique) : evenements/AAAA/MM/JJ/
+   * d'après l'horodatage de la saisie (UTC). Les saisies déjà écrites ne sont jamais déplacées (journal en ajout seul) :
+   * la lecture prend les deux rangements.
+   */
   Dossier.prototype.ecrireEvenement = async function (cle, evt) {
-    var mois = evt.at.slice(0, 7).split('-');
-    var dir = await this.sousDossier(['evenements', mois[0], mois[1]], true);
+    var mois = evt.at.slice(0, 10).split('-');
+    var dir = await this.sousDossier(['evenements', mois[0], mois[1], mois[2]], true);
     var nom = evt.id + '.enc';
     var octets = await C.chiffrerJSON(cle, evt, 'evt:' + nom);
     await this.ecrireFichier(dir, nom, octets, true);
@@ -538,6 +550,9 @@
     var racine;
     try { racine = await this.sousDossier(['evenements'], false); } catch (e) { return res; }
     var maintenant = Date.now();
+    // Lecture rapide : jours d'avant-hier à aujourd'hui (UTC) ; une saisie arrivée plus tard (poste hors réseau) est
+    // rattrapée par la lecture complète, comme pour les mois clos
+    var limiteJours = new Date(maintenant - 2 * 864e5).toISOString().slice(0, 10);
     // Parcours interrompu (dossier modifié pendant la lecture par une saisie d'un autre poste, partage momentanément
     // indisponible) : les saisies déjà lues sont rendues avec `interrompu`, jamais perdues (elles sont déjà dans
     // `connus`) ; le reste est lu à la synchronisation suivante.
@@ -550,8 +565,15 @@
         if (mois.kind !== 'directory') continue;
         var cleMois = an.name + '-' + mois.name;
         if (options && options.recents && moisClos(cleMois, maintenant)) continue;
-        var fichiers = [];
-        for await (var f of mois.values()) if (f.kind === 'file' && /\.enc$/.test(f.name)) fichiers.push(f);
+        // Fichiers du mois (ancien rangement) et des dossiers du jour ; lecture rapide : jours récents seulement
+        var fichiers = [], chemins = {}, base = 'evenements/' + an.name + '/' + mois.name + '/';
+        for await (var f of mois.values()) {
+          if (f.kind === 'file' && /\.enc$/.test(f.name)) { fichiers.push(f); chemins[f.name] = base + f.name; }
+          else if (f.kind === 'directory' && /^\d{2}$/.test(f.name)) {
+            if (options && options.recents && cleMois + '-' + f.name < limiteJours) continue;
+            for await (var g of f.values()) if (g.kind === 'file' && /\.enc$/.test(g.name)) { fichiers.push(g); chemins[g.name] = base + f.name + '/' + g.name; }
+          }
+        }
         var nouveaux = fichiers.filter(function (x) { return !connus.has(x.name); });
         if (!nouveaux.length) continue;
         var clos = moisClos(cleMois, maintenant) && !(options && options.sansInstantanes);
@@ -567,7 +589,7 @@
           catch (err) {
             rejetsMois++;
             var taille = null; try { taille = (await fichiers[i].getFile()).size; } catch (e2) { /* taille inconnue */ }
-            res.rejetes.push({ nom: nom, chemin: 'evenements/' + an.name + '/' + mois.name + '/' + nom, raison: diagnosticLecture(err, taille), taille: taille });
+            res.rejetes.push({ nom: nom, chemin: chemins[nom], raison: diagnosticLecture(err, taille), taille: taille });
           }
         }
         // Un fichier illisible n'est pas marqué comme connu : il est relu à la synchronisation suivante

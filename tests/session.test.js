@@ -109,10 +109,8 @@ test('Instantanés des mois clos et rejet d\'un fichier altéré', async () => {
   const s3 = await connecter(racine, 'admin', 'mot de passe solide');
   assert.equal(s3.etat.professionnels.length, 5);
   // Altération d'un fichier du mois courant : rejeté
-  await admin.enregistrer('PROFESSIONNEL', { service: 'U1', date: '2026-10-01', periode: 'M', nom: 'Agent X' });
-  const courant = new Date().toISOString().slice(0, 7).split('-');
-  const rep = await (await (await journalIsocont(racine).getDirectoryHandle('evenements')).getDirectoryHandle(courant[0])).getDirectoryHandle(courant[1]);
-  const f = [...rep.e.values()].pop(); f.data[40] ^= 1;
+  const ex = await admin.enregistrer('PROFESSIONNEL', { service: 'U1', date: '2026-10-01', periode: 'M', nom: 'Agent X' });
+  const f = dossierMois(racine, ex).e.get(ex.id + '.enc'); f.data[40] ^= 1;   // dossier du jour (0.33.0)
   const s4 = await connecter(racine, 'admin', 'mot de passe solide');
   assert.equal(s4.rejetes.length, 1);
   assert.equal(s4.etat.professionnels.length, 5);
@@ -273,8 +271,8 @@ test('Intégrité : disparition des dernières saisies d’un agent et des fichi
   let r = await admin.verifierIntegrite();
   assert.deepEqual([r.reperes.length, r.disparus.length], [0, 0]);
   // Suppression de la dernière saisie : le chaînage ne la voit pas, le repère si
-  const mois = e2.at.slice(0, 7).split('-');
-  const dir = journalIsocont(racine).e.get('evenements').e.get(mois[0]).e.get(mois[1]);
+  const mois = e2.at.slice(0, 10).split('-');
+  const dir = journalIsocont(racine).e.get('evenements').e.get(mois[0]).e.get(mois[1]).e.get(mois[2]);
   dir.e.delete(e2.id + '.enc');
   r = await admin.verifierIntegrite();
   assert.deepEqual(r.disparus, [e2.id + '.enc']);                       // poste ouvert : fichier disparu
@@ -286,8 +284,8 @@ test('Intégrité : disparition des dernières saisies d’un agent et des fichi
 });
 
 function dossierMois(racine, evt) {
-  const m = evt.at.slice(0, 7).split('-');
-  return journalIsocont(racine).e.get('evenements').e.get(m[0]).e.get(m[1]);
+  const m = evt.at.slice(0, 10).split('-');   // dossier du jour (0.33.0)
+  return journalIsocont(racine).e.get('evenements').e.get(m[0]).e.get(m[1]).e.get(m[2]);
 }
 
 test('Intégrité : réparation depuis une copie (absents et illisibles seulement), quarantaine, refus d’un fichier étranger', async () => {
@@ -304,9 +302,10 @@ test('Intégrité : réparation depuis une copie (absents et illisibles seulemen
   let r = await s.verifierIntegrite();
   assert.ok(s.anomaliesIntegrite());
   assert.deepEqual(r.fichiersIllisibles.map((f) => f.nom), [e2.id + '.enc']);
-  assert.match(r.fichiersIllisibles[0].chemin, /^modules\/isocont\/evenements\/\d{4}\/\d{2}\/.+\.enc$/);
+  assert.match(r.fichiersIllisibles[0].chemin, /^modules\/isocont\/evenements\/\d{4}\/\d{2}\/\d{2}\/.+\.enc$/);   // dossier du jour (0.33.0)
   assert.deepEqual(r.listeManquants.map((x) => x.id), [e2.id]);
-  assert.equal(SIC.model.cheminEvenement(e1.id + '.enc'), 'evenements/' + e1.at.slice(0, 4) + '/' + e1.at.slice(5, 7) + '/' + e1.id + '.enc');
+  assert.equal(SIC.model.cheminEvenement(e1.id + '.enc'), 'evenements/' + e1.at.slice(0, 4) + '/' + e1.at.slice(5, 7) + '/' + e1.at.slice(8, 10) + '/' + e1.id + '.enc');
+  assert.equal(SIC.model.cheminEvenement(e1.id + '.enc', true), 'evenements/' + e1.at.slice(0, 4) + '/' + e1.at.slice(5, 7) + '/' + e1.id + '.enc');   // ancien rangement
   // Un fichier de la copie qui ne s'ouvre pas avec la clé actuelle est refusé
   const piege = JSON.parse(JSON.stringify(copie));
   const f1 = piege.fichiers.find((f) => f.chemin.endsWith(e1.id + '.enc'));
@@ -361,8 +360,8 @@ test('Intégrité : prise d’acte par l’administrateur (motif obligatoire), n
   assert.equal(faits.length, 1);
   assert.equal(v.rejetes.length, 0);
   assert.ok(!dossierMois(racine, c).e.has(c.id + '.enc'));
-  const m = c.at.slice(0, 7).split('-');
-  assert.ok(journalIsocont(racine).e.get('quarantaine').e.get(m[0]).e.get(m[1]).e.has(c.id + '.enc'));
+  const m = c.at.slice(0, 10).split('-');
+  assert.ok(journalIsocont(racine).e.get('quarantaine').e.get(m[0]).e.get(m[1]).e.get(m[2]).e.has(c.id + '.enc'));
   assert.ok(v.evts.some((e) => e.type === 'COMPTE' && e.data.action === 'QUARANTAINE'));
   // L'annulation de la prise d'acte rouvre l'alerte
   const acte = v.evts.find((e) => e.type === 'INTEGRITE');
