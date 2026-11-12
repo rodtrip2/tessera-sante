@@ -824,6 +824,12 @@
           await docD({ titre: 'Inventaire du matériel (modèle fictif)', genre: 'tableur', h: -24 * 50, modele: true, services: [SVd], partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
             versions: [{ h: -24 * 50, contenu: { genre: 'tableur', feuilles: [{ nom: 'Inventaire', cellules: { A1: { v: 'Matériel', s: gT }, B1: { v: 'Quantité', s: gT }, C1: { v: 'Seuil', s: gT }, D1: { v: 'À commander', s: gT },
               D2: { f: '=SI(B2<C2;"oui";"")' }, D3: { f: '=SI(B3<C3;"oui";"")' }, D4: { f: '=SI(B4<C4;"oui";"")' } }, largeurs: { 0: 200 }, figer: { l: 1 } }] } }] });
+          // Onglets (0.39.0) : livret d'accueil en trois onglets
+          await docD({ titre: 'Livret d’accueil du service (fictif)', h: -24 * 15, partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
+            versions: [{ h: -24 * 15, contenu: { onglets: [
+              { id: 'presentation', titre: 'Présentation', blocs: [ti(1, 'Bienvenue dans le service (fictif)'), p('Le service accueille des patients adultes. Ce livret présente l’organisation de l’équipe.')] },
+              { id: 'organisation', titre: 'Organisation', blocs: [ti(2, 'Horaires des équipes'), li('Matin : 6 h 45 – 14 h 15'), li('Après-midi : 13 h 45 – 21 h 15'), li('Nuit : 21 h – 7 h'), ti(2, 'Transmissions'), p('Transmissions orales à chaque relève, au bureau infirmier.')] },
+              { id: 'contacts', titre: 'Contacts utiles', blocs: [{ t: 'table', entete: true, lignes: [[{ runs: [{ x: 'Qui', g: true }] }, { runs: [{ x: 'Poste', g: true }] }], [{ runs: [{ x: 'Cadre de santé' }] }, { runs: [{ x: '4500' }] }], [{ runs: [{ x: 'Secrétariat' }] }, { runs: [{ x: '4520' }] }]] }, p('Numéros fictifs.')] }] } }] });
           await docD({ titre: 'Ancienne note sur les visites (fictif)', h: -24 * 90,
             versions: [{ h: -24 * 90, contenu: { blocs: [p('Note remplacée par le règlement intérieur. (fictif)')] } }],
             suite: [{ h: -24 * 25, type: 'DOC_CORBEILLE', data: { corbeille: true } }] });

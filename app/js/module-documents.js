@@ -116,10 +116,22 @@
   function contenu(c) {
     c = c && typeof c === 'object' ? c : {};
     if (c.genre === 'tableur' && T) return T.contenu(c);
-    var blocs = (Array.isArray(c.blocs) ? c.blocs : []).slice(0, 5000).map(bloc).filter(Boolean);
-    if (!blocs.length) blocs = [{ t: 'p', runs: [], al: 'g' }];
-    return { v: 1, blocs: blocs, page: page(c.page) };
+    function blocsDe(l) { var b = (Array.isArray(l) ? l : []).slice(0, 5000).map(bloc).filter(Boolean); return b.length ? b : [{ t: 'p', runs: [], al: 'g' }]; }
+    // Onglets (0.39.0) : un document texte peut être découpé en onglets { id, titre, blocs } ; sans onglet, `blocs`
+    if (Array.isArray(c.onglets) && c.onglets.length) {
+      var vus = {}, os = c.onglets.slice(0, MAX_ONGLETS).map(function (o, i) {
+        var id = texte(o && o.id, 30).replace(/[^A-Za-z0-9_-]/g, ''); if (!id || vus[id]) id = 'o' + (i + 1) + Math.random().toString(36).slice(2, 7); vus[id] = 1;
+        return { id: id, titre: texte(o && o.titre, 60).trim() || 'Onglet ' + (i + 1), blocs: blocsDe(o && o.blocs) };
+      });
+      return { v: 1, onglets: os, page: page(c.page) };
+    }
+    return { v: 1, blocs: blocsDe(c.blocs), page: page(c.page) };
   }
+  var MAX_ONGLETS = 30;
+  /** Onglets d'un contenu texte (un seul, sans titre, pour un document sans onglets). */
+  function ongletsDe(c) { var x = c && c.onglets ? c : contenu(c); return x.onglets || [{ id: '', titre: '', blocs: x.blocs }]; }
+  /** Contenu reconstruit à partir de ses onglets (sans onglets s'il n'en reste qu'un sans identifiant). */
+  function avecOnglets(os, p) { return os.length === 1 && !os[0].id ? contenu({ blocs: os[0].blocs, page: p }) : contenu({ onglets: os, page: p }); }
   /** Texte brut d'un bloc (recherche, comparaison des versions). */
   function texteBloc(b) {
     if (!b) return '';
@@ -127,9 +139,9 @@
     if (b.t === 'table') return b.lignes.map(function (l) { return l.map(function (c) { return c.runs.map(function (r) { return r.x; }).join(''); }).join(' | '); }).join('\n');
     return (b.runs || []).map(function (r) { return r.x; }).join('');
   }
-  function texteContenu(c) { var x = contenu(c); if (x.genre === 'tableur') return T.textesCases(x).map(function (y) { return y.valeur; }).join('\n'); return x.blocs.map(texteBloc).join('\n'); }
+  function texteContenu(c) { var x = contenu(c); if (x.genre === 'tableur') return T.textesCases(x).map(function (y) { return y.valeur; }).join('\n'); return ongletsDe(x).map(function (o) { return (o.titre ? o.titre + '\n' : '') + o.blocs.map(texteBloc).join('\n'); }).join('\n'); }
   /** Titres du document (sommaire). */
-  function sommaire(c) { var x = contenu(c); if (!x.blocs) return []; return x.blocs.map(function (b, i) { return /^h[123]$/.test(b.t) ? { niveau: +b.t.slice(1), texte: texteBloc(b), index: i } : null; }).filter(function (x) { return x && x.texte; }); }
+  function sommaire(c) { var x = contenu(c); if (x.genre === 'tableur') return []; return [].concat.apply([], ongletsDe(x).map(function (o) { return o.blocs; })).map(function (b, i) { return /^h[123]$/.test(b.t) ? { niveau: +b.t.slice(1), texte: texteBloc(b), index: i } : null; }).filter(function (x) { return x && x.texte; }); }
   /** Métadonnées chiffrées avec le contenu : titre, rattachements. */
   function meta(m) {
     m = m && typeof m === 'object' ? m : {};
@@ -144,7 +156,21 @@
    */
   function comparer(a, b) {
     if ((a && a.genre === 'tableur') || (b && b.genre === 'tableur')) return T.comparer(contenu(Object.assign({ genre: 'tableur' }, a)), contenu(Object.assign({ genre: 'tableur' }, b)));
-    var x = contenu(a).blocs.map(texteBloc), y = contenu(b).blocs.map(texteBloc), n = x.length, m = y.length;
+    var ca = contenu(a), cb = contenu(b);
+    if (ca.onglets || cb.onglets) {
+      // Onglets : comparaison onglet par onglet (repérés par leur identifiant)
+      var oa = ongletsDe(ca), ob = ongletsDe(cb), res = [], ids = ob.map(function (o) { return o.id; });
+      oa.forEach(function (o) { if (ids.indexOf(o.id) < 0) ids.push(o.id); });
+      ids.forEach(function (id) {
+        var x = oa.filter(function (o) { return o.id === id; })[0], y = ob.filter(function (o) { return o.id === id; })[0];
+        if (!x) { res.push({ etat: 'ajout', texte: '— Onglet ajouté : ' + y.titre + ' —' }); y.blocs.forEach(function (bl) { res.push({ etat: 'ajout', texte: texteBloc(bl) }); }); return; }
+        if (!y) { res.push({ etat: 'retrait', texte: '— Onglet retiré : ' + x.titre + ' —' }); return; }
+        res.push({ etat: x.titre === y.titre ? 'egal' : 'ajout', texte: '— Onglet : ' + (x.titre === y.titre ? y.titre : x.titre + ' → ' + y.titre) + ' —' });
+        res = res.concat(comparer({ blocs: x.blocs }, { blocs: y.blocs }));
+      });
+      return res;
+    }
+    var x = ca.blocs.map(texteBloc), y = cb.blocs.map(texteBloc), n = x.length, m = y.length;
     if (n * m > 4e6) return [{ etat: 'retrait', texte: x.join('\n') }, { etat: 'ajout', texte: y.join('\n') }];
     var L = []; for (var i = 0; i <= n; i++) { L.push(new Array(m + 1).fill(0)); }
     for (i = n - 1; i >= 0; i--) for (var j = m - 1; j >= 0; j--) L[i][j] = x[i] === y[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
@@ -165,6 +191,8 @@
    * (texte ajouté ou supprimé, mise en forme changée, paragraphe ou élément ajouté, supprimé, fusionné).
    */
   function modificationsSuivies(c) {
+    var x0 = contenu(c);
+    if (x0.onglets) return [].concat.apply([], x0.onglets.map(function (o) { return modificationsSuivies({ blocs: o.blocs }).map(function (m) { m.onglet = o.id; m.ongletTitre = o.titre; return m; }); }));
     var res = [];
     function runs(rs, i) {
       (rs || []).forEach(function (r) {
@@ -185,7 +213,9 @@
    * gardé, élément supprimé retiré, paragraphes fusionnés. Refuser : l'inverse.
    */
   function resoudreSuivi(c, accepter, id) {
-    var x = JSON.parse(JSON.stringify(contenu(c)));
+    var x0 = contenu(c);
+    if (x0.onglets) return contenu({ onglets: x0.onglets.map(function (o) { return { id: o.id, titre: o.titre, blocs: resoudreSuivi({ blocs: o.blocs }, accepter, id).blocs }; }), page: x0.page });
+    var x = JSON.parse(JSON.stringify(x0));
     function runs(rs) {
       return fusionner((rs || []).filter(function (r) { return id ? true : accepter ? !r.del : !r.ins; }).map(function (r) {
         var y = Object.assign({}, r);
@@ -281,8 +311,20 @@
     var cb = contenu(base.contenu), cm = contenu(mien.contenu), ca = contenu(autre.contenu), c;
     if (cm.genre === 'tableur' || ca.genre === 'tableur') { var f = T.fusionner(cb.genre === 'tableur' ? cb : T.contenu({}), T.contenu(cm), T.contenu(ca)); c = f.contenu; conflits += f.conflits; }
     else {
-      var b = fusion3(cb.blocs, cm.blocs, ca.blocs), p = fusionObjet(cb.page, cm.page, ca.page);
-      c = contenu({ blocs: b.elements, page: p.valeur }); conflits += b.conflits + (p.conflit ? 1 : 0);
+      // Onglet par onglet (repérés par leur identifiant) : ajoutés d'un côté gardés, retirés d'un côté sans changement de l'autre retirés
+      var ob = ongletsDe(cb), om = ongletsDe(cm), oa = ongletsDe(ca), p = fusionObjet(cb.page, cm.page, ca.page), os = [];
+      function par(l, id) { return l.filter(function (o) { return o.id === id; })[0]; }
+      var ordre = om.map(function (o) { return o.id; }); oa.forEach(function (o) { if (ordre.indexOf(o.id) < 0 && !par(ob, o.id)) ordre.push(o.id); });
+      ordre.forEach(function (id) {
+        var b0 = par(ob, id), m0 = par(om, id), a0 = par(oa, id);
+        if (!m0) { os.push(a0); return; }
+        if (!a0 && b0) { if (JSON.stringify(m0) === JSON.stringify(b0)) return; os.push(m0); conflits++; return; }
+        if (!a0) { os.push(m0); return; }
+        var f3 = fusion3(b0 ? b0.blocs : [], m0.blocs, a0.blocs), tt = fusionObjet(b0 ? b0.titre : m0.titre, m0.titre, a0.titre);
+        conflits += f3.conflits + (tt.conflit ? 1 : 0);
+        os.push({ id: id, titre: tt.valeur, blocs: f3.elements });
+      });
+      c = avecOnglets(os, p.valeur); conflits += p.conflit ? 1 : 0;
     }
     return { meta: meta(m2), contenu: c, conflits: conflits };
   }
@@ -590,7 +632,7 @@
 
   registre.declarer(contrat);
 
-  return { OPS_BLOC: OPS_BLOC, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
+  return { MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
     POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
     run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
     entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,

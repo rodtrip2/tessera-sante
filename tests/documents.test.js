@@ -333,3 +333,21 @@ test('Suivi étendu du texte : mise en forme, nouveau paragraphe, élément ajou
   assert.equal(f.blocs[0].runs[1].i, true); assert.equal(f.blocs[0].runs[1].g, undefined); assert.equal(DM.modificationsSuivies(f).length, 5);
   assert.deepEqual(tx(DM.resoudreSuivi(c, true, 'b4')).slice(-3), ['saut', 'Fin', 'Effacé']);   // « Fin » joint au bloc d'avant (le saut) impossible : gardé seul
 });
+
+test('Onglets d’un document texte : modèle, texte, comparaison, fusion, suivi par onglet', () => {
+  const p = (x, o) => Object.assign({ t: 'p', runs: [{ x }] }, o || {});
+  const c = DM.contenu({ onglets: [{ id: 'o1', titre: 'Accueil', blocs: [p('Bienvenue (fictif)')] }, { id: 'o1', titre: '', blocs: [] }, { titre: 'Règles', blocs: [p('Règle 1')] }] });
+  assert.equal(c.onglets.length, 3); assert.notEqual(c.onglets[1].id, 'o1'); assert.equal(c.onglets[1].titre, 'Onglet 2'); assert.equal(c.blocs, undefined);
+  assert.match(DM.texteContenu(c), /Accueil\nBienvenue \(fictif\)/);
+  const base = { meta: {}, contenu: { onglets: [{ id: 'a', titre: 'A', blocs: [p('1')] }, { id: 'b', titre: 'B', blocs: [p('2')] }] } };
+  const mien = { meta: {}, contenu: { onglets: [{ id: 'a', titre: 'A', blocs: [p('1 modifié')] }, { id: 'b', titre: 'B', blocs: [p('2')] }] } };
+  const autre = { meta: {}, contenu: { onglets: [{ id: 'a', titre: 'A', blocs: [p('1')] }, { id: 'b', titre: 'B bis', blocs: [p('2')] }, { id: 'c', titre: 'C', blocs: [p('3')] }] } };
+  const f = DM.fusionnerVersions(base, mien, autre);
+  assert.deepEqual(f.contenu.onglets.map((o) => o.titre + ':' + o.blocs.map(DM.texteBloc).join()), ['A:1 modifié', 'B bis:2', 'C:3']); assert.equal(f.conflits, 0);
+  const d = DM.comparer(base.contenu, autre.contenu).filter((x) => x.etat !== 'egal').map((x) => x.texte);
+  assert.deepEqual(d, ['— Onglet : B → B bis —', '— Onglet ajouté : C —', '3']);
+  const m = { p: 'a1', n: 'A', le: '2026-11-12' };
+  const s = DM.contenu({ onglets: [{ id: 'a', titre: 'A', blocs: [p('x', { runs: [{ x: 'ajout', ins: m }] })] }, { id: 'b', titre: 'B', blocs: [p('y', { runs: [{ x: 'retrait', del: m }, { x: 'reste' }] })] }] });
+  assert.deepEqual(DM.modificationsSuivies(s).map((x) => x.onglet + ':' + x.genre), ['a:ins', 'b:del']);
+  assert.deepEqual(DM.resoudreSuivi(s, true).onglets.map((o) => o.blocs.map(DM.texteBloc).join()), ['ajout', 'reste']);
+});
