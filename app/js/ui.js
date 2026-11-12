@@ -62,6 +62,81 @@
    * Message de confirmation. Juste après une seule saisie de l'agent (0.26.4) : bouton « Annuler » pendant quelques
    * secondes, qui enregistre une saisie d'annulation (rien n'est effacé ; elle reste au journal).
    */
+  // ---------------------------------------------------------------- Rubriques repliables et onglets locaux (0.43.0)
+  /*
+   * Décision du porteur du 12 novembre 2026 : les pages de réglages et les fiches trop longues se lisent en rubriques
+   * repliables (titre cliquable) ou en onglets. L'état ouvert ou replié de chaque rubrique est retenu sur le poste, par agent.
+   */
+  function cleReplis() { return 'sic-replis:' + ((App.session && App.session.utilisateur && App.session.utilisateur.id) || ''); }
+  function replis() { try { var x = JSON.parse(localStorage.getItem(cleReplis()) || '{}'); return x && typeof x === 'object' ? x : {}; } catch (e) { return {}; } }
+  function retenirRepli(cle, ouvert) { if (!cle) return; try { var x = replis(); x[cle] = ouvert ? 1 : 0; var ks = Object.keys(x); if (ks.length > 400) delete x[ks[0]]; localStorage.setItem(cleReplis(), JSON.stringify(x)); } catch (e) { /* stockage indisponible */ } }
+  /**
+   * Rend repliable un bloc déjà construit (section, fieldset…) : `titre` (son h2, sa légende…) devient le bouton qui
+   * replie ou déplie le reste ; `resume` (facultatif) s'affiche quand il est replié. o : { cle, ouvert (défaut faux), resume }.
+   * Le bloc reste le même élément (les écrans qui le mettent à jour le gardent).
+   */
+  function rendreRepliable(bloc, titre, o) {
+    o = o || {};
+    if (!bloc || !titre || bloc.classList.contains('repliable')) return bloc;
+    var memo = o.cle ? replis()[o.cle] : undefined, ouvert = memo === undefined ? !!o.ouvert : !!memo;
+    bloc.classList.add('repliable'); bloc.classList.toggle('replie', !ouvert);
+    titre.classList.add('repliable-titre'); titre.setAttribute('role', 'button'); titre.tabIndex = 0; titre.setAttribute('aria-expanded', ouvert ? 'true' : 'false');
+    var resume = o.resume ? h('span', { class: 'repliable-resume muted', text: o.resume }) : null;
+    if (resume) titre.appendChild(resume);
+    function basculer(ev) {
+      if (ev && ev.target && ev.target.closest && ev.target.closest('input, select, button, a, textarea') && ev.target !== titre) return;
+      var ouv = bloc.classList.contains('replie');
+      bloc.classList.toggle('replie', !ouv); titre.setAttribute('aria-expanded', ouv ? 'true' : 'false'); retenirRepli(o.cle, ouv);
+    }
+    titre.addEventListener('click', basculer);
+    titre.addEventListener('keydown', function (ev) { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === titre) { ev.preventDefault(); basculer(); } });
+    return bloc;
+  }
+  /** Ouvre un bloc repliable (après un ajout, une erreur à montrer…). */
+  function deplier(bloc) { if (bloc && bloc.classList.contains('replie')) { var t = bloc.querySelector(':scope > .repliable-titre'); bloc.classList.remove('replie'); if (t) t.setAttribute('aria-expanded', 'true'); } }
+  /**
+   * Panneaux d'une page longue (0.43.0) : à partir de `seuil` panneaux (3), chaque `section.panneau` titrée (h2) devient
+   * repliable ; le premier est ouvert par défaut, les autres repliés ; boutons « Tout déplier / Tout replier ».
+   */
+  function replierPanneaux(noeuds, prefixe, seuil) {
+    var ps = (noeuds || []).filter(function (n) { return n && n.nodeType === 1 && n.classList.contains('panneau') && n.querySelector(':scope > h2'); });
+    if (ps.length < (seuil || 3)) return null;
+    ps.forEach(function (p, i) { var t = p.querySelector(':scope > h2'), cle = prefixe + '|' + t.textContent.trim().slice(0, 60); p.setAttribute('data-repli', cle); rendreRepliable(p, t, { cle: cle, ouvert: i === 0 }); });
+    function tous(ouv) { ps.forEach(function (p) { var t = p.querySelector(':scope > .repliable-titre'); p.classList.toggle('replie', !ouv); if (t) t.setAttribute('aria-expanded', ouv ? 'true' : 'false'); retenirRepli(p.getAttribute('data-repli'), ouv); }); }
+    return h('div', { class: 'actions gauche replis-commandes' },
+      h('button', { class: 'btn petit', type: 'button', onclick: function () { tous(true); } }, 'Tout déplier'),
+      h('button', { class: 'btn petit', type: 'button', onclick: function () { tous(false); } }, 'Tout replier'));
+  }
+  /**
+   * Onglets dans une page ou un panneau (0.43.0) : liste [[code, libellé, contenu (nœud ou fonction)]] ; un seul contenu
+   * affiché à la fois ; o : { cle (onglet retenu sur le poste), libelle (pour les lecteurs d'écran) }.
+   */
+  function ongletsLocaux(liste, o) {
+    o = o || {};
+    liste = liste.filter(Boolean);
+    if (!liste.length) return null;
+    var memo = o.cle ? replis()['onglet|' + o.cle] : undefined, actif = liste.some(function (x) { return x[0] === memo; }) ? memo : liste[0][0];
+    var nav = h('div', { class: 'onglets-locaux', role: 'tablist', 'aria-label': o.libelle || 'Rubriques' }), zone = h('div', { class: 'onglets-locaux-contenu', role: 'tabpanel' }), faits = {};
+    function montrer(code) {
+      actif = code;
+      Array.prototype.forEach.call(nav.children, function (b) { var oui = b.getAttribute('data-code') === code; b.setAttribute('aria-selected', oui ? 'true' : 'false'); b.classList.toggle('actif', oui); });
+      Array.prototype.forEach.call(zone.children, function (c) { c.hidden = c.getAttribute('data-code') !== code; });
+      if (!faits[code]) {
+        var x = liste.filter(function (y) { return y[0] === code; })[0], c = typeof x[2] === 'function' ? x[2]() : x[2];
+        zone.appendChild(h('div', { 'data-code': code }, c)); faits[code] = 1;
+      }
+      if (o.cle) { try { var r = replis(); r['onglet|' + o.cle] = code; localStorage.setItem(cleReplis(), JSON.stringify(r)); } catch (e) { /* */ } }
+    }
+    liste.forEach(function (x) {
+      nav.appendChild(h('button', { type: 'button', role: 'tab', class: 'onglet-local', 'data-code': x[0], onclick: function () { montrer(x[0]); } }, x[1]));
+      // Contenu déjà construit : placé tout de suite (masqué), les champs restent dans la page ; fonction : construite à l'ouverture
+      if (typeof x[2] !== 'function') { zone.appendChild(h('div', { 'data-code': x[0], hidden: true }, x[2])); faits[x[0]] = 1; }
+    });
+    var el = h('div', { class: 'onglets-locaux-bloc' }, liste.length > 1 ? nav : null, zone);
+    montrer(actif);
+    return el;
+  }
+
   function toast(msg) {
     var t = h('div', { class: 'toast', role: 'status' }, h('span', { text: msg })), s = App.session, d = s && s.derniereSaisie, duree = 3500;
     if (d && Date.now() - d.le < 4000 && d.nb === 1 && s.annulableParAuteur && s.annulableParAuteur(d.evt)) {
@@ -591,7 +666,7 @@
     try { SIC.ui.miroir.demarrer(); } catch (e) { /* sans effet sur la session */ }
     retenirAccueil();
     setTimeout(purgeAutomatique, 4000);
-    setTimeout(function () { if (SIC.ui.documents && App.session && App.session.cle && !App.session.apercu && App.session.detientCle('documents')) SIC.ui.documents.effacementAutomatique().then(function (n) { if (n) toast(n + ' document(s) de la corbeille effacé(s) définitivement (durée de la corbeille écoulée).'); }).catch(function () {}); if (SIC.ui.documents && App.session && App.session.cle && App.session.detientCle('documents')) SIC.ui.documents.transfertsAutomatiques().then(function (n) { if (n) toast(n + ' document(s) d’un compte retiré transféré(s) au cadre de ses services.'); }).catch(function () {}); }, 6000);
+    setTimeout(function () { if (SIC.ui.documents && App.session && App.session.cle && !App.session.apercu && App.session.ouvert('documents')) SIC.ui.documents.effacementAutomatique().then(function (n) { if (n) toast(n + ' document(s) de la corbeille effacé(s) définitivement (durée de la corbeille écoulée).'); }).catch(function () {}); if (SIC.ui.documents && App.session && App.session.cle && App.session.ouvert('documents')) SIC.ui.documents.transfertsAutomatiques().then(function (n) { if (n) toast(n + ' document(s) d’un compte retiré transféré(s) au cadre de ses services.'); }).catch(function () {}); }, 6000);
     arreterMinuteurs();
     App.derniereActivite = Date.now();
     App.minuteurs.push(setInterval(function () {
@@ -651,7 +726,7 @@
     var limite = limiteAuxSiens();
     // Page « Aujourd'hui » (0.26.4) : ouverte à la connexion, en tête de la barre des modules
     if (ms.length && SIC.ui.vueAujourdhui && !s.apercu && !limite) res.push({ id: 'aujourdhui', libelle: 'Aujourd’hui' });
-    if (ms.length && s.detientCle && s.detientCle('patients') && SIC.modules.obtenir('patients') && !limite) res.push({ id: 'patients', libelle: 'Patients' });
+    if (ms.length && s.ouvert && s.ouvert('patients') && SIC.modules.obtenir('patients') && !limite) res.push({ id: 'patients', libelle: 'Patients' });
     ms.forEach(function (m) { res.push({ id: m.id, libelle: m.libelle }); });
     // Administration : l'administrateur ; le cadre y trouve les groupes d'agents de ses services (décision du 8 novembre 2026)
     if (s.roles().indexOf('ADMIN') >= 0 || (s.roles().indexOf('CADRE') >= 0 && SIC.groupes && !s.apercu)) res.push({ id: 'admin', libelle: 'Administration' });
@@ -666,7 +741,7 @@
   /** Modules dont certains réglages sont ouverts au cadre dans sa fenêtre Administration (`interface.admin.cadre`, 0.21.0). */
   function modulesCadre() {
     var s = App.session, acc = s ? s.modulesAccessibles().map(function (m) { return m.id; }) : [];
-    return SIC.modules.liste().filter(function (m) { return (acc.indexOf(m.id) >= 0 || (m.id === 'patients' && s && s.detientCle && s.detientCle('patients'))) && m.interface && m.interface.admin && typeof m.interface.admin.cadre === 'function'; });
+    return SIC.modules.liste().filter(function (m) { return (acc.indexOf(m.id) >= 0 || (m.id === 'patients' && s && s.ouvert && s.ouvert('patients'))) && m.interface && m.interface.admin && typeof m.interface.admin.cadre === 'function'; });
   }
   /** Onglets de la fenêtre affichée : ceux du module (son contrat), puis le journal commun. */
   function onglets() {
@@ -753,6 +828,8 @@
   /** Vrai si l'agent est en train de saisir dans la page (champ actif, hors fenêtre). */
   function saisieEnCours() {
     var a = document.activeElement;
+    // Édition maintenue ouverte (0.43.0 : choix en un clic) : les saisies enregistrées n'actualisent pas la page avant sa fermeture
+    if (document.querySelector('.edition-maintenue')) return true;
     return !!(a && zoneContenu && zoneContenu.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
   }
   function signalerAttente() {
@@ -766,6 +843,7 @@
       // Saisies arrivées d'un autre poste pendant une saisie ou un paramétrage : on ne touche pas au formulaire.
       App.miseAJourEnAttente = true; signalerAttente(); majStatutSynchro(); return;
     }
+    if (document.querySelector('.edition-maintenue')) { App.miseAJourEnAttente = true; return; }
     rendreContenu();
   }
   function majStatutSynchro() {
@@ -780,6 +858,7 @@
   var vueAffichee = null;
   function rendreContenu() {
     if (!zoneContenu || !document.body.contains(zoneContenu)) return;
+    Array.prototype.forEach.call(document.querySelectorAll('body > .edition-maintenue'), function (x) { x.remove(); });   // édition en un clic fermée par l'actualisation
     // Même onglet : on garde la position de défilement de la page et des tableaux
     var cleVue = App.onglet + '|' + App.service + (estOngletAdmin(App.onglet) ? '|' + App.sousOngletAdmin : '');
     var memeVue = vueAffichee === cleVue;
@@ -890,7 +969,7 @@
     var ea = s.etatAttestation && s.etatAttestation();
     if (ea && ea.attestateur && !s.formation && ea.anomalies.some(function (x) { return x.bloquante; })) zoneEntete.appendChild(h('div', { class: 'bandeau-secours', role: 'alert' },
       h('span', { text: 'Coffre modifié hors de l’outil ou restauré : aucune remise de clé avant réparation. ' }),
-      h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'comptes'; rendreContenu(); } }, 'Voir')));
+      h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'securite'; rendreContenu(); } }, 'Voir')));
     var nav = h('nav', { class: 'onglets', 'aria-label': 'Sections' });
     onglets().forEach(function (o) {
       if (!affichable(o[0])) return;
@@ -1229,10 +1308,10 @@
     // -- Activation des modules par service (socle, architecture § 5)
     var casesModules = [];
     var tableModules = h('table', {},
-      h('thead', {}, h('tr', {}, [h('th', { text: 'Service' })].concat(SIC.modules.affiches().map(function (m) { return h('th', { text: m.libelle }); })))),
+      h('thead', {}, h('tr', {}, [h('th', { text: 'Service' })].concat(SIC.modules.affiches().map(function (m) { return h('th', { text: m.libelle + (m.droits.arrete && m.droits.arrete(cfg) ? ' (arrêté)' : '') }); })))),
       h('tbody', {}, tousServices().map(function (sv) {
         return h('tr', {}, [h('td', { text: sv.libelle + ' (' + sv.code + ')' })].concat(SIC.modules.affiches().map(function (m) {
-          var cb = h('input', { type: 'checkbox', checked: m.droits.serviceActif(cfg, sv.code), 'aria-label': m.libelle + ' — ' + sv.libelle });
+          var cb = h('input', { type: 'checkbox', checked: m.droits.serviceChoisi(cfg, sv.code), 'aria-label': m.libelle + ' — ' + sv.libelle });
           casesModules.push({ module: m, service: sv, cb: cb });
           return h('td', {}, h('label', { class: 'case' }, cb, h('span', { text: 'activé' })));
         })));
@@ -1249,8 +1328,8 @@
           var lignes = casesModules.filter(function (c) { return c.module === m; });
           var actifs = lignes.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.service.code; });
           lignes.forEach(function (c) { if (!c.cb.checked && m.droits.serviceActif(cfg, c.service.code)) desactives.push(m.libelle + ' — ' + c.service.libelle); });
-          if (actifs.length === lignes.length) delete valeur[m.id];       // tous les services : réglage d'origine
-          else valeur[m.id] = { tous: false, services: actifs };
+          if (!actifs.length && SIC.modules.indispensable(m.id)) throw new Error('« ' + m.libelle + ' » est indispensable : laissez-le activé pour au moins un service.');
+          SIC.modules.ecrireActivation(valeur, m.id, actifs, actifs.length === lignes.length);   // tous les services : réglage d'origine ; arrêt gardé
         });
         if (desactives.length && !confirm('Désactiver :\n' + desactives.join('\n') + '\n\nLes données sont conservées, mais plus aucune saisie ne sera possible dans ces services ; seuls ' + (encadrement.length ? encadrement.join(', ') + ' et l’administrateur' : 'l’administrateur') + ' les consulteront. Continuer ?')) return;
         await enregistrerConfig([['modulesServices', valeur]]);
@@ -1354,7 +1433,10 @@
     function avecNote(liste) { return note ? liste.map(function (o) { return [o[0], o[1], [note].concat(o[2])]; }) : liste; }
     var groupes = {
       general: s.formation ? [['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)], ['sauvegardes', 'Sauvegardes et exports', [pExports].concat(pModule.sauvegardes)], ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos]]]
-        : [['comptes', 'Comptes et sécurité', [pAttestation, pTrousseau, pIncomplets, comptes, SIC.ui.roles.panneau(), deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
+        // Comptes et sécurité découpé en trois rubriques (0.43.0, demande du porteur du 12 novembre 2026 : pages trop longues)
+        : [['comptes', 'Comptes', [pIncomplets, comptes].filter(Boolean)],
+          ['roles', 'Rôles et accès', [SIC.ui.roles.panneau()]],
+          ['securite', 'Sécurité et clés', [pAttestation, pTrousseau, deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
           ['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)],
           ['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
           ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos, SIC.ui.version.panneau(), demo]]],
@@ -1378,7 +1460,9 @@
           rendreContenu();
         } }, x[1]);
       }));
-      return h('div', {}, h('h1', { text: titre }), liste.length > 1 ? nav : null, h('div', { class: 'contenu-sous-onglet' }, actif[2]));
+      // Rubrique longue (0.43.0) : panneaux repliables, le premier ouvert
+      var cmd = replierPanneaux(actif[2], 'admin|' + App.onglet + '|' + actif[0], 2);
+      return h('div', {}, h('h1', { text: titre }), liste.length > 1 ? nav : null, h('div', { class: 'contenu-sous-onglet' }, cmd, actif[2]));
     }
   }
 
@@ -1967,13 +2051,14 @@
    */
   function chambresTravaux(services) {
     var s = App.session;
-    try { var e = s && s.detientCle && s.detientCle('travaux') ? s.etatModule('travaux') : null; return e ? SIC.modules.lire('travaux.chambres', e, { services: services, config: config() }) || [] : []; }
+    try { var e = s && s.ouvert && s.ouvert('travaux') ? s.etatModule('travaux') : null; return e ? SIC.modules.lire('travaux.chambres', e, { services: services, config: config() }) || [] : []; }
     catch (err) { return []; }
   }
 
   // ================================================================ Partage avec les autres modules
   SIC.ui = {
     vues: (SIC.ui && SIC.ui.vues) || {}, actions: (SIC.ui && SIC.ui.actions) || {},
+    rendreRepliable: rendreRepliable, deplier: deplier, replierPanneaux: replierPanneaux, ongletsLocaux: ongletsLocaux,
     h: h, vider: vider, date: date, court: court, duree: duree, relatif: relatif, versSaisie: versSaisie, depuisSaisie: depuisSaisie,
     ouvrirFenetre: ouvrirFenetre, toast: toast, modale: modale, imprimer: imprimer, imprimerPage: imprimerPage, impressionNB: impressionNB, erreurDans: erreurDans, fmtJour: fmtJour,
     App: App, st: st, config: config, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,

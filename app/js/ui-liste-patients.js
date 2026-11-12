@@ -32,8 +32,8 @@
   /** Colonnes du module Suivi médical : lues à la volée (fourniture suivi.patient) si l'agent en détient la clé. */
   /** Nom actuel d'un médecin (un ancien nom saisi dans la fiche suit le médecin). */
   function nomMed(n, id) { return (n || id) && SIC.medecins ? SIC.medecins.resoudre(U.config(), n, id) : (n || ''); }
-  function suiviLisible() { var s = session(); return !!(s.detientCle && s.detientCle('suivi')) && !!s.etatModule('suivi'); }
-  function isocontLisible() { var s = session(); return !!(s.detientCle && s.detientCle('isocont')) && !!U.st() && !!U.st().mesures; }
+  function suiviLisible() { var s = session(); return !!(s.ouvert && s.ouvert('suivi')) && !!s.etatModule('suivi'); }
+  function isocontLisible() { var s = session(); return !!(s.ouvert && s.ouvert('isocont')) && !!U.st() && !!U.st().mesures; }
   /** Données complémentaires de la fiche visibles par l'agent (tous ses services), en colonnes « c:<id> ». */
   function colonnesComplements() {
     var roles = session().roles();

@@ -20,7 +20,7 @@
   function s() { return U.App.session; }
   function st() { try { return s().etatModule('agenda'); } catch (e) { return null; } }
   function moi() { return s().compteEffectif(); }
-  function disponible() { try { return !!s() && s().detientCle && s().detientCle('agenda') && s().aClePersonnelle && s().aClePersonnelle() && !s().apercu; } catch (e) { return false; } }
+  function disponible() { try { return !!s() && s().ouvert && s().ouvert('agenda') && s().aClePersonnelle && s().aClePersonnelle() && !s().apercu; } catch (e) { return false; } }
   function jourISO(t) { var d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function plusJours(j, n) { var p = j.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() + n); return jourISO(d.getTime()); }
   function jourFr(j) { return j ? j.split('-').reverse().join('/') : ''; }
@@ -104,11 +104,11 @@
     var res = [];
     SIC.modules.liste().forEach(function (m) {
       var f = m.interface && m.interface.informations;
-      if (typeof f !== 'function' || !s().detientCle || !s().detientCle(m.id)) return;
+      if (typeof f !== 'function' || !s().ouvert || !s().ouvert(m.id)) return;
       try { (f({ sansPerso: true }) || []).forEach(function (i) { res.push(Object.assign({ module: m.id, libModule: m.libelle }, i)); }); } catch (e) { /* module sans informations */ }
     });
     try {
-      var ms = SIC.modules.obtenir('messagerie'), n = ms && ms.interface && ms.interface.pastille && s().detientCle('messagerie') ? ms.interface.pastille() : 0;
+      var ms = SIC.modules.obtenir('messagerie'), n = ms && ms.interface && ms.interface.pastille && s().ouvert('messagerie') ? ms.interface.pastille() : 0;
       if (n) res.unshift({ id: 'mt-messagerie', module: 'messagerie', libModule: 'Messagerie', niveau: 'warn', titre: n + ' message' + (n > 1 ? 's' : '') + ' ou information' + (n > 1 ? 's' : '') + ' vous attendent', ouvrir: function () { U.ouvrirFenetre('messagerie'); } });
     } catch (e) { /* sans messagerie */ }
     return res;

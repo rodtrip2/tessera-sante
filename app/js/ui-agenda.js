@@ -109,7 +109,7 @@
       h('div', { class: 'ag-bloc-tete' }, h('b', { text: plage + ' ' + libelleElement(r) })),
       x.patients.length ? h('div', { class: 'ag-ligne', text: nomsPatients(x.patients).join(', ') }) : null,
       r.lieu ? h('div', { class: 'ag-ligne muted', text: r.lieu }) : null,
-      r.salle && U.salles && U.App.session.detientCle('salles') ? h('div', { class: 'ag-ligne muted ag-salle', text: 'Salle : ' + U.salles.libelle('agenda|' + r.id + '|' + x.occurrence, r.salle) }) : null,
+      r.salle && U.salles && U.App.session.ouvert('salles') ? h('div', { class: 'ag-ligne muted ag-salle', text: 'Salle : ' + U.salles.libelle('agenda|' + r.id + '|' + x.occurrence, r.salle) }) : null,
       (r.professionnels || []).length ? h('div', { class: 'ag-ligne muted', text: r.professionnels.map(function (p) { return p.nom; }).join(', ') }) : null,
       h('div', { class: 'ag-badges' },
         x.annulee ? h('span', { class: 'badge bad', text: 'Annulée' + (r.motifAnnulation ? ' : ' + r.motifAnnulation : '') }) : null,
@@ -259,7 +259,7 @@
     }
     // Interventions programmées des demandes de travaux (0.22.0), lues à la volée si l'agent a la clé du module
     try {
-      var stT = U.App.session.detientCle && U.App.session.detientCle('travaux') ? U.App.session.etatModule('travaux') : null;
+      var stT = U.App.session.ouvert && U.App.session.ouvert('travaux') ? U.App.session.etatModule('travaux') : null;
       (stT ? SIC.modules.lire('travaux.interventions', stT, { services: svs, debut: A.jourISO(debut), fin: A.jourISO(plusJours(debut, n - 1)) }) || [] : []).forEach(function (x) {
         var t = stT.demandes[x.demande], T = SIC.travaux;
         ajouter(x.jour, puce('travaux', 'Travaux : ' + T.lib(T.options(U.config(), x.service).types, x.type) + ' — ' + T.libLieu(t, U.config()), function () { if (U.travaux) U.travaux.modaleDemande(t); }));
@@ -341,7 +341,7 @@
   /** Section « Agenda du patient » de la fiche : éléments à venir, « + Événement pour ce patient ». */
   function sectionPatient(p, fermerPuis) {
     var s = U.App.session;
-    if (!s.detientCle || !s.detientCle('agenda') || !s.etatModule('agenda')) return null;
+    if (!s.ouvert || !s.ouvert('agenda') || !s.etatModule('agenda')) return null;
     var els = aVenirPour(p.id), sv = A.serviceDuPatient(p);
     return h('div', { class: 'pile' }, h('div', { class: 'barre' }, h('b', { text: 'Agenda du patient (60 prochains jours)' }), h('div', { class: 'espace' }),
       peut('RDV') ? h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { fermerPuis(function () { modaleAjout(null, { patients: [p.id], service: sv && U.services().some(function (v) { return v.code === sv; }) ? sv : undefined }); }); } }, '+ Événement pour ce patient') : null),
@@ -498,7 +498,7 @@
       h('b', { text: r.titre || '' }),
       r.lieu ? h('div', {}, h('small', { text: r.lieu })) : null,
       // Salle réservée (Salles et bureaux, 0.25.0), après arbitrage
-      r.salle && U.salles && U.App.session.detientCle('salles') ? h('div', {}, h('small', { class: 'ag-salle', text: 'Salle : ' + U.salles.libelle('agenda|' + r.id + '|' + x.occurrence, r.salle) })) : null,
+      r.salle && U.salles && U.App.session.ouvert('salles') ? h('div', {}, h('small', { class: 'ag-salle', text: 'Salle : ' + U.salles.libelle('agenda|' + r.id + '|' + x.occurrence, r.salle) })) : null,
       x.patients.length ? h('div', {}, h('small', { text: (x.patients.length > 1 ? 'Patients : ' : 'Patient : ') + nomsPatients(x.patients).join(', ') })) : null,
       (r.professionnels || []).length ? h('div', {}, h('small', { class: 'muted', text: r.professionnels.map(function (p) { return p.nom; }).join(', ') })) : null,
       (r.commentaires || []).length ? h('div', {}, h('small', { class: 'muted', text: r.commentaires.length + ' commentaire(s)' })) : null,
@@ -519,7 +519,7 @@
   // ------------------------------------------------------------ Véhicules du service (module Véhicules, décision du 8 novembre 2026)
   // Disponibilités lues à la volée (fourniture « vehicules.disponibles ») ; réservation liée à l'élément, à la date et au transport.
   var HORIZON_VEHICULES = 28;   // jours : dates d'un élément répété réservées d'office ; au-delà, « Réserver le véhicule » à la date
-  function etatVehicules() { var s = U.App.session; try { return s && s.detientCle && s.detientCle('vehicules') ? s.etatModule('vehicules') : null; } catch (e) { return null; } }
+  function etatVehicules() { var s = U.App.session; try { return s && s.ouvert && s.ouvert('vehicules') ? s.etatModule('vehicules') : null; } catch (e) { return null; } }
   function vehiculesDispo(service, debut, fin, exclure) { var e = etatVehicules(); return e ? (SIC.modules.lire('vehicules.disponibles', e, { service: service, debut: debut, fin: fin, exclure: exclure, libService: U.libService }) || []) : null; }
   function vehiculesLies(rdv, occurrence) { var e = etatVehicules(); return e ? (SIC.modules.lire('vehicules.liees', e, { rdv: rdv, occurrence: occurrence }) || []) : []; }
   function peutReserverVehicule() { try { return !!etatVehicules() && U.App.session.peut('RESERVATION'); } catch (e) { return false; } }
@@ -646,7 +646,7 @@
     var hDebut = h('input', Object.assign({ type: 'time', value: hm(base) }, dis)), hFin = h('input', Object.assign({ type: 'time', value: x.fin ? hm(x.fin) : ini.fin ? hm(ini.fin) : hm(base + 3600e3) }, dis));
     var lieu = h('input', Object.assign({ type: 'text', maxlength: 80, value: x.lieu || '', placeholder: 'ex. Salle d’activités, extérieur' }, dis));
     // Salle réservée (module Salles et bureaux, 0.25.0) : disponibilité affichée, conflit arbitré par le gestionnaire
-    var avecSalles = !!(U.salles && s.detientCle && s.detientCle('salles')), selSalle = null;
+    var avecSalles = !!(U.salles && s.ouvert && s.ouvert('salles')), selSalle = null;
     var patients = (x.patients || ini.patients || []).slice(), profs = (x.professionnels || []).map(function (p) { return { id: p.id || null, nom: p.nom }; });
     var transports = (Array.isArray(x.transports) ? x.transports : []).map(function (t) { return Object.assign({}, t); });
     var validations = A.validationsDe(x).map(function (v) { return Object.assign({}, v); });
