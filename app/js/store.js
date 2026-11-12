@@ -406,7 +406,7 @@
     if (!parties.length || parties.some(function (x) { return x === '.' || x === '..' || !/^[\p{L}\p{N}_ .()'-]{1,60}$/u.test(x); })) return null;
     return parties;
   }
-  var RESERVES = ['evenements', 'instantanes', 'coffre-historique', 'reperes', 'quarantaine', 'preferences', 'formation', 'socle', 'modules', 'documents-cles'];
+  var RESERVES = ['evenements', 'instantanes', 'coffre-historique', 'reperes', 'quarantaine', 'preferences', 'formation', 'socle', 'modules', 'documents-cles', 'documents-presence'];
 
   /**
    * Enregistre un fichier exporté (PDF, CSV…) dans le dossier des exports, sous-dossier `categorie`.
@@ -527,6 +527,30 @@
     var dir = await this.sousDossier(['documents-cles'], true);
     await this.ecrireFichier(dir, nomClesDoc(id, 'efface'), new TextEncoder().encode(JSON.stringify({ efface: new Date().toISOString() })));
     try { await dir.removeEntry(nomClesDoc(id)); } catch (e) { /* déjà absent */ }
+  };
+
+  /**
+   * Présence sur un document (0.37.0) : `documents-presence/<document>.<agent>.json`, réécrit toutes les quelques secondes
+   * par le poste qui a le document ouvert et retiré à la fermeture ; contenu chiffré par la clé du document. Ni copié par
+   * le miroir, ni gardé dans les sauvegardes (information de l'instant).
+   */
+  var NOM_PRESENCE = /^(DC[0-9a-f]{8,32})\.([A-Za-z0-9_-]{1,60})\.json$/;
+  Dossier.prototype.ecrirePresence = async function (id, agent, objet) {
+    var n = id + '.' + agent + '.json'; if (!NOM_PRESENCE.test(n)) throw new Error('Présence : nom invalide.');
+    await this.ecrireFichier(await this.sousDossier(['documents-presence'], true), n, new TextEncoder().encode(JSON.stringify(objet)));
+  };
+  Dossier.prototype.lirePresences = async function (id) {
+    var dir; try { dir = await this.sousDossier(['documents-presence'], false); } catch (e) { return []; }
+    var res = [];
+    for await (var h of dir.values()) {
+      var m = h.kind === 'file' && NOM_PRESENCE.exec(h.name);
+      if (!m || m[1] !== id) continue;
+      try { var f = await h.getFile(), o = JSON.parse(new TextDecoder().decode(new Uint8Array(await f.arrayBuffer()))); res.push({ agent: m[2], modifie: f.lastModified, objet: o }); } catch (e) { /* fichier en cours d'écriture */ }
+    }
+    return res;
+  };
+  Dossier.prototype.retirerPresence = async function (id, agent) {
+    try { var dir = await this.sousDossier(['documents-presence'], false); await dir.removeEntry(id + '.' + agent + '.json'); } catch (e) { /* déjà absent */ }
   };
 
   // ---------------------------------------------------------- Événements
@@ -668,7 +692,7 @@
   // déplacement des données vers un nouveau dossier. Les saisies (fichiers jamais modifiés) sont réunies dans les
   // deux sens ; le coffre retenu est celui de plus haute révision ; les autres fichiers, le plus récent.
   var INSTANTANES = ['instantanes', 'socle/instantanes', 'modules/*/instantanes'];
-  var EXCLUS_MIROIR = INSTANTANES.concat(['formation', 'modules/*/formation', 'exports']);
+  var EXCLUS_MIROIR = INSTANTANES.concat(['formation', 'modules/*/formation', 'exports', 'documents-presence']);
   function exclu(chemin, exclus) {
     var p = chemin.split('/');
     return exclus.some(function (e) { var q = e.split('/'); return q.length === p.length && q.every(function (x, i) { return x === '*' || x === p[i]; }); });

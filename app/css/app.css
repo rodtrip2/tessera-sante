@@ -1194,3 +1194,18 @@ dialog.doc-editeur { width: 100vw; max-width: 100vw; height: 100vh; max-height: 
 .tb-filtre-liste { max-height: 45vh; overflow: auto; display: flex; flex-direction: column; gap: .15rem; border: 1px solid var(--line); border-radius: var(--radius); padding: .4rem .6rem; }
 .tb-apercu-regle { display: inline-block; padding: 0 .5rem; border: 1px solid var(--line); border-radius: 4px; color: #000; }
 @media print { .tb-filtre-btn { display: none; } .tb-table td.tb-nonconforme { background-image: none; } }
+/* Documents : travail à plusieurs, suivi des modifications (0.37.0) */
+.doc-travail { margin-top: .35rem; font-size: .9rem; }
+.doc-travail .btn.petit.actif { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.doc-presence { margin-left: auto; font-size: .85rem; }
+.doc-avatar { font-weight: 600; }
+.doc-avatar.modifie { color: var(--accent); }
+ins.suivi-ins { color: #1b5e20; text-decoration: underline; text-decoration-color: #2e7d32; background: rgba(46, 125, 50, .08); }
+del.suivi-del { color: #b3261e; text-decoration: line-through; }
+.doc-corps.suivi-masque del.suivi-del { display: none; }
+.doc-corps.suivi-masque ins.suivi-ins { color: inherit; text-decoration: none; background: none; }
+.suivi-vu { outline: 2px solid var(--accent); }
+.doc-suivi-ligne { display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: center; border-bottom: 1px solid var(--line); padding: .3rem 0; }
+.tb-table td.tb-suivi { box-shadow: inset 3px 0 0 #2e7d32; background-color: rgba(46, 125, 50, .07); }
+.tb-grille.tb-sans-marques td.tb-suivi { box-shadow: none; background-color: transparent; }
+@media print { ins.suivi-ins { background: none; } }

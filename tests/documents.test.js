@@ -250,3 +250,63 @@ test('Transfert par la session de l’administrateur : le cadre lit le document 
   assert.equal((await cd.dechiffrerDocument('DC0000000e', v.g, v.ct)).meta.titre, 'Notes de l’agent parti (fictif)');
   assert.equal(DM.droitDe(cd.etatModule('documents').docs.DC0000000e, cd.compteEffectif(), cd.etat.config), 'gerer');
 });
+
+test('Fusion à trois d’un document texte : changements de chacun gardés, conflit compté', () => {
+  const p = (x) => ({ t: 'p', runs: [{ x }] });
+  const base = { meta: { titre: 'Procédure (fictif)' }, contenu: { blocs: [p('un'), p('deux'), p('trois'), p('quatre')] } };
+  const mien = { meta: { titre: 'Procédure (fictif)' }, contenu: { blocs: [p('un modifié'), p('deux'), p('trois'), p('quatre')] } };
+  const autre = { meta: { titre: 'Procédure révisée (fictif)' }, contenu: { blocs: [p('un'), p('deux'), p('trois'), p('quatre'), p('cinq')] } };
+  let f = DM.fusionnerVersions(base, mien, autre);
+  assert.deepEqual(f.contenu.blocs.map(DM.texteBloc), ['un modifié', 'deux', 'trois', 'quatre', 'cinq']);
+  assert.equal(f.meta.titre, 'Procédure révisée (fictif)'); assert.equal(f.conflits, 0);
+  const autre2 = { meta: base.meta, contenu: { blocs: [p('un autre'), p('deux'), p('trois')] } };
+  f = DM.fusionnerVersions(base, mien, autre2);
+  assert.deepEqual(f.contenu.blocs.map(DM.texteBloc), ['un modifié', 'un autre', 'deux', 'trois']);   // conflit : les deux gardés ; « quatre » supprimé par l'autre
+  assert.equal(f.conflits, 1);
+});
+
+test('Fusion à trois d’un tableur : case par case, feuilles ajoutées', () => {
+  const c = (cells, plus) => ({ contenu: { genre: 'tableur', feuilles: [{ nom: 'A', cellules: cells }].concat(plus || []) }, meta: { titre: 'T (fictif)' } });
+  const f = DM.fusionnerVersions(c({ A1: { v: 1 }, B1: { v: 2 } }), c({ A1: { v: 10 }, B1: { v: 2 }, C1: { v: 3 } }), c({ A1: { v: 1 }, B1: { v: 20 } }, [{ nom: 'Nouvelle', cellules: { A1: { v: 'x' } } }]));
+  assert.deepEqual(f.contenu.feuilles[0].cellules, { A1: { v: 10 }, B1: { v: 20 }, C1: { v: 3 } });
+  assert.equal(f.contenu.feuilles[1].nom, 'Nouvelle'); assert.equal(f.conflits, 0);
+  const g = DM.fusionnerVersions(c({ A1: { v: 1 } }), c({ A1: { v: 10 } }), c({ A1: { v: 11 } }));
+  assert.equal(g.contenu.feuilles[0].cellules.A1.v, 10); assert.equal(g.conflits, 1);
+});
+
+test('Suivi des modifications : marques gardées, liste, tout accepter ou refuser ; options du document', () => {
+  const m = { p: 'a1', n: 'Agent A (fictif)', le: '2026-11-12T10:00:00.000Z' };
+  const c = DM.contenu({ blocs: [{ t: 'p', runs: [{ x: 'Le ' }, { x: 'vieux ', del: m }, { x: 'nouveau ', ins: m }, { x: 'texte' }] }] });
+  assert.equal(c.blocs[0].runs.length, 4);
+  assert.deepEqual(DM.modificationsSuivies(c).map((x) => x.genre + ':' + x.texte), ['del:vieux ', 'ins:nouveau ']);
+  assert.equal(DM.texteBloc(DM.resoudreSuivi(c, true).blocs[0]), 'Le nouveau texte');
+  assert.equal(DM.texteBloc(DM.resoudreSuivi(c, false).blocs[0]), 'Le vieux texte');
+  assert.equal(DM.modificationsSuivies(DM.resoudreSuivi(c, true)).length, 0);
+  const st = DM.reduire([{ id: 'e1', at: new Date().toISOString(), by: 'a1', type: 'DOC', data: { id: 'DC00000011' } }, { id: 'e2', at: new Date().toISOString(), by: 'a1', type: 'DOC_OPTIONS', data: { doc: 'DC00000011', simultane: true, suivi: true } }]);
+  assert.equal(st.docs.DC00000011.options.simultane, true); assert.equal(st.docs.DC00000011.options.suivi, true);
+  assert.throws(() => DM.controler('DOC_OPTIONS', { doc: 'DC00000011', suivi: false }, { etat: st, compte: { id: 'x', roles: ['IDE'], services: [] }, config: {} }), /modifier/);
+});
+
+test('Présence sur un document : vue des seuls agents qui ont la clé, retirée à la fermeture', async () => {
+  const { racine, id } = await equipe();
+  const a = await co(racine, 'ide.a', 'mot de passe ide a');
+  await a.creerCleDocument('DC00000012', ['k-a.' + id('ide.a'), 'k-s.U1']);
+  await a.signalerPresence('DC00000012', { modifie: true });
+  const c = await co(racine, 'cadre', 'mot de passe cadre');
+  const p = await c.presencesDocument('DC00000012');
+  assert.equal(p.length, 1); assert.equal(p[0].nom, 'IDE A (fictif)'); assert.equal(p[0].modifie, true);
+  const b = await co(racine, 'ide.b', 'mot de passe ide b');
+  assert.deepEqual(await b.presencesDocument('DC00000012'), []);   // sans la clé du document : rien
+  assert.deepEqual(await a.presencesDocument('DC00000012'), []);   // sa propre présence n'est pas listée
+  await a.retirerPresence('DC00000012');
+  assert.deepEqual(await c.presencesDocument('DC00000012'), []);
+});
+
+test('Fusion à trois : deux paragraphes différents modifiés en même temps, sans conflit', () => {
+  const p = (x) => ({ t: 'p', runs: [{ x }] }), tx = (r) => r.elements.map(DM.texteBloc);
+  assert.deepEqual(tx(DM.fusion3([p('1'), p('2')], [p('1A'), p('2')], [p('1'), p('2B')])), ['1A', '2B']);
+  assert.deepEqual(tx(DM.fusion3([p('1'), p('2'), p('3')], [p('0'), p('1'), p('2'), p('3')], [p('1'), p('2'), p('3'), p('4')])), ['0', '1', '2', '3', '4']);
+  assert.deepEqual(tx(DM.fusion3([p('1'), p('2'), p('3')], [p('1'), p('3')], [p('1'), p('2'), p('3B')])), ['1', '3B']);
+  const r = DM.fusion3([p('1')], [p('1A')], [p('1B')]); assert.deepEqual(tx(r), ['1A', '1B']); assert.equal(r.conflits, 1);
+  assert.equal(DM.fusion3([p('1')], [p('1A')], [p('1A')]).conflits, 0);
+});
