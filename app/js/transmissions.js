@@ -53,8 +53,9 @@
   function modele(o) {
     o = o || {};
     var c1 = [{ code: 'chambre', gras: true, taille: 11 }, { code: 'patient', gras: true, majuscules: false, ligne: true }, { code: 'entree', format: 'jourMoisJours', etiquette: true, libelle: 'Entrée' }, { code: 'mode', etiquette: false },
-      { code: 'medecin1', etiquette: true, libelle: 'Médecin 1' }, { code: 'medecin2', etiquette: true, libelle: 'Médecin 2' }, { code: 'psychologue', etiquette: true, libelle: 'Psychologue' },
-      { code: 'referents', etiquette: true, libelle: 'Référents' }, { code: 'contrat', etiquette: true, libelle: 'Contrat' }, { code: 'dernierEntretien', etiquette: true, libelle: 'Entretien médical' }];
+      { code: 'medecin1', etiquette: true }, { code: 'medecin2', etiquette: true }, { code: 'psychologue', etiquette: true, libelle: 'Psychologue' },
+      { code: 'referents', etiquette: true, libelle: 'Référents' }, { code: 'suiviASOuiNon', etiquette: true, libelle: 'Assistant(e) social(e)', masquerVide: false },
+      { code: 'protectionOuiNon', etiquette: true, libelle: 'Mesure de protection' }, { code: 'contrat', etiquette: true, libelle: 'Contrat' }, { code: 'dernierEntretien', etiquette: true, libelle: 'Entretien médical' }];
     return {
       cases: [
         { id: 'patient', titre: 'Chambre — patient', largeur: 230, elements: c1 },

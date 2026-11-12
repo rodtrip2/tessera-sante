@@ -164,7 +164,14 @@
     var cols = [];
     function col(c) { cols.push(c); }
     if (entite === 'patients') {
-      var lib1 = 'Médecin de 1re ligne', lib2 = 'Médecin de 2e ligne';
+      // Libellés du service (réglage de la fiche patient : « Psychiatre » en psychiatrie, « Médecin » sinon) : ceux des
+      // services affichés s'ils sont les mêmes partout, sinon libellé général
+      var PF = (typeof self !== 'undefined' && self.SIC && self.SIC.patients) || null, lib1 = 'Médecin de 1re ligne', lib2 = 'Médecin de 2e ligne';
+      if (PF && PF.optionsFiche && (ctx.services || []).length) {
+        var ops = ctx.services.map(function (sv) { return PF.optionsFiche(ctx.config, sv); });
+        if (ops.every(function (o) { return o.medecin1 === ops[0].medecin1; })) lib1 = ops[0].medecin1;
+        if (ops.every(function (o) { return o.medecin2 === ops[0].medecin2; })) lib2 = ops[0].medecin2;
+      }
       col({ code: 'patient', libelle: 'Patient', type: 'texte', journal: 'patients', lire: function (l) { var n = ((l.p.nom || '?') + ' ' + (l.p.prenom || '')).trim(); return { v: n, lib: n, brute: n }; } });
       col({ code: 'chambre', libelle: 'Chambre', type: 'texte', journal: 'patients', edition: { type: 'sejour', cle: 'chambre' }, lire: function (l) { var t = (l.chambre + (l.lit ? ' ' + l.lit : '')).trim(); return { v: t, lib: t || '—', brute: t }; } });
       col({ code: 'service', libelle: 'Unité', type: 'texte', journal: 'patients', lire: function (l) { var t = ctx.libService ? ctx.libService(l.service) : l.service; return { v: t, lib: t || '—', brute: t, cle: l.service }; } });
@@ -192,6 +199,13 @@
         var a = l.p.suiviAS; return { v: a ? !!a.suivi : null, lib: !a ? '—' : (a.suivi ? 'Oui' + (a.nom ? ' (' + a.nom + ')' : '') : 'Non'), brute: a ? (a.suivi ? 1 : 0) : null };
       } });
       col({ code: 'protection', libelle: 'Mesure de protection', type: 'texte', journal: 'patients', lire: function (l) { return { v: l.p.protection || null, lib: l.p.protection || '—', brute: l.p.protection || null }; } });
+      // Tableau de transmissions (12 novembre 2026) : suivi social et mesure de protection en oui ou non
+      col({ code: 'suiviASOuiNon', libelle: 'Suivi assistant(e) social(e) (oui ou non)', type: 'ouiNon', journal: 'patients', edition: { type: 'suiviAS' }, lire: function (l) {
+        var a = l.p.suiviAS; return { v: !!(a && a.suivi), lib: a && a.suivi ? 'Oui' : 'Non', brute: a && a.suivi ? 1 : 0 };
+      } });
+      col({ code: 'protectionOuiNon', libelle: 'Mesure de protection (oui ou non)', type: 'texte', journal: 'patients', edition: { type: 'texte', cle: 'protection' }, lire: function (l) {
+        var t = l.p.protection ? 'Oui (' + l.p.protection + ')' : 'Non'; return { v: l.p.protection || null, lib: t, brute: l.p.protection ? 1 : 0 };
+      } });
       col({ code: 'sortiePrevue', libelle: 'Sortie envisagée ou actée', alias: ['sortie prévisionnelle'], type: 'dateFenetre', journal: 'patients', reglage: 'patients.sortiePrevue', defaut: { regles: SO.REGLES_DEFAUT }, edition: { type: 'sortiePrevue' }, lire: function (l) {
         // Une seule donnée, deux états (0.21.0) : la couleur suit l'état (règles « est égal à actee / envisagee », réglables)
         var s = sejourEnCours(l.p), v = s && s.sortiePrevue;

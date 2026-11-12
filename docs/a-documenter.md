@@ -115,6 +115,14 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.30.2 (branche `transmissions-3`, 12 novembre 2026) : tableau de transmissions, psychiatre, suivi social, protection
+
+| Sujet | Demandes du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| « Psychiatre » ou « Médecin » selon le service | Le libellé des médecins de 1re et 2e ligne suit le réglage de la fiche patient de chaque service (service de psychiatrie : « Psychiatre de 1re ligne », sinon « Médecin… », libellés propres possibles) : dans le tableau de transmissions ligne par ligne, et dans les titres des autres vues quand tous les services affichés ont le même libellé | Réglage existant `fichePatient.services` (*Administration → Établissement et services*) ; `optionsFiche` lu par `module-vue.js` et `ui-transmissions.js` ; modèle proposé sans libellé fixe pour les médecins |
+| Suivi par l'assistant(e) social(e) | Oui ou non seulement, sans le nom (non renseigné : « Non ») | Donnée `suiviASOuiNon` du catalogue, modifiable sur place (même saisie que le suivi social) |
+| Mesure de protection | Oui (avec sa nature) ou non | Donnée `protectionOuiNon`, modifiable sur place (saisie `PATIENT`, champ `protection`) ; démonstration : curatelle renforcée d'un patient de l'Unité 1 |
+
 ## Version 0.30.1 (branche `transmissions-2`, 12 novembre 2026) : tableau de transmissions, suite
 
 | Sujet | Demandes du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
