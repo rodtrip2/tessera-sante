@@ -115,6 +115,22 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.40.0 (branche `exports`, 12 novembre 2026) : Documents, étape 4 (exports PDF, Word, RTF, Excel, CSV)
+
+| Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Formats | Texte : **PDF**, **Word (.docx)**, **RTF** ; tableur : **Excel (.xlsx)**, **CSV** (feuille affichée), **PDF** ; écrits dans le navigateur sans bibliothèque (archives ZIP écrites à la main), rangés dans le dossier des exports (sous-dossier « documents »), nom du fichier tiré du titre | `documents-export.js` (`docx`, `rtf`, `pdfTexte`, `xlsx`, `csv`, `pdfTableur`, `zip`, `exporter`) ; `pdf.js` : format paysage, en-tête et pied de page dessinés à la fin (`finPage`, `opTexte`) |
+| Word | Titres (styles Titre 1 à 3), mises en forme (police, taille, gras, italique, souligné, barré, couleur, surlignage), alignement, retrait, listes à puces et numérotées (7 niveaux), tableaux (ligne de titre répétée), sauts de page, onglets (un titre et une nouvelle page par onglet), page (format, orientation, marges, police, interligne), en-tête et pied de page avec le numéro de page (champ PAGE) ; modifications suivies : version finale ou **révisions Word** (ajouts, suppressions, mise en forme, paragraphes, avec auteur et date) | — |
+| RTF et PDF | Modifications suivies acceptées ; PDF : polices remplacées par Helvetica (police standard des PDF), justification non reprise | — |
+| Excel | Valeurs, dates (numéros de série et format), **formules traduites en anglais** (SOMME → SUM, « ; » → « , ») avec leurs résultats ; mises en forme, formats (nombre, pourcentage, euros, date, heure), largeurs, hauteurs, fusions, volets figés, filtre (lignes masquées), listes de choix et validations, mise en forme conditionnelle, mise en page (ajustée à la largeur, quadrillage, 1re ligne répétée) ; formule non traduisible : écrite en texte. Non repris : modifications suivies | `T.versAnglais`, `T.depuisAnglais` (pour l'import) |
+| CSV | Pour un tableur en français : séparateur « ; », virgule décimale, dates JJ/MM/AAAA, valeurs calculées, marque d'octets (BOM) pour les accents ; lignes masquées par le filtre écartées | — |
+| Droit d'exporter | **Réglable par document** par celui qui le gère (fenêtre « Partager ») : toute personne qui peut le lire, qui peut le modifier (**par défaut**), qui le gère seulement ; chaque export est inscrit au journal du module (format, version exportée) et au journal des exports ; avertissement : le fichier exporté n'est plus chiffré par Tessera | `DOC_OPTIONS.export`, saisie `DOC_EXPORT` ; `DM.peutExporter` ; bouton « Exporter… » |
+| Tests | Word, RTF, PDF, Excel (relu par le lecteur de Tessera), CSV, traduction des formules, droit d'exporter ; fichiers vérifiés aussi avec LibreOffice, openpyxl et python-docx pendant le développement | `tests/documents-export.test.js` ; parcours des écrans complété |
+
+**Pour la fiche technique et le kit RGPD** : un export fait sortir le contenu du chiffrement (dossier des exports, en clair) ; la règle de l'établissement sur la conservation des exports (purge automatique) s'applique ; limite : une personne qui peut lire un document peut toujours en recopier le texte à l'écran.
+
+**Reste de l'étape 4** : import des fichiers Word et Excel (version suivante).
+
 ## Version 0.39.0 (branche `onglets`, 12 novembre 2026) : onglets dans les documents texte
 
 | Sujet | Décision du porteur (12 novembre 2026) | Fichiers, saisies, réglages |

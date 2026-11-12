@@ -22,7 +22,7 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, G, T) {
   'use strict';
 
-  var TYPES = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_VALIDATION', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_TRANSFERT', 'DOC_OPTIONS'];
+  var TYPES = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_VALIDATION', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_TRANSFERT', 'DOC_OPTIONS', 'DOC_EXPORT'];
   var DROITS_DOC = { lire: 1, modifier: 2, gerer: 3 };
   var LIB_DROITS = { lire: 'Lire', modifier: 'Modifier', gerer: 'Gérer (partage, corbeille)' };
   var STATUTS = { brouillon: 'Brouillon', 'a-valider': 'À valider', valide: 'Validé', modifie: 'Modifié depuis la validation', 'a-reviser': 'À réviser' };
@@ -385,6 +385,8 @@
     });
     return best;
   }
+  /** Droit d'exporter (0.40.0) : réglé par document par celui qui le gère (« modifier » par défaut). */
+  function peutExporter(doc, compte, config) { var n = (doc && doc.options && doc.options.export) || 'modifier'; return peut(doc, compte, config, n); }
   function peut(doc, compte, config, droit) { var d = droitDe(doc, compte, config); return !!d && DROITS_DOC[d] >= DROITS_DOC[droit]; }
   /** Partage retiré (une entrée en moins, ou un droit abaissé à rien) : nouvelle génération de la clé du document. */
   function retraitDe(ancien, nouveau) {
@@ -400,7 +402,7 @@
       case 'DOC':
         if (!ID.test(d.id || '') || st.docs[d.id]) break;
         st.docs[d.id] = { id: d.id, genre: GENRES[d.genre] ? d.genre : 'texte', modele: d.modele === true, auteur: e.by, cree: e.at, partage: partage(d.partage), services: Array.isArray(d.services) ? d.services.slice(0, 30) : [],
-          depuis: texte(d.depuis, 40), versions: [], statut: { statut: 'brouillon' }, validations: [], corbeille: null, efface: null, modifie: e.at, noms: {}, options: { simultane: false, suivi: false } };
+          depuis: texte(d.depuis, 40), versions: [], statut: { statut: 'brouillon' }, validations: [], corbeille: null, efface: null, modifie: e.at, noms: {}, options: { simultane: false, suivi: false, export: 'modifier' } };
         if (d.nom) st.docs[d.id].noms[e.by] = texte(d.nom, 80);
         break;
       case 'DOC_VERSION':
@@ -443,7 +445,12 @@
       case 'DOC_OPTIONS':
         // Options du document (0.37.0) : édition simultanée en direct, suivi des modifications (désactivées par défaut)
         if (!x || x.efface) break;
-        x.options = { simultane: d.simultane === true, suivi: d.suivi === true, par: e.by, le: e.at };
+        x.options = { simultane: d.simultane === true, suivi: d.suivi === true, export: DROITS_DOC[d.export] ? d.export : (x.options.export || 'modifier'), par: e.by, le: e.at };
+        break;
+      case 'DOC_EXPORT':
+        // Export (0.40.0) : le fichier sort du chiffrement de Tessera ; inscrit au journal du module (format, version)
+        if (!x || x.efface) break;
+        (x.exports = x.exports || []).push({ par: e.by, le: e.at, format: texte(d.format, 10), version: texte(d.version, 80) });
         break;
       case 'DOC_TRANSFERT':
         // Compte de l'auteur retiré (0.34.1) : la gestion passe au cadre de ses services (session de l'administrateur)
@@ -546,7 +553,12 @@
       if (typeof d.ct !== 'string' || d.ct.length > MAX_VERSION) throw new Error('Document trop volumineux.');
       return;
     }
-    if (type === 'DOC_OPTIONS') { if (!peut(x, compte, config, 'modifier')) throw new Error('Vous ne pouvez pas modifier ce document.'); return; }
+    if (type === 'DOC_OPTIONS') {
+      if (!peut(x, compte, config, 'modifier')) throw new Error('Vous ne pouvez pas modifier ce document.');
+      if (d.export && d.export !== ((x.options && x.options.export) || 'modifier') && !peut(x, compte, config, 'gerer')) throw new Error('Seul celui qui gère le document règle qui peut l’exporter.');
+      return;
+    }
+    if (type === 'DOC_EXPORT') { if (!peutExporter(x, compte, config)) throw new Error('Vous ne pouvez pas exporter ce document.'); return; }
     if (type === 'DOC_PARTAGE' || type === 'DOC_CORBEILLE') {
       if (!peut(x, compte, config, 'gerer')) throw new Error('Seul celui qui gère le document change son partage ou le met à la corbeille.');
       if (type === 'DOC_PARTAGE') partage(d.partage).forEach(function (p) { if (p.droit === 'gerer' && p.genre !== 'agent') throw new Error('Le droit de gérer se donne à un agent nommé.'); });
@@ -582,6 +594,7 @@
   }
   /** Saisies permises par le droit sur le document (et non par le seul rôle) : versions, partage, corbeille, statut, effacement échu. */
   function permisPourSoi(type, data, compte, ctx) {
+    if (type === 'DOC_EXPORT' && data && ctx && ctx.etat && ctx.etat.docs && ctx.etat.docs[data.doc]) return peutExporter(ctx.etat.docs[data.doc], compte, ctx.config);
     if (['DOC_VERSION', 'DOC_PARTAGE', 'DOC_CORBEILLE', 'DOC_STATUT', 'DOC_EFFACE', 'DOC_VALIDATION', 'DOC_OPTIONS'].indexOf(type) < 0 || !data || !ctx || !ctx.etat) return false;
     var x = ctx.etat.docs && ctx.etat.docs[data.doc];
     if (!x) return false;
@@ -594,10 +607,10 @@
 
   // ------------------------------------------------------------ Droits et contrat
   var ACCES = [
-    { code: 'documents.utiliser', libelle: 'Créer des documents, modifier ceux qui lui sont partagés', types: ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_OPTIONS'] },
+    { code: 'documents.utiliser', libelle: 'Créer des documents, modifier ceux qui lui sont partagés', types: ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_OPTIONS', 'DOC_EXPORT'] },
     { code: 'documents.valider', libelle: 'Valider les documents (procédures, règlements) et fixer leur date de révision', types: ['DOC_VALIDATION'] }
   ];
-  var U_ = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_OPTIONS'];
+  var U_ = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_OPTIONS', 'DOC_EXPORT'];
   // Droits proposés : tous les agents créent ; le cadre et le cadre supérieur valident
   var DROITS = { IDE: U_, AS: U_, SECRETAIRE: U_, MEDECIN: U_, MEDECIN_CHEF_SERVICE: U_, MEDECIN_CHEF_POLE: U_, DIRECTEUR_SOINS: U_, CADRE: TYPES.slice() };
   var D = Droits.creer({
@@ -632,7 +645,7 @@
 
   registre.declarer(contrat);
 
-  return { MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
+  return { peutExporter: peutExporter, MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
     POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
     run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
     entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,
