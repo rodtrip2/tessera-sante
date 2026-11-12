@@ -31,6 +31,7 @@
   // ------------------------------------------------------------ Contexte de lecture
   function contexte(o) {
     var s = session(), etat = s.etat || {}, st = s.ouvert('suivi') ? s.etatModule('suivi') : null, ag = s.ouvert('agenda') ? s.etatModule('agenda') : null;
+    if (ag && U.conges && U.conges.agendaAvecConges) ag = U.conges.agendaAvecConges(ag);
     var fiches = etat.patients || {}, maintenant = Date.now();
     var isocont = s.ouvert && s.ouvert('isocont') && SIC.model && SIC.model.listeMesures;
     var hosp = Object.keys(fiches).map(function (k) { return fiches[k]; }).filter(function (p) { var r = null; (p.sejours || []).forEach(function (x) { if (!x.sortie) r = x; }); return !!r; });

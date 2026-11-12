@@ -1310,3 +1310,58 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
 .repliable-bascule::before { content: "▾"; display: inline-block; transition: transform .15s; }
 .repliable.replie > .repliable-titre .repliable-bascule::before { transform: rotate(-90deg); }
 .repliable-bascule:hover, .repliable-bascule:focus-visible { color: var(--accent); }
+
+/* Module Congés (0.44.0) */
+.cg-cartes { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.cg-carte { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; background: var(--surface); }
+.cg-jauge { height: 10px; border-radius: 5px; background: var(--muted-soft); display: flex; overflow: hidden; }
+.cg-jauge span { display: block; height: 100%; }
+.cg-reste b { font-size: 1.4rem; color: var(--accent); }
+.cg-avertissement { margin: 0; }
+.cg-legende { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: .82rem; color: var(--ink-2); }
+.cg-legende b { color: var(--ink); }
+.cg-pastille { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; border: 1px solid rgba(0, 0, 0, .15); background: var(--surface); }
+.cg-pastille-regle { box-shadow: inset 0 0 0 2px #c0392b; }
+.cg-defile { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.cg-grille { min-width: 980px; font-size: .78rem; }
+.cg-grille.cg-semaines { min-width: 1150px; }
+.cg-ligne { display: grid; border-bottom: 1px solid var(--muted-soft); }
+.cg-tete { background: var(--surface-2); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; }
+.cg-nom { padding: 5px 8px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+.cg-jour { text-align: center; padding: 3px 0; border-left: 1px solid var(--muted-soft); line-height: 1.2; display: flex; flex-direction: column; }
+.cg-jour small { font-size: .62rem; color: var(--ink-2); min-height: .8em; }
+.cg-case { border-left: 1px solid var(--muted-soft); min-height: 30px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .66rem; box-sizing: border-box; color: #1d2320; }
+.cg-case[role=button] { cursor: pointer; }
+.cg-case.cg-libre:hover { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.cg-we { background-color: var(--surface-2); }
+.cg-groupe { padding: 4px 8px; background: var(--surface-2); font-weight: 700; font-size: .78rem; border-bottom: 1px solid var(--line); }
+.cg-total { background: var(--surface-2); border-top: 1px solid var(--line); font-weight: 700; }
+.cg-total .cg-case { min-height: 24px; }
+.cg-zero { color: #b7bdb8; }
+.cg-total-depasse { background: var(--bad-soft); color: var(--bad); box-shadow: inset 0 0 0 2px #c0392b; }
+.cg-depasse { box-shadow: inset 0 0 0 2px #c0392b; }
+.cg-souhait { background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, .55) 0 4px, transparent 4px 8px); }
+.cg-demande { color: #3b2600; }
+.cg-valide { color: #fff; }
+.cg-refuse { text-decoration: line-through; opacity: .75; }
+.cg-ferie { color: #1f3b5c; }
+.cg-nt, .cg-nt-dans { background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, .7) 0 3px, rgba(0, 0, 0, .08) 3px 6px); }
+.cg-col-ferie { box-shadow: inset 0 3px 0 #7ea1c7; }
+.cg-p-info { background-color: #e4eefb; }
+.cg-p-eviter { background-color: #fde7c8; }
+.cg-p-bloquee { background-image: repeating-linear-gradient(135deg, #d9d2e9 0 4px, #efeaf6 4px 8px); box-shadow: inset 0 2px 0 #6b3fa0; }
+.cg-p-delai { background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, .05) 0 5px, transparent 5px 10px); }
+.cg-badge { color: #1d2320; }
+.cg-badge.cg-valide { color: #fff; }
+.cg-badge-regle { background: var(--bad-soft); color: var(--bad); }
+.cg-badge-bloque { background: #efeaf6; color: #3f2466; }
+.cg-bloque { color: #3f2466; font-weight: 600; }
+.cg-alerte-regle { color: var(--bad); }
+.cg-bascule .btn.actif { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.cg-verif .info, .cg-verif .alerte { margin: 0; }
+@media print {
+  .cg-impression .cg-defile { overflow: visible; border: 0; }
+  .cg-impression .cg-grille { min-width: 0; font-size: 7pt; }
+  .cg-impression .cg-case, .cg-impression .cg-jour, .cg-impression .cg-pastille { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+.cg-annee { width: auto !important; min-width: 0; flex: none; }
