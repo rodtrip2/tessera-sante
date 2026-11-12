@@ -121,19 +121,31 @@
     this.largeurUtile = this.F.l - this.mg.g - this.mg.d;
     this.pages = [];
     this.image = null;
+    this.images = [];   // images du texte (0.42.0) : { nom, octets, info }
     if (this.o.fond) {
-      var o = base64(String(this.o.fond).replace(/^data:[^,]*,/, ''));
+      var o = this.o.fond instanceof Uint8Array ? this.o.fond : base64(String(this.o.fond).replace(/^data:[^,]*,/, ''));
       this.image = { octets: o, info: infoJPEG(o) };
     }
+    // Opacité du fond (0.42.0, masque de fond des documents) : de 0,05 à 1
+    var op = +this.o.fondOpacite; this.opaciteFond = op >= 0.05 && op < 1 ? op : 1;
     this.nouvellePage();
   }
 
   Document.prototype.nouvellePage = function () {
     this.page = { ops: [] };
     this.pages.push(this.page);
-    if (this.image && (this.o.fondPages !== 'premiere' || this.pages.length === 1)) this.page.ops.push('q ' + num(this.F.l) + ' 0 0 ' + num(this.F.h) + ' 0 0 cm /Fond Do Q');
+    if (this.image && (this.o.fondPages !== 'premiere' || this.pages.length === 1)) this.page.ops.push('q ' + (this.opaciteFond < 1 ? '/GSfond gs ' : '') + num(this.F.l) + ' 0 0 ' + num(this.F.h) + ' 0 0 cm /Fond Do Q');
     this.y = this.F.h - this.mg.h;
   };
+
+  /** Image JPEG (octets) ajoutée aux ressources du document (0.42.0) ; renvoie son nom et ses dimensions en pixels. */
+  Document.prototype.ajouterImage = function (octets) {
+    var info = infoJPEG(octets), nom = 'Im' + (this.images.length + 1);
+    this.images.push({ nom: nom, octets: octets, info: info });
+    return { nom: nom, l: info.l, h: info.h };
+  };
+  /** Image dessinée sur la page courante : coin bas gauche (x, y), largeur et hauteur en points. */
+  Document.prototype.dessinerImage = function (nom, x, y, l, h) { this.page.ops.push('q ' + num(l) + ' 0 0 ' + num(h) + ' ' + num(x) + ' ' + num(y) + ' cm /' + nom + ' Do Q'); };
 
   /** Réserve `hauteur` points ; saute de page si nécessaire. Retourne vrai si une page a été ajoutée. */
   Document.prototype.place = function (hauteur) {
@@ -248,10 +260,15 @@
       var inf = this.image.info;
       imgId = obj({ entete: '<< /Type /XObject /Subtype /Image /Width ' + inf.l + ' /Height ' + inf.h + ' /ColorSpace /' + (inf.comp === 1 ? 'DeviceGray' : inf.comp === 4 ? 'DeviceCMYK' : 'DeviceRGB') + ' /BitsPerComponent 8 /Filter /DCTDecode /Length ' + this.image.octets.length + ' >>', flux: this.image.octets });
     }
+    var xobjets = (imgId ? ' /Fond ' + imgId + ' 0 R' : '') + this.images.map(function (im) {
+      var i2 = im.info;
+      return ' /' + im.nom + ' ' + obj({ entete: '<< /Type /XObject /Subtype /Image /Width ' + i2.l + ' /Height ' + i2.h + ' /ColorSpace /' + (i2.comp === 1 ? 'DeviceGray' : i2.comp === 4 ? 'DeviceCMYK' : 'DeviceRGB') + ' /BitsPerComponent 8 /Filter /DCTDecode /Length ' + im.octets.length + ' >>', flux: im.octets }) + ' 0 R';
+    }).join('');
+    var gsFond = imgId && this.opaciteFond < 1 ? obj('<< /Type /ExtGState /ca ' + num(this.opaciteFond) + ' /CA ' + num(this.opaciteFond) + ' >>') : null;
     // Noir et blanc : un aplat gris en mode de fusion « Saturation » couvre chaque page et retire toute couleur, y compris
     // celle du papier à en-tête (image JPEG en couleur)
     var gsNb = this.o.nb ? obj('<< /Type /ExtGState /BM /Saturation >>') : null;
-    var ressources = '<< /Font << /F1 ' + f1 + ' 0 R /F2 ' + f2 + ' 0 R /F3 ' + f3 + ' 0 R /F4 ' + f4 + ' 0 R >>' + (imgId ? ' /XObject << /Fond ' + imgId + ' 0 R >>' : '') + (gsNb ? ' /ExtGState << /GSnb ' + gsNb + ' 0 R >>' : '') + ' >>';
+    var ressources = '<< /Font << /F1 ' + f1 + ' 0 R /F2 ' + f2 + ' 0 R /F3 ' + f3 + ' 0 R /F4 ' + f4 + ' 0 R >>' + (xobjets ? ' /XObject <<' + xobjets + ' >>' : '') + (gsNb || gsFond ? ' /ExtGState <<' + (gsNb ? ' /GSnb ' + gsNb + ' 0 R' : '') + (gsFond ? ' /GSfond ' + gsFond + ' 0 R' : '') + ' >>' : '') + ' >>';
     var idsPages = [];
     this.pages.forEach(function (p, i) {
       var ops = p.ops.slice();

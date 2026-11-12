@@ -56,6 +56,30 @@
   function docx(contenu, meta, o) {
     o = o || {};
     var c = DM.contenu(contenu), p = c.page, final = o.suivi !== 'marques', os = blocsTexte(c, final), idRev = 1, v = Object.assign({ titre: (meta && meta.titre) || '' }, o.valeurs || {});
+    // Images (0.42.0) : fichiers word/media, cités par le texte (en ligne) et par l'en-tête (masque de fond, derrière le texte)
+    var imgs = o.images || {}, medias = [], relsDoc = '', relsEnt = '', idDessin = 1;
+    function media(idI, rels) {
+      var im = imgs[idI]; if (!im) return null;
+      var m = medias.filter(function (x) { return x.id === idI; })[0];
+      if (!m) { m = { id: idI, fichier: 'image' + (medias.length + 1) + '.' + (im.type === 'png' ? 'png' : 'jpeg'), im: im }; medias.push(m); }
+      var rid = 'rIdImg' + m.fichier.replace(/\D/g, '');
+      if (rels === 'doc' && relsDoc.indexOf('"' + rid + '"') < 0) relsDoc += '<Relationship Id="' + rid + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/' + m.fichier + '"/>';
+      if (rels === 'ent' && relsEnt.indexOf('"' + rid + '"') < 0) relsEnt += '<Relationship Id="' + rid + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/' + m.fichier + '"/>';
+      return rid;
+    }
+    function graphique(rid, cx, cy, nom, alpha) {
+      return '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="' + x(nom) + '"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="' + rid + '">' + (alpha < 1 ? '<a:alphaModFix amt="' + Math.round(alpha * 100000) + '"/>' : '') + '</a:blip><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic>';
+    }
+    function image(b) {
+      var im = imgs[b.id], rid = media(b.id, 'doc');
+      var marque = !final && b.suivi && (b.suivi.op === 'ajout' || b.suivi.op === 'del') ? b.suivi : null;
+      var pp = '<w:pPr><w:keepNext/>' + (b.al === 'c' ? '<w:jc w:val="center"/>' : b.al === 'd' ? '<w:jc w:val="right"/>' : '') + marquePara(b) + '</w:pPr>';
+      if (!rid) return '<w:p>' + pp + '<w:r><w:t>[image]</w:t></w:r></w:p>';
+      var cx = Math.round(largeurUtile * b.l / 100 * 635), cy = Math.round(cx * (im.hauteur || 1) / (im.largeur || 1)), n = idDessin++;
+      var run = '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:docPr id="' + n + '" name="Image ' + n + '"' + (b.leg ? ' descr="' + x(b.leg) + '"' : '') + '/><wp:cNvGraphicFramePr/>' + graphique(rid, cx, cy, 'Image ' + n, 1) + '</wp:inline></w:drawing></w:r>';
+      if (marque) run = '<w:' + (marque.op === 'del' ? 'del' : 'ins') + ' w:id="' + (idRev++) + '" w:author="' + x(marque.n || marque.p) + '" w:date="' + x(marque.le) + '">' + run + '</w:' + (marque.op === 'del' ? 'del' : 'ins') + '>';
+      return '<w:p>' + pp + run + '</w:p>' + (b.leg ? '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:i/><w:sz w:val="' + Math.round(p.taille * 1.7) + '"/></w:rPr><w:t xml:space="preserve">' + x(b.leg) + '</w:t></w:r></w:p>' : '');
+    }
     function rPr(r, sansChangement) {
       var s = '';
       if (r.p && POLICES[r.p]) s += '<w:rFonts w:ascii="' + x(POLICES[r.p]) + '" w:hAnsi="' + x(POLICES[r.p]) + '" w:cs="' + x(POLICES[r.p]) + '"/>';
@@ -107,7 +131,7 @@
     os.forEach(function (on, i) {
       if (i) corps += saut;
       if (on.titre && os.length > 1) corps += '<w:p><w:pPr><w:pStyle w:val="Titre"/></w:pPr><w:r><w:t xml:space="preserve">' + x(on.titre) + '</w:t></w:r></w:p>';
-      on.blocs.forEach(function (b) { corps += b.t === 'table' ? table(b) : b.t === 'saut' ? saut : para(b); });
+      on.blocs.forEach(function (b) { corps += b.t === 'table' ? table(b) : b.t === 'saut' ? saut : b.t === 'img' ? image(b) : para(b); });
     });
     // En-tête et pied de page : trois zones (tabulations centrée et droite), « {page} » devient un champ PAGE
     function zonesXml(z) {
@@ -116,10 +140,17 @@
       });
       return '<w:p><w:pPr><w:tabs><w:tab w:val="center" w:pos="' + Math.round(largeurUtile / 2) + '"/><w:tab w:val="right" w:pos="' + largeurUtile + '"/></w:tabs><w:rPr><w:sz w:val="17"/><w:color w:val="555555"/></w:rPr></w:pPr>' + parts[0] + '<w:r><w:tab/></w:r>' + parts[1] + '<w:r><w:tab/></w:r>' + parts[2] + '</w:p>';
     }
-    var NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+    var NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
     var tw = function (mm) { return Math.round(mm * 56.7); }, paysage = p.orientation === 'paysage';
-    var sect = '<w:sectPr><w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="' + (paysage ? 16838 : 11906) + '" w:h="' + (paysage ? 11906 : 16838) + '"' + (paysage ? ' w:orient="landscape"' : '') + '/>' +
-      '<w:pgMar w:top="' + tw(p.marges.h) + '" w:right="' + tw(p.marges.d) + '" w:bottom="' + tw(p.marges.b) + '" w:left="' + tw(p.marges.g) + '" w:header="' + tw(Math.max(5, p.marges.h / 2)) + '" w:footer="' + tw(Math.max(5, p.marges.b / 2)) + '" w:gutter="0"/></w:sectPr>';
+    // Masque de fond : image ancrée à la page dans l'en-tête, derrière le texte (première page seulement : en-tête de 1re page)
+    var masque = '', mq = p.masque, ridM = mq ? media(mq.image, 'ent') : null;
+    if (ridM) {
+      var pl = Math.round((paysage ? 297 : 210) * 36000), ph = Math.round((paysage ? 210 : 297) * 36000), nM = idDessin++;
+      masque = '<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="0" behindDoc="1" locked="1" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="' + pl + '" cy="' + ph + '"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="' + nM + '" name="Masque de fond"/><wp:cNvGraphicFramePr/>' + graphique(ridM, pl, ph, 'Masque de fond', mq.opacite) + '</wp:anchor></w:drawing></w:r>';
+    }
+    var premiere = ridM && mq.pages === 'premiere';
+    var sect = '<w:sectPr><w:headerReference w:type="default" r:id="rIdHeader"/>' + (premiere ? '<w:headerReference w:type="first" r:id="rIdHeader2"/><w:footerReference w:type="first" r:id="rIdFooter"/>' : '') + '<w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="' + (paysage ? 16838 : 11906) + '" w:h="' + (paysage ? 11906 : 16838) + '"' + (paysage ? ' w:orient="landscape"' : '') + '/>' +
+      '<w:pgMar w:top="' + tw(p.marges.h) + '" w:right="' + tw(p.marges.d) + '" w:bottom="' + tw(p.marges.b) + '" w:left="' + tw(p.marges.g) + '" w:header="' + tw(Math.max(5, p.marges.h / 2)) + '" w:footer="' + tw(Math.max(5, p.marges.b / 2)) + '" w:gutter="0"/>' + (premiere ? '<w:titlePg/>' : '') + '</w:sectPr>';
     var police = POLICES[p.police] || 'Calibri', taille = Math.round(p.taille * 2), ligne = Math.round(240 * p.interligne);
     function style(id, nom, rpr, ppr) { return '<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="' + nom + '"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>' + (ppr ? '<w:pPr>' + ppr + '</w:pPr>' : '') + '<w:rPr>' + rpr + '</w:rPr></w:style>'; }
     var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ' + NS + '><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="' + x(police) + '" w:hAnsi="' + x(police) + '" w:cs="' + x(police) + '"/><w:sz w:val="' + taille + '"/><w:szCs w:val="' + taille + '"/><w:lang w:val="fr-FR"/></w:rPr></w:rPrDefault>' +
@@ -136,17 +167,23 @@
     }
     var numbering = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering ' + NS + '><w:abstractNum w:abstractNumId="1">' + niveaux(true) + '</w:abstractNum><w:abstractNum w:abstractNumId="2">' + niveaux(false) + '</w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="1"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="2"/></w:num></w:numbering>';
     var R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-    return zip([
-      { nom: '[Content_Types].xml', contenu: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>' },
+    function entete(avecMasque) { var z = zonesXml(p.entete); if (avecMasque && masque) z = z.replace(/<\/w:pPr>/, '</w:pPr>' + masque); return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ' + NS + '>' + z + '</w:hdr>'; }
+    var types = '<Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/>' + (premiere ? '<Override PartName="/word/header2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '');
+    var parties = [
+      { nom: '[Content_Types].xml', contenu: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' + types + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>' },
       { nom: '_rels/.rels', contenu: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="' + R + '/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>' },
       { nom: 'docProps/core.xml', contenu: core(meta, o) },
-      { nom: 'word/_rels/document.xml.rels', contenu: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="' + R + '/styles" Target="styles.xml"/><Relationship Id="rIdNum" Type="' + R + '/numbering" Target="numbering.xml"/><Relationship Id="rIdHeader" Type="' + R + '/header" Target="header1.xml"/><Relationship Id="rIdFooter" Type="' + R + '/footer" Target="footer1.xml"/></Relationships>' },
+      { nom: 'word/_rels/document.xml.rels', contenu: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="' + R + '/styles" Target="styles.xml"/><Relationship Id="rIdNum" Type="' + R + '/numbering" Target="numbering.xml"/><Relationship Id="rIdHeader" Type="' + R + '/header" Target="header1.xml"/><Relationship Id="rIdFooter" Type="' + R + '/footer" Target="footer1.xml"/>' + (premiere ? '<Relationship Id="rIdHeader2" Type="' + R + '/header" Target="header2.xml"/>' : '') + relsDoc + '</Relationships>' },
       { nom: 'word/document.xml', contenu: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ' + NS + '><w:body>' + corps + sect + '</w:body></w:document>' },
       { nom: 'word/styles.xml', contenu: styles },
       { nom: 'word/numbering.xml', contenu: numbering },
-      { nom: 'word/header1.xml', contenu: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ' + NS + '>' + zonesXml(p.entete) + '</w:hdr>' },
+      { nom: 'word/header1.xml', contenu: entete(!premiere) },
       { nom: 'word/footer1.xml', contenu: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr ' + NS + '>' + zonesXml(p.pied) + '</w:ftr>' }
-    ]);
+    ];
+    if (premiere) parties.push({ nom: 'word/header2.xml', contenu: entete(true) });
+    if (relsEnt) { var re = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + relsEnt + '</Relationships>'; parties.push({ nom: premiere ? 'word/_rels/header2.xml.rels' : 'word/_rels/header1.xml.rels', contenu: re }); }
+    medias.forEach(function (m) { parties.push({ nom: 'word/media/' + m.fichier, contenu: m.im.octets }); });
+    return zip(parties);
   }
   function core(meta, o) {
     var d = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
@@ -185,6 +222,15 @@
       if (on.titre && os.length > 1) s += '\\pard\\sa160{\\b\\cf1\\fs' + Math.round(p.taille * 2.6) + ' ' + t(on.titre) + '}\\par\n';
       on.blocs.forEach(function (b) {
         if (b.t === 'saut') { s += '\\page\n'; return; }
+        if (b.t === 'img') {
+          var im = (o.images || {})[b.id];
+          if (!im) { s += '\\pard [image]\\par\n'; return; }
+          var lw = Math.round(largeurUtile * b.l / 100), lh = Math.round(lw * (im.hauteur || 1) / (im.largeur || 1)), hexa = '';
+          for (var q = 0; q < im.octets.length; q++) { hexa += (im.octets[q] < 16 ? '0' : '') + im.octets[q].toString(16); if (q % 64 === 63) hexa += '\n'; }
+          s += '\\pard' + ({ c: '\\qc', d: '\\qr' }[b.al] || '\\ql') + '\\keepn\\sa60 {\\pict' + (im.type === 'png' ? '\\pngblip' : '\\jpegblip') + '\\picw' + (im.largeur || 1) + '\\pich' + (im.hauteur || 1) + '\\picwgoal' + lw + '\\pichgoal' + lh + '\n' + hexa + '}\\par\n';
+          if (b.leg) s += '\\pard\\qc\\sa120{\\i\\fs' + Math.round(p.taille * 1.7) + ' ' + t(b.leg) + '}\\par\n';
+          return;
+        }
         if (b.t === 'table') {
           var n = b.lignes[0].length, larg = (b.largeurs || b.lignes[0].map(function () { return 100 / n; })), acc = 0, bords = '\\clbrdrt\\brdrs\\brdrw10\\clbrdrl\\brdrs\\brdrw10\\clbrdrb\\brdrs\\brdrw10\\clbrdrr\\brdrs\\brdrw10';
           var cellx = larg.map(function (w) { acc += Math.round(largeurUtile * w / 100); return bords + '\\cellx' + acc; }).join('');
@@ -336,7 +382,24 @@
   function pdfTexte(contenu, meta, o) {
     o = o || {};
     var c = DM.resoudreSuivi(contenu, true), p = c.page, v = Object.assign({ titre: (meta && meta.titre) || '' }, o.valeurs || {}), os = DM.ongletsDe(c);
-    var doc = new PDF.Document({ titre: v.titre, auteur: o.auteur || '', paysage: p.orientation === 'paysage', marges: { haut: p.marges.h, bas: p.marges.b, gauche: p.marges.g, droite: p.marges.d }, finPage: function (n, total) { return zonesPdf(doc, p, v, n, total); } });
+    var imgs = o.images || {}, mq = p.masque && imgs[p.masque.image] && imgs[p.masque.image].jpeg ? p.masque : null;
+    var doc = new PDF.Document({ titre: v.titre, auteur: o.auteur || '', paysage: p.orientation === 'paysage', marges: { haut: p.marges.h, bas: p.marges.b, gauche: p.marges.g, droite: p.marges.d }, finPage: function (n, total) { return zonesPdf(doc, p, v, n, total); },
+      fond: mq ? imgs[mq.image].jpeg : null, fondPages: mq ? mq.pages : null, fondOpacite: mq ? mq.opacite : 1 });
+    var nomsPdf = {};
+    /** Image du texte (0.42.0) : JPEG préparé par l'interface ; largeur en % de la ligne, hauteur limitée à la page. */
+    function image(b) {
+      var im = imgs[b.id];
+      if (!im || !im.jpeg) { paragraphe([{ x: '[image]' }], { al: b.al }); return; }
+      if (!nomsPdf[b.id]) nomsPdf[b.id] = doc.ajouterImage(im.jpeg);
+      var r = nomsPdf[b.id], l = doc.largeurUtile * b.l / 100, ht = l * r.h / r.l, max = doc.F.h - doc.mg.h - doc.mg.b - 4;
+      if (ht > max) { l = l * max / ht; ht = max; }
+      doc.place(ht + 4);
+      var x0 = doc.mg.g + (b.al === 'c' ? (doc.largeurUtile - l) / 2 : b.al === 'd' ? doc.largeurUtile - l : 0);
+      doc.dessinerImage(r.nom, x0, doc.y - ht - 2, l, ht);
+      doc.y -= ht + 4;
+      if (b.leg) paragraphe([{ x: b.leg, i: true, z: Math.max(7, base - 2) }], { al: 'c' });
+      else doc.y -= base * 0.4;
+    }
     var base = p.taille, inter = p.interligne * 1.2;
     /** Paragraphe riche : mots de styles différents, retour à la ligne, alignement. */
     function paragraphe(runs, opt) {
@@ -391,6 +454,7 @@
         if (b.t !== 'li') compteurs = {};
         if (b.t === 'saut') { doc.nouvellePage(); return; }
         if (b.t === 'table') { tableau(b); return; }
+        if (b.t === 'img') { image(b); return; }
         var t = { h1: 1.8, h2: 1.4, h3: 1.15 }[b.t];
         if (t) { paragraphe(b.runs, { taille: base * t, gras: true, al: b.al, avant: base * 0.6, apres: base * 0.3 }); return; }
         if (b.t === 'li') { var k = b.liste + (b.n || 0); compteurs[k] = (compteurs[k] || 0) + 1; paragraphe(b.runs, { retrait: 16 + 14 * (b.n || 0), puce: b.liste === 'ol' ? compteurs[k] + '.' : '•', al: b.al, apres: base * 0.15 }); return; }

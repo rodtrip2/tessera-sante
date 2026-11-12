@@ -351,3 +351,42 @@ test('Onglets d’un document texte : modèle, texte, comparaison, fusion, suivi
   assert.deepEqual(DM.modificationsSuivies(s).map((x) => x.onglet + ':' + x.genre), ['a:ins', 'b:del']);
   assert.deepEqual(DM.resoudreSuivi(s, true).onglets.map((o) => o.blocs.map(DM.texteBloc).join()), ['ajout', 'reste']);
 });
+
+// ------------------------------------------------------------ Images et masques de fond (0.42.0)
+test('Images : saisie DOC_IMAGE (droit de modifier, taille), réduction, effacement ; image chiffrée par la clé du document', async () => {
+  const at = new Date().toISOString(), doc = { id: 'e1', at, by: 'a1', type: 'DOC', data: { id: 'DC00000030', partage: [{ genre: 'service', code: 'U1', droit: 'lire' }] } };
+  let st = DM.reduire([doc, { id: 'e2', at, by: 'a1', type: 'DOC_IMAGE', data: { doc: 'DC00000030', id: 'im00aa11', g: 1, ct: 'xx' } }]);
+  assert.deepEqual(Object.keys(st.docs.DC00000030.images), ['im00aa11']);
+  const auteur = { id: 'a1', roles: ['IDE'], services: ['U1'] }, lecteur = { id: 'i1', roles: ['IDE'], services: ['U1'] };
+  assert.doesNotThrow(() => DM.controler('DOC_IMAGE', { doc: 'DC00000030', id: 'im00bb22', g: 1, ct: 'x' }, { etat: st, compte: auteur, config: {} }));
+  assert.throws(() => DM.controler('DOC_IMAGE', { doc: 'DC00000030', id: 'im00bb22', g: 1, ct: 'x' }, { etat: st, compte: lecteur, config: {} }));
+  assert.throws(() => DM.controler('DOC_IMAGE', { doc: 'DC00000030', id: 'mauvais', g: 1, ct: 'x' }, { etat: st, compte: auteur, config: {} }));
+  assert.throws(() => DM.controler('DOC_IMAGE', { doc: 'DC00000030', id: 'im00bb22', g: 1, ct: 'x'.repeat(DM.MAX_IMAGE * 1.5) }, { etat: st, compte: auteur, config: {} }));
+  st = DM.reduire([doc, { id: 'e2', at, by: 'a1', type: 'DOC_IMAGE', data: { doc: 'DC00000030', id: 'im00aa11', g: 1, ct: 'xx' } }, { id: 'e3', at, by: 'a1', type: 'DOC_CORBEILLE', data: { doc: 'DC00000030', corbeille: true } }, { id: 'e4', at, by: 'a1', type: 'DOC_EFFACE', data: { doc: 'DC00000030' } }]);
+  assert.equal(st.docs.DC00000030.images.im00aa11.ct, null);
+  // Chiffrement : seulement avec la clé du document, lié au document et à l'image
+  const { racine, id } = await equipe();
+  const a = await co(racine, 'ide.a', 'mot de passe ide a');
+  await a.creerCleDocument('DC0000000b', ['k-a.' + id('ide.a')]);
+  const c = await a.chiffrerImageDocument('DC0000000b', 'im00cc33', { donnees: 'data:image/png;base64,AAAA', largeur: 1, hauteur: 1 });
+  assert.equal((await a.dechiffrerImageDocument('DC0000000b', 'im00cc33', c.g, c.ct)).largeur, 1);
+  assert.equal(await a.dechiffrerImageDocument('DC0000000b', 'im00dd44', c.g, c.ct), null);   // autre image : refusé
+  const cadre = await co(racine, 'cadre', 'mot de passe cadre');
+  assert.equal(await cadre.dechiffrerImageDocument('DC0000000b', 'im00cc33', c.g, c.ct), null);
+});
+
+test('Masques de fond : bibliothèque validée, établissement puis service de l’agent, le cadre ne gère que ceux de ses services', () => {
+  const img = { donnees: 'data:image/png;base64,AAAA', largeur: 1654, hauteur: 2339 };
+  const config = { masquesDocuments: { mqetab01: { nom: 'En-tête (fictif)', services: [], image: img, pages: 'premiere', marges: { h: 45, b: 25, g: 20, d: 20 } }, mqu1aaaa: { nom: 'Filigrane U1 (fictif)', services: ['U1'], image: img, opacite: 0.4 },
+    mqu2aaaa: { nom: 'U2 (fictif)', services: ['U2'], image: img }, mauvais: { nom: 'x', image: img }, mqsvgaaa: { nom: 'SVG', image: { donnees: 'data:image/svg+xml;base64,AAAA' } } } };
+  const ms = DM.masques(config);
+  assert.deepEqual(Object.keys(ms).sort(), ['mqetab01', 'mqu1aaaa', 'mqu2aaaa']);
+  assert.equal(ms.mqu1aaaa.opacite, 0.4); assert.equal(ms.mqu1aaaa.pages, 'toutes'); assert.equal(ms.mqu1aaaa.marges, null); assert.equal(ms.mqetab01.marges.h, 45);
+  assert.deepEqual(DM.masquesPour(config, { services: ['U1'] }).map((m) => m.id), ['mqetab01', 'mqu1aaaa']);
+  const cadre = { services: ['U1'] }, a = config.masquesDocuments;
+  assert.equal(DM.controlerMasques(a, Object.assign({}, a, { mqu1bbbb: { nom: 'Nouveau U1', services: ['U1'], image: img } }), cadre), true);
+  assert.equal(DM.controlerMasques(a, Object.assign({}, a, { mqu1aaaa: undefined }), cadre), true);
+  assert.equal(DM.controlerMasques(a, Object.assign({}, a, { mqetab01: Object.assign({}, a.mqetab01, { nom: 'Modifié' }) }), cadre), false);
+  assert.equal(DM.controlerMasques(a, Object.assign({}, a, { mqu2aaaa: undefined }), cadre), false);
+  assert.equal(DM.controlerMasques(a, Object.assign({}, a, { mqxxxxxx: { nom: 'Étab', services: [], image: img } }), cadre), false);
+});

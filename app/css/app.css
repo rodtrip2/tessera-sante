@@ -1237,3 +1237,29 @@ span.suivi-fmt { box-shadow: inset 0 -2px 0 #7e57c2; }
 .doc-titre-onglet { font-size: 9pt; text-transform: uppercase; letter-spacing: .05em; color: #666; border-bottom: 1px solid #ccc; margin: 0 0 .6em; padding-bottom: .2em; }
 .doc-saut.doc-saut-onglet::after { content: "Onglet suivant"; }
 .cache-fichier { position: fixed; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+/* Documents : images et masques de fond (0.42.0) */
+.doc-corps figure.doc-image { margin: .4em 0; max-width: 100%; cursor: pointer; user-select: none; }
+.doc-corps figure.doc-image.al-c { margin-left: auto; margin-right: auto; } .doc-corps figure.doc-image.al-d { margin-left: auto; }
+.doc-corps figure.doc-image img { display: block; width: 100%; height: auto; }
+.doc-corps figure.doc-image figcaption { font-size: .85em; color: #444; text-align: center; margin-top: .2em; }
+.doc-corps figure.doc-image:hover { outline: 2px dashed #7aa7d8; outline-offset: 2px; }
+.doc-corps figure.doc-image[data-suivi="ajout"] { outline: 2px solid #2e7d32; } .doc-corps figure.doc-image[data-suivi="del"] { outline: 2px solid #c62828; opacity: .5; }
+.doc-corps.suivi-masque figure.doc-image[data-suivi] { outline: none; } .doc-corps.suivi-masque figure.doc-image[data-suivi="del"] { display: none; }
+.doc-feuille { position: relative; }
+.doc-feuille > .doc-masque-zone { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.doc-feuille > .doc-masque-zone .doc-masque { position: absolute; inset: 0; background-position: top left; }
+.doc-feuille > .doc-entete, .doc-feuille > div, .doc-feuille > .doc-corps { position: relative; }
+.doc-masque-apercu img { max-width: 160px; max-height: 220px; border: 1px solid var(--bordure, #ccc); margin-top: 6px; background: #fff; }
+.doc-masques { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+.doc-masque-carte { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--bordure, #ccc); border-radius: 8px; padding: 10px; }
+.doc-masque-vignette { position: relative; background: #fff; border: 1px solid #bbb; width: 150px; aspect-ratio: 210 / 297; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.doc-masque-vignette.paysage { width: 200px; aspect-ratio: 297 / 210; }
+.doc-masque-vignette.grand { width: 260px; } .doc-masque-vignette.grand.paysage { width: 340px; }
+.doc-masque-vignette img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.doc-masque-zone-texte { position: absolute; border: 1px dashed #1565c0; background: rgba(21, 101, 192, .08); }
+.doc-imprime.avec-masque { position: relative; }
+.doc-masque-impression { display: block; top: 0; left: 0; z-index: -1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.doc-masque-impression.premiere { position: absolute; } .doc-masque-impression.toutes { position: fixed; }
+@media screen { .doc-imprime .doc-masque-impression { display: none; } }
+@media print { .doc-imprime figure.doc-image { break-inside: avoid; cursor: default; } .doc-imprime figure.doc-image:hover { outline: none; } }
