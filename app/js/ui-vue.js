@@ -30,9 +30,9 @@
 
   // ------------------------------------------------------------ Contexte de lecture
   function contexte(o) {
-    var s = session(), etat = s.etat || {}, st = s.etatModule('suivi'), ag = s.etatModule('agenda');
+    var s = session(), etat = s.etat || {}, st = s.ouvert('suivi') ? s.etatModule('suivi') : null, ag = s.ouvert('agenda') ? s.etatModule('agenda') : null;
     var fiches = etat.patients || {}, maintenant = Date.now();
-    var isocont = s.detientCle && s.detientCle('isocont') && SIC.model && SIC.model.listeMesures;
+    var isocont = s.ouvert && s.ouvert('isocont') && SIC.model && SIC.model.listeMesures;
     var hosp = Object.keys(fiches).map(function (k) { return fiches[k]; }).filter(function (p) { var r = null; (p.sejours || []).forEach(function (x) { if (!x.sortie) r = x; }); return !!r; });
     return { config: cfg(), maintenant: maintenant, roles: roles(), fiches: fiches, suivi: st || null, suiviModule: SIC.suivi, agenda: ag || null, agendaModule: SIC.agenda,
       valeurs: s.valeurs(), chambresTravaux: U.chambresTravaux ? U.chambresTravaux(U.services().map(function (v) { return v.code; })) : [], lisible: U.champs.lisible, comptes: s.comptes || [], libService: U.libService, services: servicesAffiches(), hospitalises: hosp,
@@ -107,6 +107,7 @@
     var e = col.edition, s = session(), p = l.p;
     if (e.type === 'champ') {
       var c = col.champ, ent = c.entite, id = ent === 'patient' ? p.id : ent === 'medecin' ? l.m.id : l.a.id;
+      if (c.type === 'choixMultiple' && U.champs.modifiable(c)) return choixRapides(td, c, ent, id, titreLigne(l));
       if (CH.CUMULATIFS[c.type] || c.type === 'dateFenetre' || c.type === 'choixMultiple') return modaleChamp(c, ent, id, titreLigne(l));
       return editerDansCase(td, col, l, cell.v, function (v) { return U.champs.enregistrer(c, ent, id, { valeur: v }); });
     }
@@ -134,6 +135,77 @@
     });
   }
   function titreLigne(l) { return l.p ? ((l.p.nom || '?') + ' ' + (l.p.prenom || '')).trim() : l.m ? l.m.nom : l.a ? l.a.nom : ''; }
+  /**
+   * Choix multiples (consignes…) en un clic (0.43.0, demande du porteur du 12 novembre 2026) : chaque choix est une
+   * pastille dans la case ; un clic l'ajoute ou la retire et l'enregistre aussitôt. Le cadre et l'administrateur
+   * ajoutent un nouveau choix à la liste de la donnée sans quitter le tableau (champ « Autre… »).
+   */
+  function peutAjouterChoix(c) {
+    if (session().apercu) return false;
+    try { var avant = U.champs.definitionsBrutes(), apres = JSON.parse(JSON.stringify(avant)), d = apres.filter(function (x) { return x.id === c.id; })[0]; if (!d) return false; d.choix = (d.choix || []).concat(['x']); return CH.controlerCadre(avant, apres, session().compteEffectif()) === true; } catch (e) { return false; }
+  }
+  async function ajouterChoix(c, libelle) {
+    var avant = U.champs.definitionsBrutes(), d = avant.filter(function (x) { return x.id === c.id; })[0];
+    if (!d) throw new Error('Donnée introuvable.');
+    if ((d.choix || []).some(function (x) { return x.toLowerCase() === libelle.toLowerCase(); })) return (d.choix || []).filter(function (x) { return x.toLowerCase() === libelle.toLowerCase(); })[0];
+    d.choix = (d.choix || []).concat([libelle]);
+    CH.controlerListe(Array.isArray(U.config().champsAjoutes) ? U.config().champsAjoutes : [], avant);
+    await session().enregistrer('CONFIG', { cle: 'champsAjoutes', valeur: avant });
+    return libelle;
+  }
+  function choixRapides(td, c, ent, id, titre) {
+    var v = U.champs.valeurDe(c, ent, id), choisis = Array.isArray(v) ? v.slice() : [], choix = (c.choix || []).slice(), occupe = false;
+    // Fenêtre légère posée sur la case (hors du tableau, qui réduit son texte pour tenir dans la case)
+    var zone = h('div', { class: 'edition-case edition-maintenue choix-rapides', role: 'dialog', 'aria-label': c.libelle + ' — ' + titre });
+    td.classList.add('choix-rapides-cible');
+    var etat = h('small', { class: 'muted choix-rapides-etat', 'aria-live': 'polite' });
+    function ordonner(l) { return choix.filter(function (x) { return l.indexOf(x) >= 0; }).concat(l.filter(function (x) { return choix.indexOf(x) < 0; })); }
+    async function basculer(x, b) {
+      if (occupe) return; occupe = true;
+      var avant = choisis.slice(), oui = choisis.indexOf(x) < 0;
+      choisis = oui ? ordonner(choisis.concat([x])) : choisis.filter(function (y) { return y !== x; });
+      b.setAttribute('aria-pressed', oui ? 'true' : 'false'); b.classList.toggle('choisi', oui);
+      try { await U.champs.enregistrer(c, ent, id, { valeur: choisis }); etat.textContent = (oui ? 'Ajouté : ' : 'Retiré : ') + x; }
+      catch (e) { choisis = avant; b.setAttribute('aria-pressed', oui ? 'false' : 'true'); b.classList.toggle('choisi', !oui); etat.textContent = e.message; }
+      finally { occupe = false; }
+    }
+    function puce(x) {
+      var b = h('button', { type: 'button', class: 'puce-choix' + (choisis.indexOf(x) >= 0 ? ' choisi' : ''), 'aria-pressed': choisis.indexOf(x) >= 0 ? 'true' : 'false', title: choisis.indexOf(x) >= 0 ? 'Retirer' : 'Ajouter' }, x);
+      b.addEventListener('click', function (ev) { ev.stopPropagation(); basculer(x, b); });
+      return b;
+    }
+    var puces = h('div', { class: 'choix-rapides-puces' }, ordonner(choix.concat(choisis.filter(function (x) { return choix.indexOf(x) < 0; }))).map(puce));
+    var fin = h('button', { class: 'btn petit primaire', type: 'button', title: 'Terminé (Échap)' }, '✓ Terminé');
+    var autre = null;
+    if (peutAjouterChoix(c)) {
+      autre = h('input', { type: 'text', maxlength: 60, class: 'choix-rapides-autre', placeholder: 'Autre ' + c.libelle.toLowerCase().replace(/s$/, '') + '… (Entrée)', 'aria-label': 'Ajouter un choix à la liste « ' + c.libelle + ' »' });
+      autre.addEventListener('click', function (ev) { ev.stopPropagation(); });
+      autre.addEventListener('keydown', async function (ev) {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault(); ev.stopPropagation();
+        var lib = autre.value.trim().replace(/\s+/g, ' '); if (!lib || occupe) return;
+        try {
+          occupe = true; var x = await ajouterChoix(c, lib); occupe = false;
+          if (choix.indexOf(x) < 0) choix.push(x);
+          c = Object.assign({}, c, { choix: choix.slice() });   // la valeur enregistrée est validée contre la liste à jour
+          autre.value = '';
+          if (choisis.indexOf(x) < 0) { var b = puce(x); puces.appendChild(b); await basculer(x, b); }
+          etat.textContent = '« ' + x + ' » ajouté à la liste et pour ce patient';
+        } catch (e) { occupe = false; etat.textContent = e.message; }
+      });
+    }
+    zone.appendChild(puces);
+    zone.appendChild(h('div', { class: 'actions gauche' }, autre, fin, etat));
+    zone.addEventListener('click', function (ev) { ev.stopPropagation(); });
+    function fermer() { document.removeEventListener('mousedown', dehors, true); zone.remove(); td.classList.remove('choix-rapides-cible'); U.rendreContenu(); }
+    function dehors(ev) { if (!zone.contains(ev.target)) fermer(); }
+    fin.addEventListener('click', function (ev) { ev.stopImmediatePropagation(); fermer(); }, true);
+    zone.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); fermer(); } });
+    document.body.appendChild(zone);
+    var r = td.getBoundingClientRect(), l = Math.min(Math.max(8, r.left + window.scrollX), window.scrollX + document.documentElement.clientWidth - 360);
+    zone.style.left = l + 'px'; zone.style.top = (r.bottom + window.scrollY + 4) + 'px';
+    setTimeout(function () { document.addEventListener('mousedown', dehors, true); var p = puces.querySelector('button'); if (p) p.focus(); }, 20);
+  }
   function modaleChamp(c, ent, id, titre) {
     function corps() {
       var v = U.champs.valeurDe(c, ent, id), ok = U.champs.modifiable(c);
@@ -256,7 +328,7 @@
             lienP.addEventListener('click', function (ev) {
               ev.stopPropagation();
               var s0 = U.App.session, ep = null;
-              try { ep = s0.detientCle('patients') ? s0.etatModule('patients') : null; } catch (e) { ep = null; }
+              try { ep = s0.ouvert('patients') ? s0.etatModule('patients') : null; } catch (e) { ep = null; }
               var full = ((U.st() && U.st().patients) || {})[l.p.id] || ((ep && ep.patients) || {})[l.p.id] || l.p;
               U.fichePatient.modale(full);
             });
@@ -333,7 +405,7 @@
   async function clore(v) {
     var ctx = contexte(), cat = V.catalogue(v.lignes, ctx), cols = colonnesVisibles(v, cat), ls = V.lignes(v, ctx), groupes = V.ranger(v, ls, cat, ctx, cols.map(function (x) { return x.col; }));
     var id = 'I' + C.hex(C.aleatoire(6)), prep = V.preparerInstantane(v, groupes, cols, ctx, id);
-    var detenus = prep.parts.filter(function (p) { return p.journal === 'vue' || p.journal === 'patients' || (session().detientCle && session().detientCle(p.journal)) || (p.journal.indexOf('d-') === 0 && (p.journal.indexOf('.') < 0 || (session().detientCle && session().detientCle(p.journal)))); });
+    var detenus = prep.parts.filter(function (p) { return p.journal === 'vue' || p.journal === 'patients' || (session().ouvert && session().ouvert(p.journal)) || (p.journal.indexOf('d-') === 0 && (p.journal.indexOf('.') < 0 || (session().ouvert && session().ouvert(p.journal)))); });
     if (!confirm('Clore la feuille « ' + v.nom + ' » du ' + U.date(Date.now()) + ' ?\n\nL’instantané garde les ' + ls.length + ' ligne(s) et les ' + cols.length + ' colonne(s) telles qu’elles sont maintenant. Il ne sera plus modifiable (des annotations datées restent possibles).')) return;
     try {
       for (var i = 0; i < detenus.length; i++) await session().enregistrer('INSTANTANE_PART', detenus[i].data);

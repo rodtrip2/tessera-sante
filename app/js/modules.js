@@ -15,6 +15,8 @@
  *   fournitures  [{ nom, version, champs, acces, publication }] : données lues par d'autres modules
  *   besoins      [{ fourniture, version, obligatoire }] : fournitures attendues d'autres modules
  *   interface    ajoutée par le fichier d'interface du module (navigateur) : { vues, journal, admin }
+ *   indispensable vrai pour un module que l'administrateur ne peut pas arrêter (0.43.0 : Équipe, prêts de droits) ;
+ *                un module de référence (Patients) est toujours indispensable
  *   reference    vrai pour un module de référence partagé par d'autres (Patients, étape 5) : sans onglet ni droits
  *                propres tant qu'il n'a pas son écran ; ses saisies sont permises par les modules qui en dépendent,
  *                et sa clé est remise à qui a droit à l'un d'eux
@@ -109,6 +111,27 @@
         var a = (idModule && reg.obtenir(idModule)) || reg.actif();
         return a ? a.vues.onglets.slice() : [];
       },
+      /** Module indispensable (0.43.0) : ni arrêt depuis l'accueil de l'administration, ni désactivation complète. */
+      indispensable: function (id) { var m = reg.obtenir(id); return !!(m && (m.reference || m.indispensable)); },
+      /**
+       * Réglage d'activation d'un module (`modulesServices`) avec les services choisis : l'arrêt éventuel est gardé ;
+       * `tous` : tous les services cochés (réglage d'origine). Modifie et renvoie `valeur`.
+       */
+      ecrireActivation: function (valeur, id, actifs, tous) {
+        var arret = !!(valeur[id] && valeur[id].arret);
+        if (tous) { if (arret) valeur[id] = { arret: true }; else delete valeur[id]; }
+        else valeur[id] = arret ? { tous: false, services: actifs, arret: true } : { tous: false, services: actifs };
+        return valeur;
+      },
+      /** Arrêt ou remise en marche d'un module (0.43.0), réglage par service gardé. Modifie et renvoie `valeur`. */
+      ecrireArret: function (valeur, id, arret) {
+        var v = Object.assign({}, valeur[id] || {});
+        if (arret) v.arret = true; else delete v.arret;
+        if (v.tous === false || v.arret) valeur[id] = v; else delete valeur[id];
+        return valeur;
+      },
+      /** Module en service (0.43.0) : déclaré et pas arrêté par l'administrateur (les données d'un module arrêté restent lisibles). */
+      enService: function (id, config) { var m = reg.obtenir(id); if (!m) return false; if (m.reference || m.indispensable || !m.droits || !m.droits.arrete) return true; return !m.droits.arrete(config); },
       /** Modules affichés (hors modules de référence). */
       affiches: function () { return liste.filter(function (m) { return !m.reference; }); },
       /**

@@ -100,7 +100,7 @@
   }
   /** L'agent a-t-il accès à l'élément (clé du module, service de l'élément parmi les siens) ? */
   function accesElement(r) {
-    if (!r || !s().detientCle || !s().detientCle(r.module)) return false;
+    if (!r || !s().ouvert || !s().ouvert(r.module)) return false;
     return !r.service || mesServicesModule(r.module).indexOf(r.service) >= 0;
   }
   function etat(id) { try { return s().etatModule(id) || null; } catch (e) { return null; } }
@@ -203,7 +203,7 @@
   }
   /** Choix d'un élément à rattacher : module, puis élément (seulement ceux auxquels l'agent a accès). */
   function modaleRattacher(puis) {
-    var mods = Object.keys(MS.RATTACHABLES).filter(function (k) { return s().detientCle && s().detientCle(k); });
+    var mods = Object.keys(MS.RATTACHABLES).filter(function (k) { return s().ouvert && s().ouvert(k); });
     if (!mods.length) { alert('Vous n’avez accès à aucun module dont on peut rattacher un élément.'); return; }
     var selM = h('select', { 'aria-label': 'Module' }, mods.map(function (k) { return h('option', { value: k, text: MS.RATTACHABLES[k] }); }));
     var zone = h('div', { class: 'pile ms-choix-elements' }), choisi = null, filtreTxt = h('input', { type: 'search', placeholder: 'Filtrer', 'aria-label': 'Filtrer les éléments' });
@@ -513,7 +513,7 @@
   function informations() {
     var o = opts(), res = [];
     Object.keys(MS.INFORMATIONS).forEach(function (k) {
-      if (!o.informations[k] || !s().detientCle || !s().detientCle(k)) return;
+      if (!o.informations[k] || !s().ouvert || !s().ouvert(k)) return;
       var m = SIC.modules.obtenir(k), f = m && m.interface && m.interface.informations;
       if (typeof f !== 'function') return;
       (f() || []).forEach(function (i) { res.push(Object.assign({ module: k }, i)); });
@@ -781,7 +781,7 @@
   // ------------------------------------------------------------ « Envoyer par message » depuis un autre module
   /** L'agent peut-il écrire un message (clé de la messagerie, droit d'écrire, pas d'aperçu) ? */
   function peutEnvoyer() {
-    try { return !!s() && s().detientCle('messagerie') && SIC.modules.obtenir('messagerie').droits.peut(s().roles(), 'MESSAGE', U.config()) && !s().apercu; } catch (e) { return false; }
+    try { return !!s() && s().ouvert('messagerie') && SIC.modules.obtenir('messagerie').droits.peut(s().roles(), 'MESSAGE', U.config()) && !s().apercu; } catch (e) { return false; }
   }
   /** Ferme la fenêtre ouverte et ouvre un nouveau message avec l'élément déjà rattaché. */
   function envoyer(module, genre, id, service) {
@@ -802,7 +802,7 @@
   function elements() {
     var res = [];
     Object.keys(ADAPT).forEach(function (k) {
-      if (!s().detientCle || !s().detientCle(k)) return;
+      if (!s().ouvert || !s().ouvert(k)) return;
       var l = [];
       try { l = ADAPT[k].lister() || []; } catch (e) { l = []; }
       l.forEach(function (x) {
@@ -816,7 +816,7 @@
   }
   /** Messages reçus et envoyés qui contiennent la recherche (objet, texte, auteur) : [{ titre, detail, ouvrir }]. */
   function chercher(q) {
-    if (!q || !s().detientCle || !s().detientCle('messagerie')) return [];
+    if (!q || !s().ouvert || !s().ouvert('messagerie')) return [];
     var c = compte(), vus = {}, res = [];
     ['recus', 'envoyes'].forEach(function (onglet) {
       var l = [];

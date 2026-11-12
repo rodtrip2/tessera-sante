@@ -119,7 +119,7 @@
     function options(l, val, vide) { return (vide ? [h('option', { value: '', text: vide })] : []).concat(l.map(function (c) { return h('option', { value: c.code, text: c.libelle, selected: c.code === val }); })); }
     var type = h('select', Object.assign({ 'aria-label': 'Type de travaux' }, dis), options(o.types, x.type, '— Choisir —'));
     // Salle ou bureau (module Salles et bureaux, 0.25.1) : choisie dans la liste du service
-    var avecSalles = !!(SIC.salles && s.detientCle && s.detientCle('salles')), stS = avecSalles ? s.etatModule('salles') : null;
+    var avecSalles = !!(SIC.salles && s.ouvert && s.ouvert('salles')), stS = avecSalles ? s.etatModule('salles') : null;
     var lieu = h('select', Object.assign({ 'aria-label': 'Lieu' }, dis), options(o.lieux.concat([{ code: 'chambre', libelle: 'Chambre…' }], avecSalles || x.lieu === 'salle' ? [{ code: 'salle', libelle: 'Salle ou bureau…' }] : [], [{ code: 'autre', libelle: 'Autre lieu' }]), x.lieu, '— Choisir —'));
     var selSalle = h('select', Object.assign({ 'aria-label': 'Salle ou bureau' }, dis), [h('option', { value: '', text: '— Choisir la salle —' })].concat(avecSalles ? SIC.salles.sallesDuService(stS, x.service || sv.value).map(function (y) { return h('option', { value: y.id, text: y.nom, selected: y.id === x.salle }); }) : x.salle ? [h('option', { value: x.salle, text: x.salleNom || 'Salle', selected: true })] : []));
     var cbSalleIndispo = h('input', Object.assign({ type: 'checkbox', checked: !!x.salleIndisponible }, dis));
