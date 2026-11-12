@@ -228,8 +228,12 @@
     var titre = h('input', { type: 'text', class: 'doc-titre', maxlength: 160, value: meta.titre === 'Sans titre' && !base ? '' : meta.titre, placeholder: 'Titre du document', 'aria-label': 'Titre du document', readonly: !modifiable });
     var etat = h('span', { class: 'doc-etat muted', 'aria-live': 'polite' });
     var corps = h('div', { class: 'doc-corps', contenteditable: modifiable ? 'true' : 'false', spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Texte du document' });
-    rendreBlocs(lu.contenu.blocs).forEach(function (n) { corps.appendChild(n); });
+    rendreBlocs(lu.contenu.blocs || []).forEach(function (n) { corps.appendChild(n); });
     var entete = h('div'), pied = h('div'), feuille = h('div', { class: 'doc-feuille' }, entete, corps, pied);
+    // Tableur (0.35.0) : surface du classeur à la place de la page de texte ; la fenêtre, l'enregistrement et le reste sont communs
+    var tab = lu.contenu.genre === 'tableur' ? U.tableur.surface(lu.contenu, { modifiable: modifiable, changer: function () { marquer(); } }) : null;
+    if (tab) page = tab.page;
+    function lireContenu() { return tab ? DM.contenu(tab.lire()) : DM.contenu({ blocs: lireBlocs(corps), page: page }); }
     function dessinerZones() {
       var v = valeursPage(doc(id) || d0, { titre: titre.value || 'Sans titre' });
       U.vider(entete).appendChild(zonesPage(page.entete, v, 'doc-entete'));
@@ -245,9 +249,9 @@
       if (enregistrement) { await enregistrement; if (!sale) return true; }
       enregistrement = (async function () {
         try {
-          normaliserPage();
+          if (!tab) normaliserPage();
           meta.titre = titre.value.trim() || 'Sans titre';
-          var contenu = DM.contenu({ blocs: lireBlocs(corps), page: page });
+          var contenu = lireContenu();
           var dd = doc(id), der = DM.derniere(dd);
           if (der && base && der.id !== base && der.par !== moi().id) U.toast(nomAgent(der.par, dd) + ' a enregistré une version pendant votre travail : la vôtre vient après (la sienne reste dans l’historique).');
           var c = await s().chiffrerDocument(id, { meta: meta, contenu: contenu });
@@ -428,8 +432,10 @@
         h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { modaleHistorique(id); }); } }, 'Historique'),
         modifiable && (stt.statut === 'brouillon' || stt.statut === 'modifie' || stt.statut === 'a-reviser') ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { demanderValidation(id, dessinerBarre); }); } }, 'Demander la validation') : null,
         valideur ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { modaleValidation(id, dessinerBarre); }); } }, 'Valider…') : null,
-        modifiable ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleMiseEnPage(page, function () { dessinerZones(); marquer(); }); } }, 'Mise en page') : null,
-        h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { imprimer(id, { meta: { titre: titre.value || 'Sans titre', rattaches: meta.rattaches }, contenu: DM.contenu({ blocs: lireBlocs(corps), page: page }) }); }); } }, 'Imprimer'),
+        modifiable ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleMiseEnPage(tab ? tab.page : page, function (p) { if (tab) { tab.appliquerPage(p); page = tab.page; } dessinerZones(); marquer(); }, !!tab); } }, 'Mise en page') : null,
+        h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { var luI = { meta: { titre: titre.value || 'Sans titre', rattaches: meta.rattaches }, contenu: lireContenu() };
+          if (tab) { var toutes = luI.contenu.feuilles.length > 1 && confirm('Imprimer toutes les feuilles ? (Annuler : la feuille affichée seulement)'); U.tableur.imprimer(luI.contenu, zonesPage, valeursPage(doc(id) || d0, luI.meta), toutes, tab.feuille()); }
+          else imprimer(id, luI); }); } }, 'Imprimer'),
         gere && !dd.corbeille && !s().apercu ? h('button', { class: 'btn danger', type: 'button', onclick: function () { mettreACorbeille(id); } }, 'Corbeille') : null,
         h('button', { class: 'btn', type: 'button', onclick: fermer }, 'Fermer')));
       if (dd.corbeille) barre.appendChild(h('p', { class: 'alerte', text: 'Dans la corbeille depuis le ' + dateCourte(dd.corbeille.le) + ' : effacé définitivement dans ' + DM.joursAvantEffacement(dd, Date.now(), jc()) + ' jour(s).' }));
@@ -446,15 +452,16 @@
       if (sale && !(await enregistrer(true)) && !confirm('L’enregistrement a échoué. Fermer quand même (les dernières modifications seront perdues) ?')) return;
       ferme = true; clearTimeout(minuteur);
       document.removeEventListener('selectionchange', garderSelection);
+      if (tab) tab.detruire();
       dlg.close(); dlg.remove(); U.rendreContenu();
     }
     dlg.addEventListener('cancel', function (ev) { ev.preventDefault(); fermer(); });
-    dlg.appendChild(h('div', { class: 'doc-cadre' }, barre, outils, h('div', { class: 'doc-fond' }, feuille),
+    dlg.appendChild(h('div', { class: 'doc-cadre' + (tab ? ' doc-tableur' : '') }, barre, tab ? tab.outils : outils, tab ? tab.zone : h('div', { class: 'doc-fond' }, feuille),
       h('p', { class: 'muted doc-rappel' }, h('small', { text: 'Document chiffré, partagé seulement avec les personnes choisies ; enregistré automatiquement, chaque enregistrement est une version. Aucune donnée clinique (le dossier du patient reste dans le DPI).' }))));
     document.body.appendChild(dlg);
     dlg.showModal();
-    if (modifiable) setTimeout(function () { (titre.value ? corps : titre).focus(); }, 50);
-    U.App.documentOuvert = { id: id, editeur: { enregistrer: enregistrer, fermer: fermer, corps: corps, lire: function () { return DM.contenu({ blocs: lireBlocs(corps), page: page }); } } };
+    if (modifiable) setTimeout(function () { if (!titre.value) titre.focus(); else if (tab) tab.focus(); else corps.focus(); }, 50);
+    U.App.documentOuvert = { id: id, editeur: { enregistrer: enregistrer, fermer: fermer, corps: corps, tableur: tab, lire: lireContenu } };
   }
 
   // ------------------------------------------------------------ Création
@@ -464,7 +471,7 @@
     var noms = DM.clesDocument(me.id, p), manq = s().clesDocumentManquantes(noms);
     if (manq.indexOf('k-a.' + me.id) >= 0) throw new Error('Votre clé de documents n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.');
     await s().creerCleDocument(id, noms);
-    await s().enregistrer('DOC', { id: id, nom: me.nom, modele: !!o.modele, partage: p, services: o.services || [], depuis: o.depuis || '' });
+    await s().enregistrer('DOC', { id: id, nom: me.nom, genre: o.contenu && o.contenu.genre === 'tableur' ? 'tableur' : 'texte', modele: !!o.modele, partage: p, services: o.services || [], depuis: o.depuis || '' });
     var c = await s().chiffrerDocument(id, { meta: DM.meta(o.meta || { titre: 'Sans titre' }), contenu: DM.contenu(o.contenu || {}) });
     var e = await s().enregistrer('DOC_VERSION', { doc: id, g: c.g, ct: c.ct, nom: me.nom });
     cache[e.id] = { meta: DM.meta(o.meta || {}), contenu: DM.contenu(o.contenu || {}) };
@@ -475,13 +482,17 @@
   function modaleNouveau(o) {
     o = o || {};
     var modeles = DM.visibles(st(), moi(), cfg(), { modeles: true });
-    var sel = h('select', { 'aria-label': 'Modèle' }, [h('option', { value: '', text: 'Document vide' })].concat(modeles.map(function (d) { var m = metaConnue(d); return h('option', { value: d.id, text: m ? m.titre : 'Modèle…' }); })));
-    chargerTitres(modeles, function () { Array.prototype.forEach.call(sel.options, function (op) { var d = doc(op.value), m = d && metaConnue(d); if (m) op.textContent = m.titre; }); });
+    // Genre (0.35.0) : document texte ou tableur ; un modèle fixe le genre
+    var lib = function (d, m) { return (m ? m.titre : 'Modèle…') + (d.genre === 'tableur' ? ' (tableur)' : ''); };
+    var sel = h('select', { 'aria-label': 'Modèle' }, [h('option', { value: '', text: 'Vide' })].concat(modeles.map(function (d) { return h('option', { value: d.id, text: lib(d, metaConnue(d)) }); })));
+    chargerTitres(modeles, function () { Array.prototype.forEach.call(sel.options, function (op) { var d = doc(op.value), m = d && metaConnue(d); if (m) op.textContent = lib(d, m); }); });
+    var genre = h('select', { 'aria-label': 'Genre du document' }, Object.keys(DM.GENRES).map(function (k) { return h('option', { value: k, text: DM.GENRES[k], selected: k === (o.genre || 'texte') }); }));
+    sel.addEventListener('change', function () { var d = doc(sel.value); genre.disabled = !!d; if (d) genre.value = d.genre; });
     var titre = h('input', { type: 'text', maxlength: 160, placeholder: 'Titre', 'aria-label': 'Titre du nouveau document' });
     var admin = s().roles().indexOf('ADMIN') >= 0, cadre = s().roles().indexOf('CADRE') >= 0 || s().roles().indexOf('CADRE_SUP') >= 0;
     var cbModele = o.modele || (!o.rattache && (cadre || admin)) ? h('input', { type: 'checkbox', checked: !!o.modele, 'aria-label': 'Créer un modèle' }) : null;
     U.modale(o.modele ? 'Nouveau modèle' : 'Nouveau document', h('div', { class: 'pile' },
-      h('label', {}, 'Titre', titre), h('label', {}, 'À partir de', sel),
+      h('label', {}, 'Titre', titre), h('div', { class: 'grille-2' }, h('label', {}, 'Genre', genre), h('label', {}, 'À partir d’un modèle', sel)),
       o.rattache ? h('p', { class: 'info', text: 'Rattaché à : ' + o.rattache.libelle }) : null,
       cbModele ? h('label', { class: 'case' }, cbModele, h('span', { text: 'C’est un modèle, partagé en lecture avec ' + (admin && !cadre ? 'tout l’établissement' : 'vos services') })) : null,
       h('p', { class: 'muted', text: 'Le document est privé : vous seul le voyez jusqu’à ce que vous le partagiez.' })),
@@ -489,7 +500,7 @@
         var base = sel.value ? doc(sel.value) : null, lu = base ? await lireVersion(base, DM.enVigueur(base)) : null;
         var estModele = cbModele && cbModele.checked, svs = estModele ? (admin && !cadre ? (cfg().services || []).map(function (x) { return x.code; }) : (moi().services || [])) : [];
         var id = await creer({ modele: estModele, services: estModele ? svs : [], partage: estModele ? svs.map(function (x) { return { genre: 'service', code: x, droit: 'lire' }; }) : [], depuis: base ? base.id : '',
-          meta: { titre: titre.value.trim() || (lu ? lu.meta.titre : 'Sans titre'), rattaches: o.rattache ? [o.rattache] : [] }, contenu: lu ? lu.contenu : {} });
+          meta: { titre: titre.value.trim() || (lu ? lu.meta.titre : 'Sans titre'), rattaches: o.rattache ? [o.rattache] : [] }, contenu: lu ? lu.contenu : genre.value === 'tableur' ? { genre: 'tableur' } : {} });
         setTimeout(function () { ouvrirEditeur(id); }, 0);
       } }]);
   }
@@ -583,13 +594,13 @@
   }
   async function voir(d, v, zone) {
     var lu = await lireVersion(d, v);
-    U.vider(zone).appendChild(lu ? h('div', { class: 'doc-apercu' }, h('h3', { text: lu.meta.titre + ' — version du ' + dateCourte(v.le) }), h('div', { class: 'doc-corps fp-' + lu.contenu.page.police + ' ft-' + lu.contenu.page.taille }, rendreBlocs(lu.contenu.blocs))) : h('p', { class: 'alerte', text: 'Version illisible (clé retirée ou effacée).' }));
+    U.vider(zone).appendChild(lu ? h('div', { class: 'doc-apercu' }, h('h3', { text: lu.meta.titre + ' — version du ' + dateCourte(v.le) }), lu.contenu.genre === 'tableur' ? U.tableur.apercu(lu.contenu) : h('div', { class: 'doc-corps fp-' + lu.contenu.page.police + ' ft-' + lu.contenu.page.taille }, rendreBlocs(lu.contenu.blocs))) : h('p', { class: 'alerte', text: 'Version illisible (clé retirée ou effacée).' }));
   }
   async function comparerVersions(d, a, b, zone) {
     var la = await lireVersion(d, a), lb = await lireVersion(d, b);
     if (!la || !lb) return U.vider(zone).appendChild(h('p', { class: 'alerte', text: 'Version illisible.' }));
     var diff = DM.comparer(la.contenu, lb.contenu), n = diff.filter(function (x) { return x.etat !== 'egal'; }).length;
-    U.vider(zone).appendChild(h('div', { class: 'doc-apercu' }, h('h3', { text: 'Modifications du ' + dateCourte(b.le) + ' (' + nomAgent(b.par, d) + ') — ' + n + ' paragraphe(s)' }),
+    U.vider(zone).appendChild(h('div', { class: 'doc-apercu' }, h('h3', { text: 'Modifications du ' + dateCourte(b.le) + ' (' + nomAgent(b.par, d) + ') — ' + n + (la.contenu.genre === 'tableur' ? ' modification(s)' : ' paragraphe(s)') }),
       la.meta.titre !== lb.meta.titre ? h('p', { class: 'diff-ajout', text: 'Titre : « ' + la.meta.titre + ' » → « ' + lb.meta.titre + ' »' }) : null,
       h('div', { class: 'doc-diff' }, diff.map(function (x) { return h('p', { class: 'diff-' + x.etat, text: x.texte || ' ' }); }))));
   }
@@ -644,20 +655,23 @@
   }
 
   // ------------------------------------------------------------ Mise en page
-  function modaleMiseEnPage(page, apres) {
+  function modaleMiseEnPage(page, apres, tableur) {
     var p = JSON.parse(JSON.stringify(page)), dernier = null;
     function nombre(k, aria) { var i = h('input', { type: 'number', min: 5, max: 50, value: p.marges[k], class: 'champ-court', 'aria-label': aria }); i.addEventListener('change', function () { p.marges[k] = +i.value; }); return h('label', {}, aria, i); }
     function sel(k, opts, aria) { var x = h('select', { 'aria-label': aria }, Object.keys(opts).filter(Boolean).map(function (o) { return h('option', { value: o, text: opts[o], selected: String(p[k]) === o }); })); x.addEventListener('change', function () { p[k] = isNaN(+x.value) ? x.value : +x.value; }); return h('label', {}, aria, x); }
     function zonesE(nom, obj) { return h('div', { class: 'grille-3' }, ['gauche', 'centre', 'droite'].map(function (k) { var i = h('input', { type: 'text', maxlength: 160, value: obj[k], 'aria-label': nom + ' ' + k }); i.addEventListener('input', function () { obj[k] = i.value; }); i.addEventListener('focus', function () { dernier = { el: i, obj: obj, k: k }; }); return h('label', {}, nom + ' — ' + { gauche: 'à gauche', centre: 'au centre', droite: 'à droite' }[k], i); })); }
     var tailles = {}; DM.TAILLES.forEach(function (t) { tailles[t] = t + ' pt'; });
+    function caseP(k, lib) { var x = h('input', { type: 'checkbox', checked: !!p[k], 'aria-label': lib }); x.addEventListener('change', function () { p[k] = x.checked; }); return h('label', { class: 'case' }, x, h('span', { text: lib })); }
+    var champs = Object.assign({}, DM.CHAMPS_PAGE); if (tableur) champs.feuille = 'Nom de la feuille';
     U.modale('Mise en page', h('div', { class: 'pile' },
-      h('div', { class: 'actions gauche' }, sel('orientation', { portrait: 'Portrait', paysage: 'Paysage' }, 'Orientation'), sel('police', DM.POLICES, 'Police du document'), sel('taille', tailles, 'Taille du texte'), sel('interligne', { 1: 'Simple', 1.15: '1,15', 1.5: '1,5', 2: 'Double' }, 'Interligne')),
+      tableur ? h('div', { class: 'actions gauche' }, sel('orientation', { portrait: 'Portrait', paysage: 'Paysage' }, 'Orientation'), caseP('ajuster', 'Ajuster à la largeur de la page'), caseP('quadrillage', 'Imprimer le quadrillage'), caseP('repeter', 'Répéter la 1re ligne sur chaque page'))
+        : h('div', { class: 'actions gauche' }, sel('orientation', { portrait: 'Portrait', paysage: 'Paysage' }, 'Orientation'), sel('police', DM.POLICES, 'Police du document'), sel('taille', tailles, 'Taille du texte'), sel('interligne', { 1: 'Simple', 1.15: '1,15', 1.5: '1,5', 2: 'Double' }, 'Interligne')),
       h('fieldset', {}, h('legend', { text: 'Marges (mm)' }), h('div', { class: 'actions gauche' }, nombre('h', 'Haut'), nombre('b', 'Bas'), nombre('g', 'Gauche'), nombre('d', 'Droite'))),
       zonesE('En-tête', p.entete), zonesE('Pied de page', p.pied),
-      h('div', { class: 'actions gauche' }, h('span', { class: 'muted', text: 'Insérer :' }), Object.keys(DM.CHAMPS_PAGE).map(function (k) {
-        return h('button', { class: 'btn petit', type: 'button', onmousedown: function (ev) { ev.preventDefault(); }, onclick: function () { if (!dernier) return U.toast('Cliquez d’abord dans une zone de l’en-tête ou du pied de page.'); var el = dernier.el, pos = el.selectionStart || el.value.length; el.value = el.value.slice(0, pos) + '{' + k + '}' + el.value.slice(pos); dernier.obj[dernier.k] = el.value; } }, DM.CHAMPS_PAGE[k]);
+      h('div', { class: 'actions gauche' }, h('span', { class: 'muted', text: 'Insérer :' }), Object.keys(champs).map(function (k) {
+        return h('button', { class: 'btn petit', type: 'button', onmousedown: function (ev) { ev.preventDefault(); }, onclick: function () { if (!dernier) return U.toast('Cliquez d’abord dans une zone de l’en-tête ou du pied de page.'); var el = dernier.el, pos = el.selectionStart || el.value.length; el.value = el.value.slice(0, pos) + '{' + k + '}' + el.value.slice(pos); dernier.obj[dernier.k] = el.value; } }, champs[k]);
       }))),
-      [{ texte: 'Annuler' }, { texte: 'Appliquer', classe: 'primaire', action: function () { Object.assign(page, DM.page(p)); apres(); } }]);
+      [{ texte: 'Annuler' }, { texte: 'Appliquer', classe: 'primaire', action: function () { if (tableur) apres(p); else { Object.assign(page, DM.page(p)); apres(p); } } }]);
   }
 
   // ------------------------------------------------------------ Impression
@@ -688,7 +702,7 @@
   function ligne(d, apres) {
     var m = metaConnue(d), stt = DM.statut(d), der = DM.derniere(d), droit = DM.droitDe(d, moi(), cfg());
     return h('tr', { class: 'doc-ligne' },
-      h('td', {}, h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…'),
+      h('td', {}, h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…'), d.genre === 'tableur' ? h('span', { class: 'badge', text: 'Tableur' }) : null,
         m && m.rattaches.length ? h('div', {}, h('small', { class: 'muted', text: m.rattaches.map(function (r) { return r.libelle; }).join(' · ') })) : null),
       h('td', {}, h('span', { class: 'badge statut-' + stt.statut, text: DM.STATUTS[stt.statut] })),
       h('td', { text: d.auteur === moi().id ? 'Vous' : nomAgent(d.auteur, d) }),
@@ -717,7 +731,8 @@
     var cle = s().clesDocumentManquantes(['k-a.' + moi().id]).length === 0, demandes = DM.validationsDemandees(st(), moi(), cfg());
     return h('div', { class: 'pile' },
       h('div', { class: 'barre' }, h('h1', { text: 'Documents' }), recherche(), h('div', { class: 'espace' }),
-        !s().apercu ? h('button', { class: 'btn primaire', type: 'button', disabled: !cle, onclick: function () { modaleNouveau(); } }, '+ Nouveau document') : null),
+        !s().apercu ? h('button', { class: 'btn primaire', type: 'button', disabled: !cle, onclick: function () { modaleNouveau(); } }, '+ Nouveau document') : null,
+        !s().apercu ? h('button', { class: 'btn', type: 'button', disabled: !cle, onclick: function () { modaleNouveau({ genre: 'tableur' }); } }, '+ Nouveau tableur') : null),
       cle ? null : h('p', { class: 'alerte', text: 'Votre clé de documents n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.' }),
       demandes.length ? h('div', { class: 'alerte' }, h('b', { text: 'Validation qui vous est demandée : ' }), demandes.map(function (d, i) { var m = metaConnue(d); return [i ? ', ' : '', h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…')]; })) : null,
       aReviser.length ? h('p', { class: 'alerte', text: aReviser.length + ' document(s) à réviser : ' + aReviser.map(function (d) { var m = metaConnue(d); return m ? m.titre : '…'; }).join(', ') + '.' }) : null,
