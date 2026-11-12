@@ -1046,3 +1046,8 @@ table.tr-tableau .tr-pied td { padding: .4em 0 0; font-size: .85em; }
   .tr-doc .tr-taches.nouvelle-page { break-before: page; }
   .tr-doc table.tr-tableau td, .tr-doc table.tr-tableau th, .tr-doc .tr-el { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+.tr-modifiable { cursor: pointer; border-bottom: 1px dotted var(--ink-2); }
+.tr-modifiable:hover, .tr-modifiable:focus { background: var(--accent-soft); outline: none; }
+.tr-lien { padding: 0; font: inherit; font-weight: inherit; text-align: left; }
+@media print { .tr-modifiable { border-bottom: none; } }
+.tr-vide { opacity: .45; font-size: .9em; }

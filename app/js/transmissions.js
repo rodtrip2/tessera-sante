@@ -19,6 +19,8 @@
   var CHAMPS = { date: 'Date', heure: 'Heure', service: 'Service', poste: 'Poste', agent: 'Imprimé par', etablissement: 'Établissement', titre: 'Titre du tableau' };
   var TACHES = { aucune: 'Ne pas ajouter', suite: 'À la suite du tableau', page: 'Sur une page à part' };
   var ORIENTATIONS = { portrait: 'Portrait', paysage: 'Paysage' };
+  /** Formats d'une date (12 novembre 2026, demande du porteur) ; '' : format de la donnée (date et jours écoulés). */
+  var FORMATS_DATE = { '': 'Celui de la donnée', date: '03/10/2026', courte: '03/10/26', jourMois: '03/10', jours: 'Jours écoulés (40 j)', jourMoisJours: '03/10 (40 j)', longue: '3 oct. 2026' };
   /** Marges étroites (mm) ; le bas laisse la place au numéro de page. */
   var MARGES = { haut: 6, bas: 6, gauche: 6, droite: 6, basNumero: 9 };
   var PAGE = { portrait: { l: 210, h: 297 }, paysage: { l: 297, h: 210 } };
@@ -36,6 +38,7 @@
       ligne: e.ligne === undefined ? i > 0 : e.ligne === true,   // à la ligne (sauf le premier, par défaut)
       etiquette: e.etiquette === true,              // libellé de la donnée devant la valeur (« Sorties libres : Oui »)
       libelle: texte(e.libelle, 40),                 // libellé court choisi (vide : nom de la donnée)
+      format: FORMATS_DATE[e.format] ? e.format : '',   // dates : format choisi (vide : celui de la donnée)
       masquerVide: e.masquerVide !== false         // rien d'affiché si la donnée est vide
     };
   }
@@ -49,7 +52,7 @@
   /** Modèle proposé (demande du porteur) : chambre et patient, consignes, prochains événements, notes. */
   function modele(o) {
     o = o || {};
-    var c1 = [{ code: 'chambre', gras: true, taille: 11 }, { code: 'patient', gras: true, majuscules: false, ligne: true }, { code: 'entree' }, { code: 'mode', etiquette: false },
+    var c1 = [{ code: 'chambre', gras: true, taille: 11 }, { code: 'patient', gras: true, majuscules: false, ligne: true }, { code: 'entree', format: 'jourMoisJours', etiquette: true, libelle: 'Entrée' }, { code: 'mode', etiquette: false },
       { code: 'medecin1', etiquette: true, libelle: 'Médecin 1' }, { code: 'medecin2', etiquette: true, libelle: 'Médecin 2' }, { code: 'psychologue', etiquette: true, libelle: 'Psychologue' },
       { code: 'referents', etiquette: true, libelle: 'Référents' }, { code: 'contrat', etiquette: true, libelle: 'Contrat' }, { code: 'dernierEntretien', etiquette: true, libelle: 'Entretien médical' }];
     return {
@@ -89,6 +92,28 @@
   /** Texte d'en-tête ou de pied : champs {date}, {heure}, {service}, {poste}, {agent}, {etablissement}, {titre}. */
   function remplir(modeleTexte, valeurs) {
     return String(modeleTexte || '').replace(/\{([a-z]+)\}/g, function (m, k) { return CHAMPS[k] ? String((valeurs || {})[k] || '') : m; }).replace(/\s+—\s*$/, '').replace(/^\s*—\s+/, '').trim();
+  }
+
+  var MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  /**
+   * Date AAAA-MM-JJ dans le format choisi ; `jours` : jours écoulés (calculés si absents), `j` : écrit « J60 » (date
+   * d'entrée) plutôt que « 60 j ». null si la valeur n'est pas une date (le texte de la donnée est alors gardé).
+   */
+  function formaterDate(iso, format, o) {
+    o = o || {};
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(typeof iso === 'string' ? iso : '');
+    if (!format || !m) return null;
+    var jours = typeof o.jours === 'number' ? o.jours : Math.floor((new Date((o.maintenant || Date.now())).setHours(0, 0, 0, 0) - new Date(+m[1], +m[2] - 1, +m[3]).getTime()) / 864e5);
+    var nj = o.j ? 'J' + jours : jours + ' j';
+    switch (format) {
+      case 'date': return m[3] + '/' + m[2] + '/' + m[1];
+      case 'courte': return m[3] + '/' + m[2] + '/' + m[1].slice(2);
+      case 'jourMois': return m[3] + '/' + m[2];
+      case 'jours': return nj;
+      case 'jourMoisJours': return m[3] + '/' + m[2] + ' (' + nj + ')';
+      case 'longue': return (+m[3]) + ' ' + MOIS[+m[2] - 1] + ' ' + m[1];
+    }
+    return null;
   }
 
   // ------------------------------------------------------------ Impression : ajustement au nombre de faces
@@ -157,6 +182,6 @@
     })[0] || (periodes || [])[0] || null;
   }
 
-  return { CHAMPS: CHAMPS, TACHES: TACHES, ORIENTATIONS: ORIENTATIONS, MARGES: MARGES, PAGE: PAGE, modele: modele, normaliser: normaliser, codes: codes, remplir: remplir,
+  return { FORMATS_DATE: FORMATS_DATE, formaterDate: formaterDate, CHAMPS: CHAMPS, TACHES: TACHES, ORIENTATIONS: ORIENTATIONS, MARGES: MARGES, PAGE: PAGE, modele: modele, normaliser: normaliser, codes: codes, remplir: remplir,
     zoneUtile: zoneUtile, paginer: paginer, echelle: echelle, tachesDuPoste: tachesDuPoste, posteDe: posteDe, element: element };
 });
