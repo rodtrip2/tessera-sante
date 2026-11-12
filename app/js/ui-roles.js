@@ -145,7 +145,7 @@
     dessiner();
     var cmd = h('div', { class: 'actions gauche replis-commandes' },
       h('button', { class: 'btn petit', type: 'button', onclick: function () { Array.prototype.forEach.call(zone.querySelectorAll('fieldset.role.repliable'), U.deplier); } }, 'Tout déplier'),
-      h('button', { class: 'btn petit', type: 'button', onclick: function () { Array.prototype.forEach.call(zone.querySelectorAll('fieldset.role.repliable'), function (f) { f.classList.add('replie'); var l = f.querySelector(':scope > legend'); if (l) l.setAttribute('aria-expanded', 'false'); }); } }, 'Tout replier'));
+      h('button', { class: 'btn petit', type: 'button', onclick: function () { Array.prototype.forEach.call(zone.querySelectorAll('fieldset.role.repliable'), function (f) { f.classList.add('replie'); var l = U.controleRepli(f); if (l) l.setAttribute('aria-expanded', 'false'); }); } }, 'Tout replier'));
     return h('section', { class: 'panneau' }, h('h2', { text: 'Rôles et accès' }),
       h('p', { class: 'muted', text: 'Chaque compte porte un ou plusieurs rôles ; ses accès sont la réunion de ceux de ses rôles. Tous les agents voient les données de leurs services ; les accès ci-dessous ouvrent les saisies et actions. Un rôle sans accès donne une consultation seule. Le journal des saisies montre, selon le rôle, tout le journal, les saisies des services de l’agent, ses propres saisies, ou rien ; un agent qui cumule des rôles a le niveau le plus large. Les changements s’appliquent à la prochaine actualisation de chaque poste et sont tracés au journal.' }),
       zoneErr, ajout, cmd, zone,
