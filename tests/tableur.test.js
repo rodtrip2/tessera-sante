@@ -146,3 +146,19 @@ test('Filtre : lignes masquées selon les valeurs affichées, valeurs de la colo
   const g = T.inserer(c, 0, 'l', 1, -4);
   assert.equal(g.feuilles[0].conditions.length, 0);   // plage supprimée entièrement : règle retirée
 });
+
+test('Suivi des modifications d’une case : valeur d’avant gardée, accepter, refuser', () => {
+  const ag = { id: 'a1', nom: 'Agent A (fictif)' };
+  let x = T.suivre({ v: 5, s: { g: true } }, { v: 8, s: { g: true } }, ag);
+  assert.deepEqual(x.suivi.avant, { v: 5 }); assert.equal(x.v, 8);
+  x = T.suivre(x, { v: 9, s: { g: true } }, ag);
+  assert.deepEqual(x.suivi.avant, { v: 5 });                       // première valeur gardée
+  assert.equal(T.suivre(x, { v: 5, s: { g: true } }, ag).suivi, undefined);   // retour à la valeur d'avant : plus de marque
+  assert.equal(T.suivre({ v: 5 }, { v: 5, s: { g: true } }, ag).suivi, undefined);   // mise en forme seule
+  const c = T.contenu({ feuilles: [{ cellules: { A1: x, B1: T.suivre(null, { f: '=A1*2' }, ag) } }] });
+  assert.deepEqual(T.modificationsSuivies(c).map((m) => m.nom + ' ' + m.avant + ' → ' + m.apres), ['A1 5 → 9', 'B1  → =A1*2']);
+  const r = T.resoudreSuivi(c, false);
+  assert.deepEqual(r.feuilles[0].cellules, { A1: { v: 5, s: { g: true } } });
+  const a = T.resoudreSuivi(c, true, 0, 'A1');
+  assert.deepEqual(a.feuilles[0].cellules.A1, { v: 9, s: { g: true } }); assert.ok(a.feuilles[0].cellules.B1.suivi);
+});

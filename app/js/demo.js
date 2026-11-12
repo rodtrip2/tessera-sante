@@ -747,6 +747,7 @@
         if (moiT && DMd && session.creerCleDocument && !session.clesDocumentManquantes(['k-a.' + moiT.id]).length) {
           var p = function (texte, o) { return Object.assign({ t: 'p', runs: [{ x: texte }] }, o || {}); }, ti = function (n, texte) { return { t: 'h' + n, runs: [{ x: texte }] }; };
           var li = function (texte, liste) { return { t: 'li', liste: liste || 'ul', runs: [{ x: texte }] }; };
+          var mqA = { p: 'demo-a', n: 'Agent A (fictif)', le: at(-48) };
           var docD = async function (o) {
             var id = 'DC' + SIC.crypto.hex(SIC.crypto.aleatoire(8)), auteur = o.auteur || moiT.id, part = DMd.partage(o.partage || []);
             await session.creerCleDocument(id, DMd.clesDocument(auteur, part).filter(function (n) { return !session.clesDocumentManquantes([n]).length; }));
@@ -770,8 +771,10 @@
             suite: [{ h: -24 * 34, type: 'DOC_VALIDATION', data: { version: 1, revision: jC(330), message: '' } }] });
           await docD({ titre: 'Procédure d’accueil d’un nouvel agent (fictif)', h: -24 * 6, partage: [{ genre: 'role', code: 'IDE', service: SVd, droit: 'modifier' }],
             versions: [{ h: -24 * 6, contenu: { blocs: [ti(1, 'Accueil d’un nouvel agent (fictif)'), p('Le premier jour, l’agent est accueilli par le cadre puis par son tuteur.'), li('Remise du badge et des clés', 'ol'), li('Visite du service', 'ol'), li('Présentation de Tessera', 'ol')] } },
-              { h: -24 * 2, par: 'demo-a', contenu: { blocs: [ti(1, 'Accueil d’un nouvel agent (fictif)'), p('Le premier jour, l’agent est accueilli par le cadre puis par son tuteur.'), li('Remise du badge et des clés', 'ol'), li('Visite du service et des sorties de secours', 'ol'), li('Présentation de Tessera', 'ol'), li('Lecture du livret d’accueil', 'ol')] } }],
-            suite: [{ h: -24 * 2 + 1, par: 'demo-a', type: 'DOC_STATUT', data: { statut: 'a-valider', message: 'J’ai ajouté les sorties de secours et le livret. (fictif)' } }] });
+              // Suivi des modifications (0.37.0) : ajouts et suppression de l'agent A, à accepter ou refuser
+              { h: -24 * 2, par: 'demo-a', contenu: { blocs: [ti(1, 'Accueil d’un nouvel agent (fictif)'), { t: 'p', runs: [{ x: 'Le premier jour, l’agent est accueilli par le cadre ' }, { x: 'puis par son tuteur', del: mqA }, { x: 'puis présenté à l’équipe par son tuteur', ins: mqA }, { x: '.' }] },
+                li('Remise du badge et des clés', 'ol'), { t: 'li', liste: 'ol', runs: [{ x: 'Visite du service' }, { x: ' et des sorties de secours', ins: mqA }] }, li('Présentation de Tessera', 'ol'), { t: 'li', liste: 'ol', runs: [{ x: 'Lecture du livret d’accueil', ins: mqA }] }] } }],
+            suite: [{ h: -24 * 3, par: 'demo-a', type: 'DOC_OPTIONS', data: { suivi: true, simultane: false } }, { h: -24 * 2 + 1, par: 'demo-a', type: 'DOC_STATUT', data: { statut: 'a-valider', message: 'J’ai ajouté les sorties de secours et le livret, en suivi des modifications. (fictif)' } }] });
           await docD({ titre: 'Compte rendu de réunion d’équipe (modèle fictif)', h: -24 * 60, modele: true, services: [SVd], partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
             versions: [{ h: -24 * 60, contenu: { blocs: [ti(1, 'Compte rendu de réunion d’équipe'), p('Date : …   Animateur : …   Présents : …'), ti(2, 'Points abordés'), li(''), ti(2, 'Décisions'), li(''), ti(2, 'Prochaine réunion'), p('…')], page: { pied: { gauche: '{titre}', centre: '{date}', droite: 'Page {page}' } } } }] });
           await docD({ titre: 'Organisation de la sortie à la médiathèque (fictif)', h: -24 * 3,
@@ -780,7 +783,7 @@
           await docD({ titre: 'Protocole de gestion des clés du service (fictif)', h: -24 * 400, partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
             versions: [{ h: -24 * 400, contenu: { blocs: [ti(1, 'Gestion des clés du service (fictif)'), p('Les clés sont rangées dans la boîte à code ; chaque emprunt est noté sur la feuille des emprunts.')] } }],
             suite: [{ h: -24 * 399, type: 'DOC_VALIDATION', data: { version: 0, revision: jC(-5), message: '' } }] });
-          await docD({ titre: 'Planning des formations AFGSU (fictif)', h: -24 * 9, auteur: 'demo-a', nom: 'Agent A (fictif)', partage: [{ genre: 'agent', code: moiT.id, droit: 'modifier' }],
+          await docD({ titre: 'Planning des formations AFGSU (fictif)', h: -24 * 9, auteur: 'demo-a', nom: 'Agent A (fictif)', partage: [{ genre: 'agent', code: moiT.id, droit: 'modifier' }], suite: [{ h: -24 * 9, par: 'demo-a', type: 'DOC_OPTIONS', data: { simultane: true, suivi: false } }],
             versions: [{ h: -24 * 9, contenu: { blocs: [ti(1, 'Formations aux gestes et soins d’urgence (fictif)'), p('Sessions prévues : 3 et 17 du mois prochain. Inscriptions auprès de l’agent A.')] } }] });
           // Validation supplémentaire demandée à l'agent connecté par un autre cadre (0.34.1)
           await docD({ titre: 'Charte d’utilisation du téléphone du service (fictif)', h: -24 * 4, auteur: 'demo-a', nom: 'Agent A (fictif)', partage: [{ genre: 'service', code: SVd, droit: 'lire' }, { genre: 'agent', code: moiT.id, droit: 'lire' }],
