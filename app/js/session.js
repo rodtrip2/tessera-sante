@@ -71,7 +71,7 @@
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
   var REGLAGES_SOCLE = { etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
-    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, messagerie: 1, salles: 1, infos: 1, poles: 1, chambres: 1 };
+    champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, messagerie: 1, salles: 1, infos: 1, poles: 1, chambres: 1, delegations: 1, comptesDemandes: 1, charteIntervenants: 1 };
   /** Champs ajoutés (0.18.0) : définitions, droits réglés pour chaque donnée, clés propres (`d-<id>`). */
   function CH() { return socle('champs', './champs.js'); }
   /** Clés propres à une donnée détenues par la session (journaux `modules\d-<id>\`). */
@@ -326,17 +326,99 @@
    */
   async function apresSynchro(s) {
     if (!v2(s) || s.formation || !attestateur(s) || bloquantes(s.controle).length) return;
+    await clesModulesManquantes(s);
+    // Accès particuliers (0.31.0) : comptes d'intervenants demandés par le cadre, prêts de droits commencés ou finis
+    try { await traiterDemandesComptes(s); } catch (e) { s.erreurDroits = e.message; }
+    try { if (s.etat) await s.appliquerDroits(); } catch (e) { s.erreurDroits = e.message; }
+  }
+  async function clesModulesManquantes(s) {
     var manquantes = clesDeclarees(s).filter(function (n) { return !s.coffre.cles[n]; });
     if (!manquantes.length) return;
     await s.modifierCoffre(async function (cf, comptes) {
       var t = travail(s);
       manquantes.forEach(function (n) { T.ajouterCle(t, cf, n); });
-      await T.appliquerDroits(t, cf, comptesPourCles(comptes), aDroitPour(s));
+      await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s));
     });
     oublierJournaux(s);
     await s.synchroniser();
     await s.tracer('CLE_MODULE', { cles: manquantes, libelle: 'clé créée pour ' + manquantes.map(function (n) { var m = SIC.modules && SIC.modules.obtenir(n), d = /^d-/.test(n) && CH() ? CH().definition(config(s), n.slice(2)) : null; return m ? m.libelle : d ? 'la donnée « ' + d.libelle + ' »' : n; }).join(', ') });
   }
+  /**
+   * Demandes de comptes d'intervenants extérieurs (0.31.0) : la session d'un administrateur crée les comptes préparés par
+   * le cadre (partie publique et partie privée emballée par le mot de passe provisoire, jamais le mot de passe), ou
+   * applique la prolongation ou la fin demandée ; la demande est marquée faite (ou refusée, avec le motif).
+   */
+  async function traiterDemandesComptes(s) {
+    var DL = socle('delegations', './delegations.js'), cfg = config(s);
+    if (!DL || !s.etat) return;
+    var att = DL.enAttente(cfg);
+    if (!att.length) return;
+    var brut = JSON.parse(JSON.stringify(cfg.comptesDemandes || { demandes: [] })), faits = [];
+    for (var i = 0; i < att.length; i++) {
+      var d = att[i], x = brut.demandes.filter(function (y) { return y.id === d.id; })[0];
+      try {
+        var auteur = (s.comptes || []).filter(function (c) { return c.id === d.par; })[0];
+        if (!auteur) throw new Error('auteur de la demande inconnu');
+        DL.controlerDemande(d, auteur, s.comptes || [], Date.now());
+        if (d.action === 'creer') {
+          var id = await creerComptePrepare(s, d);
+          x.compte = id;
+        } else {
+          var c = s.comptes.filter(function (y) { return y.id === d.compte; })[0];
+          await s.modifierRoles(c.id, ['INTERVENANT'], d.actif, d.services, c.formation !== false, d.finValidite || c.finValidite || '');
+        }
+        x.etat = 'faite'; x.traiteLe = new Date().toISOString(); delete x.emb;
+        faits.push(d.nom || d.login || d.compte);
+      } catch (e) { x.etat = 'refusee'; x.message = String(e.message || e).slice(0, 200); x.traiteLe = new Date().toISOString(); delete x.emb; }
+    }
+    await s.enregistrer('CONFIG', { cle: 'comptesDemandes', valeur: brut });
+    if (faits.length) await s.tracer('INTERVENANTS', { comptes: faits, libelle: 'demandes de comptes d’intervenants extérieurs traitées' });
+  }
+  /** Crée un compte préparé hors de la session de l'administrateur (demande du cadre) : identifiant du compte créé. */
+  async function creerComptePrepare(s, d) {
+    var id = 'u' + id8(), publique = d.publique.publique, cle = await C.importerPublique(publique), emb = Object.assign({}, d.emb, { id: nouvelId(), userId: id, login: d.login });
+    var compte = { id: id, login: d.login, nom: d.nom, roles: ['INTERVENANT'], services: d.services, actif: true, mdpProvisoire: true, formation: false, finValidite: d.finValidite, intervenant: { type: d.type } };
+    await s.modifierCoffre(async function (coffre, comptes) {
+      if (comptes.some(function (x) { return x.login === d.login; })) throw new Error('L’identifiant « ' + d.login + ' » existe déjà.');
+      comptes.push(compte); coffre.emballages.push(emb); coffre.agents[id] = { publique: publique };
+      coffre.enveloppes = coffre.enveloppes.concat(await T.enveloppesPour(s.trousseau, coffre, id, cle, T.droitsDe(coffre, compte, aDroitPour(s))));
+    });
+    await clesMessagerieAJour(s);
+    await s.tracer('CREATION', { login: d.login, roles: ['INTERVENANT'], services: d.services, finValidite: d.finValidite, demandePar: d.par });
+    return id;
+  }
+  /**
+   * Demande d'un compte d'intervenant extérieur (cadre, 0.31.0) : la paire de clés et l'emballage par le mot de passe
+   * provisoire sont préparés sur ce poste ; le compte est créé à la prochaine connexion d'un administrateur (aussitôt si
+   * la session en est une). `c` : { nom, login, type, services, finValidite, motDePasse }.
+   */
+  Session.prototype.demanderCompteIntervenant = async function (c) {
+    var DL = socle('delegations', './delegations.js');
+    if (!v2(this)) throw new Error('Coffre d’ancien format : demandez à l’administrateur de créer le compte.');
+    var paire = await C.nouvellePaire(), p8 = await C.exporterPrivee(paire.privateKey), ancre = await ancreSession(this);
+    var emb = await C.emballerMotDePasse(C.paquet(p8, ancre), c.motDePasse, c.aleatoire ? C.ITERATIONS_PROVISOIRE : undefined); p8.fill(0);
+    var d = { id: 'dc' + id8(), action: 'creer', etat: 'attente', login: String(c.login || '').trim().toLowerCase(), nom: String(c.nom || '').trim(), type: c.type, services: c.services || [], finValidite: c.finValidite,
+      publique: { publique: await C.exporterPublique(paire.publicKey) }, emb: emb, par: this.utilisateur.id, le: new Date().toISOString() };
+    DL.controlerDemande(DL.demande(d), this.utilisateur, this.comptes || [], Date.now());
+    var v = JSON.parse(JSON.stringify(config(this).comptesDemandes || { demandes: [] }));
+    v.demandes = (v.demandes || []).concat([d]);
+    await this.enregistrer('CONFIG', { cle: 'comptesDemandes', valeur: v });
+    if (attestateur(this)) await traiterDemandesComptes(this);
+    return d.id;
+  };
+  /** Prolongation, fin anticipée ou changement de services d'un compte d'intervenant (cadre ; appliqué par l'administrateur). */
+  Session.prototype.demanderModificationIntervenant = async function (compteId, changement) {
+    var DL = socle('delegations', './delegations.js'), c = (this.comptes || []).filter(function (x) { return x.id === compteId; })[0];
+    if (!c) throw new Error('Compte introuvable.');
+    var d = { id: 'dc' + id8(), action: 'modifier', etat: 'attente', compte: compteId, nom: c.nom, type: (c.intervenant && c.intervenant.type) || 'autre', services: changement.services || c.services, finValidite: changement.finValidite || c.finValidite,
+      actif: changement.actif !== false, par: this.utilisateur.id, le: new Date().toISOString() };
+    DL.controlerDemande(DL.demande(d), this.utilisateur, this.comptes || [], Date.now());
+    var v = JSON.parse(JSON.stringify(config(this).comptesDemandes || { demandes: [] }));
+    v.demandes = (v.demandes || []).concat([d]);
+    await this.enregistrer('CONFIG', { cle: 'comptesDemandes', valeur: v });
+    if (attestateur(this)) await traiterDemandesComptes(this);
+    return d.id;
+  };
   /** Crée les clés manquantes (modules déclarés, clés propres des données) : connexion d'un administrateur, démonstration. */
   Session.prototype.creerClesManquantes = function () { return apresSynchro(this); };
   function nouvelId() { return 'k' + id8(); }
@@ -408,9 +490,13 @@
     };
   }
   /** Comptes vus par la remise des clés : un compte temporaire expiré est traité comme désactivé (retrait de droit). */
-  function comptesPourCles(comptes) {
-    var now = Date.now();
-    return comptes.map(function (c) { return c.actif && SIC.comptes && SIC.comptes.validite(c, now).expire ? Object.assign({}, c, { actif: false }) : c; });
+  function comptesPourClesAvec(comptes, cfg) {
+    var now = Date.now(), DL = socle('delegations', './delegations.js');
+    return comptes.map(function (c) {
+      if (c.actif && SIC.comptes && SIC.comptes.validite(c, now).expire) return Object.assign({}, c, { actif: false });
+      // Prêts de droits en cours (0.31.0) : les clés des rôles prêtés vont au délégataire, retirées à la fin du prêt
+      return DL && cfg ? DL.appliquer(c, cfg, now) : c;
+    });
   }
   /** Trousseau de travail d'une modification du coffre : installé seulement si l'écriture réussit (modifierCoffre). */
   function travail(s) {
@@ -722,7 +808,7 @@
       }
     });
     await clesMessagerieAJour(this);
-    try { if (v2(this) && !this.formation) await apresSynchro(this); } catch (e) { /* clés de liste créées à la prochaine connexion d'un administrateur */ }
+    try { if (v2(this) && !this.formation && attestateur(this) && !bloquantes(this.controle).length) await clesModulesManquantes(this); } catch (e) { /* clés de liste créées à la prochaine connexion d'un administrateur */ }
     if (prepares.length === 1) await this.tracer('CREATION', { login: prepares[0].compte.login, roles: prepares[0].compte.roles, services: prepares[0].compte.services, finValidite: prepares[0].compte.finValidite || undefined });
     else await this.tracer('CREATION_LOT', { comptes: prepares.map(function (p) { return { login: p.compte.login, roles: p.compte.roles, services: p.compte.services }; }) });
   };
@@ -742,7 +828,7 @@
         // Clé personnelle oubliée : à la réactivation, une nouvelle est créée (réinitialisation du mot de passe).
       }
       if (coffre.version === 2) {
-        await T.appliquerDroits(travail(s), coffre, comptesPourCles(comptes), aDroitPour(s));   // clés selon les droits, nouvelle génération si retrait
+        await T.appliquerDroits(travail(s), coffre, comptesPourClesAvec(comptes, config(s)), aDroitPour(s));   // clés selon les droits, nouvelle génération si retrait
         if (!actif) delete coffre.agents[userId];
       }
     });
@@ -823,10 +909,10 @@
       Object.keys(j.octets).forEach(function (g) { o[g] = j.octets[g].slice(); });   // vraie copie : la copie est effacée ensuite
       jeuxCopie[n] = T.nouveauJeu(n, j.courante, o, j.maitresse && j.maitresse.slice(), j.base);
     });
-    var blanc = await T.appliquerDroits(jeuxCopie, essai, comptesPourCles(this.comptes), aDroit);
+    var blanc = await T.appliquerDroits(jeuxCopie, essai, comptesPourClesAvec(this.comptes, config(this)), aDroit);
     T.effacer(jeuxCopie);
     if (!blanc.change) return res;
-    await this.modifierCoffre(async function (cf, comptes) { res = await T.appliquerDroits(travail(s), cf, comptesPourCles(comptes), aDroit); });
+    await this.modifierCoffre(async function (cf, comptes) { res = await T.appliquerDroits(travail(s), cf, comptesPourClesAvec(comptes, config(s)), aDroit); });
     if (res.generations.length) await this.tracer('GENERATION', { cles: res.generations, maitresses: res.maitresses.length ? res.maitresses : undefined, libelle: 'nouvelle génération de clé après un retrait de droit' });
     return res;
   };
@@ -835,7 +921,7 @@
   Session.prototype.trousseauxIncomplets = function () {
     if (!v2(this) || this.formation || !this.etat) return [];
     var s = this;
-    return T.incomplets(this.coffre, comptesPourCles(this.comptes), aDroitPour(this)).map(function (x) { var c = s.comptes.filter(function (y) { return y.id === x.id; })[0]; return { id: x.id, nom: c ? c.nom : x.id, cles: x.cles }; });
+    return T.incomplets(this.coffre, comptesPourClesAvec(this.comptes, config(this)), aDroitPour(this)).map(function (x) { var c = s.comptes.filter(function (y) { return y.id === x.id; })[0]; return { id: x.id, nom: c ? c.nom : x.id, cles: x.cles }; });
   };
 
   /** Vrai si le coffre est encore en version 1 (clé de données unique) : migration vers le trousseau à proposer. */
@@ -984,7 +1070,7 @@
     var s = this, h = await historiqueAttestations(this, await this.dossier.lireCoffre()), res;
     await this.modifierCoffre(async function (cf, comptes) {
       var t = travail(s), depuis = await preparerRenouvellement(s, cf, t, h);
-      res = await T.appliquerDroits(t, cf, comptesPourCles(comptes), aDroitPour(s), { tout: true, depuis: depuis });
+      res = await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { tout: true, depuis: depuis });
       delete cf.restaureLe; cf.renouveleLe = new Date().toISOString();
     }, { reparation: ['restaure', 'ancienne', 'cles'], nMin: h.n });
     await this.tracer('RENOUVELLEMENT', { cles: res.generations, libelle: 'renouvellement de toutes les clés' });
@@ -1025,7 +1111,7 @@
       }
       comptes.splice.apply(comptes, [0, comptes.length].concat(comptesChoisis));
       var t = travail(s), depuis = await preparerRenouvellement(s, cf, t, h);
-      await T.appliquerDroits(t, cf, comptesPourCles(comptes), aDroitPour(s), { tout: true, depuis: depuis });
+      await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { tout: true, depuis: depuis });
       cf.renouveleLe = cf.remiseAttesteeLe = new Date().toISOString();
     }, { reparation: TOUTES, nMin: h.n });
     await this.tracer('REMISE_ATTESTEE', { libelle: 'dernière version attestée du coffre remise en place, clés renouvelées', etatDu: etat.le });
@@ -1048,7 +1134,7 @@
     }
     var cles = await A.creerCles(), ancre = await C.ancreDe(cles.publique), code = C.nouveauCodeSecours();
     var h = await historiqueAttestations(this, await this.dossier.lireCoffre());
-    var actifs = comptesPourCles(this.comptes).filter(function (c) { return c.actif; }), nouvelles = {}, provisoires = [];
+    var actifs = comptesPourClesAvec(this.comptes, config(this)).filter(function (c) { return c.actif; }), nouvelles = {}, provisoires = [];
     for (var k = 0; k < actifs.length; k++) {
       var c = actifs[k], lui = c.id === moi, mdp = lui ? motDePasse : C.nouveauMotDePasseProvisoire();
       var p = await C.nouvellePaire(), p8 = await C.exporterPrivee(p.privateKey);
@@ -1058,7 +1144,7 @@
       if (!lui) { p8.fill(0); provisoires.push({ nom: c.nom, login: c.login, motDePasse: mdp, roles: c.roles, services: c.services || [], finValidite: c.finValidite || '' }); }
     }
     await this.modifierCoffre(async function (cf, comptes) {
-      var manquants = comptesPourCles(comptes).filter(function (c) { return c.actif && !nouvelles[c.id]; });
+      var manquants = comptesPourClesAvec(comptes, config(s)).filter(function (c) { return c.actif && !nouvelles[c.id]; });
       if (manquants.length) throw new Error('Des comptes ont été créés ou réactivés pendant l’opération : recommencez.');
       cf.agents = { secours: cf.agents.secours }; cf.emballages = []; cf.enveloppes = [];
       Object.keys(nouvelles).forEach(function (id) {
@@ -1069,7 +1155,7 @@
       if (nouvelles[moi]) s.priveeEnAttente = nouvelles[moi].p8;
       s.attestEnAttente = cles; s.ancreEnAttente = ancre;
       var t = travail(s), depuis = await preparerRenouvellement(s, cf, t, h);
-      await T.appliquerDroits(t, cf, comptesPourCles(comptes), aDroitPour(s), { tout: true, depuis: depuis });
+      await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { tout: true, depuis: depuis });
       await T.nouveauSecours(t, cf, code, nouvelId(), ancre);
       delete cf.restaureLe; cf.renouveleLe = cf.compromissionLe = new Date().toISOString();
     }, { reparation: ['absente', 'cles', 'restaure', 'ancienne', 'agents', 'secours'], nMin: h.n });
@@ -1126,7 +1212,8 @@
   /** Compte tel que l'interface doit le traiter : le compte connecté, ou le rôle en aperçu (tous les services). */
   Session.prototype.compteEffectif = function () {
     if (!this.utilisateur) return null;
-    if (!this.apercu) return this.utilisateur;
+    // Prêts de droits en cours (0.31.0) : rôles et services prêtés ajoutés (affichage et droits ; clés : session de l'administrateur)
+    if (!this.apercu) { var DL = socle('delegations', './delegations.js'); return DL && this.etat ? DL.appliquer(this.utilisateur, config(this), Date.now()) : this.utilisateur; }
     var cfg = config(this);
     return Object.assign({}, this.utilisateur, { roles: [this.apercu.code], services: (cfg.services || []).map(function (s) { return s.code; }) });
   };
@@ -1151,6 +1238,16 @@
     if (type === 'CONFIG' && data && data.cle === 'groupes' && (s.utilisateur.roles || []).indexOf('CADRE') >= 0) {
       var G = socle('groupes', './groupes.js');
       return !!G && G.controler(config(s).groupes, data.valeur, s.utilisateur);
+    }
+    // Accès particuliers (0.31.0) : prêts de droits (l'agent prête les siens, le cadre ceux de ses services) ; demandes
+    // de comptes d'intervenants extérieurs (cadre pour ses services), créés par la session d'un administrateur
+    if (type === 'CONFIG' && data && data.cle === 'delegations') {
+      var DL = socle('delegations', './delegations.js');
+      return !!DL && DL.controler(config(s).delegations, data.valeur, s.utilisateur, s.comptes || []);
+    }
+    if (type === 'CONFIG' && data && data.cle === 'comptesDemandes') {
+      var DL2 = socle('delegations', './delegations.js');
+      return !!DL2 && DL2.controlerDemandes(config(s).comptesDemandes, data.valeur, s.utilisateur, s.comptes || []);
     }
     // Liste commune des médecins (décision du 8 novembre 2026) : gérée aussi par les rôles désignés (cadre et secrétaire
     // par défaut) ; l'ancienne liste `psychiatres` est tenue à jour avec elle
@@ -1247,6 +1344,12 @@
       prec: mesUns.length ? mesUns[mesUns.length - 1].id : null
     };
     if (typeof base === 'number') evt.base = base;
+    // Saisie permise par un prêt de droits (0.31.0) : faite « pour le compte de » l'agent absent
+    var DLp = socle('delegations', './delegations.js'), sv = this;
+    if (DLp && this.etat && !(options && (options.by || options.sansControle)) && !this.apercu && type !== 'VALEUR') {
+      var pr = DLp.pourLeCompteDe(this.utilisateur, config(this), Date.now(), function (rs) { try { return moduleDe(type).droits.peut(rs, type, config(sv)); } catch (e) { return true; } });
+      if (pr) evt.pour = pr.de;
+    }
     await d.ecrireEvenement(j.cle, evt);
     j.connus.add(evt.id + '.enc');
     j.evts.push(evt);
@@ -1409,7 +1512,7 @@
   /** Clés de la messagerie manquantes après la création de comptes ou un changement des groupes (administrateur). */
   async function clesMessagerieAJour(s) {
     if (!MSG() || !SIC.modules || !SIC.modules.obtenir('messagerie') || !s.etat || MSG().options(config(s)).chiffrement === 'desactive') return;
-    try { await apresSynchro(s); } catch (e) { /* créées à la prochaine connexion d'un administrateur */ }
+    try { if (v2(s) && !s.formation && attestateur(s) && !bloquantes(s.controle).length) await clesModulesManquantes(s); } catch (e) { /* créées à la prochaine connexion d'un administrateur */ }
   }
   /**
    * Ouvre un message chiffré : contenu (objet, texte…) ou null si l'agent n'a aucune clé de ses destinataires.

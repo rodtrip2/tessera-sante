@@ -30,6 +30,9 @@
     MEDECIN_CHEF_POLE: 'Médecin chef de pôle',
     ADMIN_GARDE: 'Administrateur de garde',
     DIRECTEUR_SOINS: 'Directeur des soins',
+    // Intervenant extérieur (0.31.0, lot D) : bénévole, enseignant, libéral, étudiant… ; aucun module par défaut sauf
+    // l'agenda de ses activités, identité des patients en initiales, compte daté
+    INTERVENANT: 'Intervenant extérieur',
     ADMIN: 'Administrateur'
   };
   /** Rôles d'un compte, complétés : le cadre supérieur est aussi cadre. */
@@ -46,7 +49,7 @@
   function poleDe(config, service) { return poles(config).filter(function (p) { return p.services.indexOf(service) >= 0; })[0] || null; }
 
   // Rôles qui exigent au moins un service affecté.
-  var ROLES_DE_SERVICE = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE'];
+  var ROLES_DE_SERVICE = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'INTERVENANT'];
 
   // Types d'événements autorisés par rôle. L'IDE dispose en permanence des
   // actions JLD (usage prévu le week-end et en l'absence de la secrétaire).
@@ -85,7 +88,7 @@
 
   var TYPES_ADMIN = ['CONFIG', 'ANNULATION', 'COMPTE', 'LOT', 'INTEGRITE', 'EDITION_CADA', 'EXPORT_PATIENT'];
 
-  var ROLES_FOURNIS = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS'];
+  var ROLES_FOURNIS = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS', 'INTERVENANT'];
 
   // Onglets que l'établissement peut masquer rôle par rôle (demande du porteur).
   // (Journal : réglage « Journal des saisies » du rôle ; Administration : administrateur seulement.)
@@ -259,6 +262,9 @@
     vuesEnsemble: {},      // module Vue d'ensemble (0.19.0) : vues de l'établissement et des services
     psychologues: { liste: [] },   // liste commune des psychologues (medecins.js, 0.20.0), mêmes réglages que les médecins
     chambres: {},          // chambres et lits par service, CSI, autres pièces, plan (0.29.0)
+    delegations: { prets: [] },           // prêts de droits pendant une absence (0.31.0, delegations.js)
+    comptesDemandes: { demandes: [] },    // comptes d'intervenants extérieurs demandés par le cadre (0.31.0)
+    charteIntervenants: { texte: '', version: 0 },   // charte de confidentialité des intervenants extérieurs (0.31.0)
     poles: [],             // pôles : regroupements de services (0.27.2)
     infos: {},             // informations du service : pièces jointes (désactivées par défaut), taille maximale (0.26.2)
     salles: {},            // salles et bureaux : plage affichée, horaires des demi-journées des présences, par service (0.25.0)
@@ -2075,6 +2081,7 @@
     { code: 'infos', libelle: 'Informations du service : pièces jointes', cles: ['infos'] },
     { code: 'poles', libelle: 'Pôles (regroupements de services)', cles: ['poles'] },
     { code: 'chambres', libelle: 'Chambres, lits et plan des services', cles: ['chambres'] },
+    { code: 'charteIntervenants', libelle: 'Charte de confidentialité des intervenants extérieurs', cles: ['charteIntervenants'] },
     { code: 'salles', libelle: 'Salles et bureaux : plage affichée, horaires des présences, nom sur les occupations des autres plannings', cles: ['salles'] },
     { code: 'messagerie', libelle: 'Messagerie : onglet Informations, pièces jointes, conservation, durée d’affichage', cles: ['messagerie'] },
     { code: 'travaux', libelle: 'Demandes de travaux : types, lieux, gravités, urgences, délai d’affichage, numéro des services techniques', cles: ['travaux'] },
@@ -2098,7 +2105,8 @@
     { code: 'decompte', libelle: 'Décompte JLD (masques, papier à en-tête)', cles: ['decompte', 'imagesDecompte'] },
     { code: 'technique', libelle: 'Exports, rappel des sauvegardes, postes de travail', cles: ['exports', 'sauvegarde', 'verrouDossier', 'verificationVersion'] }
   ];
-  var REGLAGES_EXCLUS = { compteursRegistre: 1, registreFige: 1, derniersClasseur: 1, registreFigeMesures: 1, rapportsAnnuels: 1, miroir: 1 };
+  // Prêts de droits et demandes de comptes (0.31.0) : propres aux agents de l'établissement, jamais exportés
+  var REGLAGES_EXCLUS = { compteursRegistre: 1, registreFige: 1, derniersClasseur: 1, registreFigeMesures: 1, rapportsAnnuels: 1, miroir: 1, delegations: 1, comptesDemandes: 1 };
   var REGLAGES_SUPPLEMENTAIRES = { imagesDecompte: {} };   // paramètres sans valeur par défaut dans CONFIG_DEFAUT
 
   function groupeDeCle(cle) { return GROUPES_REGLAGES.filter(function (g) { return g.cles.indexOf(cle) >= 0; })[0] || null; }
