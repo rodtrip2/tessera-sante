@@ -220,59 +220,105 @@
   }
 
   // ------------------------------------------------------------ Droit d'accès
-  /** Historique daté de la fiche (module Patients) : protection juridique, patient détenu, service. */
-  function changementsFiche(p) {
-    var lib = { protection: 'Protection juridique', detenu: 'Détenu', service: 'Service' }, res = [];
-    var champs = SIC.patients.champsComplementaires(U.config(), { tous: true });
+  /*
+   * Vérification avant l'export (lot E, 0.32.0) : chaque élément des données du patient est listé, retenu ou écarté
+   * (information d'un tiers, donnée clinique, échange interne) ; l'agent vérifie, coche ou décoche, puis exporte. Les
+   * choix (nombre d'éléments retenus et écartés, libellés et motifs des éléments écartés, sans leur contenu) sont
+   * inscrits au journal.
+   */
+  var MOTIFS_EXCLUSION = { tiers: 'information d’un tiers', clinique: 'donnée clinique (communiquée par le dossier patient informatisé)', interne: 'échange interne au service' };
+  function elementsPatient(p) {
+    var d = M.donneesPatient(U.st(), p.id, Date.now()), o = M.optionsQualite(U.config()), res = [];
+    function jour(x) { return x ? x.split('-').reverse().join('/') : ''; }
+    function el(section, libelle, cellules, motif, entete) { res.push({ section: section, libelle: libelle, cellules: cellules, motif: motif || '', retenu: !motif, entete: entete || null }); }
+    var F = 'Fiche';
+    [['Nom', p.nom], ['Prénom', p.prenom], ['Nom de naissance', p.nomNaissance], ['Sexe', p.sexe ? (SIC.patients.SEXES[p.sexe] || p.sexe) : ''], ['Date de naissance', jour(p.naissance)],
+      ['Protection juridique', p.protection], ['Détenu', p.detenu ? 'oui' : 'non'], ['Médecin de 1re ligne', p.medecin1], ['Médecin de 2e ligne', p.medecin2],
+      ['Référents soignants', (p.referents || []).map(function (r) { return r.nom; }).join(', ')], ['Psychologue référent', p.psychologue],
+      ['Suivi par l’assistant(e) social(e)', p.suiviAS ? (p.suiviAS.suivi ? 'oui' + (p.suiviAS.nom ? ' (' + p.suiviAS.nom + ')' : '') : 'non') : '']]
+      .forEach(function (x) { el(F, x[0], [x[0], x[1] || '']); });
+    // Données ajoutées : la donnée entière marquée « tiers » ou « clinique », ou chaque note marquée « tiers »
+    SIC.champs.definitions(U.config(), { tous: true, entite: 'patient' }).filter(function (c) { return c.type !== 'formule' && U.champs.lisible(c) && U.champs.valeurDe(c, 'patient', p.id, p) !== undefined; }).forEach(function (c) {
+      var v = U.champs.valeurDe(c, 'patient', p.id, p), motif = c.tiers ? 'tiers' : c.clinique ? 'clinique' : '';
+      if (c.type === 'notes') SIC.champs.notes(c, v, true).forEach(function (n) { el('Données ajoutées', c.libelle + ' — note du ' + U.date(Date.parse(n.le)), [c.libelle, U.date(Date.parse(n.le)) + ' : ' + n.texte + (n.retire ? ' (retirée le ' + U.date(Date.parse(n.retire.le)) + ')' : '')], motif || (n.tiers ? 'tiers' : '')); });
+      else el('Données ajoutées', c.libelle, [c.libelle, SIC.champs.lib(c, v)], motif);
+    });
+    (p.sejours || []).forEach(function (x) { el('Séjours', 'Séjour ' + (x.iep || '') + ' du ' + jour(x.entree), [x.iep || '', jour(x.entree), x.sortie ? jour(x.sortie) : 'en cours', x.service ? U.libService(x.service) : '', x.chambre || '', x.lit || ''], '', ['Numéro de séjour', 'Entrée', 'Sortie', 'Unité', 'Chambre', 'Lit']); });
+    // Professionnels ou structures de la prise en charge (0.21.0) : type et nom, sans coordonnées ni commentaires internes
+    var ep = null; try { ep = U.App.session.etatModule('patients'); } catch (e) { ep = null; }
+    (ep && SIC.intervenants ? SIC.intervenants.pourExport(ep, (ep.fiches || {})[p.id] || p, U.config()) : []).forEach(function (l) { el('Professionnels ou structures participant à la prise en charge', l[1], [l[0], l[1]], l[2] ? 'tiers' : '', ['Type', 'Nom']); });
+    (p.modes || []).forEach(function (x) { el('Modes d’hospitalisation', x.mode + ' le ' + U.date(x.date), [U.date(x.date), x.mode], '', ['Date', 'Mode']); });
+    // Changements de la fiche (une donnée ajoutée marquée « tiers » : écartée)
+    var champs = SIC.patients.champsComplementaires(U.config(), { tous: true }), lib = { protection: 'Protection juridique', detenu: 'Détenu', service: 'Service' };
     Object.keys(p.historique || {}).forEach(function (k) {
       var cc = /^c:/.test(k) ? champs.filter(function (c) { return c.id === k.slice(2); })[0] : null;
-      if (cc && cc.tiers) return;   // information concernant un tiers : exclue des exports remis au patient (0.18.0)
       (p.historique[k] || []).forEach(function (x) {
         var val = cc ? (SIC.patients.libValeurChamp(cc, x.valeur) || '—') : (k === 'detenu' ? (x.valeur ? 'oui' : 'non') : k === 'service' ? U.libService(x.valeur) : (x.valeur && typeof x.valeur === 'object' ? (x.valeur.nom || JSON.stringify(x.valeur)) : (x.valeur || '—')));
-        res.push([U.date(Date.parse(x.le)), cc ? cc.libelle : (lib[k] || k), val]);
+        el('Changements de la fiche', (cc ? cc.libelle : (lib[k] || k)) + ' — ' + U.date(Date.parse(x.le)), [U.date(Date.parse(x.le)), cc ? cc.libelle : (lib[k] || k), val], cc && cc.tiers ? 'tiers' : cc && cc.clinique ? 'clinique' : '', ['Date', 'Donnée', 'Valeur']);
       });
     });
-    return res;
-  }
-  function exporterPatient(p) {
-    var d = M.donneesPatient(U.st(), p.id, Date.now());
-    var o = M.optionsQualite(U.config());
-    function jour(x) { return x ? x.split('-').reverse().join('/') : ''; }
-    var lignes = [['Données concernant ' + (p.nom || '') + ' ' + (p.prenom || '') + ' — IPP ' + (p.ipp || '—') + ' — édité le ' + U.date(Date.now())], [],
-      ['Fiche'], ['Nom', p.nom || ''], ['Prénom', p.prenom || ''], ['Nom de naissance', p.nomNaissance || ''], ['Sexe', p.sexe ? (SIC.patients.SEXES[p.sexe] || p.sexe) : ''],
-      ['Date de naissance', jour(p.naissance)], ['Protection juridique', p.protection || ''], ['Détenu', p.detenu ? 'oui' : 'non'],
-      ['Médecin de 1re ligne', p.medecin1 || ''], ['Médecin de 2e ligne', p.medecin2 || ''], ['Référents soignants', (p.referents || []).map(function (r) { return r.nom; }).join(', ')], ['Psychologue référent', p.psychologue || ''], ['Suivi par l’assistant(e) social(e)', p.suiviAS ? (p.suiviAS.suivi ? 'oui' + (p.suiviAS.nom ? ' (' + p.suiviAS.nom + ')' : '') : 'non') : '']]
-      // Données ajoutées (fiche et autres modules), sauf les informations concernant un tiers (0.18.0)
-      .concat(SIC.champs.definitions(U.config(), { tous: true, entite: 'patient' }).filter(function (c) { return !c.tiers && c.type !== 'formule' && U.champs.lisible(c) && U.champs.valeurDe(c, 'patient', p.id, p) !== undefined; })
-        .map(function (c) { var v = U.champs.valeurDe(c, 'patient', p.id, p); return [c.libelle, c.type === 'notes' ? SIC.champs.notes(c, v, true).map(function (n) { return U.date(Date.parse(n.le)) + ' : ' + n.texte + (n.retire ? ' (retirée le ' + U.date(Date.parse(n.retire.le)) + ')' : ''); }).join(' | ') : SIC.champs.lib(c, v)]; }), [[],
-      ['Séjours'], ['Numéro de séjour', 'Entrée', 'Sortie', 'Unité', 'Chambre', 'Lit']])
-      .concat((p.sejours || []).map(function (x) { return [x.iep || '', jour(x.entree), x.sortie ? jour(x.sortie) : 'en cours', x.service ? U.libService(x.service) : '', x.chambre || '', x.lit || '']; }))
-      // Professionnels ou structures de la prise en charge (0.21.0) : type et nom, sans coordonnées ni commentaires internes
-      .concat((function () {
-        var ep = null; try { ep = U.App.session.etatModule('patients'); } catch (e) { ep = null; }
-        var l = ep && SIC.intervenants ? SIC.intervenants.pourExport(ep, (ep.fiches || {})[p.id] || p, U.config()) : [];
-        return l.length ? [[], ['Professionnels ou structures participant à la prise en charge'], ['Type', 'Nom']].concat(l) : [];
-      })())
-      .concat([[], ['Modes d’hospitalisation'], ['Date', 'Mode']])
-      .concat((p.modes || []).map(function (x) { return [U.date(x.date), x.mode]; }))
-      .concat([[], ['Changements de la fiche'], ['Date', 'Donnée', 'Valeur']], changementsFiche(p))
-      .concat([[], ['Mesures'], ['Type', 'Début', 'Fin', 'Lieu', 'Psychiatre (début)', 'Psychiatre (fin)', 'Motif de fin', 'Motif du recours', 'Levées temporaires', 'Étapes JLD', 'Recours', 'Information du tiers', o.nomEntretien]]);
+    var enteteM = ['Type', 'Début', 'Fin', 'Lieu', 'Psychiatre (début)', 'Psychiatre (fin)', 'Motif de fin', 'Motif du recours', 'Levées temporaires', 'Étapes JLD', 'Recours', 'Information du tiers', o.nomEntretien];
     d.mesures.forEach(function (m) {
       var jld = [];
       Object.keys(m.jld).forEach(function (c) { ['INFO', 'SAISINE', 'DECISION'].forEach(function (n) { var x = m.jld[c][n]; if (x) jld.push('cycle ' + c + ' ' + U.LIB_NATURE[n].toLowerCase() + ' ' + U.date(x.date) + (x.decision ? ' (' + (x.decision === 'LEVEE' ? 'mainlevée' : 'maintien') + ')' : '')); }); });
-      lignes.push([m.type, U.date(m.debutInitial || m.debut), m.fin ? U.date(m.fin) : 'en cours', (m.segments || [{ lieu: m.lieu }]).map(function (s) { return s.lieu; }).join(' → '), m.psychiatreDebut, m.psychiatreFin, m.motifFin || '', m.motifRecours || '',
+      el('Mesures', m.type + ' du ' + U.date(m.debutInitial || m.debut), [m.type, U.date(m.debutInitial || m.debut), m.fin ? U.date(m.fin) : 'en cours', (m.segments || [{ lieu: m.lieu }]).map(function (sg) { return sg.lieu; }).join(' → '), m.psychiatreDebut, m.psychiatreFin, m.motifFin || '', m.motifRecours || '',
         (m.pauses || []).map(function (q) { return U.date(q.debut) + ' → ' + (q.reprise ? U.date(q.reprise) : 'prévue ' + U.date(q.reprisePrevue)); }).join(' ; '),
         jld.join(' ; '), (m.recours || []).map(U.parcours.libRecours).join(' ; '),
         (m.tiers || []).map(function (t) { return (U.LIB_TIERS[t.statut] || t.statut) + ' ' + U.date(t.date); }).join(' ; '),
-        m.entretien ? (m.entretien.realise ? 'réalisé ' + U.date(m.entretien.date) : 'non réalisé') : '']);
+        m.entretien ? (m.entretien.realise ? 'réalisé ' + U.date(m.entretien.date) : 'non réalisé') : ''], '', enteteM);
     });
-    lignes.push([]); lignes.push(['Entrées du registre']); lignes.push(['N°', 'Catégorie', 'Service', 'Début', 'Fin', 'Durée (h)', 'Mode']);
-    d.registre.forEach(function (e) { lignes.push([e.numero || 'en cours', e.categorie, U.libService(e.service), U.date(e.debut), e.fin ? U.date(e.fin) : 'en cours', e.dureeHeures.toFixed(2).replace('.', ','), e.modeHospi]); });
+    d.registre.forEach(function (e) { el('Entrées du registre', 'Entrée ' + (e.numero || 'en cours') + ' du ' + U.date(e.debut), [e.numero || 'en cours', e.categorie, U.libService(e.service), U.date(e.debut), e.fin ? U.date(e.fin) : 'en cours', e.dureeHeures.toFixed(2).replace('.', ','), e.modeHospi], '', ['N°', 'Catégorie', 'Service', 'Début', 'Fin', 'Durée (h)', 'Mode']); });
+    // Messages qui rattachent la fiche (messagerie, en clair) : échanges internes, écartés par défaut ; « tiers » : écartés
+    try {
+      var sm = U.App.session.etatModule('messagerie'), MS = SIC.messagerie, cpt = U.App.session.compteEffectif();
+      var grp = (U.config().groupes || []).filter(function (g) { return (g.membres || []).some(function (x) { return x.id === cpt.id; }); }).map(function (g) { return g.code; });
+      if (sm && MS && MS.messagesDe) MS.messagesDe(sm, cpt, grp, 'patients', p.id).forEach(function (m) {
+        el('Messages qui citent le patient', (m.objet || 'Message') + ' — ' + U.date(Date.parse(m.cree)), [U.date(Date.parse(m.cree)), m.nom || '', m.objet || '', m.texte || ''], m.tiers ? 'tiers' : 'interne', ['Date', 'Auteur', 'Objet', 'Message']);
+      });
+    } catch (e) { /* messagerie indisponible */ }
+    return res;
+  }
+  function fichierPatient(p, els) {
+    var lignes = [['Données concernant ' + (p.nom || '') + ' ' + (p.prenom || '') + ' — IPP ' + (p.ipp || '—') + ' — édité le ' + U.date(Date.now())]], derniere = null;
+    els.filter(function (x) { return x.retenu; }).forEach(function (x) {
+      if (x.section !== derniere) { lignes.push([]); lignes.push([x.section]); if (x.entete) lignes.push(x.entete); derniere = x.section; }
+      lignes.push(x.cellules);
+    });
     lignes.push([]); lignes.push(['Les noms des professionnels chargés de la surveillance ne sont pas communiqués (données concernant des tiers).']);
-    telecharger('donnees_patient_' + (p.ipp || p.id) + '.csv', lignes, 'patients', p.service || null);
-    U.App.session.tracer('EXPORT_PATIENT', { libelle: 'Données de ' + ((p.nom || '') + ' ' + (p.prenom || '')).trim() + (p.ipp ? ' (IPP ' + p.ipp + ')' : '') + ' — droit d’accès' });
-    U.toast('Export enregistré au journal.');
+    if (els.some(function (x) { return !x.retenu; })) lignes.push(['Certaines informations ne sont pas communiquées dans ce document (informations concernant des tiers, ou communiquées par un autre canal).']);
+    return lignes;
+  }
+  function exporterPatient(p) {
+    var els = elementsPatient(p), zone = h('div', { class: 'pile' });
+    function dessiner() {
+      U.vider(zone);
+      var sections = [];
+      els.forEach(function (x) { if (sections.indexOf(x.section) < 0) sections.push(x.section); });
+      var nE = els.filter(function (x) { return !x.retenu; }).length;
+      zone.appendChild(h('p', { class: nE ? 'alerte' : 'info', text: els.length + ' élément(s) : ' + (els.length - nE) + ' retenu(s), ' + nE + ' écarté(s). Vérifiez chaque élément écarté ou retenu avant d’exporter.' }));
+      sections.forEach(function (sec) {
+        var l = els.filter(function (x) { return x.section === sec; }), ecartes = l.filter(function (x) { return !x.retenu; }).length;
+        zone.appendChild(h('details', { class: 'export-section', open: ecartes > 0 || l.length <= 6 },
+          h('summary', {}, h('b', { text: sec }), ' — ' + l.length + ' élément(s)' + (ecartes ? ', ' + ecartes + ' écarté(s)' : '')),
+          h('ul', { class: 'liste-export' }, l.map(function (x) {
+            var cb = h('input', { type: 'checkbox', checked: x.retenu, 'aria-label': 'Retenir : ' + x.libelle });
+            cb.addEventListener('change', function () { x.retenu = cb.checked; x.change = true; dessiner(); });
+            return h('li', { class: x.retenu ? '' : 'ecarte' }, h('label', { class: 'case' }, cb, h('span', {}, h('b', { text: x.libelle }), x.section === 'Fiche' || x.section === 'Données ajoutées' ? h('span', { class: 'muted', text: ' : ' + (x.cellules[1] || '—') }) : null)),
+              x.motif ? h('span', { class: 'badge', title: 'Écarté par défaut : ' + MOTIFS_EXCLUSION[x.motif], text: MOTIFS_EXCLUSION[x.motif] }) : null);
+          }))));
+      });
+    }
+    dessiner();
+    U.modale('Droit d’accès — vérification avant l’export', h('div', { class: 'pile' },
+      h('p', { class: 'muted', text: 'Les données de ' + ((p.nom || '') + ' ' + (p.prenom || '')).trim() + ' sont listées élément par élément. Sont écartés par défaut : les informations marquées « information d’un tiers » (qui concernent un tiers ou en proviennent), les données cliniques (communiquées par le dossier patient informatisé) et les échanges internes de la messagerie. Cochez ou décochez, puis exportez : vos choix sont inscrits au journal (sans le contenu des éléments).' }), zone),
+      [{ texte: 'Annuler' }, { texte: 'Exporter', classe: 'primaire', action: function () {
+        var ecartes = els.filter(function (x) { return !x.retenu; });
+        telecharger('donnees_patient_' + (p.ipp || p.id) + '.csv', fichierPatient(p, els), 'patients', p.service || null);
+        U.App.session.tracer('EXPORT_PATIENT', { libelle: 'Données de ' + ((p.nom || '') + ' ' + (p.prenom || '')).trim() + (p.ipp ? ' (IPP ' + p.ipp + ')' : '') + ' — droit d’accès, vérifié avant l’export : ' + (els.length - ecartes.length) + ' élément(s) retenu(s), ' + ecartes.length + ' écarté(s)',
+          verification: { retenus: els.length - ecartes.length, ecartes: ecartes.map(function (x) { return { section: x.section, element: x.libelle, motif: x.motif || 'choix de l’agent' }; }), modifies: els.filter(function (x) { return x.change; }).length } });
+        U.toast('Export enregistré au journal, avec la vérification.');
+      } }], { large: true });
   }
 
-  U.qualite = { panneauArchive: panneauArchive, champMotif: champMotif, modaleEntretien: modaleEntretien, detailMesure: detailMesure, entretiensARenseigner: entretiensARenseigner, panneauAdmin: panneauAdmin, sectionsStats: sectionsStats, modaleRapport: modaleRapport, exporterPatient: exporterPatient };
+  U.qualite = { panneauArchive: panneauArchive, champMotif: champMotif, modaleEntretien: modaleEntretien, detailMesure: detailMesure, entretiensARenseigner: entretiensARenseigner, panneauAdmin: panneauAdmin, sectionsStats: sectionsStats, modaleRapport: modaleRapport, exporterPatient: exporterPatient, elementsPatient: elementsPatient };
 })();
