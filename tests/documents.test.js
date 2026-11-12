@@ -220,7 +220,10 @@ test('Corbeille : durée réglée par l’administrateur (7 à 365 jours, 30 par
 test('Compte de l’auteur retiré : gestion transférée au cadre de ses services', () => {
   const comptes = [{ id: 'a1', actif: false, roles: ['IDE'], services: ['U1'] }, { id: 'c1', roles: ['CADRE'], services: ['U1'] }, { id: 'c2', roles: ['CADRE'], services: ['U2'] }, { id: 'i2', roles: ['IDE'], services: ['U1'] }];
   let st = DM.reduire([{ id: 'e1', at: new Date().toISOString(), by: 'a1', type: 'DOC', data: { id: 'DC0000000d' } }]);
-  assert.deepEqual(DM.aTransferer(st, comptes, {}), [{ doc: 'DC0000000d', vers: ['c1'] }]);
+  assert.deepEqual(DM.aTransferer(st, comptes, {}), []);                         // privé : transfert désactivé par défaut
+  assert.deepEqual(DM.aTransferer(st, comptes, { documents: { transfertPrives: true } }), [{ doc: 'DC0000000d', vers: ['c1'] }]);
+  const stP = DM.reduire([{ id: 'e1', at: new Date().toISOString(), by: 'a1', type: 'DOC', data: { id: 'DC0000000d', partage: [{ genre: 'service', code: 'U1', droit: 'lire' }] } }]);
+  assert.deepEqual(DM.aTransferer(stP, comptes, {}), [{ doc: 'DC0000000d', vers: ['c1'] }]);   // partagé : transféré
   assert.throws(() => DM.controler('DOC_TRANSFERT', { doc: 'DC0000000d', vers: ['c1'] }, { etat: st, compte: comptes[1], config: {} }), /administrateur/);
   st = DM.reduire([{ id: 'e1', at: new Date().toISOString(), by: 'a1', type: 'DOC', data: { id: 'DC0000000d' } }, { id: 'e2', at: new Date().toISOString(), by: 'adm', type: 'DOC_TRANSFERT', data: { doc: 'DC0000000d', vers: ['c1'] } }]);
   assert.equal(DM.droitDe(st.docs.DC0000000d, comptes[1], {}), 'gerer');
@@ -236,6 +239,7 @@ test('Transfert par la session de l’administrateur : le cadre lit le document 
   await a.enregistrer('DOC_VERSION', { doc: 'DC0000000e', g: v.g, ct: v.ct });
   const c = admin.comptes.find((x) => x.login === 'ide.a');
   await admin.modifierRoles(c.id, c.roles, false, c.services);
+  await admin.enregistrer('CONFIG', { cle: 'documents', valeur: { transfertPrives: true } });   // option de l'administrateur
   const ad = await co(racine, 'admin', 'mot de passe solide');
   const l = DM.aTransferer(ad.etatModule('documents'), ad.comptes, ad.etat.config);
   assert.deepEqual(l, [{ doc: 'DC0000000e', vers: [id('cadre')] }]);
