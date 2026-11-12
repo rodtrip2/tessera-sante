@@ -149,6 +149,8 @@ test('Arrêt d’un module (0.43.0) : masqué pour tous, saisies refusées, rég
   await assert.rejects(a.enregistrer('RDV', rdv('R1', 'U1')), /désactivé/);
   assert.ok(!admin.modulesAccessibles().some((m) => m.id === 'agenda'), 'arrêté : masqué même pour l’administrateur');
   assert.equal(admin.ouvert('agenda'), false); assert.equal(admin.detientCle('agenda'), true);
+  assert.equal(a.detientCle('agenda'), true, 'arrêt : l’agent garde la clé du module (décision du 12 novembre 2026)');
+  assert.equal(a.ouvert('agenda'), false);
   // Réglage par service gardé pendant l'arrêt, puis remise en marche
   v = R.ecrireActivation(v, 'agenda', ['U2'], false);
   assert.deepEqual(v.agenda, { tous: false, services: ['U2'], arret: true });

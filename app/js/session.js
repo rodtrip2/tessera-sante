@@ -468,9 +468,13 @@
         var roles = compte.roles || [];
         if (!roles.some(function (r) { return codes.indexOf(r) >= 0; })) return false;
         if (d.membre && !d.membre(roles, cfg)) return false;   // module où un rôle n'entre que par ses accès (Agenda)
-        if (!d.activation || !d.activation(cfg) || d.consulteInactifs(roles)) return true;
+        // Module arrêté (0.43.0, décision du porteur du 12 novembre 2026) : les agents gardent sa clé (pas de nouvelle
+        // génération à chaque arrêt) ; la règle suit le choix des services, comme si le module était en marche
+        var arrete = d.arrete && d.arrete(cfg), actif = arrete ? d.serviceChoisi : d.serviceActif;
+        var reglePar = arrete ? (((cfg.modulesServices || {})[m.id] || {}).tous === false) : !!(d.activation && d.activation(cfg));
+        if (!reglePar || d.consulteInactifs(roles)) return true;
         var svs = d.voitTousServices(roles, cfg) ? (cfg.services || []).map(function (x) { return x.code; }) : (compte.services || []);
-        return svs.some(function (c) { return d.serviceActif(cfg, c); });
+        return svs.some(function (c) { return actif(cfg, c); });
       };
     }
     var regles = {};
