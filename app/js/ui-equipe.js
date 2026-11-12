@@ -11,7 +11,7 @@
   var persoCache = {};
 
   function s() { return U.App.session; }
-  function st() { try { return (s().detientCle('equipe') && s().etatModule('equipe')) || E.reduire([]); } catch (e) { return E.reduire([]); } }
+  function st() { try { return (s().ouvert('equipe') && s().etatModule('equipe')) || E.reduire([]); } catch (e) { return E.reduire([]); } }
   function moi() { return s().compteEffectif(); }
   function compte() { return Object.assign({}, moi(), { roles: s().roles() }); }
   function libRoles(roles) { var cfg = U.config(), d = SIC.modules.obtenir('equipe').droits, l = {}; try { d.rolesConfig(cfg).forEach(function (r) { l[r.code] = r.libelle; }); } catch (e) { /* libellés bruts */ } return (roles || []).filter(function (r) { return r !== 'ADMIN'; }).map(function (r) { return l[r] || r; }).join(', '); }
@@ -141,7 +141,7 @@
   }
   /** Nom cliquable qui ouvre la fiche de contact d'un agent (texte simple sans module Équipe). */
   function lien(id, nom) {
-    if (!id || !SIC.modules.obtenir('equipe') || !s().detientCle('equipe')) return h('span', { text: nom || '' });
+    if (!id || !SIC.modules.obtenir('equipe') || !s().ouvert('equipe')) return h('span', { text: nom || '' });
     return h('button', { class: 'btn lien eq-lien', type: 'button', title: 'Coordonnées', onclick: function (ev) { ev.stopPropagation(); contact(id, nom); } }, nom || (agent(id) || {}).nom || id);
   }
 
@@ -330,5 +330,5 @@
     vues: { annuaire: vueAnnuaire, referents: vueReferents, 'ma-fiche': vueMaFiche, medecins: vueMedecins },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'La fiche revient à son état précédent.'; } }
   });
-  U.equipe = { contact: contact, lien: lien, agents: agents, tableReferents: function (sv) { try { return s().detientCle('equipe') ? tableReferents(sv, false) : null; } catch (e) { return null; } } };
+  U.equipe = { contact: contact, lien: lien, agents: agents, tableReferents: function (sv) { try { return s().ouvert('equipe') ? tableReferents(sv, false) : null; } catch (e) { return null; } } };
 })();

@@ -222,14 +222,14 @@
   /** Échéances JLD lues à la volée chez Isocont : seulement pour qui a l'accès aux envois au JLD et la clé d'Isocont. */
   function echeancesJLD(maintenant, services) {
     var s = U.App.session;
-    if (!s.peut('JLD')) return null;
+    if (!s.peut('JLD') || (s.ouvert && !s.ouvert('isocont'))) return null;
     var etat = s.etatModule('isocont');
     return etat ? SIC.modules.lire('isocont.echeancesJLD', etat, { maintenant: maintenant, services: services }) || [] : null;
   }
   /** Alertes du module Suivi médical (retards d'entretien et de contrat, patients non attribués), lues à la volée. */
   function alertesSuivi(maintenant, services) {
     var s = U.App.session;
-    if (!s.detientCle || !s.detientCle('suivi')) return [];
+    if (!s.ouvert || !s.ouvert('suivi')) return [];
     var etat = s.etatModule('suivi');
     return etat ? SIC.modules.lire('suivi.alertes', etat, { config: U.config(), fiches: fiches(), services: services, maintenant: maintenant }) || [] : [];
   }
@@ -331,7 +331,7 @@
         })) : h('p', { class: 'muted', text: 'Aucun point en retard.' })),
       (function () {
         var sm = alertesSuivi(maintenant, svs);
-        if (!U.App.session.detientCle || !U.App.session.detientCle('suivi')) return null;
+        if (!U.App.session.ouvert || !U.App.session.ouvert('suivi')) return null;
         var lib = { entretien: 'entretien médical en retard', contrat: 'contrat de soins à réévaluer', nonAttribue: 'sans médecin' };
         return h('section', { class: 'panneau' }, h('div', { class: 'barre' }, h('h2', { text: 'À voir par le médecin (Suivi médical)' }), h('div', { class: 'espace' }), h('button', { class: 'btn petit', type: 'button', onclick: allerAuSuivi }, 'Ouvrir le Suivi médical')),
           sm.length ? h('ul', { class: 'liste-simple' }, sm.map(function (x) {
@@ -415,7 +415,7 @@
       m.alertes.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Alertes qui me sont adressées' }), h('div', { class: 'pile' }, m.alertes.map(function (a) { return carteAlerte(a, svs.length > 1); }))) : null,
       // Salles réservées par l'agent cette semaine (Salles et bureaux, 0.25.1) ; celles de ses événements figurent sur leur carte
       (function () {
-        if (!U.salles || !s.detientCle('salles')) return null;
+        if (!U.salles || !s.ouvert('salles')) return null;
         var l = U.salles.miennes(debut, fin);
         return l.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Mes salles cette semaine' }), h('ul', { class: 'liste-simple' }, l.map(function (o) {
           return h('li', {}, h('b', { text: libJour(minuit(o.debut)) + ' ' + hm(o.debut) + '–' + hm(o.fin) }), ' ' + U.salles.nomSalle(o.salle) + ' — ' + o.titre + (o.etat ? ' (' + o.etat + ')' : ''));
@@ -446,7 +446,7 @@
   /** Page « Aujourd'hui » (0.26.4) : ce que Mon agenda prévoit pour l'agent ce jour (cartes, tâches, absence, alertes). */
   U.monJour = function (maintenant) {
     var s = U.App.session;
-    if (!s.detientCle('agenda')) return null;
+    if (!s.ouvert('agenda')) return null;
     var moi = moiAvecGroupes(), svs = s.mesServices().map(function (x) { return x.code || x; }), j0 = minuit(maintenant), j1 = plusJours(j0, 1);
     var m = A.monAgenda(st(), fiches(), U.config(), moi, svs, j0, j1, maintenant);
     return { elements: m.elements.filter(function (x) { return x.debut < j1 && (x.fin || x.debut) >= j0; }).map(function (x) { return carteElement(x, j0, svs.length > 1); }),

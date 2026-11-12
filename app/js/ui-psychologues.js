@@ -27,7 +27,7 @@
   function fiches() { return (U.st() && U.st().patients) || {}; }
   /** Patient en initiales (comme l'agenda par défaut) : « M. D. ». */
   function initiales(p) { if (!p) return 'Patient'; var a = String(p.prenom || '').trim(), b = String(p.nom || '').trim(); return ((a ? a[0].toUpperCase() + '. ' : '') + (b ? b[0].toUpperCase() + '.' : '')).trim() || 'Patient'; }
-  function nomSalle(id) { var e = s().detientCle('salles') ? s().etatModule('salles') : null; return id && e && e.salles[id] ? e.salles[id].nom : ''; }
+  function nomSalle(id) { var e = s().ouvert('salles') ? s().etatModule('salles') : null; return id && e && e.salles[id] ? e.salles[id].nom : ''; }
 
   // ------------------------------------------------------------ Grille de la semaine
   function vuePlanning() {
@@ -116,7 +116,7 @@
     var de = h('input', { type: 'time', step: 900, value: x.de || '09:00', 'aria-label': 'De' }), a = h('input', { type: 'time', step: 900, value: x.a || '12:00', 'aria-label': 'À' });
     var prec = h('input', { type: 'text', maxlength: 100, value: x.precision || '', placeholder: 'ex. groupe de parole, formation, congé', 'aria-label': 'Précision' });
     var remp = h('select', { 'aria-label': 'Remplaçant' }, [h('option', { value: '', text: '— Pas de remplaçant —' })].concat(psys().map(function (m) { return h('option', { value: m.nom, text: m.nom, selected: x.remplacant && m.nom === x.remplacant }); })));
-    var selSalle = U.salles && s().detientCle('salles') ? U.salles.selecteur({ service: function () { return selSv.value; }, valeur: x.salle || '', exclure: x.id ? 'psy|' + x.id : null,
+    var selSalle = U.salles && s().ouvert('salles') ? U.salles.selecteur({ service: function () { return selSv.value; }, valeur: x.salle || '', exclure: x.id ? 'psy|' + x.id : null,
       periode: function () { var SA = SIC.salles; return debut.value && de.value && a.value ? [SA.instant(debut.value, de.value), SA.instant(debut.value, a.value)] : null; } }) : null;
     if (selSalle) { selSv.addEventListener('change', function () { selSalle.remplir(); }); [debut, de, a].forEach(function (c) { c.addEventListener('change', function () { selSalle.maj(); }); }); }
     var zJours = h('div', { class: 'actions gauche', hidden: rep.value === 'date' }, cases);
@@ -155,7 +155,7 @@
     var sv = x.service || serviceCourant(), patients = S.hospitalises(fiches(), [sv]);
     var selPat = h('select', { 'aria-label': 'Patient' }, [h('option', { value: '', text: '— Choisir le patient —' })].concat(patients.map(function (p) { return h('option', { value: p.id, text: S.identite(p, Date.now()), selected: p.id === x.patient }); })));
     var jour = h('input', { type: 'date', value: x.jour || S.jourISO(Date.now()), 'aria-label': 'Jour' }), de = h('input', { type: 'time', step: 900, value: x.de || '10:00', 'aria-label': 'De' }), a = h('input', { type: 'time', step: 900, value: x.a || (x.de ? String(Math.min(23, +x.de.slice(0, 2) + 1)).padStart(2, '0') + x.de.slice(2) : '11:00'), 'aria-label': 'À' });
-    var selSalle = U.salles && s().detientCle('salles') ? U.salles.selecteur({ service: function () { return sv; }, valeur: x.salle || '', exclure: e ? 'entretien|' + e.id : (x.presence ? 'psy|' + x.presence : null),
+    var selSalle = U.salles && s().ouvert('salles') ? U.salles.selecteur({ service: function () { return sv; }, valeur: x.salle || '', exclure: e ? 'entretien|' + e.id : (x.presence ? 'psy|' + x.presence : null),
       periode: function () { var SA = SIC.salles; return jour.value && de.value && a.value ? [SA.instant(jour.value, de.value), SA.instant(jour.value, a.value)] : null; } }) : null;
     if (selSalle) [jour, de, a].forEach(function (c) { c.addEventListener('change', function () { selSalle.maj(); }); });
     var pres = x.presence && st().presencesPsy[x.presence];

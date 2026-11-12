@@ -1098,7 +1098,7 @@
   function itemsRattache(genre) {
     if (genre === 'patient') return Object.keys((U.st() && U.st().patients) || {}).map(function (k) { var p = U.st().patients[k]; return [p.id, ((p.nom || '') + ' ' + (p.prenom || '')).trim(), p.service || '']; }).sort(function (a, b) { return a[1].localeCompare(b[1]); });
     if (genre === 'agent') return (s().comptes || []).filter(function (c) { return c.id !== 'secours'; }).map(function (c) { return [c.id, c.nom, '']; }).sort(function (a, b) { return a[1].localeCompare(b[1]); });
-    var sa = null; try { sa = s().etatModule('salles'); } catch (e) { sa = null; }
+    var sa = null; try { sa = s().ouvert('salles') ? s().etatModule('salles') : null; } catch (e) { sa = null; }
     return Object.keys((sa && sa.salles) || {}).map(function (k) { var x = sa.salles[k]; return x.supprime ? null : [x.id, x.nom + (x.service ? ' (' + U.libService(x.service) + ')' : ''), x.service || '']; }).filter(Boolean);
   }
   function modaleRattacher(meta, apres) {
@@ -1445,7 +1445,7 @@
   /** Documents rattachés à un élément (fiche patient, salle, agent) : section remplie à la volée, avec « + Document ». */
   function section(module, genre, idEl, libelle, service) {
     var zone = h('div', { class: 'pile doc-section' }, h('b', { text: 'Documents' }));
-    if (!SIC.modules.obtenir('documents') || !s().detientCle || !s().detientCle('documents')) return null;
+    if (!SIC.modules.obtenir('documents') || !s().ouvert || !s().ouvert('documents')) return null;
     var ds = DM.visibles(st(), moi(), cfg(), {});
     Promise.all(ds.map(function (d) { return lireVersion(d, DM.derniere(d)).catch(function () { return null; }); })).then(function () {
       var l = ds.filter(function (d) { var m = metaConnue(d); return m && m.rattaches.some(function (r) { return r.module === module && r.id === idEl; }); });

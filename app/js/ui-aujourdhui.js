@@ -54,7 +54,7 @@
     } catch (e) { /* sans informations */ }
     // Salles réservées ce jour
     try {
-      if (U.salles && s().detientCle('salles')) {
+      if (U.salles && s().ouvert('salles')) {
         var l = U.salles.miennes(minuit(maintenant), minuit(maintenant) + 864e5);
         if (l.length) blocs.push(bloc('Mes salles aujourd’hui', h('ul', { class: 'liste-simple' }, l.map(function (o) { return h('li', {}, h('b', { text: hm(o.debut) + '–' + hm(o.fin) }), ' ' + U.salles.nomSalle(o.salle) + ' — ' + o.titre + (o.etat ? ' (' + o.etat + ')' : '')); })), aller('salles', 'mes'), 'Salles'));
       }
@@ -71,12 +71,12 @@
     try {
       ((s() && s().comptes) || []).filter(function (c) { return c.actif && c.id !== 'secours'; }).forEach(function (c) {
         res.push({ module: 'agents', libModule: 'Agent', titre: c.nom, detail: (c.roles || []).join(', ') + ((c.services || []).length ? ' — ' + c.services.map(U.libService).join(', ') : ''),
-          ouvrir: U.equipe && s().detientCle('equipe') ? function () { U.equipe.contact(c.id, c.nom); } : U.messagerie && U.messagerie.peutEnvoyer && U.messagerie.peutEnvoyer() ? function () { U.messagerie.nouveau({ destinataires: ['agent|' + c.id] }); } : null,
-          libOuvrir: U.equipe && s().detientCle('equipe') ? 'Coordonnées' : 'Écrire' });
+          ouvrir: U.equipe && s().ouvert('equipe') ? function () { U.equipe.contact(c.id, c.nom); } : U.messagerie && U.messagerie.peutEnvoyer && U.messagerie.peutEnvoyer() ? function () { U.messagerie.nouveau({ destinataires: ['agent|' + c.id] }); } : null,
+          libOuvrir: U.equipe && s().ouvert('equipe') ? 'Coordonnées' : 'Écrire' });
       });
     } catch (e) { /* sans comptes */ }
     try {
-      if (U.infos && s().detientCle('infos')) ['*'].concat(U.services().map(function (x) { return x.code; })).forEach(function (sv) {
+      if (U.infos && s().ouvert('infos')) ['*'].concat(U.services().map(function (x) { return x.code; })).forEach(function (sv) {
         U.infos.contacts(sv).forEach(function (c) { res.push({ module: 'infos', libModule: 'Contact', titre: c.nom + (c.numero ? ' — ' + c.numero : ''), detail: [c.fonction, c.rubrique].filter(Boolean).join(' · '), ouvrir: function () { U.ouvrirFenetre('infos'); U.App.onglet = 'annuaire'; U.rendreContenu(); } }); });
       });
     } catch (e) { /* sans contacts */ }
