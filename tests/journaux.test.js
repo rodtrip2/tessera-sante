@@ -99,15 +99,16 @@ test('Intégrité journal par journal : repères distincts, prise d’acte limit
   const b = await admin.enregistrer('MESURE_DEBUT', { mesureId: 'M1', patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: Date.now() - 3600e3, csi: true });
   assert.equal(admin.anomaliesIntegrite(), false);
   // Disparition de la dernière saisie du socle
-  const mois = a.at.slice(0, 7).split('-');
-  racine.e.get('socle').e.get('evenements').e.get(mois[0]).e.get(mois[1]).e.delete(a.id + '.enc');
+  const mois = a.at.slice(0, 10).split('-');
+  racine.e.get('socle').e.get('evenements').e.get(mois[0]).e.get(mois[1]).e.get(mois[2]).e.delete(a.id + '.enc');
   const s = await connecter(racine);
   let r = await s.verifierIntegrite();
   assert.deepEqual(r.reperes.map((x) => [x.journal, x.dernierManquant]), [['socle', true]]);
   await s.prendreActeIntegrite('Fichier perdu sans copie (test fictif)');
   assert.equal(s.anomaliesIntegrite(), false);
   // La prise d'acte du socle ne couvre pas une disparition dans le journal du module
-  racine.e.get('modules').e.get('isocont').e.get('evenements').e.get(mois[0]).e.get(mois[1]).e.delete(b.id + '.enc');
+  const moisB = b.at.slice(0, 10).split('-');
+  racine.e.get('modules').e.get('isocont').e.get('evenements').e.get(moisB[0]).e.get(moisB[1]).e.get(moisB[2]).e.delete(b.id + '.enc');
   const t = await connecter(racine);
   r = await t.verifierIntegrite();
   assert.ok(t.anomaliesIntegrite());
@@ -193,18 +194,27 @@ test('Activation du module par service : réglage du socle, services visibles, s
   assert.deepEqual(M.droits.servicesInactifs(admin.etat.config), []);
 });
 
-test('Lecture rapide : seuls les mois récents sont parcourus ; la lecture complète rattrape un mois clos (0.21.1)', async () => {
+test('Lecture rapide : seuls les jours récents sont parcourus ; la lecture complète rattrape le reste (0.21.1, rangement par jour 0.33.0)', async () => {
   const { Dossier } = globalThis.SIC, C = globalThis.SIC.crypto;
   const racine = new Repertoire('racine'), d = new Dossier(racine, 'reseau');
   const cle = await C.importerCle(C.b64(C.aleatoire(32)));
-  const maintenant = new Date(), mois = (n) => { const x = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth() - n, 10, 8)); return x.toISOString(); };
-  const ecrire = (at, n) => d.ecrireEvenement(cle, { v: 1, id: at.replace(/[-:]/g, '').replace(/\.\d+/, '') + '_a1_' + n, at, by: 'a1', type: 'NOTE', data: {} });
-  await ecrire(mois(3), '00000001'); await ecrire(mois(0), '00000002');
+  const now = Date.now(), at = (ms) => new Date(ms).toISOString();
+  const evt = (t, n) => ({ v: 1, id: t.replace(/[-:]/g, '').replace(/\.\d+/, '') + '_a1_' + n, at: t, by: 'a1', type: 'NOTE', data: {} });
+  const ecrire = (t, n) => d.ecrireEvenement(cle, evt(t, n));
+  // Saisie de l'ancien rangement (dossier du mois, avant la 0.33.0) : toujours lue
+  const ancienne = evt(at(now - 36e5), '00000009'), mo = ancienne.at.slice(0, 7).split('-');
+  const dirMois = await d.sousDossier(['evenements', mo[0], mo[1]], true);
+  await d.ecrireFichier(dirMois, ancienne.id + '.enc', await C.chiffrerJSON(cle, ancienne, 'evt:' + ancienne.id + '.enc'), true);
+  await ecrire(at(now - 95 * 864e5), '00000001'); await ecrire(at(now), '00000002');
+  const nom = await d.ecrireEvenement(cle, evt(at(now - 1000), '00000008'));
+  const j = new Date(now - 1000).toISOString().slice(0, 10).split('-');
+  assert.ok(racine.e.get('evenements').e.get(j[0]).e.get(j[1]).e.get(j[2]).e.has(nom));   // dossier du jour
   const connus = new Set();
-  assert.equal((await d.lireNouveaux(cle, connus)).evenements.length, 2);   // lecture complète
-  await ecrire(mois(3), '00000003'); await ecrire(mois(1), '00000004'); await ecrire(mois(0), '00000005');
+  assert.equal((await d.lireNouveaux(cle, connus)).evenements.length, 4);   // lecture complète : les deux rangements
+  assert.equal((await d.nomsEvenements()).size, 4);
+  await ecrire(at(now - 95 * 864e5), '00000003'); await ecrire(at(now - 6 * 864e5), '00000004'); await ecrire(at(now), '00000005');
   const rapide = await d.lireNouveaux(cle, connus, { recents: true });
-  assert.deepEqual(rapide.evenements.map(e => e.id.slice(-8)).sort(), ['00000004', '00000005']);   // le mois clos n'est pas parcouru
+  assert.deepEqual(rapide.evenements.map((e) => e.id.slice(-8)).sort(), ['00000005']);   // ni le mois clos ni les jours anciens
   const complete = await d.lireNouveaux(cle, connus);
-  assert.deepEqual(complete.evenements.map(e => e.id.slice(-8)), ['00000003']);   // rattrapé par la lecture complète
+  assert.deepEqual(complete.evenements.map((e) => e.id.slice(-8)).sort(), ['00000003', '00000004']);   // rattrapés
 });

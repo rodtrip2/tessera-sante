@@ -224,10 +224,13 @@
     return false;
   }
 
-  /** Chemin d'un fichier de saisie d'après son nom (le mois vient de l'horodatage en tête de l'identifiant). */
-  function cheminEvenement(nom) {
-    var m = /^(\d{4})(\d{2})\d{2}T/.exec(nom || '');
-    return m ? 'evenements/' + m[1] + '/' + m[2] + '/' + nom : nom;
+  /**
+   * Chemin d'un fichier de saisie d'après son nom (date de l'horodatage en tête de l'identifiant) : dossier du jour
+   * (rangement de la 0.33.0) ; `ancien` : dossier du mois (saisies écrites avant).
+   */
+  function cheminEvenement(nom, ancien) {
+    var m = /^(\d{4})(\d{2})(\d{2})T/.exec(nom || '');
+    return m ? 'evenements/' + m[1] + '/' + m[2] + '/' + (ancien ? '' : m[3] + '/') + nom : nom;
   }
 
   /**

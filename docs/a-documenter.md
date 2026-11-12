@@ -115,6 +115,16 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.33.0 (branche `rangement-jour`, 12 novembre 2026) : rangement des saisies par jour
+
+| Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Rangement par jour | Fait avant le module Documents (beaucoup de saisies) ; bascule automatique dès cette version (tous les postes sont mis à jour en même temps : un poste resté sur une version antérieure ne lirait plus les nouvelles saisies) | `evenements/AAAA/MM/JJ/<saisie>.enc` (jour UTC de l'horodatage) ; les saisies déjà écrites restent dans `evenements/AAAA/MM/` (jamais déplacées) ; lecture des deux rangements (`store.js` : `ecrireEvenement`, `lireNouveaux`, `nomsEvenements`, `cheminSur`, quarantaine `quarantaine/AAAA/MM/JJ/`, réparation, restauration) ; `cheminEvenement(nom, ancien)` |
+| Lecture rapide | Toutes les 5 secondes : dossiers du jour d'avant-hier à aujourd'hui (et fichiers du mois de l'ancien rangement) ; le reste à la lecture complète (connexion, puis toutes les 10 minutes) | `lireNouveaux({ recents })` ; instantanés mensuels inchangés (mois clos, tous rangements) |
+| Sauvegarde, secours | Copie complète, dossier de secours, déplacement et script robocopy (`/E`) : parcours récursif, sans changement | — |
+| Correction | La ligne de l'heure actuelle de l'agenda ne bloque plus le clic sur un événement | `.ag-maintenant` (`app.css`) |
+| Notice de mise à jour | **À écrire dans le kit** : mettre à jour tous les postes en même temps (fermer Tessera partout, déposer la nouvelle version, rouvrir) | `kit/` |
+
 ## Version 0.32.0 (branche `droit-acces`, 12 novembre 2026) : lot E, droit d'accès des patients ; données réservées au pôle
 
 | Sujet | Décisions et demandes du porteur (11 et 12 novembre 2026) | Fichiers, saisies, réglages |
