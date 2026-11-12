@@ -268,7 +268,7 @@
       ajouter(t(-24 * 19), 'PRISE_EN_CHARGE', { patientId: l[0], lien: 'LD' + i, intervenant: l[1], commentaire: l[2], tiers: l[0] === 'P01' && l[1] === 'IV002' });
     });
     // Sorties (0.21.0) : une sortie actée (date et heure arrêtées avec le patient), une envisagée en fourchette, une approximation seule
-    ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { etat: 'actee', debut: jISO(24 * 3), heure: '11:00' } });
+    ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { etat: 'actee', debut: jISO(24 * Math.min(3, (7 - new Date(now).getDay()) % 7)), heure: '11:00' } });   // dans la semaine affichée (au plus tard dimanche)
     ajouter(t(-24 * 2), 'SEJOUR', { patientId: 'P01', sejourId: 'SP01', sortiePrevue: { debut: jISO(24 * 6), fin: jISO(24 * 10), precision: 'après la synthèse (fictif)' } });
     ajouter(t(-24 * 1), 'SEJOUR', { patientId: 'P04', sejourId: 'SP04', sortiePrevue: { precision: 'selon place en appartement thérapeutique (fictif)' } });
     // Plan du service (0.29.1) : placements temporaires, chambre gardée (CSI en chambre ouverte dans l'Unité 2, alors

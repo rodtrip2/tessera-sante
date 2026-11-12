@@ -1224,15 +1224,37 @@
     // Trousseau : clés détenues par chaque compte (coffre version 2)
     var resume = s.resumeTrousseau ? s.resumeTrousseau() : null;
     function libCle(n) { if (n === 'plateforme') return 'Plateforme'; var m = SIC.modules.obtenir(n); return m ? m.libelle : n; }
+    // Clés de cloisonnement à l'intérieur d'un module (destinataires d'un message, partage d'un document, coordonnées d'un
+    // service, données ajoutées, clé personnelle) : regroupées par famille, le détail reste dans une rubrique repliée
+    var FAMILLES = [['m-', 'Messagerie : destinataires'], ['k-', 'Documents : partages'], ['e-', 'Équipe : coordonnées par service'], ['d-', 'Données ajoutées'], ['t-a.', 'Clés personnelles des agents']];
+    function famille(n) { return FAMILLES.filter(function (f) { return n.indexOf(f[0]) === 0; })[0] || null; }
+    function estModule(n) { return n === 'plateforme' || !!SIC.modules.obtenir(n) || !famille(n); }
+    function resumeFamilles(liste) {
+      return FAMILLES.map(function (f) { var k = liste.filter(function (n) { return famille(n) === f; }).length; return k ? f[1] + ' (' + k + ')' : null; }).filter(Boolean);
+    }
     function celluleCles(c) {
       var x = resume.comptes[c.id];
       if (!c.actif) return h('td', {}, h('small', { class: 'muted', text: '—' }));
       if (!x) return h('td', {}, h('span', { class: 'badge', text: 'aucune : à réémettre' }));
-      var ordre = x.cles.slice().sort(function (a, b) { return a === 'plateforme' ? -1 : b === 'plateforme' ? 1 : 0; });
-      return h('td', {}, h('small', { text: ordre.map(libCle).join(', ') + (x.maitresses ? ' · clés maîtresses' : '') }));
+      var mods = x.cles.filter(estModule).sort(function (a, b) { return a === 'plateforme' ? -1 : b === 'plateforme' ? 1 : libCle(a).localeCompare(libCle(b)); });
+      var autres = x.cles.filter(function (n) { return !estModule(n); });
+      return h('td', {}, h('small', { text: mods.map(libCle).join(', ') + (x.maitresses ? ' · clés maîtresses' : '') }),
+        autres.length ? h('div', {}, h('small', { class: 'muted', title: resumeFamilles(autres).join(' ; '), text: '+ ' + autres.length + ' clé' + (autres.length > 1 ? 's' : '') + ' de cloisonnement' })) : null);
+    }
+    var detailCles = null;
+    if (resume) {
+      var noms = Object.keys(resume.cles), nm = noms.filter(estModule), na = noms.filter(function (n) { return !estModule(n); });
+      var gen = function (n) { return resume.cles[n] > 1 ? ' (génération ' + resume.cles[n] + ')' : ''; };
+      detailCles = h('div', { class: 'pile' },
+        h('p', { class: 'muted', text: 'Trousseau de clés : ' + nm.length + ' clé' + (nm.length > 1 ? 's' : '') + ' de plateforme et de modules' + (na.length ? ' et ' + na.length + ' clé' + (na.length > 1 ? 's' : '') + ' de cloisonnement (' + resumeFamilles(na).join(' ; ') + ')' : '') + '. Un agent ne reçoit que les clés de ce à quoi il a droit ; une nouvelle génération est créée à chaque retrait de droit.' }));
+      var rub = h('section', { class: 'panneau' }, h('h2', { text: 'Détail des clés' }),
+        h('p', {}, h('b', { text: 'Plateforme et modules : ' }), h('span', { text: nm.map(function (n) { return libCle(n) + gen(n); }).join(' · ') })),
+        FAMILLES.map(function (f) { var l = na.filter(function (n) { return famille(n) === f; }); return l.length ? h('p', {}, h('b', { text: f[1] + ' : ' }), h('small', { class: 'mono', text: l.map(function (n) { return n + gen(n); }).join(' · ') })) : null; }));
+      rendreRepliable(rub, rub.querySelector('h2'), { cle: 'comptes-detail-cles', ouvert: false, resume: nm.length + na.length + ' clés' });
+      detailCles.appendChild(rub);
     }
     var comptes = h('section', { class: 'panneau' }, h('h2', { text: 'Comptes' }),
-      resume ? h('p', { class: 'muted', text: 'Trousseau de clés : ' + Object.keys(resume.cles).map(function (n) { return libCle(n) + ' (génération ' + resume.cles[n] + ')'; }).join(' · ') + '. Un agent ne reçoit que les clés de ce à quoi il a droit ; une nouvelle génération est créée à chaque retrait de droit.' }) : null,
+      detailCles,
       h('p', { class: 'muted', text: 'Un compte peut cumuler plusieurs rôles. Les services affectés limitent ce que l’agent voit, à la connexion comme à la création d’une mesure ; un administrateur voit tous les services.' }),
       h('div', { class: 'table-wrap' }, h('table', {},
         h('thead', {}, h('tr', {}, ['Nom', 'Identifiant', 'Rôles', 'Services', 'État'].concat(resume ? ['Clés'] : [], ['']).map(function (t) { return h('th', { text: t }); }))),
