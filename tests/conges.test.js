@@ -160,3 +160,26 @@ test('Réglages : types ajoutés, validateurs, couleurs, message d’avertisseme
   assert.equal(C.controlerCadre(a, { regleFeries: { U1: { IDE: 'recuperer' }, U2: { IDE: 'office' } } }, cadre), false);
   assert.equal(C.controlerCadre(a, Object.assign({}, a, { delaiMois: 2 }), cadre), false);
 });
+
+test('Date limite de dépôt (0.44.1) : demande tardive non prioritaire, non comptée, à valider en dernier ; contrôle ; temps partiel masqué par défaut', () => {
+  const p = ev('PERIODE_CONGES', { id: 'pe', service: 'U1', libelle: 'Congés d’été (fictif)', debut: '2027-07-01', fin: '2027-08-31', effet: 'limite', limite: '2027-03-31' });
+  const t = ev('TABLEAU_CONGES', { id: 't1', service: 'U1', nom: 'Été (fictif)', debut: '2027-07-01', fin: '2027-08-31', regles: [{ pour: 'IDE', max: 1 }] });
+  const st = C.reduire([p, t,
+    ev('CONGE', { id: 'a', agent: 'ide', service: 'U1', type: 'CA', debut: '2027-07-12', fin: '2027-07-16', statut: 'demande' }, 'ide', '2027-03-20T08:00:00.000Z'),
+    ev('CONGE', { id: 'b', agent: 'ide2', service: 'U1', type: 'CA', debut: '2027-07-12', fin: '2027-07-16', statut: 'demande' }, 'ide2', '2027-04-02T08:00:00.000Z'),
+    ev('CONGE', { id: 'c', agent: 'ide3', service: 'U1', type: 'CA', debut: '2027-09-06', fin: '2027-09-07', statut: 'demande' }, 'ide3', '2027-04-02T08:00:01.000Z')]);
+  assert.equal(st.conges.a.tardive, null); assert.equal(st.conges.b.tardive.limite, '2027-03-31'); assert.equal(st.conges.c.tardive, null, 'hors de la période');
+  assert.equal(C.limiteDepassee(st, st.conges.a, '2027-03-31'), null, 'la date limite est incluse');
+  const g = C.grille(st, config, st.tableaux.t1, comptes, '2027-07-01', '2027-08-31', '2027-04-02'), i = g.jours.findIndex((j) => j.iso === '2027-07-12');
+  assert.equal(g.comptes.IDE[i], 1, 'la demande tardive n’est pas comptée'); assert.equal(g.comptes.tardives[i], 1); assert.equal(g.depassements.length, 0);
+  const l = C.aValider(st, {}, comptes, cadre); assert.deepEqual(l.map((c) => c.id).slice(-1), ['b'], 'non prioritaire en dernier');
+  const v = C.verifier(st, {}, { id: 'n', agent: 'as', service: 'U1', type: 'CA', debut: '2027-08-02', fin: '2027-08-03' }, { comptes, aujourdhui: '2027-04-10' });
+  assert.equal(v.tardive.id, 'pe');
+  const v2 = C.verifier(st, {}, { id: 'n', agent: 'as', service: 'U1', type: 'CA', debut: '2027-08-02', fin: '2027-08-03' }, { comptes, aujourdhui: '2027-02-10' });
+  assert.equal(v2.tardive, null); assert.equal(v2.limites[0].limite, '2027-03-31');
+  const ctx = { etat: C.reduire([]), config: {}, compte: cadre, comptes, aujourdhui: '2026-11-12' };
+  assert.throws(() => C.controler('PERIODE_CONGES', { id: 'q', service: 'U1', libelle: 'Été (fictif)', debut: '2027-07-01', fin: '2027-08-31', effet: 'limite' }, ctx), /date limite/);
+  assert.throws(() => C.controler('PERIODE_CONGES', { id: 'q', service: 'U1', libelle: 'Été (fictif)', debut: '2027-07-01', fin: '2027-08-31', effet: 'limite', limite: '2027-07-15' }, ctx), /date limite/);
+  assert.doesNotThrow(() => C.controler('PERIODE_CONGES', { id: 'q', service: 'U1', libelle: 'Été (fictif)', debut: '2027-07-01', fin: '2027-08-31', effet: 'limite', limite: '2027-03-31' }, ctx));
+  assert.equal(C.options({}).afficherTempsPartiel, false); assert.equal(C.options({ conges: { afficherTempsPartiel: true } }).afficherTempsPartiel, true);
+});
