@@ -887,6 +887,34 @@
       } }]);
   }
 
+  // ------------------------------------------------------------ Import Word, Excel, CSV (0.41.0)
+  /** Fichier lu dans le navigateur (jamais copié sur le partage) : un nouveau document Tessera chiffré est créé. */
+  function choisirImport(o) {
+    var champ = h('input', { type: 'file', accept: '.docx,.xlsx,.xlsm,.csv', 'aria-label': 'Fichier à importer', class: 'cache-fichier' });
+    champ.addEventListener('change', async function () {
+      var f = champ.files && champ.files[0]; champ.remove(); if (!f) return;
+      try {
+        var r = await SIC.documentsImport.importer(f.name, new Uint8Array(await f.arrayBuffer()));
+        modaleImport(r, f.name, o || {});
+      } catch (e) { U.toast('Import impossible : ' + e.message); }
+    });
+    document.body.appendChild(champ); champ.click();
+  }
+  function modaleImport(r, nomFichier, o) {
+    var tableur = r.contenu.genre === 'tableur', titre = h('input', { type: 'text', maxlength: 160, value: r.titre || nomFichier.replace(/\.[^.]+$/, ''), 'aria-label': 'Titre du document importé' });
+    var resume = tableur ? r.contenu.feuilles.length + ' feuille(s), ' + r.contenu.feuilles.reduce(function (s, x) { return s + Object.keys(x.cellules).length; }, 0) + ' case(s) remplie(s)' : DM.ongletsDe(r.contenu).reduce(function (s, x) { return s + x.blocs.length; }, 0) + ' paragraphe(s) ou élément(s)';
+    var marques = (tableur ? SIC.tableur.modificationsSuivies(r.contenu) : DM.modificationsSuivies(r.contenu)).length;
+    U.modale('Importer « ' + nomFichier + ' »', h('div', { class: 'pile' },
+      h('label', {}, 'Titre', titre),
+      h('p', { text: (tableur ? 'Tableur' : 'Document texte') + ' : ' + resume + '.' + (marques ? ' ' + marques + ' modification(s) suivie(s) reprise(s) de Word, à accepter ou refuser.' : '') }),
+      r.alertes.length ? h('ul', { class: 'alerte' }, r.alertes.map(function (a) { return h('li', { text: a }); })) : null,
+      h('p', { class: 'muted', text: 'Le fichier est lu sur ce poste et n’est pas copié : seul le document Tessera créé est gardé, chiffré, privé jusqu’à son partage. Aucune donnée clinique.' })),
+      [{ texte: 'Annuler' }, { texte: 'Créer le document', classe: 'primaire', action: async function () {
+        var id = await creer({ meta: { titre: titre.value.trim() || 'Document importé', rattaches: o.rattache ? [o.rattache] : [] }, contenu: r.contenu });
+        setTimeout(function () { ouvrirEditeur(id); }, 0);
+      } }]);
+  }
+
   // ------------------------------------------------------------ Partage
   function libEntree(p) {
     if (p.genre === 'agent') return nomAgent(p.code);
@@ -1120,7 +1148,8 @@
     return h('div', { class: 'pile' },
       h('div', { class: 'barre' }, h('h1', { text: 'Documents' }), recherche(), h('div', { class: 'espace' }),
         !s().apercu ? h('button', { class: 'btn primaire', type: 'button', disabled: !cle, onclick: function () { modaleNouveau(); } }, '+ Nouveau document') : null,
-        !s().apercu ? h('button', { class: 'btn', type: 'button', disabled: !cle, onclick: function () { modaleNouveau({ genre: 'tableur' }); } }, '+ Nouveau tableur') : null),
+        !s().apercu ? h('button', { class: 'btn', type: 'button', disabled: !cle, onclick: function () { modaleNouveau({ genre: 'tableur' }); } }, '+ Nouveau tableur') : null,
+        !s().apercu && SIC.documentsImport ? h('button', { class: 'btn', type: 'button', disabled: !cle, onclick: function () { choisirImport(); } }, 'Importer un fichier…') : null),
       cle ? null : h('p', { class: 'alerte', text: 'Votre clé de documents n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.' }),
       demandes.length ? h('div', { class: 'alerte' }, h('b', { text: 'Validation qui vous est demandée : ' }), demandes.map(function (d, i) { var m = metaConnue(d); return [i ? ', ' : '', h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…')]; })) : null,
       aReviser.length ? h('p', { class: 'alerte', text: aReviser.length + ' document(s) à réviser : ' + aReviser.map(function (d) { var m = metaConnue(d); return m ? m.titre : '…'; }).join(', ') + '.' }) : null,
