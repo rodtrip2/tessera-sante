@@ -13,7 +13,7 @@ test('Sans réglage, les rôles fournis gardent exactement leurs droits historiq
     TYPES.forEach((t) => assert.equal(M.peut([r], t, {}), M.DROITS[r].indexOf(t) >= 0, r + ' ' + t));
   });
   assert.ok(M.peut(['CADRE'], 'EDITION_CADA', {}) && M.peut(['CADRE'], 'EXPORT_PATIENT', {}) && !M.peut(['IDE'], 'EXPORT_PATIENT', {}));
-  assert.deepEqual(M.rolesConfig({}).map((r) => r.code), ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS', 'ADMIN']);
+  assert.deepEqual(M.rolesConfig({}).map((r) => r.code), ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS', 'INTERVENANT', 'ADMIN']);
 });
 
 test('Cadre supérieur de santé (0.27.2) : droits du cadre par défaut, rôle Cadre ajouté d’office ; pôles validés', () => {

@@ -640,13 +640,16 @@
     return svg;
   }
   /** Fenêtres ouvertes à l'agent : Patients (clé détenue), modules accessibles, Administration (administrateur). */
+  function limiteAuxSiens() { var s = App.session, c = s && s.compteEffectif && s.compteEffectif(); return !!(c && SIC.agenda && SIC.agenda.limiteAuxSiens && SIC.agenda.limiteAuxSiens(c.roles)); }
   function fenetres() {
     var s = App.session, res = [];
     if (!s) return res;
     var ms = s.modulesAccessibles();
+    // Intervenant extérieur (0.31.0) : ses modules seulement (l'agenda de ses activités), ni page « Aujourd'hui » ni Patients
+    var limite = limiteAuxSiens();
     // Page « Aujourd'hui » (0.26.4) : ouverte à la connexion, en tête de la barre des modules
-    if (ms.length && SIC.ui.vueAujourdhui && !s.apercu) res.push({ id: 'aujourdhui', libelle: 'Aujourd’hui' });
-    if (ms.length && s.detientCle && s.detientCle('patients') && SIC.modules.obtenir('patients')) res.push({ id: 'patients', libelle: 'Patients' });
+    if (ms.length && SIC.ui.vueAujourdhui && !s.apercu && !limite) res.push({ id: 'aujourdhui', libelle: 'Aujourd’hui' });
+    if (ms.length && s.detientCle && s.detientCle('patients') && SIC.modules.obtenir('patients') && !limite) res.push({ id: 'patients', libelle: 'Patients' });
     ms.forEach(function (m) { res.push({ id: m.id, libelle: m.libelle }); });
     // Administration : l'administrateur ; le cadre y trouve les groupes d'agents de ses services (décision du 8 novembre 2026)
     if (s.roles().indexOf('ADMIN') >= 0 || (s.roles().indexOf('CADRE') >= 0 && SIC.groupes && !s.apercu)) res.push({ id: 'admin', libelle: 'Administration' });
@@ -672,7 +675,10 @@
     }
     var id = App.fenetre === 'patients' ? 'patients' : (App.session ? App.session.moduleAffiche() : null);
     var m = id && SIC.modules.obtenir(id);
-    return (m ? m.vues.onglets : SIC.modules.onglets(null)).map(function (o) { return [o.code, o.libelle]; }).concat([['journal', 'Journal']]);
+    var res = (m ? m.vues.onglets : SIC.modules.onglets(null)).map(function (o) { return [o.code, o.libelle]; }).concat([['journal', 'Journal']]);
+    // Intervenant extérieur (0.31.0) : agenda de ses activités et son propre agenda seulement
+    if (limiteAuxSiens() && id === 'agenda') res = res.filter(function (o) { return o[0] === 'agenda' || o[0] === 'mon-agenda'; });
+    return res;
   }
   App.ongletsFenetres = {};
   /** Ouvre la fenêtre d'un module : son dernier onglet affiché, sinon le premier ; choix retenu sur le poste. */
@@ -811,6 +817,9 @@
     if (!App.fenetre) { try { App.fenetre = localStorage.getItem('sic-fenetre') || ''; } catch (e) { App.fenetre = ''; } }
     // Connexion : la page « Aujourd'hui » s'ouvre d'abord (une fois par session)
     if (!s._accueilVu) { s._accueilVu = true; App.ongletsFenetres = {}; if (fs.some(function (f) { return f.id === 'aujourdhui'; }) && !estOngletAdmin(App.onglet)) { App.fenetre = 'aujourdhui'; App.onglet = 'aujourdhui'; } }
+    // Module affiché sans clé (intervenant extérieur, 0.31.0) : le premier module accessible le remplace
+    var msA = s.modulesAccessibles();
+    if (msA.length && !msA.some(function (m) { return (m.id || 'isocont') === s.moduleAffiche(); }) && !s.accesModule()) s.choisirModule(msA[0].id);
     if (App.fenetre === 'patients' || App.fenetre === 'admin' || App.fenetre === 'aujourdhui') { if (!fs.some(function (f) { return f.id === App.fenetre; })) App.fenetre = ''; }
     else if (App.fenetre !== s.moduleAffiche()) App.fenetre = '';
     if (!App.fenetre) App.fenetre = s.moduleAffiche();
@@ -902,6 +911,8 @@
     var mAff = moduleAffiche(), vuesAff = (mAff.interface && mAff.interface.vues) || {}, vuesModule = interfaceModule().vues || {};
     var mPat = SIC.modules.obtenir('patients'), vuesPat = (mPat && mPat.interface && mPat.interface.vues) || {};
     var vue = vues[App.onglet] || (App.fenetre === 'patients' ? vuesPat[App.onglet] : null) || vuesAff[App.onglet] || vuesModule[App.onglet] || vuesAff[(mAff.vues.onglets[0] || {}).code] || vues.aucun;
+    // Charte de confidentialité des intervenants extérieurs (0.31.0) : à accepter avant tout affichage
+    try { var ch = SIC.ui.delegations && SIC.ui.delegations.charte ? SIC.ui.delegations.charte() : null; if (ch) { corps.appendChild(ch); return; } } catch (e) { /* sans charte */ }
     if (App.fenetre !== 'patients' && App.fenetre !== 'aujourdhui' && mAff === moduleActif() && !s.accesModule() && App.onglet !== 'journal' && !estOngletAdmin(App.onglet)) {
       corps.appendChild(h('div', { class: 'panneau vide', text: 'Les données du module « ' + moduleActif().libelle + ' » ne vous sont pas remises : vous n’y avez pas de rôle, ou il n’est activé pour aucun de vos services. Demandez à l’administrateur si vous devez y avoir accès.' }));
       return;
@@ -910,6 +921,8 @@
     if (!mesSv.length && !estAdmin && affectes.length) { corps.appendChild(h('div', { class: 'panneau vide', text: 'Le module « ' + mAff.libelle + ' » n’est activé pour aucun de vos services. Demandez à l’administrateur de vérifier son activation (Administration → Établissement et services).' })); return; }
     if (!mesSv.length && !estAdmin) { corps.appendChild(h('div', { class: 'panneau vide', text: 'Aucun service ne vous est affecté. Demandez à l’administrateur de vous en attribuer un.' })); return; }
     // Agent ajouté à un groupe d'agents : information affichée dans toutes les fenêtres jusqu'à « Vu »
+    // Prêts de droits (0.31.0) : « Vous remplacez… », et au retour de l'absent « Pendant votre absence… »
+    try { var bpr = SIC.ui.delegations && SIC.ui.delegations.bandeau ? SIC.ui.delegations.bandeau() : null; if (bpr) corps.appendChild(bpr); } catch (e) { /* sans effet sur la vue */ }
     try { var bg = SIC.ui.bandeauAjoutsGroupes ? SIC.ui.bandeauAjoutsGroupes() : null; if (bg) corps.appendChild(bg); } catch (e) { /* sans effet sur la vue */ }
     // Médecins non répertoriés à confirmer : information des gestionnaires de la liste (cadre et secrétaire par défaut)
     try { var bm = SIC.ui.medecins && SIC.ui.medecins.bandeauAConfirmer ? SIC.ui.medecins.bandeauAConfirmer() : null; if (bm) corps.appendChild(bm); } catch (e) { /* sans effet sur la vue */ }
@@ -991,7 +1004,7 @@
           var annule = etat.annules[e.id];
           return h('tr', { class: annule ? 'ancienne' : '' },
             h('td', { class: 'nowrap', text: date(Date.parse(e.at)) }),
-            h('td', { text: App.session.nomAuteur(e.by) }),
+            h('td', { text: App.session.nomAuteur(e.by) + (e.pour ? ' pour le compte de ' + App.session.nomAuteur(e.pour) : '') }),
             h('td', {}, (journalDe(e).action || interfaceModule().journal.action)(e)),
             h('td', {}, journalDe(e).resume(e)),
             h('td', {}, annule ? h('span', { class: 'badge', text: 'annulée' }) : null, conflitsIds[e.id] ? h('span', { class: 'badge bad', text: 'conflit' }) : null),

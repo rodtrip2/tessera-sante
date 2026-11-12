@@ -1051,3 +1051,7 @@ table.tr-tableau .tr-pied td { padding: .4em 0 0; font-size: .85em; }
 .tr-lien { padding: 0; font: inherit; font-weight: inherit; text-align: left; }
 @media print { .tr-modifiable { border-bottom: none; } }
 .tr-vide { opacity: .45; font-size: .9em; }
+/* Accès particuliers (0.31.0) */
+.charte-texte { white-space: pre-wrap; background: var(--surface-2); border-radius: var(--radius); padding: 12px 14px; max-height: 50vh; overflow: auto; }
+.bandeau-pret b { margin-right: 2px; }
+tr.pret-en-cours td { background: var(--accent-soft); }
