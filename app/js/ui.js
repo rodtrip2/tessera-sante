@@ -591,6 +591,7 @@
     try { SIC.ui.miroir.demarrer(); } catch (e) { /* sans effet sur la session */ }
     retenirAccueil();
     setTimeout(purgeAutomatique, 4000);
+    setTimeout(function () { if (SIC.ui.documents && App.session && App.session.cle && !App.session.apercu && App.session.detientCle('documents')) SIC.ui.documents.effacementAutomatique().then(function (n) { if (n) toast(n + ' document(s) resté(s) 30 jours dans la corbeille effacé(s) définitivement.'); }).catch(function () {}); }, 6000);
     arreterMinuteurs();
     App.derniereActivite = Date.now();
     App.minuteurs.push(setInterval(function () {
@@ -630,6 +631,7 @@
     equipe: ['M9 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 1 0 0 7', 'M2.5 20c.6-3.6 3.2-6 6.5-6s5.9 2.4 6.5 6', 'M16 4.3a3.5 3.5 0 0 1 0 6.4', 'M18 14.4c1.9.8 3.2 2.9 3.5 5.6'],
     salles: ['M4 21V4h16v17', 'M2 21h20', 'M9 21v-6h6v6', 'M8 8h3', 'M13 8h3', 'M8 11h3', 'M13 11h3'],
     travaux: ['M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z'],
+    documents: ['M6 2h8l5 5v15H6z', 'M14 2v5h5', 'M9 12h7', 'M9 15h7', 'M9 18h5'],
     vehicules: ['M5 17h14v-5l-2-5H7l-2 5z', 'M3 12h18', 'M7 17v2', 'M17 17v2', 'M7.5 14.5h1', 'M15.5 14.5h1'],
     module: ['M4 4h7v7H4z', 'M13 4h7v7h-7z', 'M4 13h7v7H4z', 'M13 13h7v7h-7z']
   };

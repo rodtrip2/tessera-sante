@@ -269,8 +269,12 @@
       var pref = journaux[j].prefixe.concat(['evenements']);
       try { await fichiers(await this.sousDossier(pref, false), pref.join('/') + '/', liste); } catch (e) { /* aucun */ }
     }
+    // Fichiers de clés des documents (0.34.0) et marques d'effacement : sans eux, les documents seraient illisibles après une restauration
+    var docs = [];
+    try { await fichiers(await this.sousDossier(['documents-cles'], false), '', docs); } catch (e) { /* aucun document */ }
     return { format: 'SIC-sauvegarde', version: 1, creeLe: new Date().toISOString(), coffre: coffre,
-      fichiers: liste.map(function (f) { return { chemin: f.chemin, contenu: C.b64(f.octets) }; }) };
+      fichiers: liste.map(function (f) { return { chemin: f.chemin, contenu: C.b64(f.octets) }; }),
+      documents: docs.filter(function (f) { return NOM_CLES_DOC.test(f.chemin); }).map(function (f) { return { nom: f.chemin, contenu: C.b64(f.octets) }; }) };
   };
 
   /** Restaure une copie complète dans un dossier vide. */
@@ -282,6 +286,10 @@
       if (!c) continue;
       var dir = await this.sousDossier(c.journal.concat(c.parties.slice(0, -1)), true);
       await this.ecrireFichier(dir, c.parties[c.parties.length - 1], C.deb64(f.contenu));
+    }
+    if (Array.isArray(copie.documents) && copie.documents.length) {
+      var dd = await this.sousDossier(['documents-cles'], true);
+      for (var k2 = 0; k2 < copie.documents.length; k2++) { var x2 = copie.documents[k2]; if (NOM_CLES_DOC.test(x2.nom || '')) await this.ecrireFichier(dd, x2.nom, C.deb64(x2.contenu)); }
     }
     // Coffre restauré : l'administrateur renouvellera les clés avant toute saisie (trousseau, 0.5.0)
     var coffre = copie.coffre.version === 2 ? Object.assign({}, copie.coffre, { restaureLe: new Date().toISOString() }) : copie.coffre;
@@ -398,7 +406,7 @@
     if (!parties.length || parties.some(function (x) { return x === '.' || x === '..' || !/^[\p{L}\p{N}_ .()'-]{1,60}$/u.test(x); })) return null;
     return parties;
   }
-  var RESERVES = ['evenements', 'instantanes', 'coffre-historique', 'reperes', 'quarantaine', 'preferences', 'formation', 'socle', 'modules'];
+  var RESERVES = ['evenements', 'instantanes', 'coffre-historique', 'reperes', 'quarantaine', 'preferences', 'formation', 'socle', 'modules', 'documents-cles'];
 
   /**
    * Enregistre un fichier exporté (PDF, CSV…) dans le dossier des exports, sous-dossier `categorie`.
@@ -495,6 +503,30 @@
       catch (e) { res.push({ agent: f.name.replace(/\.enc$/, ''), illisible: true }); }
     }
     return res;
+  };
+
+  // ---------------------------------------------------------- Clés des documents (0.34.0)
+  /*
+   * Un fichier par document : la clé du document (une par génération) emballée pour chaque clé de partage, avec les
+   * parties publiques attestées. Effacement (corbeille échue) : le fichier est supprimé et une marque « .efface » le
+   * remplace, pour que le dossier de secours ne le recopie pas ; les versions du journal deviennent illisibles.
+   */
+  var NOM_CLES_DOC = /^DC[0-9a-f]{8,32}\.(json|efface)$/;
+  function nomClesDoc(id, ext) { var n = id + '.' + (ext || 'json'); if (!NOM_CLES_DOC.test(n)) throw new Error('Identifiant de document invalide.'); return n; }
+  Dossier.prototype.ecrireClesDocument = async function (id, objet) {
+    var dir = await this.sousDossier(['documents-cles'], true);
+    if (await this.lireFichier(dir, nomClesDoc(id, 'efface'))) throw new Error('Document effacé.');
+    await this.ecrireFichier(dir, nomClesDoc(id), new TextEncoder().encode(JSON.stringify(objet)));
+  };
+  Dossier.prototype.lireClesDocument = async function (id) {
+    var dir; try { dir = await this.sousDossier(['documents-cles'], false); } catch (e) { return null; }
+    var o = await this.lireFichier(dir, nomClesDoc(id));
+    try { return o ? JSON.parse(new TextDecoder().decode(o)) : null; } catch (e) { return null; }
+  };
+  Dossier.prototype.effacerClesDocument = async function (id) {
+    var dir = await this.sousDossier(['documents-cles'], true);
+    await this.ecrireFichier(dir, nomClesDoc(id, 'efface'), new TextEncoder().encode(JSON.stringify({ efface: new Date().toISOString() })));
+    try { await dir.removeEntry(nomClesDoc(id)); } catch (e) { /* déjà absent */ }
   };
 
   // ---------------------------------------------------------- Événements
@@ -702,6 +734,12 @@
     for (var i = 0; i < chemins.length; i++) {
       var c = chemins[i], x = a[c], y = b[c];
       if (c === 'coffre.json') continue;
+      // Clés d'un document effacé (0.34.0) : supprimées des deux côtés, jamais recopiées depuis l'autre dossier
+      var ke = /^documents-cles\/(DC[0-9a-f]{8,32})\.json$/.exec(c);
+      if (ke && (a['documents-cles/' + ke[1] + '.efface'] || b['documents-cles/' + ke[1] + '.efface'])) {
+        if (x) await x.parent.removeEntry(x.nom); if (y) await y.parent.removeEntry(y.nom);
+        continue;
+      }
       if (x && !y) { res.octets += await copier(x, autre.handle, c); res.versAutre++; continue; }
       if (y && !x) { res.octets += await copier(y, this.handle, c); res.depuisAutre++; continue; }
       if (/(^|\/)evenements\//.test(c)) continue;                  // saisies : jamais modifiées

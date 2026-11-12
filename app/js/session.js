@@ -178,6 +178,7 @@
   function modulesDeclares() { return SIC.modules ? SIC.modules.liste().map(function (m) { return m.id; }) : [idModule()]; }
   /** Clés à créer par l'administrateur : modules déclarés et clés propres des données protégées (0.18.0). */
   function MSG() { return SIC.messagerie || null; }
+  function DOCM() { return SIC.documents || null; }
   function clesDeclarees(s) {
     return modulesDeclares().concat(CH() && s.etat ? CH().clesPropres(config(s)).map(function (x) { return x.nom; }) : [])
       // Chiffrement réservé aux destinataires (0.24.0) : clés des services, rôles, groupes, agents et de la consultation
@@ -186,7 +187,9 @@
       // le trousseau : elle survit à une réinitialisation du mot de passe et à « Tout renouveler »
       .concat(SIC.modules && SIC.modules.obtenir('agenda') ? clesTaches(s.comptes || []) : [])
       // Équipe (0.27.0) : coordonnées personnelles des agents (`e-p.<service>`) et des médecins (`e-m.<service>`)
-      .concat(SIC.modules && SIC.modules.obtenir('equipe') && s.etat ? clesEquipe(config(s)) : []);
+      .concat(SIC.modules && SIC.modules.obtenir('equipe') && s.etat ? clesEquipe(config(s)) : [])
+      // Documents (0.34.0) : clés de partage des documents (agents, services, rôles des services, groupes)
+      .concat(DOCM() && s.etat && SIC.modules && SIC.modules.obtenir('documents') ? DOCM().clesNecessaires(config(s), s.comptes || []) : []);
   }
   function clesEquipe(cfg) { var r = []; (cfg.services || []).forEach(function (x) { r.push('e-p.' + x.code, 'e-m.' + x.code); }); return r; }
   function clesTaches(comptes) { return comptes.filter(function (c) { return c && c.actif !== false && c.id !== 'secours'; }).map(function (c) { return 't-a.' + c.id; }); }
@@ -492,6 +495,8 @@
       }
       // Mes tâches (0.26.5) : la clé de liste d'un agent ne lui est remise qu'à lui (l'administrateur l'a toujours, ci-dessus)
       if (/^t-a\./.test(nom)) return compte.id === nom.slice(4);
+      // Documents (0.34.0) : clés de partage, remises aux membres du module selon l'agent, son service, son rôle, ses groupes
+      if (/^k-/.test(nom) && DOCM()) return DOCM().aDroitCle(nom, compte, cfg, !!(regles.documents && regles.documents(compte)));
       // Messagerie (0.24.0) : clés des destinataires (services, rôles, groupes, agent) et de la consultation tracée
       if (/^m-/.test(nom) && MSG()) {
         var md = SIC.modules.obtenir('messagerie').droits, rs = compte.roles || [];
@@ -1566,6 +1571,107 @@
     var k = this.clesMessages && this.clesMessages[id];
     if (!k) return null;
     return valeur instanceof Uint8Array ? C.dechiffrerOctets(k, valeur, 'msg:' + id + ':' + aad) : C.dechiffrerJSON(k, C.deb64(valeur), 'msg:' + id + ':' + aad);
+  };
+
+  // ---------------------------------------------------------- Documents : une clé par document (0.34.0)
+  /*
+   * La clé d'un document (aléatoire, une par génération) est emballée pour chaque clé de partage avec la partie publique
+   * attestée de sa génération courante, dans le fichier de clés du document (`documents-cles/`). Un retrait de partage
+   * crée une génération nouvelle et retire les emballages des clés retirées ; l'effacement détruit le fichier. Le module
+   * ne voit que des contenus chiffrés et l'identifiant du document.
+   */
+  function aadDoc(id, nom, g, gen) { return 'doc:' + id + ':' + nom + ':' + g + ':' + gen; }
+  async function emballerDoc(s, id, gen, k8, noms) {
+    var p = publiquesAttestees(s), cles = {};
+    for (var i = 0; i < noms.length; i++) {
+      var g = s.coffre.cles[noms[i]].courante;
+      cles[noms[i]] = { g: g, env: await C.envelopper(k8, await C.importerPublique(p[noms[i]][g]), aadDoc(id, noms[i], g, gen)) };
+    }
+    return cles;
+  }
+  /** Clés de partage absentes (pas encore créées par l'administrateur) : le document ne peut pas leur être partagé. */
+  Session.prototype.clesDocumentManquantes = function (noms) { return this.clesMessagerieManquantes(noms); };
+  /** Crée la clé d'un nouveau document, emballée pour `noms` (clés de partage disponibles). */
+  Session.prototype.creerCleDocument = async function (id, noms) {
+    var ok = noms.filter(function (n) { return !this.clesMessagerieManquantes([n]).length; }, this);
+    if (!ok.length) throw new Error('Votre clé de documents n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.');
+    var k8 = C.aleatoire(32), fichier = { id: id, v: 1, courante: 1, gens: { 1: await emballerDoc(this, id, 1, k8, ok) } };
+    await dossierActif(this).ecrireClesDocument(id, fichier);
+    var k = await C.importerCleOctets(k8, true); k8.fill(0);
+    ((this.clesDocuments = this.clesDocuments || {})[id] = {})[1] = k;
+    return { cles: ok, absentes: noms.filter(function (n) { return ok.indexOf(n) < 0; }) };
+  };
+  /** Clé d'une génération d'un document (null : l'agent n'a aucune des clés de partage). */
+  Session.prototype.cleDocument = async function (id, gen) {
+    var cache = (this.clesDocuments = this.clesDocuments || {})[id] || (this.clesDocuments[id] = {});
+    if (cache[gen]) return cache[gen];
+    var f = await dossierActif(this).lireClesDocument(id), e = f && f.gens && f.gens[gen];
+    if (!e) return null;
+    var s = this, c = this.compteEffectif && this.compteEffectif(), regle = aDroitPour(this), moi = 'k-a.' + (c && c.id);
+    // Administrateur : seulement ce qui lui est partagé (comme la messagerie), pas toutes les clés qu'il détient
+    var sansAdmin = c ? Object.assign({}, c, { roles: (c.roles || []).filter(function (r) { return r !== 'ADMIN'; }) }) : null;
+    var noms = Object.keys(e).filter(function (n) { return s.trousseau && s.trousseau[n] && (n === moi || (sansAdmin && regle(n, sansAdmin))); });
+    for (var i = 0; i < noms.length; i++) {
+      try {
+        var o = await this.trousseau[noms[i]].octetsDe(e[noms[i]].g);
+        if (!o) continue;
+        var paire = await C.paireDepuisOctets(o, noms[i] + ':' + e[noms[i]].g), k8 = await C.ouvrirEnveloppe(e[noms[i]].env, paire.privee, aadDoc(id, noms[i], e[noms[i]].g, gen));
+        var k = await C.importerCleOctets(k8, true); k8.fill(0);
+        cache[gen] = k; cache.courante = f.courante;
+        return k;
+      } catch (err) { /* clé suivante */ }
+    }
+    return null;
+  };
+  /** Génération courante du fichier de clés d'un document. */
+  Session.prototype.generationDocument = async function (id) {
+    var c = this.clesDocuments && this.clesDocuments[id];
+    if (c && c.courante) return c.courante;
+    var f = await dossierActif(this).lireClesDocument(id);
+    return f ? f.courante : null;
+  };
+  Session.prototype.chiffrerDocument = async function (id, objet) {
+    var g = await this.generationDocument(id), k = g && await this.cleDocument(id, g);
+    if (!k) throw new Error('Clé du document indisponible : enregistrement impossible.');
+    return { g: g, ct: C.b64(await C.chiffrerJSON(k, objet, 'docv:' + id + ':' + g)) };
+  };
+  Session.prototype.dechiffrerDocument = async function (id, g, ct) {
+    if (!ct) return null;
+    var k = await this.cleDocument(id, g);
+    if (!k) return null;
+    try { return await C.dechiffrerJSON(k, C.deb64(ct), 'docv:' + id + ':' + g); } catch (e) { return null; }
+  };
+  /**
+   * Nouveau partage d'un document : les clés ajoutées reçoivent toutes les générations (historique lisible) ; un retrait
+   * (`retrait`) retire les emballages des clés retirées et crée une génération nouvelle pour la suite.
+   */
+  Session.prototype.partagerCleDocument = async function (id, noms, retrait) {
+    var d = dossierActif(this), f = await d.lireClesDocument(id);
+    if (!f) throw new Error('Clés du document introuvables.');
+    var ok = noms.filter(function (n) { return !this.clesMessagerieManquantes([n]).length; }, this), gens = Object.keys(f.gens);
+    for (var i = 0; i < gens.length; i++) {
+      var gen = gens[i], k = await this.cleDocument(id, gen);
+      if (!k) throw new Error('Vous n’avez pas toutes les clés de ce document : partage impossible.');
+      var k8 = new Uint8Array(await crypto.subtle.exportKey('raw', k)), e = f.gens[gen];
+      if (retrait) Object.keys(e).forEach(function (n) { if (ok.indexOf(n) < 0) delete e[n]; });
+      var aj = ok.filter(function (n) { return !e[n]; });
+      if (aj.length) Object.assign(e, await emballerDoc(this, id, gen, k8, aj));
+      k8.fill(0);
+    }
+    if (retrait) {
+      var ng = Math.max.apply(null, gens.map(Number)) + 1, n8 = C.aleatoire(32);
+      f.gens[ng] = await emballerDoc(this, id, ng, n8, ok); f.courante = ng;
+      var kn = await C.importerCleOctets(n8, true); n8.fill(0);
+      ((this.clesDocuments = this.clesDocuments || {})[id] = this.clesDocuments[id] || {})[ng] = kn;
+      this.clesDocuments[id].courante = ng;
+    }
+    await d.ecrireClesDocument(id, f);
+    return { cles: ok, absentes: noms.filter(function (n) { return ok.indexOf(n) < 0; }), generation: f.courante };
+  };
+  /** Effacement définitif : destruction du fichier de clés (les versions du journal deviennent illisibles). */
+  Session.prototype.effacerCleDocument = async function (id) {
+    await dossierActif(this).effacerClesDocument(id);
+    if (this.clesDocuments) delete this.clesDocuments[id];
   };
 
   // ---------------------------------------------------------- Exports

@@ -447,7 +447,8 @@
     U.modale(nouveau ? 'Nouvelle salle' : x.nom, h('div', { class: 'pile' },
       h('div', { class: 'grille-2' }, h('label', {}, 'Nom', nom), h('label', {}, 'Type', type), h('label', {}, 'Places', cap), h('label', {}, 'Service propriétaire', proprio)),
       h('label', {}, 'Équipement', eq), h('label', { class: 'case' }, acc, h('span', { text: 'Accessible aux personnes à mobilité réduite' })),
-      h('label', { class: 'case' }, val, h('span', { text: 'Réservation soumise à la validation du cadre' })), h('label', { class: 'case' }, actif, h('span', { text: 'En service' }))),
+      h('label', { class: 'case' }, val, h('span', { text: 'Réservation soumise à la validation du cadre' })), h('label', { class: 'case' }, actif, h('span', { text: 'En service' })),
+      !nouveau && U.documents ? U.documents.section('salles', 'salle', x.id, 'Salle ou bureau : ' + x.nom, x.service) : null),
     [{ texte: 'Annuler' }, nouveau ? null : { texte: 'Retirer la salle', classe: 'danger', action: async function () { if (!confirm('Retirer cette salle ? Ses réservations passées restent au journal.')) return false; await s().enregistrer('SALLE', { id: x.id, supprime: true }); } },
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         await s().enregistrer('SALLE', { id: x.id || 'SA' + C.hex(C.aleatoire(5)), nom: nom.value.trim(), type: type.value, capacite: cap.value ? +cap.value : '', equipement: eq.value.trim(), accessible: acc.checked, validation: val.checked, actif: actif.checked, service: proprio.value, services: [] });

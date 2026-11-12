@@ -364,7 +364,8 @@
       h('small', { class: 'muted', text: 'Médecins et référents sont propres à Tessera (distincts du médecin responsable du dossier patient informatisé). Chaque changement est gardé avec sa date. Une mesure garde le nom affiché au moment de sa création dans le journal ; les écrans utilisent la fiche à jour.' }),
       !nouveau && U.intervenants ? U.intervenants.section(f, function () { modaleFiche(((U.st() && U.st().patients) || {})[f.id] || f); }) : null,
       sejours, !nouveau && U.sorties ? U.sorties.ligneFiche(f, function () { modaleFiche(((U.st() && U.st().patients) || {})[f.id] || f); }) : null,
-      !nouveau && U.agenda && U.agenda.sectionPatient ? U.agenda.sectionPatient(f, fermerPuis) : null), [
+      !nouveau && U.agenda && U.agenda.sectionPatient ? U.agenda.sectionPatient(f, fermerPuis) : null,
+      !nouveau && U.documents ? U.documents.section('patients', 'fiche', f.id, 'Patient : ' + ((f.nom || '') + ' ' + (f.prenom || '')).trim(), f.service) : null), [
       { texte: peut ? 'Annuler' : 'Fermer' },
       // Droit d'accès (0.32.0) : export vérifié, aussi depuis la fiche (et plus seulement depuis les mesures)
       !nouveau && (U.App.session.peut('EXPORT_PATIENT') || U.App.session.peut('CONFIG')) && U.qualite ? { texte: 'Exporter ses données (droit d’accès)', action: function () { U.qualite.exporterPatient(f); return false; } } : null,
