@@ -65,8 +65,8 @@ const co = async (racine, login, mdp, memoire) => { const s = new Session(new Do
 const mesure = (id) => ({ mesureId: id, patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: Date.now() - 3600e3, csi: true });
 const memoirePoste = () => { const m = new Map(); return { lire: (k) => m.get(k) || null, ecrire: (k, v) => m.set(k, v) }; };
 function fichierDe(racine, evt) {
-  const m = evt.at.slice(0, 7).split('-');
-  return racine.e.get('modules').e.get('isocont').e.get('evenements').e.get(m[0]).e.get(m[1]).e.get(evt.id + '.enc');
+  const m = evt.at.slice(0, 10).split('-');   // dossier du jour (0.33.0)
+  return racine.e.get('modules').e.get('isocont').e.get('evenements').e.get(m[0]).e.get(m[1]).e.get(m[2]).e.get(evt.id + '.enc');
 }
 async function dossierEquipe() {
   const { racine, admin, code } = await nouveauDossier();

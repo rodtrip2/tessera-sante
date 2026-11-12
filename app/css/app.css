@@ -544,7 +544,7 @@ button.ag-puce { cursor: pointer; }
 .ag-heure { position: absolute; right: 6px; font-size: .72rem; color: var(--ink-2); transform: translateY(2px); }
 .ag-colonne { position: relative; height: var(--hauteur); border-left: 1px solid var(--line); min-width: 0; }
 .ag-trait { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); opacity: .7; }
-.ag-maintenant { position: absolute; left: 0; right: 0; border-top: 2px solid var(--bad); z-index: 1; }
+.ag-maintenant { pointer-events: none; position: absolute; left: 0; right: 0; border-top: 2px solid var(--bad); z-index: 1; }
 .ag-maintenant::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 4px; background: var(--bad); }
 .ag-bloc { position: absolute; box-sizing: border-box; overflow: hidden; border: 1px solid var(--c, var(--accent)); border-left: 4px solid var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 14%, var(--surface)); border-radius: 5px; padding: 2px 5px; font-size: .78rem; line-height: 1.25; cursor: pointer; z-index: 1; }
 .ag-bloc:hover, .ag-bloc:focus-visible { z-index: 3; overflow: visible; height: auto !important; min-height: 22px; box-shadow: var(--shadow); outline: none; }

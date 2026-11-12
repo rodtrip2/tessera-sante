@@ -214,8 +214,8 @@ test('Migration d’un coffre version 1 : historique lisible, génération 2 clo
   // Saisies à venir : génération 2, clés distinctes pour le socle et Isocont
   await admin.enregistrer('MESURE_DEBUT', mesure('M2'));
   const evtM2 = admin.evts.find((e) => e.data && e.data.mesureId === 'M2');
-  const m = evtM2.at.slice(0, 7).split('-');
-  const f = racine.e.get('modules').e.get('isocont').e.get('evenements').e.get(m[0]).e.get(m[1]).e.get(evtM2.id + '.enc');
+  const m = evtM2.at.slice(0, 10).split('-');
+  const f = racine.e.get('modules').e.get('isocont').e.get('evenements').e.get(m[0]).e.get(m[1]).e.get(m[2]).e.get(evtM2.id + '.enc');
   assert.equal(C.generationFichier(f.data), 2);
   await assert.rejects(C.dechiffrerJSON(admin.trousseau.plateforme, f.data, 'evt:' + f.name));
   // Ancien mot de passe de l'IDE refusé, mot de passe provisoire accepté
