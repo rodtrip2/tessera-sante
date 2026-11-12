@@ -80,29 +80,42 @@
     if (!bloc || !titre || bloc.classList.contains('repliable')) return bloc;
     var memo = o.cle ? replis()[o.cle] : undefined, ouvert = memo === undefined ? !!o.ouvert : !!memo;
     bloc.classList.add('repliable'); bloc.classList.toggle('replie', !ouvert);
-    titre.classList.add('repliable-titre'); titre.setAttribute('role', 'button'); titre.tabIndex = 0; titre.setAttribute('aria-expanded', ouvert ? 'true' : 'false');
+    titre.classList.add('repliable-titre');
+    // Titre qui porte des boutons (ligne de tête) : un petit bouton ▾ fait la bascule (un bouton ne peut pas en contenir d'autres)
+    var bascule = null;
+    if (titre.querySelector('button, input, select, a, textarea')) {
+      bascule = h('button', { type: 'button', class: 'repliable-bascule', 'aria-label': 'Replier ou déplier la rubrique', title: 'Replier ou déplier « ' + ((titre.querySelector('h2, h3, legend') || titre).textContent || '').trim().slice(0, 60) + ' »' });
+      titre.insertBefore(bascule, titre.firstChild); titre.classList.add('avec-bascule');
+    } else { titre.setAttribute('role', 'button'); titre.tabIndex = 0; }
+    (bascule || titre).setAttribute('aria-expanded', ouvert ? 'true' : 'false');
     var resume = o.resume ? h('span', { class: 'repliable-resume muted', text: o.resume }) : null;
     if (resume) titre.appendChild(resume);
     function basculer(ev) {
-      if (ev && ev.target && ev.target.closest && ev.target.closest('input, select, button, a, textarea') && ev.target !== titre) return;
+      if (ev && ev.target && ev.target.closest && ev.target.closest('input, select, button, a, textarea') && ev.target !== titre && ev.target !== bascule) return;
       var ouv = bloc.classList.contains('replie');
-      bloc.classList.toggle('replie', !ouv); titre.setAttribute('aria-expanded', ouv ? 'true' : 'false'); retenirRepli(o.cle, ouv);
+      bloc.classList.toggle('replie', !ouv); (bascule || titre).setAttribute('aria-expanded', ouv ? 'true' : 'false'); retenirRepli(o.cle, ouv);
     }
     titre.addEventListener('click', basculer);
     titre.addEventListener('keydown', function (ev) { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === titre) { ev.preventDefault(); basculer(); } });
     return bloc;
   }
   /** Ouvre un bloc repliable (après un ajout, une erreur à montrer…). */
-  function deplier(bloc) { if (bloc && bloc.classList.contains('replie')) { var t = bloc.querySelector(':scope > .repliable-titre'); bloc.classList.remove('replie'); if (t) t.setAttribute('aria-expanded', 'true'); } }
+  function controleRepli(bloc) { var t = bloc.querySelector(':scope > .repliable-titre'); return t ? (t.querySelector(':scope > .repliable-bascule') || t) : null; }
+  function deplier(bloc) { if (bloc && bloc.classList.contains('replie')) { var t = controleRepli(bloc); bloc.classList.remove('replie'); if (t) t.setAttribute('aria-expanded', 'true'); } }
+  /** Titre d'un panneau : son h2, ou la ligne de tête (premier élément) qui contient le h2 et ses boutons. */
+  function titrePanneau(p) {
+    var t = p.querySelector(':scope > h2'); if (t) return t;
+    var f = p.firstElementChild; return f && f.tagName !== 'H2' && f.querySelector(':scope > h2') ? f : null;
+  }
   /**
    * Panneaux d'une page longue (0.43.0) : à partir de `seuil` panneaux (3), chaque `section.panneau` titrée (h2) devient
    * repliable ; le premier est ouvert par défaut, les autres repliés ; boutons « Tout déplier / Tout replier ».
    */
   function replierPanneaux(noeuds, prefixe, seuil) {
-    var ps = (noeuds || []).filter(function (n) { return n && n.nodeType === 1 && n.classList.contains('panneau') && n.querySelector(':scope > h2'); });
+    var ps = (noeuds || []).filter(function (n) { return n && n.nodeType === 1 && n.classList.contains('panneau') && titrePanneau(n); });
     if (ps.length < (seuil || 3)) return null;
-    ps.forEach(function (p, i) { var t = p.querySelector(':scope > h2'), cle = prefixe + '|' + t.textContent.trim().slice(0, 60); p.setAttribute('data-repli', cle); rendreRepliable(p, t, { cle: cle, ouvert: i === 0 }); });
-    function tous(ouv) { ps.forEach(function (p) { var t = p.querySelector(':scope > .repliable-titre'); p.classList.toggle('replie', !ouv); if (t) t.setAttribute('aria-expanded', ouv ? 'true' : 'false'); retenirRepli(p.getAttribute('data-repli'), ouv); }); }
+    ps.forEach(function (p, i) { var t = titrePanneau(p), cle = prefixe + '|' + (t.querySelector('h2') || t).textContent.trim().slice(0, 60); p.setAttribute('data-repli', cle); rendreRepliable(p, t, { cle: cle, ouvert: i === 0 }); });
+    function tous(ouv) { ps.forEach(function (p) { var t = controleRepli(p); p.classList.toggle('replie', !ouv); if (t) t.setAttribute('aria-expanded', ouv ? 'true' : 'false'); retenirRepli(p.getAttribute('data-repli'), ouv); }); }
     return h('div', { class: 'actions gauche replis-commandes' },
       h('button', { class: 'btn petit', type: 'button', onclick: function () { tous(true); } }, 'Tout déplier'),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { tous(false); } }, 'Tout replier'));
@@ -1008,8 +1021,22 @@
     // Médecins non répertoriés à confirmer : information des gestionnaires de la liste (cadre et secrétaire par défaut)
     try { var bm = SIC.ui.medecins && SIC.ui.medecins.bandeauAConfirmer ? SIC.ui.medecins.bandeauAConfirmer() : null; if (bm) corps.appendChild(bm); } catch (e) { /* sans effet sur la vue */ }
     try { var bp = SIC.ui.psychologues && SIC.ui.psychologues.bandeauAConfirmer ? SIC.ui.psychologues.bandeauAConfirmer() : null; if (bp) corps.appendChild(bp); } catch (e) { /* sans effet sur la vue */ }
-    try { corps.appendChild(vue(maintenant)); }
+    try { var vueEl = vue(maintenant); corps.appendChild(vueEl); if (!estOngletAdmin(App.onglet)) replierVue(vueEl, App.fenetre + '|' + App.onglet); }
     catch (e) { corps.appendChild(h('div', { class: 'erreur', text: 'Erreur d’affichage : ' + e.message })); console.error(e); }
+  }
+  /**
+   * Même logique partout (décision du porteur du 12 novembre 2026) : une page de module ou une fiche à partir de trois
+   * panneaux titrés les présente repliables (le premier ouvert), avec « Tout déplier » et « Tout replier ».
+   */
+  function panneauxDe(racine) {
+    return Array.prototype.filter.call(racine.querySelectorAll('section.panneau'), function (p) { var x = p.parentNode; while (x && x !== racine) { if (x.classList && x.classList.contains('panneau')) return false; x = x.parentNode; } return !!titrePanneau(p); });
+  }
+  function replierVue(racine, prefixe, seuil) {
+    if (!racine || racine.nodeType !== 1) return;
+    var ps = panneauxDe(racine);
+    if (ps.length < (seuil || 3) || ps.some(function (p) { return p.classList.contains('repliable'); })) return;
+    var cmd = replierPanneaux(ps, prefixe, seuil || 3);
+    if (cmd) ps[0].parentNode.insertBefore(cmd, ps[0]);
   }
 
   // ---------------------------------------------------------------- Journal
@@ -1112,6 +1139,7 @@
       });
       d.appendChild(h('div', { class: 'tete' }, h('h2', { text: titre }), h('button', { class: 'btn petit', 'aria-label': 'Fermer', onclick: function () { fermer(null); } }, '✕')));
       d.appendChild(h('div', { class: 'corps' }, zoneErr, contenu));
+      if (contenu && contenu.nodeType === 1) replierVue(contenu, 'fenetre|' + titre.replace(/ — .*$/, '').slice(0, 50));
       d.appendChild(pied);
       d.addEventListener('cancel', function (ev) { ev.preventDefault(); fermer(null); });
       document.body.appendChild(d);
@@ -2058,7 +2086,7 @@
   // ================================================================ Partage avec les autres modules
   SIC.ui = {
     vues: (SIC.ui && SIC.ui.vues) || {}, actions: (SIC.ui && SIC.ui.actions) || {},
-    rendreRepliable: rendreRepliable, deplier: deplier, replierPanneaux: replierPanneaux, ongletsLocaux: ongletsLocaux,
+    rendreRepliable: rendreRepliable, replierVue: replierVue, controleRepli: controleRepli, deplier: deplier, replierPanneaux: replierPanneaux, ongletsLocaux: ongletsLocaux,
     h: h, vider: vider, date: date, court: court, duree: duree, relatif: relatif, versSaisie: versSaisie, depuisSaisie: depuisSaisie,
     ouvrirFenetre: ouvrirFenetre, toast: toast, modale: modale, imprimer: imprimer, imprimerPage: imprimerPage, impressionNB: impressionNB, erreurDans: erreurDans, fmtJour: fmtJour,
     App: App, st: st, config: config, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,

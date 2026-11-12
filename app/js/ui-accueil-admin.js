@@ -47,7 +47,7 @@
       if (!confirm('Arrêter le module « ' + m.libelle + ' » ?\n\n' +
         '— Sa fenêtre est masquée pour tous les agents, et ses informations n’apparaissent plus dans les autres modules' + (dep.length ? ' (' + dep.join(', ') + ')' : '') + '.\n' +
         '— Rien n’est effacé : ' + (nb ? 'ses ' + nb + ' saisies et ' : '') + 'ses réglages sont gardés, ainsi que les sauvegardes ; ses données restent dans l’export du droit d’accès d’un patient.\n' +
-        '— Sa clé est retirée aux agents à la prochaine connexion d’un administrateur.\n\nLa remise en marche rétablit tout comme avant.')) return;
+        '— Les agents gardent la clé du module (rien à redistribuer à la remise en marche).\n\nLa remise en marche rétablit tout comme avant.')) return;
     }
     SIC.modules.ecrireArret(valeur, m.id, !ar);
     try { await U.enregistrerConfig([['modulesServices', valeur]]); U.rendreContenu(); U.toast(ar ? '« ' + m.libelle + ' » remis en marche.' : '« ' + m.libelle + ' » arrêté.'); }

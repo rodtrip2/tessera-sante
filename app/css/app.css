@@ -1305,3 +1305,8 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
 .puce-choix:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .choix-rapides-autre { min-width: 180px; }
 @media print { .choix-rapides { display: none; } }
+.repliable > .repliable-titre.avec-bascule::before { content: none; }
+.repliable-bascule { flex: none; border: 0; background: none; padding: 0 2px; width: 1.4em; font: inherit; color: var(--muted, #666); cursor: pointer; align-self: center; }
+.repliable-bascule::before { content: "▾"; display: inline-block; transition: transform .15s; }
+.repliable.replie > .repliable-titre .repliable-bascule::before { transform: rotate(-90deg); }
+.repliable-bascule:hover, .repliable-bascule:focus-visible { color: var(--accent); }
