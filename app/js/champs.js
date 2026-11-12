@@ -63,7 +63,10 @@
       module: entite === 'agent' ? 'vue' : MOTIF_ID.test(c.module || '') ? c.module : (d.module || (entite === 'medecin' ? 'suivi' : 'patients')),
       choix: c.type === 'liste' || c.type === 'choixMultiple' ? (Array.isArray(c.choix) ? c.choix.map(function (v) { return texte(v, 60); }).filter(Boolean) : []) : [],
       services: liste(c.services), saisie: liste(c.saisie), lecture: liste(c.lecture), actif: c.actif !== false,
-      protection: c.clinique === true || c.protection === 'cle' || entite === 'agent' ? 'cle' : 'interface', tiers: c.tiers === true, clinique: c.clinique === true
+      protection: c.clinique === true || c.protection === 'cle' || entite === 'agent' || (c.perimetre === 'pole' && entite === 'patient') ? 'cle' : 'interface', tiers: c.tiers === true, clinique: c.clinique === true,
+      // Réservée au pôle du patient (0.32.0, informations très sensibles) : une clé par pôle, remise aux seuls agents des
+      // services du pôle (rôles réglés) ; un service sans pôle forme son propre périmètre
+      perimetre: c.perimetre === 'pole' && entite === 'patient' ? 'pole' : ''
     };
     // Donnée d'un agent : le cadre seul par défaut (rôles qui la voient et la modifient)
     if (entite === 'agent') { if (!x.lecture.length) x.lecture = ['CADRE']; if (!x.saisie.length) x.saisie = ['CADRE']; }
@@ -111,9 +114,38 @@
     return champ.saisie.length ? aRole(champ.saisie, roles) && peutVoir(champ, roles) : !!peutModule && peutVoir(champ, roles);
   }
   /** Nom de la clé propre d'une donnée protégée (null : clé du module de rattachement). */
-  function cleDe(champ) { return champ && champ.protection === 'cle' ? 'd-' + champ.id : null; }
+  /** Périmètre d'un service pour une donnée réservée au pôle : code du pôle, sinon « sv-<service> » (service sans pôle). */
+  function perimetreDe(config, service) {
+    var p = (Array.isArray(config && config.poles) ? config.poles : []).filter(function (x) { return x && /^[A-Za-z0-9_-]{1,20}$/.test(x.code || '') && (x.services || []).indexOf(service) >= 0; })[0];
+    return p ? p.code : 'sv-' + String(service || 'aucun').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 20);
+  }
+  /** Services d'un périmètre (pôle ou service seul). */
+  function servicesDuPerimetre(config, perim) {
+    if (/^sv-/.test(perim)) return [perim.slice(3)];
+    var p = (Array.isArray(config && config.poles) ? config.poles : []).filter(function (x) { return x && x.code === perim; })[0];
+    return p ? (p.services || []).slice() : [];
+  }
+  /** Tous les périmètres de l'établissement : pôles, puis services sans pôle. */
+  function perimetres(config) {
+    var r = [], vus = {};
+    ((config && config.services) || []).forEach(function (x) { var k = perimetreDe(config, x.code); if (!vus[k]) { vus[k] = 1; r.push(k); } });
+    return r;
+  }
+  /** Clé propre d'une donnée ; réservée au pôle : clé du périmètre `perim` (null sans périmètre). */
+  function cleDe(champ, perim) {
+    if (!champ || champ.protection !== 'cle') return null;
+    if (champ.perimetre === 'pole') return perim ? 'd-' + champ.id + '.' + perim : null;
+    return 'd-' + champ.id;
+  }
+  /** Toutes les clés d'une donnée (une par périmètre pour une donnée réservée au pôle). */
+  function clesDe(champ, config) {
+    if (!champ || champ.protection !== 'cle') return [];
+    return champ.perimetre === 'pole' ? perimetres(config).map(function (p) { return cleDe(champ, p); }) : [cleDe(champ)];
+  }
+  /** Identifiant de la donnée et périmètre d'un nom de clé « d-<id> » ou « d-<id>.<périmètre> ». */
+  function lireCle(nom) { var x = String(nom || '').slice(2).split('.'); return { id: x[0], perimetre: x[1] || '' }; }
   /** Clés propres à créer et à remettre : [{ nom, champ }]. */
-  function clesPropres(config) { return definitions(config, { tous: true }).filter(function (c) { return c.protection === 'cle'; }).map(function (c) { return { nom: cleDe(c), champ: c }; }); }
+  function clesPropres(config) { var r = []; definitions(config, { tous: true }).filter(function (c) { return c.protection === 'cle'; }).forEach(function (c) { clesDe(c, config).forEach(function (n) { r.push({ nom: n, champ: c }); }); }); return r; }
   /** Un compte a-t-il droit à la clé propre d'une donnée (rôle qui la voit ou la saisit ; administrateur toujours) ? */
   function aDroitCle(champ, roles) {
     roles = roles || [];
@@ -122,7 +154,7 @@
     return l.length > 0 && roles.some(function (r) { return l.indexOf(r) >= 0; });
   }
   /** Journal qui reçoit les valeurs d'une donnée : clé propre, sinon module de rattachement. */
-  function journalDe(champ) { return cleDe(champ) || champ.module; }
+  function journalDe(champ, perim) { return champ && champ.perimetre === 'pole' ? cleDe(champ, perim) : (cleDe(champ) || champ.module); }
   /** Saisie qui porte la valeur : COMPLEMENT (fiche patient, module Patients, sans clé propre, 0.13.0) ou VALEUR. */
   function typeSaisie(champ) { return champ.entite === 'patient' && champ.module === 'patients' && champ.protection !== 'cle' ? 'COMPLEMENT' : 'VALEUR'; }
 
@@ -177,9 +209,13 @@
       if (op.ajout) {
         if (!MOTIF_ID.test(op.ajout.id || '')) throw new Error('Note : identifiant manquant.');
         if (!texte(op.ajout.texte)) throw new Error('La note est vide.');
-        return { ajout: { id: op.ajout.id, texte: texte(op.ajout.texte, 300), importance: IMPORTANCES[op.ajout.importance] ? op.ajout.importance : 'info' } };
+        var aj = { id: op.ajout.id, texte: texte(op.ajout.texte, 300), importance: IMPORTANCES[op.ajout.importance] ? op.ajout.importance : 'info' };
+        if (op.ajout.tiers === true) aj.tiers = true;   // information d'un tiers (0.32.0) : exclue du droit d'accès
+        return { ajout: aj };
       }
       if (op.retrait && typeof op.retrait === 'string') return { retrait: op.retrait };
+      // Note marquée (ou démarquée) « information d'un tiers » après coup (0.32.0)
+      if (op.tiers && typeof op.tiers.element === 'string') return { tiers: { element: op.tiers.element, tiers: op.tiers.tiers === true } };
     }
     if (champ.type === 'checklist') {
       if (op.cocher && typeof op.cocher.element === 'string') return { cocher: { element: op.cocher.element, fait: op.cocher.fait !== false } };
@@ -201,8 +237,11 @@
     var le = e && e.at, par = e && e.by;
     if (op.ajout && op.ajout.texte !== undefined) {
       var n = Array.isArray(actuel) ? actuel.slice() : [];
-      if (!n.some(function (x) { return x.id === op.ajout.id; })) n.push({ id: op.ajout.id, texte: op.ajout.texte, importance: op.ajout.importance || 'info', le: le, par: par });
+      if (!n.some(function (x) { return x.id === op.ajout.id; })) { var nn = { id: op.ajout.id, texte: op.ajout.texte, importance: op.ajout.importance || 'info', le: le, par: par }; if (op.ajout.tiers === true) nn.tiers = true; n.push(nn); }
       return n;
+    }
+    if (op.tiers && Array.isArray(actuel)) {
+      return actuel.map(function (x) { if (x.id !== op.tiers.element) return x; var y = Object.assign({}, x, { tiersMarque: { le: le, par: par } }); if (op.tiers.tiers) y.tiers = true; else delete y.tiers; return y; });
     }
     if (op.retrait && Array.isArray(actuel)) {
       return actuel.map(function (x) { return x.id === op.retrait && !x.retire ? Object.assign({}, x, { retire: { le: le, par: par } }) : x; });
@@ -374,7 +413,7 @@
   return {
     TYPES: TYPES, TYPES_SIMPLES: TYPES_SIMPLES, CUMULATIFS: CUMULATIFS, ENTITES: ENTITES, AVERTISSEMENT_AGENT: AVERTISSEMENT_AGENT, IMPORTANCES: IMPORTANCES, PROTECTIONS: PROTECTIONS,
     normaliser: normaliser, definitions: definitions, definition: definition, peutVoir: peutVoir, peutSaisir: peutSaisir,
-    cleDe: cleDe, clesPropres: clesPropres, aDroitCle: aDroitCle, journalDe: journalDe, typeSaisie: typeSaisie,
+    cleDe: cleDe, clesDe: clesDe, lireCle: lireCle, perimetreDe: perimetreDe, perimetres: perimetres, servicesDuPerimetre: servicesDuPerimetre, clesPropres: clesPropres, aDroitCle: aDroitCle, journalDe: journalDe, typeSaisie: typeSaisie,
     valeur: valeur, operation: operation, appliquerOperation: appliquerOperation, notes: notes, importanceMax: importanceMax, checklist: checklist,
     lib: lib, brute: brute, telephone: telephone, libelleClinique: libelleClinique, identifiant: identifiant,
     reduireValeurs: reduireValeurs, controlerSaisie: controlerSaisie, controlerCadre: controlerCadre, controlerListe: controlerListe

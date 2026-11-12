@@ -72,7 +72,8 @@
         var pp = st.fiches[id];
         if (!pp || !d.lien) break;
         var lpc = (pp.priseEnCharge || []).filter(function (l) { return l.lien !== d.lien; });
-        if (!d.retire) lpc.push({ lien: d.lien, intervenant: d.intervenant, commentaire: d.commentaire || '', le: e.at, par: e.by });
+        // Information d'un tiers (0.32.0) : exclue du droit d'accès du patient
+        if (!d.retire) lpc.push({ lien: d.lien, intervenant: d.intervenant, commentaire: d.commentaire || '', tiers: d.tiers === true, le: e.at, par: e.by });
         pp.priseEnCharge = lpc;
         break;
       case 'SEJOUR':

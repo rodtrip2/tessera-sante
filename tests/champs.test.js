@@ -261,3 +261,41 @@ test('Données d’un agent (0.20.0) : clé propre obligatoire, cadre seul par d
   const r = CH.reduireValeurs([{ id: 'e1', at: '2026-11-09T10:00:00Z', by: 'u', type: 'VALEUR', data: { entite: 'agent', id: 'u-ide', champ: 'afgsu', valeur: '2027-01-01' } }]);
   assert.equal(r.agent['u-ide'].afgsu, '2027-01-01');
 });
+
+test('Donnée réservée au pôle du patient (0.32.0) : une clé par pôle, remise aux seuls agents du pôle ; notes « information d’un tiers »', async () => {
+  const racine = new Repertoire('TesseraSante');
+  const admin = new Session(new Dossier(racine, 'reseau'));
+  await admin.initialiser({ nom: 'Admin (fictif)', login: 'admin', motDePasse: 'mot de passe solide' });
+  await admin.enregistrer('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1 (fictif)' }, { code: 'U2', libelle: 'U2 (fictif)' }, { code: 'U3', libelle: 'U3 (fictif)' }] });
+  await admin.enregistrer('CONFIG', { cle: 'poles', valeur: [{ code: 'PA', libelle: 'Pôle A (fictif)', services: ['U1', 'U2'] }] });
+  await admin.enregistrer('CONFIG', { cle: 'champsAjoutes', valeur: [
+    { id: 'tres-sensible', libelle: 'Information très sensible', type: 'notes', entite: 'patient', module: 'patients', perimetre: 'pole', lecture: ['IDE', 'CADRE'], saisie: ['IDE', 'CADRE'] }] });
+  const def = CH.definition(admin.etat.config, 'tres-sensible');
+  assert.equal(def.protection, 'cle');
+  assert.deepEqual(CH.clesDe(def, admin.etat.config), ['d-tres-sensible.PA', 'd-tres-sensible.sv-U3']);
+  assert.equal(CH.perimetreDe(admin.etat.config, 'U2'), 'PA');
+  await admin.creerComptes([
+    { nom: 'IDE pôle A (fictif)', login: 'ide.p', motDePasse: 'mot de passe ide p', roles: ['IDE'], services: ['U1'] },
+    { nom: 'IDE U3 (fictif)', login: 'ide.q', motDePasse: 'mot de passe ide q', roles: ['IDE'], services: ['U3'] }]);
+  await admin.enregistrer('PATIENT', { patientId: 'P1', nom: 'ALPHA (fictif)', service: 'U2' });
+  await admin.enregistrer('SEJOUR', { patientId: 'P1', sejourId: 'S1', entree: '2026-11-01', service: 'U2' });
+  await admin.enregistrer('PATIENT', { patientId: 'P3', nom: 'GAMMA (fictif)', service: 'U3' });
+  await admin.enregistrer('SEJOUR', { patientId: 'P3', sejourId: 'S3', entree: '2026-11-01', service: 'U3' });
+  const a2 = await connecter(racine, 'admin', 'mot de passe solide');
+  assert.ok(a2.coffre.cles['d-tres-sensible.PA'] && a2.coffre.cles['d-tres-sensible.sv-U3']);
+  const p = await connecter(racine, 'ide.p', 'mot de passe ide p'), q = await connecter(racine, 'ide.q', 'mot de passe ide q');
+  const detient = (x, n) => !!(x.trousseau[n] && Object.keys(x.trousseau[n].octets || {}).length);
+  assert.ok(detient(p, 'd-tres-sensible.PA') && !detient(p, 'd-tres-sensible.sv-U3'));
+  assert.ok(detient(q, 'd-tres-sensible.sv-U3') && !detient(q, 'd-tres-sensible.PA'));
+  await p.enregistrer('VALEUR', { entite: 'patient', id: 'P1', champ: 'tres-sensible', op: { ajout: { id: 'n1', texte: 'Information très sensible (fictif)', tiers: true } } });
+  assert.equal(saisiesDe(racine, ['modules', 'd-tres-sensible.PA']).length, 1, 'valeur rangée dans le journal du pôle');
+  await assert.rejects(p.enregistrer('VALEUR', { entite: 'patient', id: 'P3', champ: 'tres-sensible', op: { ajout: { id: 'n2', texte: 'x' } } }), /pôle de ce patient/);
+  const v = p.valeurs().patient.P1['tres-sensible'];
+  assert.equal(v[0].tiers, true);
+  // Note marquée puis démarquée « information d'un tiers »
+  await p.enregistrer('VALEUR', { entite: 'patient', id: 'P1', champ: 'tres-sensible', op: { tiers: { element: 'n1', tiers: false } } });
+  assert.equal(p.valeurs().patient.P1['tres-sensible'][0].tiers, undefined);
+  // L'agent d'un autre pôle ne lit pas la valeur
+  await q.synchroniser();
+  assert.ok(!((q.valeurs().patient || {}).P1 || {})['tres-sensible']);
+});

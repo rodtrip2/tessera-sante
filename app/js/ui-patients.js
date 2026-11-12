@@ -366,6 +366,8 @@
       sejours, !nouveau && U.sorties ? U.sorties.ligneFiche(f, function () { modaleFiche(((U.st() && U.st().patients) || {})[f.id] || f); }) : null,
       !nouveau && U.agenda && U.agenda.sectionPatient ? U.agenda.sectionPatient(f, fermerPuis) : null), [
       { texte: peut ? 'Annuler' : 'Fermer' },
+      // Droit d'accès (0.32.0) : export vérifié, aussi depuis la fiche (et plus seulement depuis les mesures)
+      !nouveau && (U.App.session.peut('EXPORT_PATIENT') || U.App.session.peut('CONFIG')) && U.qualite ? { texte: 'Exporter ses données (droit d’accès)', action: function () { U.qualite.exporterPatient(f); return false; } } : null,
       // « Envoyer par message » (messagerie, 0.23.0) : la fiche rattachée n'est détaillée qu'aux agents qui ont accès aux patients
       !nouveau && U.messagerie ? U.messagerie.boutonModale('patients', 'fiche', f.id, f.service) : null,
       !nouveau && U.mesTaches ? U.mesTaches.boutonModale('patients', 'fiche', f.id, f.service, '') : null,

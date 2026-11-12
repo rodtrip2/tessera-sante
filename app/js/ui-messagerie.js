@@ -413,6 +413,7 @@
         return h('p', { class: 'info', text: 'Message consulté par ' + (x.nom || s().nomAuteur(x.par)) + ' le ' + dateHeure(x.le) + ' — motif : ' + x.motif + (x.precision ? ' (' + x.precision + ')' : '') + '.' });
       }),
       m.retire ? h('p', { class: 'alerte', text: 'Message retiré le ' + dateHeure(m.retire.le) + (m.retire.motif ? ' : ' + m.retire.motif : '') + '.' }) : null,
+      m.tiers ? h('p', { class: 'info', text: 'Information d’un tiers : ce message est exclu des données remises au patient (droit d’accès).' }) : null,
       h('div', { class: 'ms-texte', text: m.texte }),
       m.rattaches.length ? h('section', { class: 'pile ms-section', 'aria-label': 'Éléments rattachés' }, h('b', { text: 'Éléments rattachés (' + m.rattaches.length + ')' }), m.rattaches.map(function (r) { return ligneRattache(r); })) : null,
       m.pieces.length ? h('section', { class: 'pile ms-section', 'aria-label': 'Pièces jointes' }, h('b', { text: 'Pièces jointes (' + m.pieces.length + ')' }),
@@ -640,6 +641,7 @@
       });
       entree.value = ''; dessinerP();
     });
+    var cbTiers = h('input', { type: 'checkbox', checked: !!init.tiers, 'aria-label': 'Information d’un tiers' });
     dessinerDest(); dessinerR(); dessinerP();
     U.modale('Nouveau message', h('div', { class: 'pile ms-nouveau' },
       h('div', { class: 'pile' }, h('b', { text: 'À' }), chips, sel, compteur,
@@ -652,6 +654,7 @@
       peutSondage ? h('div', { class: 'pile' }, h('label', { class: 'case' }, avecSondage, h('b', { text: 'Ajouter un sondage' })), zoneS) : null,
       chiffrable ? h('label', { class: 'case ms-chiffrer' }, cbChiffre, h('span', {}, h('b', { text: 'Chiffrer pour les seuls destinataires' }), h('br'),
         h('small', { text: 'Seuls vous et les destinataires lisent l’objet, le texte, les réponses, les éléments rattachés et les pièces jointes. ' + (o.consultation ? 'Le cadre du service ou un auditeur peut le consulter en cas de besoin, avec un motif inscrit au journal. ' : '') + 'Réglage de l’établissement : ' + MS.CHIFFREMENTS[o.chiffrement].toLowerCase() + '.' }))) : null,
+      h('label', { class: 'case' }, cbTiers, h('span', {}, h('b', { text: 'Information d’un tiers' }), h('br'), h('small', { class: 'muted', text: 'Le message concerne un tiers ou en provient (famille, voisin, autre patient…) : il sera exclu des données remises au patient rattaché (droit d’accès).' }))),
       h('p', { class: 'alerte', text: 'Information d’organisation : pas de message personnel ni de donnée clinique' + (entree ? ', y compris dans les pièces jointes.' : '.') }),
       h('div', { class: 'grille-2' },
         h('label', { class: 'case' }, important, h('span', {}, h('b', { text: 'Message important' }), h('br'), h('small', { class: 'muted', text: 'reste en tête jusqu’à la lecture' }))),
@@ -659,6 +662,7 @@
     [{ texte: 'Annuler' }, { texte: libelleEnvoi(), classe: 'primaire ms-envoyer', action: async function () {
       var d = { id: 'MS' + SIC.crypto.hex(SIC.crypto.aleatoire(6)), objet: objet.value.trim(), texte: texte.value.trim(), nom: moi().nom, destinataires: dest,
         services: MS.servicesDe(dest, U.config()), important: important.checked, accuse: accuse.value, reponses: reponses.value, jusquau: jusquau.value, rattaches: rattaches, pieces: [] };
+      if (cbTiers.checked) d.tiers = true;
       if (peutSondage && avecSondage.checked) {
         var dates = sGenre.value === 'dates';
         d.sondage = { question: sQuestion.value.trim(), genre: sGenre.value, resultats: sRes.value, anonyme: sAnonyme.checked, autre: !dates && sAutre.checked, cloture: sCloture.value,

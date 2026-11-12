@@ -1055,3 +1055,9 @@ table.tr-tableau .tr-pied td { padding: .4em 0 0; font-size: .85em; }
 .charte-texte { white-space: pre-wrap; background: var(--surface-2); border-radius: var(--radius); padding: 12px 14px; max-height: 50vh; overflow: auto; }
 .bandeau-pret b { margin-right: 2px; }
 tr.pret-en-cours td { background: var(--accent-soft); }
+/* Droit d'accès : vérification avant l'export (0.32.0) */
+.liste-export { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 2px; }
+.liste-export li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 2px 4px; border-radius: 4px; }
+.liste-export li.ecarte { background: var(--warn-soft); }
+.liste-export li.ecarte b { text-decoration: line-through; }
+.export-section summary { cursor: pointer; }

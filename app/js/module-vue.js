@@ -279,7 +279,9 @@
     var ent = entite === 'patients' ? 'patient' : entite === 'medecins' ? 'medecin' : entite === 'agents' ? 'agent' : null;
     if (ent) CH.definitions(ctx.config, { entite: ent }).forEach(function (c) {
       if (ctx.lisible && !ctx.lisible(c)) return;
-      col({ code: 'c:' + c.id, libelle: c.libelle, type: c.type, champ: c, journal: c.type === 'formule' ? null : CH.journalDe(c), reglage: 'c:' + c.id, edition: c.type === 'formule' ? null : { type: 'champ' },
+      // Réservée au pôle (0.32.0) : journal du pôle de chaque ligne (instantanés : une part par pôle)
+      var jl = c.perimetre === 'pole' ? function (l) { return CH.journalDe(c, CH.perimetreDe(ctx.config, l.service)); } : null;
+      col({ code: 'c:' + c.id, libelle: c.libelle, type: c.type, champ: c, journal: c.type === 'formule' ? null : (jl ? 'd-' + c.id : CH.journalDe(c)), journalLigne: jl, reglage: 'c:' + c.id, edition: c.type === 'formule' ? null : { type: 'champ' },
         lire: function (l) {
           if (c.type === 'formule') return { v: null, lib: '', brute: null, formule: true };
           var id = ent === 'patient' ? l.p.id : ent === 'medecin' ? l.m.id : l.a.id;
@@ -421,9 +423,14 @@
     colonnes.forEach(function (x) {
       var j = x.col.journal || (x.col.champ && x.col.champ.type === 'formule' ? journalFormule(x.col, cols) : 'patients');
       if (j === 'socle') j = 'vue';
-      part(j).colonnes.push({ code: x.col.code, libelle: x.vcol.libelle || x.col.libelle });
+      var vus = {};
+      function colonneDans(jj) { if (!vus[jj]) { vus[jj] = 1; part(jj).colonnes.push({ code: x.col.code, libelle: x.vcol.libelle || x.col.libelle }); } }
+      if (!x.col.journalLigne) colonneDans(j);
       groupes.forEach(function (g) { g.lignes.forEach(function (l) {
-        var c = cellule(x.col, l, ctx, x.vcol, cols), p = part(j);
+        var jj = x.col.journalLigne ? x.col.journalLigne(l) : j;
+        if (!jj) return;
+        colonneDans(jj);
+        var c = cellule(x.col, l, ctx, x.vcol, cols), p = part(jj);
         (p.valeurs[l.id] = p.valeurs[l.id] || {})[x.col.code] = c.couleur ? { lib: c.lib, couleur: c.couleur.couleur, rendu: c.couleur.rendu } : { lib: c.lib };
       }); });
     });

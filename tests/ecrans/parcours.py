@@ -571,6 +571,31 @@ with sync_playwright() as p:
     verifier('Vous remplacez Cadre Deux' in ' '.join(a.locator('.bandeau-pret').all_inner_texts()), 'prêt de droits : bandeau « Vous remplacez… » du délégataire')
     pour = a.evaluate("""async () => { const s = SIC.ui.App.session; s.choisirModule('agenda'); const e = await s.enregistrer('TACHE', { id: 'T-PRET1', titre: 'Tâche réglée pendant le prêt (fictif)', consigne: '', service: 'U2', debut: SIC.model.dateLocaleISO(Date.now()), heure: '', regularite: { type: 'aucune' } }); return e.pour ? s.nomAuteur(e.pour) : ''; }""")
     verifier(pour == 'Cadre Deux (fictif)', 'prêt de droits : saisie faite « pour le compte de » l’absent (' + pour + ')')
+    verifier(a.evaluate("SIC.ui.App.session.detientCle('d-info-sensible.PSM')"), 'donnée réservée au pôle : clé remise à un agent du pôle')
+
+    print('Droit d’accès : informations d’un tiers, vérification avant l’export ; données réservées au pôle (0.32.0)')
+    a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
+    connecter(a, 'garde', 'motdepasse-garde')
+    verifier(not a.evaluate("SIC.ui.App.session.detientCle('d-info-sensible.PSM')"), 'donnée réservée au pôle : aucune clé pour un rôle « tous services » hors du pôle')
+    a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
+    connecter(a, 'cadre', MDP)
+    fenetre(a, 'Patients')
+    a.locator('tr', has_text='ALPHA').first.get_by_role('button', name='Fiche').click(); time.sleep(1.2)
+    d = a.locator('dialog[open]').last
+    verifier(d.locator('.badge', has_text='tiers').count() >= 2, 'fiche : note et prise en charge marquées « information d’un tiers »')
+    d.get_by_role('button', name='Exporter ses données (droit d’accès)').click(); time.sleep(1.2)
+    d2 = a.locator('dialog[open]').last
+    t = d2.inner_text()
+    verifier('vérification avant l’export' in t and 'information d’un tiers' in t and 'échange interne au service' in t, 'droit d’accès : éléments retenus et écartés (tiers, échanges internes) à vérifier')
+    verifier(d2.locator('li.ecarte').count() >= 3, 'droit d’accès : éléments écartés par défaut (' + str(d2.locator('li.ecarte').count()) + ')')
+    capture(a, 'droit-acces-verification')
+    d2.locator('li.ecarte input[type=checkbox]').first.click(); time.sleep(0.5)
+    a.locator('dialog[open]').last.get_by_role('button', name='Exporter').click(); time.sleep(2)
+    trace = a.evaluate("(() => { const e = SIC.ui.App.session.evts.filter(x => x.type === 'COMPTE' && x.data.action === 'EXPORT_PATIENT').pop(); return e && e.data.verification ? [e.data.verification.retenus, e.data.verification.ecartes.length, e.data.verification.modifies] : null; })()")
+    verifier(trace is not None and trace[2] == 1 and trace[1] >= 2, 'droit d’accès : vérification inscrite au journal (retenus, écartés, choix modifiés : ' + str(trace) + ')')
+    while a.locator('dialog[open]').count(): a.keyboard.press('Escape'); time.sleep(0.3)
+    fenetre(a, 'Messagerie')
+    verifier(a.evaluate("Object.values(SIC.ui.App.session.etatModule('messagerie').messages).some(m => m.tiers)"), 'messagerie : message marqué « information d’un tiers »')
     nav.close()
 
 if erreurs: print('\nErreurs du navigateur :'); [print('  ' + e) for e in erreurs[:20]]

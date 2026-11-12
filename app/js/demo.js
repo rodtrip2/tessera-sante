@@ -93,6 +93,8 @@
           modele: [{ id: 'inventaire', libelle: 'Inventaire des effets personnels' }, { id: 'livret', libelle: 'Livret d’accueil remis' }, { id: 'droits', libelle: 'Information sur les droits' }, { id: 'personne-confiance', libelle: 'Personne de confiance recueillie' }] },
         { id: 'projet-sortie', libelle: 'Projet de sortie', type: 'texte', entite: 'patient', module: 'suivi', services: [], saisie: ['IDE', 'CADRE'], lecture: [] },
         { id: 'vigilance-orga', libelle: 'Vigilance organisationnelle', type: 'notes', entite: 'patient', module: 'patients', protection: 'cle', services: [], saisie: ['IDE', 'CADRE'], lecture: ['IDE', 'CADRE'] },
+        // Réservée au pôle du patient (0.32.0) : informations très sensibles, une clé par pôle (fictive)
+        { id: 'info-sensible', libelle: 'Information très sensible (pôle)', type: 'notes', entite: 'patient', module: 'patients', perimetre: 'pole', services: [], saisie: ['IDE', 'CADRE'], lecture: ['IDE', 'CADRE'] },
         { id: 'jours-avant-sortie', libelle: 'Jours avant la sortie', type: 'formule', formule: 'SIERREUR(-JOURS([Sortie prévisionnelle]); "")', entite: 'patient', module: 'patients', services: ['U1'], saisie: [], lecture: [], par: { role: 'CADRE', services: ['U1'] } },
         // Données des agents (0.20.0) : données du personnel, clé propre, cadre seul par défaut (fictives)
         { id: 'afgsu', libelle: 'Formation aux gestes d’urgence (AFGSU) valable jusqu’au', type: 'date', entite: 'agent', services: [], saisie: ['CADRE'], lecture: ['CADRE'], soi: 'lecture' },
@@ -239,6 +241,7 @@
       ajouter(t(-24 * 1), 'COMPLEMENT', { patientId: 'P05', champ: 'consignes', valeur: ['Visites en salle des familles'] });
       ajouter(t(-24 * 5), 'COMPLEMENT', { patientId: 'P03', champ: 'activites', valeur: ['Jardin'] });
       ajouter(t(-24 * 4), 'COMPLEMENT', { patientId: 'P01', champ: 'demarches', op: { ajout: { id: 'nd1', texte: 'Dossier MDPH à compléter (fictif)', importance: 'important' } } });
+      ajouter(t(-24 * 3), 'COMPLEMENT', { patientId: 'P01', champ: 'demarches', op: { ajout: { id: 'nd2t', texte: 'La sœur signale des difficultés de logement (fictif)', importance: 'info', tiers: true } } });   // information d'un tiers (0.32.0)
       ajouter(t(-24 * 2), 'COMPLEMENT', { patientId: 'P01', champ: 'demarches', op: { ajout: { id: 'nd2', texte: 'Rendez-vous banque jeudi (fictif)', importance: 'info' } } });
       ajouter(t(-24 * 3), 'COMPLEMENT', { patientId: 'P02', champ: 'demarches', op: { ajout: { id: 'nd3', texte: 'Appeler le mandataire avant vendredi (fictif)', importance: 'urgent' } } });
       ajouter(t(-24 * 6), 'COMPLEMENT', { patientId: 'P03', champ: 'demarches', op: { ajout: { id: 'nd4', texte: 'Carte vitale retrouvée (fictif)', importance: 'info' } } });
@@ -261,7 +264,8 @@
       ajouter(t(-24 * 20), 'INTERVENANT', { id: i[0], type: i[1], nom: i[2], contact: i[3], commentaire: i[4], champs: {} });
     });
     [['P03', 'IV001', 'Prévenir le cabinet de la date de sortie'], ['P03', 'IV004', ''], ['P01', 'IV002', ''], ['P01', 'IV003', 'Mardi et jeudi'], ['P05', 'IV001', '']].forEach(function (l, i) {
-      ajouter(t(-24 * 19), 'PRISE_EN_CHARGE', { patientId: l[0], lien: 'LD' + i, intervenant: l[1], commentaire: l[2] });
+      // Information d'un tiers (0.32.0) : le foyer de P01, signalé par la famille, exclu du droit d'accès
+      ajouter(t(-24 * 19), 'PRISE_EN_CHARGE', { patientId: l[0], lien: 'LD' + i, intervenant: l[1], commentaire: l[2], tiers: l[0] === 'P01' && l[1] === 'IV002' });
     });
     // Sorties (0.21.0) : une sortie actée (date et heure arrêtées avec le patient), une envisagée en fourchette, une approximation seule
     ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { etat: 'actee', debut: jISO(24 * 3), heure: '11:00' } });
@@ -629,6 +633,9 @@
         destinataires: [{ genre: 'etablissement', code: '*' }], reponses: 'aucune', rattaches: [{ module: 'vehicules', genre: 'reservation', id: 'RV004', service: U1 }] });
       msg(-5, 'demo-a', { nom: 'Agent A (fictif)', objet: 'Accompagnement de M. Durand demain', texte: 'Le rendez-vous est confirmé ; prévoir le minibus. (fictif)',
         destinataires: [{ genre: 'role', code: 'IDE', service: U1 }, { genre: 'role', code: 'CADRE', service: U1 }], rattaches: [{ module: 'patients', genre: 'fiche', id: 'P01', service: U1 }] });
+      // Information d'un tiers (0.32.0) : appel de la famille, exclu des données remises au patient
+      msg(-4, 'demo-b', { nom: 'Agent B (fictif)', objet: 'Appel de la sœur de Mme Alpha', texte: 'Sa sœur a appelé pour prévenir de son déménagement ; elle demande à être rappelée. (fictif)', tiers: true,
+        destinataires: [{ genre: 'role', code: 'CADRE', service: U1 }], rattaches: [{ module: 'patients', genre: 'fiche', id: 'P01', service: U1 }] });
       var ancien = msg(-24 * 40, 'demo-cadre', { nom: 'Cadre de santé (fictif)', objet: 'Planning des congés d’été', texte: 'Les demandes sont à rendre avant la fin du mois. (fictif)', destinataires: [{ genre: 'service', code: U1 }], jusquau: jM(-10) });
       if (moiM) lu(-24 * 39, ancien, moiM);
       // Sondages (0.23.0) : dates à remplir par l'agent connecté, choix unique public déjà voté (résultats visibles),
@@ -688,6 +695,7 @@
         var now = Date.now(), J = 864e5, at = function (h) { return new Date(now + h * 36e5).toISOString(); }, jC = function (n) { return SIC.model.dateLocaleISO(now + n * J); };
         var v = [
           { at: at(-30), by: 'demo', type: 'VALEUR', data: { entite: 'patient', id: 'P01', champ: 'vigilance-orga', op: { ajout: { id: 'nv1', texte: 'Ne pas programmer de sortie le jeudi, jour de visite (fictif)', importance: 'important' } } } },
+          { at: at(-28), by: 'demo', type: 'VALEUR', data: { entite: 'patient', id: 'P01', champ: 'info-sensible', perimetre: 'PSM', op: { ajout: { id: 'ns1', texte: 'Mesure de protection de l’enfance en cours pour la fratrie : ne rien dire aux visiteurs (fictif)', importance: 'urgent' } } } },
           { at: at(-40), by: 'demo', type: 'VALEUR', data: { entite: 'agent', id: 'demo-a', champ: 'afgsu', valeur: jC(120) } },
           { at: at(-40), by: 'demo', type: 'VALEUR', data: { entite: 'agent', id: 'demo-b', champ: 'afgsu', valeur: jC(-10) } },
           { at: at(-40), by: 'demo', type: 'VALEUR', data: { entite: 'agent', id: 'demo-a', champ: 'habilitations', valeur: ['Conduite d’un véhicule', 'Tuteur de stage'] } },

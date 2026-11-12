@@ -77,7 +77,9 @@
           destinataires: Array.isArray(d.destinataires) ? d.destinataires : [], services: Array.isArray(d.services) ? d.services : [],
           important: !!d.important, accuse: ACCUSES[d.accuse] ? d.accuse : 'auto', reponses: REPONSES[d.reponses] ? d.reponses : 'auteur',
           jusquau: JOUR.test(d.jusquau || '') ? d.jusquau : '', rattaches: Array.isArray(d.rattaches) ? d.rattaches : [], pieces: Array.isArray(d.pieces) ? d.pieces : [],
-          lectures: {}, reponsesListe: [], archives: {}, relances: [], retire: null, sondage: sondageDe(d.sondage), consultations: [] };
+          lectures: {}, reponsesListe: [], archives: {}, relances: [], retire: null, sondage: sondageDe(d.sondage), consultations: [],
+          // Information d'un tiers (0.32.0) : exclue des données remises au patient (droit d'accès)
+          tiers: d.tiers === true };
         if (d.chiffre && typeof d.chiffre === 'object') st.messages[d.id].chiffre = d.chiffre;
         break;
       case 'VOTE':
