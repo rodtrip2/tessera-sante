@@ -1199,6 +1199,7 @@
     if (!c || !SIC.modules || !SIC.modules.affiches) return [moduleActif()];
     return SIC.modules.affiches().filter(function (m) {
       if (!m.droits || !aCle(s, m.id)) return false;
+      if (SIC.modules.enService && !SIC.modules.enService(m.id, cfg)) return false;   // module arrêté (0.43.0) : fenêtre masquée pour tous
       if (m.droits.membre && !m.droits.membre(c.roles, cfg)) return false;
       return m === moduleActif() || m.droits.servicesDe(c, cfg).length > 0 || (c.roles || []).indexOf('ADMIN') >= 0;
     });
@@ -1211,6 +1212,11 @@
   };
   /** La session détient-elle la clé du module (fenêtre Patients : clé remise à qui a droit à un module qui en dépend) ? */
   Session.prototype.detientCle = function (id) { return aCle(this, id); };
+  /**
+   * Module ouvert à l'affichage (0.43.0) : clé détenue et module en service. Les écrans des autres modules n'affichent
+   * rien d'un module arrêté ; ses données restent lisibles (droit d'accès d'un patient, sauvegardes, journal).
+   */
+  Session.prototype.ouvert = function (id) { return aCle(this, id) && (!SIC.modules || !SIC.modules.enService || SIC.modules.enService(id, config(this))); };
   Session.prototype.moduleAffiche = function () { var m = moduleAffiche(this); return m.id || 'isocont'; };
   /** État reconstitué d'un module (le module principal : `etat`). */
   Session.prototype.etatModule = function (id) { return etatDe(this, SIC.modules ? SIC.modules.obtenir(id) : null); };

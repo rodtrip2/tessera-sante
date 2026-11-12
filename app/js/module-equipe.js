@@ -186,7 +186,8 @@
       // Numéro et courriel professionnels d'un agent, pour la petite fiche de contact des autres modules
       { nom: 'equipe.contact', version: 1, acces: 'lecture', champs: ['telPro', 'mailPro', 'fonction'], lire: function (st, o) { var f = fiche(st, o.agent); return { telPro: f.telPro, mailPro: f.mailPro, fonction: f.fonction }; } }
     ],
-    besoins: []
+    besoins: [],
+    indispensable: true   // annuaire et prêts de droits (0.43.0) : jamais arrêté
   };
   contrat.fournitures.push({ nom: 'equipe.referents', version: 1, acces: 'lecture', champs: ['domaine', 'libelle', 'titulaires', 'suppleants', 'precision'], lire: function (st, o) { return referents(st, o.service); } });
 

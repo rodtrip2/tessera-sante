@@ -134,6 +134,34 @@ test('Agenda : activation par service, accès retirés au rôle (nouvelle géné
   assert.ok(admin.coffre.enveloppes.some((e) => e.pour === id('as.a') && e.cle === 'isocont'), 'Isocont inchangé pour l’AS');
 });
 
+test('Arrêt d’un module (0.43.0) : masqué pour tous, saisies refusées, réglage par service gardé, remise en marche', async () => {
+  const { racine, admin } = await equipe();
+  const R = SIC.modules;
+  let v = R.ecrireArret({}, 'agenda', true);
+  assert.deepEqual(v, { agenda: { arret: true } });
+  await admin.enregistrer('CONFIG', { cle: 'modulesServices', valeur: v });
+  const D = R.obtenir('agenda').droits, cfg = admin.etat.config;
+  assert.equal(D.arrete(cfg), true); assert.equal(D.serviceActif(cfg, 'U1'), false); assert.equal(D.serviceChoisi(cfg, 'U1'), true);
+  assert.equal(R.enService('agenda', cfg), false); assert.equal(R.enService('isocont', cfg), true); assert.equal(R.enService('patients', cfg), true);
+  const a = await co(racine, 'ide.a', 'mot de passe ide a');
+  assert.deepEqual(a.modulesAccessibles().map((m) => m.id), ['isocont']);
+  assert.equal(a.choisirModule('agenda'), false);
+  await assert.rejects(a.enregistrer('RDV', rdv('R1', 'U1')), /désactivé/);
+  assert.ok(!admin.modulesAccessibles().some((m) => m.id === 'agenda'), 'arrêté : masqué même pour l’administrateur');
+  assert.equal(admin.ouvert('agenda'), false); assert.equal(admin.detientCle('agenda'), true);
+  // Réglage par service gardé pendant l'arrêt, puis remise en marche
+  v = R.ecrireActivation(v, 'agenda', ['U2'], false);
+  assert.deepEqual(v.agenda, { tous: false, services: ['U2'], arret: true });
+  v = R.ecrireArret(v, 'agenda', false);
+  assert.deepEqual(v.agenda, { tous: false, services: ['U2'] });
+  assert.deepEqual(R.ecrireActivation(v, 'agenda', ['U1', 'U2'], true), {});
+  await admin.enregistrer('CONFIG', { cle: 'modulesServices', valeur: {} });
+  const a2 = await co(racine, 'ide.a', 'mot de passe ide a');
+  assert.deepEqual(a2.modulesAccessibles().map((m) => m.id), ['isocont', 'agenda']);
+  // Modules indispensables : Patients (référence) ; un module ordinaire ne l'est pas
+  assert.equal(R.indispensable('patients'), true); assert.equal(R.indispensable('agenda'), false); assert.equal(R.indispensable('isocont'), false);
+});
+
 test('Agenda du service : éléments de la période, patient d’un autre service affiché en lecture, identité selon le réglage', () => {
   const A = require('../app/js/module-agenda.js');
   const t0 = new Date(2026, 10, 9).getTime(), H = 3600e3;

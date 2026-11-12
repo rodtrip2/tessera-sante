@@ -12,7 +12,7 @@
   function cfg() { return U.config(); }
   /** Fiches avec leurs séjours (module Patients si la clé est détenue, sinon celles de l'état affiché). */
   function fiches() {
-    try { var e = s().detientCle('patients') ? s().etatModule('patients') : null; if (e && e.fiches) return e.fiches; } catch (err) { /* état affiché */ }
+    try { var e = s().ouvert('patients') ? s().etatModule('patients') : null; if (e && e.fiches) return e.fiches; } catch (err) { /* état affiché */ }
     return (U.st() && U.st().patients) || {};
   }
   /** Nom affiché d'un patient : celui de l'état affiché d'abord (identité réduite selon le rôle : initiales…). */
@@ -148,7 +148,7 @@
   function peutRegler(sv) { var r = s().roles(); return !s().apercu && (r.indexOf('ADMIN') >= 0 || (r.indexOf('CADRE') >= 0 && U.services().some(function (x) { return x.code === sv; }))); }
   /** Mesures en cours du service, lues dans Isocont si l'agent en détient la clé (sinon le plan s'en passe). */
   function mesures(sv) {
-    try { var e = s().detientCle('isocont') ? s().etatModule('isocont') : null; return e ? SIC.modules.lire('isocont.enCours', e, { services: [sv] }) || [] : []; } catch (err) { return []; }
+    try { var e = s().ouvert('isocont') ? s().etatModule('isocont') : null; return e ? SIC.modules.lire('isocont.enCours', e, { services: [sv] }) || [] : []; } catch (err) { return []; }
   }
   function ouvrirFiche(id) {
     var full = ((U.st() && U.st().patients) || {})[id] || fiches()[id];
@@ -216,7 +216,7 @@
     var hors = pl.horsPlan.length ? h('p', { class: 'muted', text: 'Hors du plan : ' + pl.horsPlan.map(function (y) { return nom(y.patient) + ' (' + (y.etat === 'mesure' ? (y.type || 'mesure') + ', ' : '') + (y.lieu || 'lieu non précisé') + ')'; }).join(' ; ') }) : null;
     var legende = h('p', { class: 'ch-legende muted' }, h('span', { class: 'ch-patient etat-present', text: 'Patient dans sa chambre' }), ' ', h('span', { class: 'ch-patient etat-ailleurs', text: 'Chambre gardée (patient ailleurs)' }), ' ', h('span', { class: 'ch-patient etat-mesure', text: 'Mesure en cours' }), ' ', h('span', { class: 'ch-patient etat-chambreOuverte', text: 'CSI en chambre ouverte' }));
     return [barre, alertes.length ? h('div', { class: 'pile' }, alertes) : null, h('section', { class: 'panneau ch-plan-cadre' }, grille), hors, legende,
-      s().detientCle('isocont') ? null : h('p', { class: 'muted', text: 'Mesures d’isolement et de contention non affichées : réservées aux agents qui ont accès au module.' })].filter(Boolean);
+      s().ouvert('isocont') ? null : h('p', { class: 'muted', text: 'Mesures d’isolement et de contention non affichées : réservées aux agents qui ont accès au module.' })].filter(Boolean);
   }
   /** Éditeur du plan (cadre et administrateur) : glisser-déposer ou boutons, taille, couleur. */
   function editeurPlan(sv) {

@@ -60,9 +60,14 @@
      */
     function activation(config) {
       var v = MODULE && config && config.modulesServices && config.modulesServices[MODULE];
+      if (v && v.arret === true) return [];   // module arrêté (0.43.0) : désactivé dans tous les services, réglage par service gardé
       if (!v || v.tous !== false) return null;
       return Array.isArray(v.services) ? v.services.map(String) : [];
     }
+    /** Module arrêté depuis l'accueil de l'administration (0.43.0) : fenêtre masquée pour tous, données conservées. */
+    function arrete(config) { var v = MODULE && config && config.modulesServices && config.modulesServices[MODULE]; return !!(v && v.arret === true); }
+    /** Service choisi dans le réglage par service, sans tenir compte de l'arrêt du module (0.43.0). */
+    function serviceChoisi(config, code) { var v = MODULE && config && config.modulesServices && config.modulesServices[MODULE]; if (!v || v.tous !== false) return true; return (Array.isArray(v.services) ? v.services.map(String) : []).indexOf(code) >= 0; }
     function serviceActif(config, code) { var a = activation(config); return !a || a.indexOf(code) >= 0; }
     /** Services où le module est désactivé (données conservées, plus de saisie, consultation par l'encadrement). */
     function servicesInactifs(config) {
@@ -234,7 +239,7 @@
       voitTousServices: voitTousServices, exigeService: exigeService, servicesDe: servicesDe, membre: membre, LIRE_ACCES: LIRE_ACCES,
       NIVEAUX_JOURNAL: NIVEAUX_JOURNAL, niveauJournal: niveauJournal, journalVisible: journalVisible,
       ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, registreSeul: registreSeul,
-      module: MODULE, ROLES_ENCADREMENT: ENCADREMENT, activation: activation, serviceActif: serviceActif, servicesInactifs: servicesInactifs, consulteInactifs: consulteInactifs
+      module: MODULE, ROLES_ENCADREMENT: ENCADREMENT, activation: activation, arrete: arrete, serviceChoisi: serviceChoisi, serviceActif: serviceActif, servicesInactifs: servicesInactifs, consulteInactifs: consulteInactifs
     };
   }
 

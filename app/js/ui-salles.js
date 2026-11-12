@@ -29,7 +29,7 @@
   function sourcesDe(m, debut, fin) {
     var o = opts(), res = [];
     try {
-      if (!s().detientCle(m)) return null;
+      if (!s().ouvert(m)) return null;
       var e = s().etatModule(m);
       if (!e) return null;
       if (m === 'agenda') return SIC.modules.lire('agenda.occupations', e, { debut: debut, fin: fin }) || [];
@@ -65,7 +65,7 @@
   async function synchroniser(force) {
     if (releveEnCours) return;
     try {
-      if (!SIC.salles || s().apercu || !s().detientCle('salles') || !s().peut('SALLE_REFLET')) return;
+      if (!SIC.salles || s().apercu || !s().ouvert('salles') || !s().peut('SALLE_REFLET')) return;
       releveEnCours = true;
       var auj = S.jourISO(Date.now()), du = S.plusJours(auj, -1), au = S.plusJours(auj, 56), debut = S.instant(du, '00:00'), fin = S.instant(au, '00:00');
       for (var i = 0; i < S.REFLETS.length; i++) {
@@ -354,7 +354,7 @@
     init = init || {};
     var sv = service(), salles = S.sallesDuService(st(), sv);
     if (!salles.length) { alert('Aucune salle pour ce service.'); return; }
-    var agenda = h('input', { type: 'radio', name: 'sb-type', checked: !!(U.agenda && s().detientCle('agenda') && s().peut('RDV')), disabled: !(U.agenda && s().detientCle('agenda') && s().peut('RDV')) });
+    var agenda = h('input', { type: 'radio', name: 'sb-type', checked: !!(U.agenda && s().ouvert('agenda') && s().peut('RDV')), disabled: !(U.agenda && s().ouvert('agenda') && s().peut('RDV')) });
     var simple = h('input', { type: 'radio', name: 'sb-type', checked: !agenda.checked });
     var sel = h('select', { 'aria-label': 'Salle' }, salles.map(function (x) { return h('option', { value: x.id, text: x.nom + (x.capacite ? ' (' + x.capacite + ' places)' : ''), selected: x.id === init.salle }); }));
     var jour = h('input', { type: 'date', value: init.jour || S.jourISO(Date.now()), 'aria-label': 'Jour' }), de = h('input', { type: 'time', step: 900, value: init.de || '10:00', 'aria-label': 'De' }), a = h('input', { type: 'time', step: 900, value: init.a || '11:00', 'aria-label': 'À' });

@@ -1263,3 +1263,45 @@ span.suivi-fmt { box-shadow: inset 0 -2px 0 #7e57c2; }
 .doc-masque-impression.premiere { position: absolute; } .doc-masque-impression.toutes { position: fixed; }
 @media screen { .doc-imprime .doc-masque-impression { display: none; } }
 @media print { .doc-imprime figure.doc-image { break-inside: avoid; cursor: default; } .doc-imprime figure.doc-image:hover { outline: none; } }
+
+/* Accueil de l'administration : mise en marche et arrêt des modules (0.43.0) */
+.carte-module-haut { display: flex; align-items: center; gap: 8px; }
+.carte-module-haut .carte-module-tete { flex: 1; min-width: 0; }
+.alimentation { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--ok, var(--accent)); background: var(--surface); color: var(--ok, var(--accent)); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.alimentation .icone-alimentation { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.alimentation.marche { background: var(--ok, var(--accent)); color: #fff; }
+.alimentation.arrete { border-color: var(--muted, #888); color: var(--muted, #888); }
+.alimentation:hover:not(:disabled), .alimentation:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+.alimentation.fixe { opacity: .55; cursor: not-allowed; }
+.carte-module.arrete { background: var(--surface-2); border-style: dashed; }
+.carte-module.arrete .carte-module-tete { opacity: .6; }
+
+/* Rubriques repliables et onglets locaux (0.43.0) */
+.repliable > .repliable-titre { cursor: pointer; user-select: none; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.repliable > .repliable-titre::before { content: "▾"; display: inline-block; width: 1em; color: var(--muted, #666); transition: transform .15s; }
+.repliable.replie > .repliable-titre::before { transform: rotate(-90deg); }
+.repliable > .repliable-titre:hover, .repliable > .repliable-titre:focus-visible { color: var(--accent); outline: none; }
+.repliable.replie > :not(.repliable-titre) { display: none !important; }
+.repliable > .repliable-titre .repliable-resume { font-size: .82rem; font-weight: 400; }
+.repliable:not(.replie) > .repliable-titre .repliable-resume { display: none; }
+section.panneau.repliable.replie { padding-bottom: 10px; padding-top: 10px; margin-bottom: 8px; }
+section.panneau.repliable.replie > h2 { margin: 0; }
+.replis-commandes { margin: 0 0 10px; }
+fieldset.role.repliable.replie { padding-top: 4px; padding-bottom: 4px; }
+fieldset.role > legend.repliable-titre { font-weight: 600; }
+.onglets-locaux { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.onglet-local { background: none; border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; padding: 6px 12px; font: inherit; color: var(--ink); cursor: pointer; margin-bottom: -1px; }
+.onglet-local.actif { background: var(--surface); border-color: var(--line); font-weight: 600; color: var(--accent); }
+.onglet-local:hover { color: var(--accent); }
+
+/* Choix multiples en un clic : consignes du tableau de transmissions et de la Vue d'ensemble (0.43.0) */
+.choix-rapides { position: absolute; z-index: 60; width: 340px; max-width: calc(100vw - 16px); display: grid; gap: 8px; padding: 10px; background: var(--surface); color: var(--ink); border: 1px solid var(--accent); border-radius: 10px; box-shadow: var(--shadow, 0 6px 24px rgba(0,0,0,.18)); font-size: .9rem; line-height: 1.3; }
+.choix-rapides-cible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.choix-rapides-puces { display: flex; flex-wrap: wrap; gap: 4px; }
+.puce-choix { border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 999px; padding: 3px 10px; font: inherit; cursor: pointer; }
+.puce-choix::before { content: "+ "; color: var(--muted, #666); }
+.puce-choix.choisi { background: var(--accent); border-color: var(--accent); color: #fff; }
+.puce-choix.choisi::before { content: "✓ "; color: #fff; }
+.puce-choix:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.choix-rapides-autre { min-width: 180px; }
+@media print { .choix-rapides { display: none; } }

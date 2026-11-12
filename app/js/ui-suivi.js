@@ -245,7 +245,7 @@
     var selRemp = h('select', { 'aria-label': 'Remplaçant' }, [h('option', { value: '', text: '— Pas de remplaçant —' })].concat(MED.proposes(cfg(), {}).map(function (m) { return h('option', { value: m.nom, text: m.nom, selected: x.remplacant && m.nom === nomMed(x.remplacant, x.remplacantId) }); })));
     var zoneJours = h('div', {}, h('b', { text: 'Jours' }), h('div', { class: 'actions gauche' }, casesJours));
     // Salle occupée par la présence (module Salles et bureaux, 0.25.0), heures des demi-journées réglées dans Salles
-    var selSalle = U.salles && U.App.session.detientCle('salles') ? U.salles.selecteur({ service: function () { return selLieu.value; }, valeur: x.salle || '', exclure: x.id ? 'suivi|' + x.id : null,
+    var selSalle = U.salles && U.App.session.ouvert('salles') ? U.salles.selecteur({ service: function () { return selLieu.value; }, valeur: x.salle || '', exclure: x.id ? 'suivi|' + x.id : null,
       periode: function () { var SA = SIC.salles, oS = SA.options(cfg(), selLieu.value), m = momChoisis.indexOf('matin') >= 0 ? oS.matin : oS.apresmidi; return debut.value ? [SA.instant(debut.value, m[0]), SA.instant(debut.value, momChoisis.indexOf('apresmidi') >= 0 ? oS.apresmidi[1] : m[1])] : null; } }) : null;
     if (selSalle) { selLieu.addEventListener('change', function () { selSalle.remplir(); }); debut.addEventListener('change', function () { selSalle.maj(); }); }
     function dessiner() {

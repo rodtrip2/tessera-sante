@@ -70,16 +70,22 @@
         D().NIVEAUX_JOURNAL.map(function (x) { return h('option', { value: x.code, text: x.libelle, selected: r.journal === x.code }); }));
       majNote();
       // Rôle « registre seulement » (rôles créés) : remplace les accès et le journal
-      var grilleAcces = h('div', { class: 'pile' }, autresModules().length ? h('b', { text: mod().libelle }) : null, h('div', { class: 'grille-acces' }, cases),
-        autresModules().map(function (m) {
+      // Accès par module (0.43.0) : un onglet par module au lieu des grilles les unes sous les autres
+      function nbCoches(m) { return m === mod() ? r.acces.length : ((r.modules || {})[m.id] || []).length; }
+      function libAcces(m) { var n = nbCoches(m); return m.libelle + (n ? ' (' + n + ')' : ''); }
+      var grilleAcces = U.ongletsLocaux([[mod().id, libAcces(mod()), h('div', { class: 'grille-acces' }, cases)]].concat(autresModules().map(function (m) {
           r.modules = r.modules || {}; r.modules[m.id] = r.modules[m.id] || [];
-          return h('div', { class: 'pile' }, h('b', { text: m.libelle }), h('div', { class: 'grille-acces' }, m.acces.map(function (a) {
+          return [m.id, libAcces(m), function () { return h('div', { class: 'pile' }, h('div', { class: 'grille-acces' }, m.acces.map(function (a) {
             var cb = h('input', { type: 'checkbox', checked: r.modules[m.id].indexOf(a.code) >= 0, onchange: function () {
               r.modules[m.id] = m.acces.map(function (x) { return x.code; }).filter(function (c) { return c === a.code ? cb.checked : r.modules[m.id].indexOf(c) >= 0; });
+              majOnglet(m);
             } });
             return h('label', { class: 'case' }, cb, h('span', { text: a.libelle }));
-          })), h('small', { class: 'muted', text: 'Sans aucun accès coché, le rôle n’ouvre pas ce module (ni sa clé, ni son onglet).' }));
-        })), blocJournal = h('label', {}, 'Journal des saisies', selJournal);
+          })), h('small', { class: 'muted', text: 'Sans aucun accès coché, le rôle n’ouvre pas ce module (ni sa clé, ni son onglet).' })); }];
+        })), { cle: 'roles-acces', libelle: 'Accès par module' }), blocJournal = h('label', {}, 'Journal des saisies', selJournal);
+      grilleAcces.classList.add('acces-modules');
+      function majOnglet(m) { var b = grilleAcces.querySelector('.onglet-local[data-code="' + m.id + '"]'); if (b) b.textContent = libAcces(m); }
+      cases.forEach(function (lab) { lab.querySelector('input').addEventListener('change', function () { majOnglet(mod()); }); });
       // Onglets masquables (Surveillance CSI, Registre, Statistiques) : cochés = affichés
       var blocOnglets = h('div', { class: 'pile' }, h('span', { text: 'Onglets affichés' }), h('div', { class: 'actions gauche' }, ongletsMasquables().map(function (o) {
         var cb = h('input', { type: 'checkbox', checked: r.ongletsMasques.indexOf(o) < 0, onchange: function () {
@@ -91,8 +97,10 @@
       var noteAnonyme = h('small', { class: 'muted', text: 'Seul l’onglet Registre est ouvert, tel qu’il s’affiche habituellement (patients désignés par leur identifiant, IPP, et leur âge ; psychiatre et soignants chargés de la surveillance) : ni mesures, ni fiches patient, ni journal, ni fenêtre des exports, aucune saisie. Les agents peuvent l’imprimer et l’enregistrer en PDF ou en CSV. Exemple : membre d’une instance, direction, chargé de qualité.' });
       function majAnonyme() { var a = !!r.registreSeul; grilleAcces.hidden = a; blocJournal.hidden = a; blocOnglets.hidden = a; noteJournal.hidden = a || noteJournal.hidden; noteAnonyme.hidden = !a; }
       majAnonyme();
-      return h('fieldset', { class: 'role' },
-        h('legend', {}, r.libelle || r.code),
+      var legende = h('legend', {}, r.libelle || r.code);
+      var nbMods = 1 + autresModules().filter(function (m) { return ((r.modules || {})[m.id] || []).length; }).length;
+      var fs = h('fieldset', { class: 'role' },
+        legende,
         h('div', { class: 'grille-2' }, h('label', {}, 'Libellé', lib),
           h('div', { class: 'muted' }, h('small', { text: (r.fourni ? 'Rôle fourni avec l’outil' : 'Rôle propre à l’établissement') + ' — code ' + r.code + ' — ' + n + ' compte(s) actif(s)' }))),
         cbAnonyme ? h('label', { class: 'case' }, cbAnonyme, h('span', { text: 'Accès limité au registre (consultation seule)' })) : null, noteAnonyme,
@@ -107,6 +115,10 @@
           !r.fourni ? h('button', { class: 'btn petit danger', type: 'button', disabled: n > 0, title: n ? 'Retirez d’abord ce rôle des ' + n + ' compte(s) qui le portent.' : '', onclick: function () {
             liste.splice(liste.indexOf(r), 1); dessiner();
           } }, n ? 'Supprimer (rôle encore attribué)' : 'Supprimer ce rôle') : null));
+      // Rôle repliable (0.43.0) : la liste des rôles reste lisible ; un rôle ajouté s'ouvre
+      U.rendreRepliable(fs, legende, { cle: 'role|' + r.code, ouvert: !!r.nouveau,
+        resume: n + ' compte' + (n > 1 ? 's' : '') + ' — ' + (r.registreSeul ? 'registre seulement' : r.acces.length + ' accès en ' + mod().libelle + (autresModules().length ? ', accès dans ' + (nbMods - 1) + ' autre(s) module(s)' : '')) + (r.fourni ? '' : ' — rôle de l’établissement') });
+      return fs;
     }
 
     function dessiner() {
@@ -126,14 +138,17 @@
         var libelle = nomNouveau.value.trim();
         if (!libelle) return U.erreurDans(zoneErr, new Error('Indiquez le libellé du nouveau rôle.'));
         var src = liste.filter(function (x) { return x.code === modele.value; })[0];
-        liste.push({ code: nouveauCode(libelle, liste.map(function (x) { return x.code; }).concat(['ADMIN'])), libelle: libelle, acces: src ? src.acces.slice() : [], modules: src ? JSON.parse(JSON.stringify(src.modules || {})) : {}, services: src ? src.services : true, journal: src ? src.journal : 'services', ongletsMasques: src ? src.ongletsMasques.slice() : [], registreSeul: modele.value === '__anonyme' || !!(src && src.registreSeul), fourni: false });
+        liste.push({ code: nouveauCode(libelle, liste.map(function (x) { return x.code; }).concat(['ADMIN'])), libelle: libelle, acces: src ? src.acces.slice() : [], modules: src ? JSON.parse(JSON.stringify(src.modules || {})) : {}, services: src ? src.services : true, journal: src ? src.journal : 'services', ongletsMasques: src ? src.ongletsMasques.slice() : [], registreSeul: modele.value === '__anonyme' || !!(src && src.registreSeul), fourni: false, nouveau: true });
         nomNouveau.value = ''; dessiner();
       } }, '+ Ajouter'));
 
     dessiner();
+    var cmd = h('div', { class: 'actions gauche replis-commandes' },
+      h('button', { class: 'btn petit', type: 'button', onclick: function () { Array.prototype.forEach.call(zone.querySelectorAll('fieldset.role.repliable'), U.deplier); } }, 'Tout déplier'),
+      h('button', { class: 'btn petit', type: 'button', onclick: function () { Array.prototype.forEach.call(zone.querySelectorAll('fieldset.role.repliable'), function (f) { f.classList.add('replie'); var l = f.querySelector(':scope > legend'); if (l) l.setAttribute('aria-expanded', 'false'); }); } }, 'Tout replier'));
     return h('section', { class: 'panneau' }, h('h2', { text: 'Rôles et accès' }),
       h('p', { class: 'muted', text: 'Chaque compte porte un ou plusieurs rôles ; ses accès sont la réunion de ceux de ses rôles. Tous les agents voient les données de leurs services ; les accès ci-dessous ouvrent les saisies et actions. Un rôle sans accès donne une consultation seule. Le journal des saisies montre, selon le rôle, tout le journal, les saisies des services de l’agent, ses propres saisies, ou rien ; un agent qui cumule des rôles a le niveau le plus large. Les changements s’appliquent à la prochaine actualisation de chaque poste et sont tracés au journal.' }),
-      zoneErr, zone, ajout,
+      zoneErr, ajout, cmd, zone,
       U.boutonEnregistrer(async function () {
         var vus = {}, valeur = {};
         liste.forEach(function (r) {
