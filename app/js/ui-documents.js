@@ -702,6 +702,7 @@
         h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { var luI = { meta: { titre: titre.value || 'Sans titre', rattaches: meta.rattaches }, contenu: lireContenu() };
           if (tab) { var toutes = luI.contenu.feuilles.length > 1 && confirm('Imprimer toutes les feuilles ? (Annuler : la feuille affichée seulement)'); U.tableur.imprimer(luI.contenu, zonesPage, valeursPage(doc(id) || d0, luI.meta), toutes, tab.feuille()); }
           else { if (!marquesVisibles) luI.contenu = DM.resoudreSuivi(luI.contenu, true); imprimer(id, luI); } }); } }, 'Imprimer'),
+        DM.peutExporter(dd, moi(), cfg()) && !s().apercu && SIC.documentsExport ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { modaleExport(); }); } }, 'Exporter…') : null,
         gere && !dd.corbeille && !s().apercu ? h('button', { class: 'btn danger', type: 'button', onclick: function () { mettreACorbeille(id); } }, 'Corbeille') : null,
         h('button', { class: 'btn', type: 'button', onclick: fermer }, 'Fermer')));
       barre.appendChild(ligneTravail(dd));
@@ -719,7 +720,7 @@
     function nombreMarques() { if (tab) return tab.modifsSuivies().length; if (onglets.length > 1) return DM.modificationsSuivies(lireContenu()).length; var ids = {}; Array.prototype.forEach.call(corps.querySelectorAll(MARQUES), function (el, i) { ids[el.getAttribute('data-id') || 'n' + i] = 1; }); return Object.keys(ids).length; }
     function ligneTravail(dd) {
       var o = opts(), n = nombreMarques();
-      function option(k, v) { return async function () { try { await s().enregistrer('DOC_OPTIONS', Object.assign({ doc: id, simultane: o.simultane, suivi: o.suivi, nom: moi().nom }, (function () { var x = {}; x[k] = v; return x; })())); dessinerBarre(); U.toast(k === 'suivi' ? (v ? 'Suivi des modifications activé : vos ajouts et suppressions sont marqués.' : 'Suivi des modifications désactivé.') : (v ? 'Édition simultanée activée : les modifications des autres s’affichent en direct.' : 'Édition simultanée désactivée.')); } catch (e) { U.toast(e.message); } }; }
+      function option(k, v) { return async function () { try { await s().enregistrer('DOC_OPTIONS', Object.assign({ doc: id, simultane: o.simultane, suivi: o.suivi, export: o.export, nom: moi().nom }, (function () { var x = {}; x[k] = v; return x; })())); dessinerBarre(); U.toast(k === 'suivi' ? (v ? 'Suivi des modifications activé : vos ajouts et suppressions sont marqués.' : 'Suivi des modifications désactivé.') : (v ? 'Édition simultanée activée : les modifications des autres s’affichent en direct.' : 'Édition simultanée désactivée.')); } catch (e) { U.toast(e.message); } }; }
       var cbMarques = h('input', { type: 'checkbox', checked: marquesVisibles, 'aria-label': 'Afficher les marques' });
       cbMarques.addEventListener('change', function () { marquesVisibles = cbMarques.checked; corps.classList.toggle('suivi-masque', !marquesVisibles); if (tab) tab.marques(marquesVisibles); });
       return h('div', { class: 'doc-barre-ligne doc-travail' },
@@ -735,6 +736,24 @@
       zonePresence.appendChild(h('span', { class: 'muted', text: 'Aussi ouvert par : ' }));
       autres.forEach(function (x, i) { zonePresence.appendChild(h('span', { class: 'doc-avatar' + (x.modifie ? ' modifie' : ''), title: x.modifie ? 'Peut modifier le document' : 'En lecture', text: (i ? ' ' : '') + x.nom + (x.modifie ? ' (modifie)' : '') })); });
       if (!opts().simultane && modifiable && autres.some(function (x) { return x.modifie; })) zonePresence.appendChild(h('span', { class: 'muted', text: ' — vos enregistrements seront fusionnés avec les leurs.' }));
+    }
+    /** Export (0.40.0) : PDF, Word, RTF pour le texte ; Excel, CSV, PDF pour le tableur ; inscrit au journal. */
+    function modaleExport() {
+      var X = SIC.documentsExport, luE = { meta: { titre: titre.value.trim() || 'Sans titre', rattaches: meta.rattaches }, contenu: lireContenu() }, genre = luE.contenu.genre === 'tableur' ? 'tableur' : 'texte';
+      var fmt = h('select', { 'aria-label': 'Format' }, X.FORMATS[genre].map(function (f) { return h('option', { value: f.code, text: f.libelle }); }));
+      var marques = (genre === 'tableur' ? SIC.tableur.modificationsSuivies(luE.contenu) : DM.modificationsSuivies(luE.contenu)).length;
+      var suivi = h('select', { 'aria-label': 'Modifications suivies' }, [['final', 'Version finale (modifications acceptées)'], ['marques', 'Avec les modifications suivies (révisions de Word)']].map(function (x) { return h('option', { value: x[0], text: x[1] }); }));
+      var zSuivi = h('label', {}, 'Modifications suivies (' + marques + ')', suivi), feuille = tab ? tab.feuille() : 0;
+      function formes() { zSuivi.hidden = !(genre === 'texte' && marques && fmt.value === 'docx'); }
+      fmt.addEventListener('change', formes); formes();
+      U.modale('Exporter le document', h('div', { class: 'pile' }, h('label', {}, 'Format', fmt), zSuivi,
+        genre === 'tableur' ? h('small', { class: 'muted', text: 'CSV : feuille affichée (« ' + luE.contenu.feuilles[feuille].nom + ' »), séparateur « ; », pour un tableur en français. Excel : formules écrites en anglais avec leurs résultats ; les modifications suivies ne sont pas reprises.' }) : h('small', { class: 'muted', text: 'PDF : polices remplacées par Helvetica (police standard des PDF). RTF et PDF : modifications suivies acceptées.' }),
+        h('p', { class: 'alerte', text: 'Le fichier exporté n’est plus chiffré par Tessera : rangez-le sur le réseau de l’établissement, jamais sur un support personnel. Aucune donnée clinique.' })),
+        [{ texte: 'Annuler' }, { texte: 'Exporter', classe: 'primaire', action: async function () {
+          var der = DM.derniere(doc(id)), f = X.exporter(luE, { format: fmt.value, suivi: suivi.value, valeurs: valeursPage(doc(id) || d0, luE.meta), feuille: feuille, auteur: moi().nom });
+          await s().enregistrer('DOC_EXPORT', { doc: id, format: fmt.value, version: der ? der.id : '', nom: moi().nom });
+          await U.exporter('documents', f.nom, f.octets, f.type);
+        } }]);
     }
     /** Marques du suivi : chacune acceptée ou refusée, ou toutes. */
     function modaleSuivi() {
@@ -903,7 +922,10 @@
       });
     }
     dessiner();
+    var o0 = d.options || {}, exp = h('select', { 'aria-label': 'Qui peut exporter' }, [['lire', 'Toute personne qui peut le lire'], ['modifier', 'Qui peut le modifier (par défaut)'], ['gerer', 'Qui le gère seulement']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: (o0.export || 'modifier') === x[0] }); }));
     U.modale('Partager le document', h('div', { class: 'pile' }, zone,
+      h('label', {}, 'Qui peut exporter le document (PDF, Word, Excel, RTF, CSV) ?', exp),
+      h('small', { class: 'muted', text: 'Un fichier exporté n’est plus chiffré par Tessera : il est rangé dans le dossier des exports et chaque export est inscrit au journal.' }),
       h('fieldset', {}, h('legend', { text: 'Ajouter' }), h('div', { class: 'actions gauche' }, genre, code, svRole, droit,
         h('button', { class: 'btn', type: 'button', onclick: function () { var p = DM.entree({ genre: genre.value, code: code.value, service: svRole.value, droit: droit.value }); if (p) { l.push(p); l = DM.partage(l); dessiner(); } } }, 'Ajouter'))),
       h('p', { class: 'muted', text: 'Seules les personnes choisies reçoivent la clé du document. Un retrait crée une nouvelle clé pour la suite et retire l’accès aux versions précédentes.' })),
@@ -911,6 +933,7 @@
         var p = DM.partage(l), retrait = DM.retraitDe(d.partage, p);
         var r = await s().partagerCleDocument(id, DM.clesDocument(d.auteur, p), retrait);
         await s().enregistrer('DOC_PARTAGE', { doc: id, partage: p });
+        if (exp.value !== (o0.export || 'modifier')) await s().enregistrer('DOC_OPTIONS', { doc: id, simultane: !!o0.simultane, suivi: !!o0.suivi, export: exp.value, nom: moi().nom });
         U.toast(r.absentes.length ? 'Partage enregistré ; certaines clés ne sont pas encore créées (prochaine connexion d’un administrateur).' : 'Partage enregistré.');
       } }]);
   }
@@ -1183,7 +1206,7 @@
       } }, 'Enregistrer')) : null);
   }
   var LIB = { DOC: 'Documents : création', DOC_VERSION: 'Documents : version', DOC_PARTAGE: 'Documents : partage', DOC_STATUT: 'Documents : demande de validation ou retour en brouillon', DOC_VALIDATION: 'Documents : validation',
-    DOC_CORBEILLE: 'Documents : corbeille', DOC_EFFACE: 'Documents : effacement définitif', DOC_TRANSFERT: 'Documents : transfert de la gestion (compte retiré)' };
+    DOC_CORBEILLE: 'Documents : corbeille', DOC_EFFACE: 'Documents : effacement définitif', DOC_TRANSFERT: 'Documents : transfert de la gestion (compte retiré)', DOC_OPTIONS: 'Documents : options (suivi, édition simultanée, export)', DOC_EXPORT: 'Documents : export' };
   function resume(e) {
     var d = e.data || {}, x = doc(d.id || d.doc), m = x && metaConnue(x), nom = m ? '« ' + m.titre + ' »' : 'un document';
     switch (e.type) {
@@ -1194,6 +1217,8 @@
       case 'DOC_VALIDATION': return 'Validation de ' + nom + (d.supplementaire ? ', validation supplémentaire demandée à ' + nomAgent(d.supplementaire, x) : '') + (d.revision ? ' ; révision le ' + d.revision.split('-').reverse().join('/') : '');
       case 'DOC_CORBEILLE': return (d.corbeille ? 'Mis à la corbeille : ' : 'Restauré : ') + nom;
       case 'DOC_EFFACE': return 'Effacé définitivement : ' + nom + ' (clé détruite)';
+      case 'DOC_OPTIONS': return 'Options de ' + nom + ' : suivi des modifications ' + (d.suivi ? 'activé' : 'désactivé') + ', édition simultanée ' + (d.simultane ? 'activée' : 'désactivée') + (d.export ? ', export : ' + { lire: 'lecteurs', modifier: 'qui peut modifier', gerer: 'qui gère' }[d.export] : '');
+      case 'DOC_EXPORT': return 'Export de ' + nom + ' (' + String(d.format || '').toUpperCase() + ')';
       case 'DOC_TRANSFERT': return 'Gestion de ' + nom + ' transférée à ' + (d.vers || []).map(function (y) { return nomAgent(y, x); }).join(', ');
     }
     return LIB[e.type] || e.type;
