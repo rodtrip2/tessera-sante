@@ -54,14 +54,15 @@
   /** Intervenants d'un patient : [{ lien, intervenant (fiche du répertoire), commentaire }]. */
   function dePatient(st, fiche) {
     var m = (st && st.intervenants) || {};
-    return ((fiche && fiche.priseEnCharge) || []).map(function (l) { return { lien: l.lien, intervenant: m[l.intervenant], commentaire: l.commentaire || '' }; }).filter(function (x) { return x.intervenant && !x.intervenant.supprime; });
+    return ((fiche && fiche.priseEnCharge) || []).map(function (l) { return { lien: l.lien, intervenant: m[l.intervenant], commentaire: l.commentaire || '', tiers: !!l.tiers }; }).filter(function (x) { return x.intervenant && !x.intervenant.supprime; });
   }
   /**
    * Lignes de l'export du droit d'accès (décision du porteur du 11 novembre 2026) : type et nom de chaque professionnel
    * ou structure qui suit le patient, sans les coordonnées ni les commentaires internes du service. [[type, nom]].
    */
+  /** Export du droit d'accès : [type, nom, information d'un tiers] (sans coordonnées ni commentaires internes). */
   function pourExport(st, fiche, config) {
-    return dePatient(st, fiche).map(function (l) { return [libType(config, l.intervenant.type), l.intervenant.nom]; });
+    return dePatient(st, fiche).map(function (l) { return [libType(config, l.intervenant.type), l.intervenant.nom, !!l.tiers]; });
   }
   /** Réglage écrit par le cadre ou l'administrateur (types et champs : communs à l'établissement). */
   function controlerCadre(ancien, nouveau, compte) {

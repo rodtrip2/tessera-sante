@@ -42,9 +42,11 @@
         var i = l.intervenant;
         return h('li', { class: 'agenda-point' }, h('span', {}, h('span', { class: 'badge', text: K.libType(U.config(), i.type) }), ' ', h('b', { text: i.nom }), i.contact ? ' — ' + i.contact : '',
           K.reglages(U.config()).champs.filter(function (c) { return (i.champs || {})[c.code]; }).map(function (c) { return h('small', { class: 'muted', text: ' · ' + c.libelle + ' : ' + i.champs[c.code] }); }),
-          i.commentaire ? h('small', { class: 'muted', text: ' · ' + i.commentaire }) : null, l.commentaire ? h('div', {}, h('small', { text: 'Pour ce patient : ' + l.commentaire })) : null),
+          i.commentaire ? h('small', { class: 'muted', text: ' · ' + i.commentaire }) : null, l.commentaire ? h('div', {}, h('small', { text: 'Pour ce patient : ' + l.commentaire })) : null,
+          l.tiers ? h('span', { class: 'badge', title: 'Information d’un tiers : exclue du droit d’accès du patient', text: 'tiers' }) : null),
           ok ? h('span', { class: 'actions' },
-            h('button', { class: 'btn petit', type: 'button', onclick: function () { var c = prompt('Commentaire pour ce patient (court, sans donnée clinique) :', l.commentaire || ''); if (c !== null) ecrire({ patientId: fiche.id, lien: l.lien, intervenant: i.id, commentaire: c.trim().slice(0, 300) }, 'Commentaire enregistré.'); } }, 'Commentaire…'),
+            h('button', { class: 'btn petit', type: 'button', title: 'Information d’un tiers : exclue du droit d’accès du patient', onclick: function () { ecrire({ patientId: fiche.id, lien: l.lien, intervenant: i.id, commentaire: l.commentaire || '', tiers: !l.tiers }, l.tiers ? 'N’est plus marqué « tiers ».' : 'Marqué « information d’un tiers ».'); } }, l.tiers ? 'Pas un tiers' : 'Tiers'),
+            h('button', { class: 'btn petit', type: 'button', onclick: function () { var c = prompt('Commentaire pour ce patient (court, sans donnée clinique) :', l.commentaire || ''); if (c !== null) ecrire({ patientId: fiche.id, lien: l.lien, intervenant: i.id, commentaire: c.trim().slice(0, 300), tiers: !!l.tiers }, 'Commentaire enregistré.'); } }, 'Commentaire…'),
             h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleIntervenant(i, rouvrir); } }, 'Modifier la fiche…'),
             h('button', { class: 'btn petit danger', type: 'button', onclick: function () { if (confirm('Retirer « ' + i.nom + ' » de la prise en charge de ce patient ? Sa fiche reste dans le répertoire.')) ecrire({ patientId: fiche.id, lien: l.lien, retire: true }, 'Retiré de la fiche.'); } }, 'Retirer')) : null);
       })) : h('p', { class: 'muted', text: 'Aucun professionnel ni structure indiqué.' }));
