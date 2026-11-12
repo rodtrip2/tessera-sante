@@ -88,6 +88,8 @@
         !t.ferie && x.quotite < 100 ? h('small', { class: 'muted', text: 'Proratisé : quotité moyenne de l’année ' + nb(x.quotite) + ' %' }) : null);
     }));
   }
+  /** Demande déposée après la date limite d'une période de dépôt : non prioritaire, vue de l'agent et du validateur seulement. */
+  function badgeTardive(c) { return h('span', { class: 'badge cg-badge-tardive', title: 'Déposée après la date limite de « ' + c.tardive.libelle + ' » : non prioritaire, visible de l’agent et du validateur seulement jusqu’à la validation.', text: 'Non prioritaire (déposée après le ' + jourFr(c.tardive.limite) + ')' }); }
   function badgeQuotite(a) {
     var q = C.quotiteLe(st(), a.id, auj());
     return q.quotite < 100 || q.nonTravailles.length ? h('span', { class: 'badge', text: 'Temps partiel ' + q.quotite + ' %' + (q.nonTravailles.length ? ' — ' + q.nonTravailles.map(function (d) { return JS[d].replace('.', ''); }).join(', ') + ' non travaillé' + (q.nonTravailles.length > 1 ? 's' : '') : '') }) : null;
@@ -103,7 +105,7 @@
     if (((lui && (c.statut === 'souhait' || c.statut === 'demande')) || (v && c.statut !== 'annule' && c.statut !== 'refuse')) && !s().apercu) actions.push(h('button', { class: 'btn petit', type: 'button', onclick: function () { annuler(c); } }, c.statut === 'souhait' ? 'Supprimer' : 'Annuler…'));
     var m = c.statut === 'refuse' ? (c.decision || {}).motif : c.statut === 'annule' ? (c.annulation || {}).motif : '';
     return h('tr', {}, avecAgent ? h('td', {}, h('b', { text: nomDe(c) })) : null, h('td', { text: libType(c.type) }), h('td', { text: periodeFr(c) + (c.demiDebut ? ' (après-midi)' : '') + (c.demiFin ? ' (jusqu’au matin)' : '') }),
-      h('td', { text: nb(C.decompte(st(), cfg(), c)) + ' j' }), h('td', {}, badge(c.statut), m ? h('div', {}, h('small', { class: 'muted', text: m })) : null),
+      h('td', { text: nb(C.decompte(st(), cfg(), c)) + ' j' }), h('td', {}, badge(c.statut), c.statut === 'demande' && c.tardive ? h('div', {}, badgeTardive(c)) : null, m ? h('div', {}, h('small', { class: 'muted', text: m })) : null),
       h('td', { class: 'muted', text: c.decision ? (c.statut === 'valide' ? 'Validé' : 'Refusé') + ' par ' + (c.decision.nom || s().nomAuteur(c.decision.par)) + ' le ' + new Date(c.decision.le).toLocaleDateString('fr-FR') : c.demandeLe ? 'Demandé le ' + new Date(c.demandeLe).toLocaleDateString('fr-FR') : '' }),
       h('td', {}, h('div', { class: 'actions gauche' }, actions)));
   }
@@ -111,7 +113,7 @@
     var a = moi(), an = anneeVue(), l = C.congesDe(st(), a.id).filter(function (c) { return c.debut.slice(0, 4) === String(an) || c.fin.slice(0, 4) === String(an); });
     var selAn = h('select', { class: 'cg-annee', 'aria-label': 'Année', onchange: function () { vue.annee = +selAn.value; U.rendreContenu(); } }, annees().map(function (x) { return h('option', { value: x, text: String(x), selected: x === an }); }));
     return h('div', { class: 'pile' }, bandeauAvis(),
-      h('div', { class: 'barre' }, h('h1', { text: 'Mes congés' }), selAn, badgeQuotite(a), h('span', { class: 'espace' }),
+      h('div', { class: 'barre' }, h('h1', { text: 'Mes congés' }), selAn, o().afficherTempsPartiel ? badgeQuotite(a) : null, h('span', { class: 'espace' }),
         h('button', { class: 'btn', type: 'button', onclick: function () { U.App.onglet = 'tableau'; U.rendreContenu(); } }, 'Voir le tableau du service'),
         peut('CONGE') ? h('button', { class: 'btn primaire', type: 'button', onclick: function () { modaleDemande(null); } }, '+ Nouvelle demande') : null),
       alerte(), cartesSoldes(a, an),
@@ -153,6 +155,9 @@
       v.bloquees.forEach(function (p) { pts.push(h('li', { class: 'cg-bloque', text: 'Période bloquée par le validateur : ' + p.libelle + ' (du ' + jourFr(p.debut) + ' au ' + jourFr(p.fin) + ')' + (validateurDe(a) ? ' — vous pouvez la saisir en tant que validateur.' : ' : demande impossible sur ces dates.') })); });
       v.eviter.forEach(function (p) { pts.push(h('li', { text: 'Période à éviter : ' + p.libelle + ' (du ' + jourFr(p.debut) + ' au ' + jourFr(p.fin) + ').' })); });
       if (v.horsDelai) pts.push(h('li', { text: 'Hors délai : moins de ' + o().delaiMois + ' mois avant le début (signalé au validateur, non bloquant).' }));
+      var dejaTardive = c && c.statut === 'demande' ? c.tardive : null, tardive = dejaTardive || (!(c && c.statut === 'demande') ? v.tardive : null);
+      if (tardive) pts.push(h('li', { class: 'cg-tardive-avis', text: 'Date limite de dépôt dépassée pour « ' + tardive.libelle + ' » (avant le ' + jourFr(tardive.limite) + ') : votre demande reste possible mais n’est pas prioritaire. Elle n’apparaît qu’à vous et au validateur jusqu’à sa validation.' }));
+      (v.limites || []).forEach(function (p) { zone.appendChild(h('p', { class: 'info', text: '« ' + p.libelle + ' » : demandes à déposer avant le ' + jourFr(p.limite) + ' pour être prioritaires.' })); });
       v.regles.forEach(function (r) { pts.push(h('li', { text: (r.regle.bloquante ? 'Règle bloquante' : 'Règle') + ' du tableau « ' + r.nom + ' » : jusqu’à ' + r.max + ' ' + (r.regle.pour === '*' ? 'agents' : libRole(r.regle.pour)) + ' en congé en même temps (' + r.regle.max + ' au plus), les ' + r.jours.map(jourFr).join(', ') + '.' })); });
       if (pts.length) zone.appendChild(h('div', { class: 'alerte' }, h('b', { text: 'À vérifier :' }), h('ul', {}, pts)));
       var vals = C.validateurs(cfg(), comptes(), a);
@@ -206,6 +211,7 @@
     U.modale('Congé de ' + nomDe(c), h('div', { class: 'pile' },
       h('div', { class: 'barre' }, badge(c.statut), h('span', { class: 'muted', text: c.demandeLe ? 'demandé le ' + new Date(c.demandeLe).toLocaleDateString('fr-FR') : '' })),
       h('p', { text: (voitType ? libType(c.type) : 'Congé') + ', ' + periodeFr(c) + (voitType ? ' — ' + nb(C.decompte(st(), cfg(), c)) + ' jour(s) décompté(s)' : '') + '.' }),
+      c.statut === 'demande' && c.tardive ? h('p', { class: 'alerte' }, badgeTardive(c), h('span', { text: ' Demande déposée après la date limite : elle passe après les demandes déposées à temps, et n’est visible que de l’agent et du validateur jusqu’à sa validation.' })) : null,
       voitType && c.commentaire ? h('p', { class: 'muted', text: 'Commentaire : ' + c.commentaire }) : null,
       c.decision && c.decision.motif ? h('p', { class: 'muted', text: 'Motif : ' + c.decision.motif }) : null,
       x && (x.regles.length || x.bloquees.length || x.horsDelai) ? h('div', { class: 'alerte' }, h('ul', {}, x.regles.map(function (r) { return h('li', { text: 'Règle « ' + (r.regle.pour === '*' ? 'agents' : libRole(r.regle.pour)) + ' : ' + r.regle.max + ' au plus » : jusqu’à ' + r.max + ' les ' + r.jours.map(jourFr).join(', ') + '.' }); })
@@ -225,14 +231,15 @@
     var p = j.periodes.filter(function (x) { return x.effet === 'bloquee'; })[0] || j.periodes.filter(function (x) { return x.effet === 'eviter'; })[0] || j.periodes[0];
     return p ? 'cg-p-' + p.effet : j.horsDelai && tete ? 'cg-p-delai' : '';
   }
-  function couleurPeriode(el, j) { var p = j.periodes.filter(function (x) { return x.couleur; })[0]; if (p && p.effet === 'info') el.style.backgroundColor = p.couleur; return el; }
+  function couleurPeriode(el, j) { var p = j.periodes.filter(function (x) { return x.couleur; })[0]; if (p && p.effet === 'info') { el.style.backgroundColor = p.couleur; el.style.backgroundColor = 'color-mix(in srgb, ' + p.couleur + ' 45%, transparent)'; } return el; }
   function legende(t) {
     var stt = ['souhait', 'demande', 'valide', 'refuse'].filter(function (k) { return k !== 'souhait' || (o().souhaits && t.souhaits !== false); });
     var ps = C.periodes(st(), t.service, t.debut, t.fin);
     return h('div', { class: 'cg-legende' }, h('b', { text: 'Statut :' }), stt.map(function (k) { return h('span', {}, teinte(h('span', { class: 'cg-pastille cg-' + k }), k), C.STATUTS[k]); }),
       o().feries.afficher ? h('span', {}, teinte(h('span', { class: 'cg-pastille cg-ferie' }), 'ferie'), 'Férié posé d’office') : null,
-      h('span', {}, h('span', { class: 'cg-pastille cg-nt' }), 'Jour non travaillé (temps partiel)'),
-      ps.length ? h('b', { text: 'Périodes :' }) : null, ps.map(function (p) { return h('span', {}, couleurPeriode(h('span', { class: 'cg-pastille cg-p-' + p.effet }), { periodes: [p] }), p.libelle + (p.effet === 'bloquee' ? ' (bloquée)' : p.effet === 'eviter' ? ' (à éviter)' : '')); }),
+      o().afficherTempsPartiel ? h('span', {}, h('span', { class: 'cg-pastille cg-nt' }), 'Jour non travaillé (temps partiel)') : null,
+      peut('CONGE_DECISION') || s().roles().indexOf('ADMIN') >= 0 || ps.some(function (p) { return p.effet === 'limite'; }) ? h('span', {}, h('span', { class: 'cg-pastille cg-pastille-tardive' }), 'Demande non prioritaire (déposée après la date limite)') : null,
+      ps.length ? h('b', { text: 'Périodes :' }) : null, ps.map(function (p) { return h('span', {}, couleurPeriode(h('span', { class: 'cg-pastille cg-p-' + p.effet }), { periodes: [p] }), p.libelle + (p.effet === 'bloquee' ? ' (bloquée)' : p.effet === 'eviter' ? ' (à éviter)' : p.effet === 'limite' ? ' (dépôt avant le ' + jourFr(p.limite) + ')' : '')); }),
       o().delaiMois ? h('span', {}, h('span', { class: 'cg-pastille cg-p-delai' }), 'Hors délai de demande (' + o().delaiMois + ' mois)') : null,
       h('span', {}, h('span', { class: 'cg-pastille cg-pastille-regle' }), 'Règle non respectée'));
   }
@@ -274,12 +281,15 @@
   function caseConge(t, a, cel, j, premier) {
     var lui = a.compte.id === moi().id, v = validateurDe(a.compte), voit = lui || v, c = cel.conge;
     var montreSouhait = c && c.statut === 'souhait' && (lui || (v && t.souhaits !== false));
+    // Demande non prioritaire (déposée après la date limite) : vue de l'agent et du validateur seulement
+    if (c && c.statut === 'demande' && c.tardive && !voit) c = null;
+    var nt = cel.nonTravaille && o().afficherTempsPartiel;
     var el = h('div', { class: 'cg-case ' + classePeriode(j) + (j.semaine === 0 || j.semaine === 6 ? ' cg-we' : '') });
     couleurPeriode(el, j);
-    if (cel.nonTravaille && !(c && c.statut !== 'refuse')) { el.className = 'cg-case cg-nt'; el.title = 'Jour non travaillé (temps partiel)'; }
+    if (nt && !(c && c.statut !== 'refuse')) { el.className = 'cg-case cg-nt'; el.title = 'Jour non travaillé (temps partiel)'; }
     else if (c && (c.statut !== 'souhait' || montreSouhait) && (c.statut !== 'refuse' || voit)) {
-      el.className = 'cg-case cg-' + c.statut + (cel.nonTravaille ? ' cg-nt-dans' : ''); teinte(el, c.statut);
-      el.title = a.compte.nom + ' — ' + (voit ? libType(c.type) + ' — ' : '') + C.STATUTS[c.statut];
+      el.className = 'cg-case cg-' + c.statut + (nt ? ' cg-nt-dans' : '') + (c.statut === 'demande' && c.tardive ? ' cg-tardive' : ''); teinte(el, c.statut);
+      el.title = a.compte.nom + ' — ' + (voit ? libType(c.type) + ' — ' : '') + C.STATUTS[c.statut] + (c.statut === 'demande' && c.tardive ? ' — non prioritaire (déposée après le ' + jourFr(c.tardive.limite) + ')' : '');
       if (j.iso === c.debut || premier) el.appendChild(h('span', { text: voit ? abrevType(c.type) : '' }));
       el.addEventListener('click', function () { modaleConge(c); }); el.tabIndex = 0; el.setAttribute('role', 'button');
     } else if (cel.ferieOffice && o().feries.afficher) { el.className = 'cg-case cg-ferie'; teinte(el, 'ferie'); el.title = 'Férié posé d’office : ' + cel.ferie; el.appendChild(h('span', { text: 'F' })); }
@@ -302,7 +312,7 @@
     g.agents.forEach(function (a) {
       if (a.role !== role) { role = a.role; var rg = g.regles.filter(function (r) { return r.pour === a.role; })[0]; bloc.appendChild(h('div', { class: 'cg-groupe', text: (libRole(a.role) || 'Autres') + (rg ? ' — règle : ' + rg.max + ' au plus en congé en même temps' + (rg.bloquante ? ' (bloquante)' : '') : '') })); }
       var r = ligne(), q = C.quotiteLe(st(), a.compte.id, g.jours[0].iso);
-      r.appendChild(h('div', { class: 'cg-nom' }, U.equipe && U.equipe.lien ? U.equipe.lien(a.compte.id, a.compte.nom) : h('b', { text: a.compte.nom }), q.quotite < 100 ? h('small', { class: 'muted', text: ' ' + q.quotite + ' %' }) : null));
+      r.appendChild(h('div', { class: 'cg-nom' }, U.equipe && U.equipe.lien ? U.equipe.lien(a.compte.id, a.compte.nom) : h('b', { text: a.compte.nom }), o().afficherTempsPartiel && q.quotite < 100 ? h('small', { class: 'muted', text: ' ' + q.quotite + ' %' }) : null));
       a.cases.forEach(function (cel, i) {
         var j = g.jours[i], e = caseConge(t, a, cel, j, i === 0);
         if ((dep[j.iso] || []).some(function (p) { return p === '*' || (a.compte.roles || []).indexOf(p) >= 0; })) e.classList.add('cg-depasse');
@@ -315,6 +325,7 @@
       var rt = g.regles.filter(function (x) { return x.pour === '*'; })[0];
       lignesT.push(['*', 'Total en congé', rt ? rt.max : null]);
       if (o().souhaits && t.souhaits !== false && (peut('CONGE_DECISION') || s().roles().indexOf('ADMIN') >= 0)) lignesT.push(['souhaits', 'dont souhaits (non comptés)', null]);
+      if ((peut('CONGE_DECISION') || s().roles().indexOf('ADMIN') >= 0) && (g.comptes.tardives || []).some(function (v) { return v; })) lignesT.push(['tardives', 'Non prioritaires (non comptées)', null]);
       lignesT.forEach(function (x) {
         var r = ligne('cg-total'); r.appendChild(h('div', { class: 'cg-nom', text: x[1] }));
         (g.comptes[x[0]] || []).forEach(function (v) { r.appendChild(h('div', { class: 'cg-case ' + (x[2] !== null && v > x[2] ? 'cg-total-depasse' : v ? '' : 'cg-zero'), text: v ? String(v) : '·' })); });
@@ -342,7 +353,7 @@
       var r = ligne(), lui = a.compte.id === moi().id, v = validateurDe(a.compte);
       r.appendChild(h('div', { class: 'cg-nom' }, h('b', { text: a.compte.nom })));
       sem.forEach(function (x) {
-        var cels = x.idx.map(function (i) { return a.cases[i]; }), vus = cels.filter(function (c) { return c.conge && !c.nonTravaille && (c.statut === 'valide' || c.statut === 'demande' || (c.statut === 'souhait' && (lui || v))); });
+        var cels = x.idx.map(function (i) { return a.cases[i]; }), vus = cels.filter(function (c) { return c.conge && !c.nonTravaille && (c.statut === 'valide' || (c.statut === 'demande' && (!c.conge.tardive || lui || v)) || (c.statut === 'souhait' && (lui || v))); });
         var pire = ['demande', 'valide', 'souhait'].filter(function (k) { return vus.some(function (c) { return c.statut === k; }); })[0];
         var e = h('div', { class: 'cg-case' + (pire ? ' cg-' + pire : '') }, vus.length ? String(vus.length) : '');
         if (pire) { teinte(e, pire); e.title = a.compte.nom + ' : ' + vus.length + ' jour(s) de congé dans la semaine'; e.tabIndex = 0; e.setAttribute('role', 'button'); e.addEventListener('click', function () { vue.mode = 'jour'; vue.ref = x.lundi; U.rendreContenu(); }); }
@@ -378,8 +389,8 @@
           var pts = v.regles.map(function (r) { return h('span', { class: 'badge cg-badge-regle', text: (r.regle.pour === '*' ? 'Agents' : libRole(r.regle.pour)) + ' : ' + r.max + ' en même temps' }); })
             .concat(v.bloquees.map(function (p) { return h('span', { class: 'badge cg-badge-bloque', text: 'Période bloquée' }); }))
             .concat(v.eviter.map(function (p) { return h('span', { class: 'badge', text: 'À éviter : ' + p.libelle }); }))
-            .concat(v.horsDelai ? [h('span', { class: 'badge', text: 'Hors délai' })] : []);
-          return h('tr', {}, h('td', {}, h('b', { text: nomDe(c) }), h('div', {}, h('small', { class: 'muted', text: libRole(C.rolePrincipal(a.roles)) + (q.quotite < 100 ? ' · ' + q.quotite + ' %' : '') }))),
+            .concat(v.horsDelai ? [h('span', { class: 'badge', text: 'Hors délai' })] : []).concat(c.tardive ? [badgeTardive(c)] : []);
+          return h('tr', {}, h('td', {}, h('b', { text: nomDe(c) }), h('div', {}, h('small', { class: 'muted', text: libRole(C.rolePrincipal(a.roles)) + (o().afficherTempsPartiel && q.quotite < 100 ? ' · ' + q.quotite + ' %' : '') }))),
             h('td', { text: libType(c.type) }), h('td', { text: periodeFr(c) }), h('td', { text: nb(v.jours) + ' j' }), h('td', { text: v.soldeApres !== undefined ? nb(v.soldeApres) + ' j' : '—' }),
             h('td', { class: 'muted', text: c.demandeLe ? new Date(c.demandeLe).toLocaleDateString('fr-FR') : '' }), h('td', {}, pts.length ? h('div', { class: 'actions gauche' }, pts) : h('small', { class: 'muted', text: 'Aucun' }), c.commentaire ? h('div', {}, h('small', { class: 'muted', text: '« ' + c.commentaire + ' »' })) : null),
             h('td', {}, h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { decider(c, 'valide'); } }, 'Valider'),
@@ -438,11 +449,14 @@
     var deb = h('input', { type: 'date', value: x.debut, 'aria-label': 'Du' }), fin = h('input', { type: 'date', value: x.fin, 'aria-label': 'Au' });
     var eff = h('select', { 'aria-label': 'Effet' }, Object.keys(C.EFFETS).map(function (k) { return h('option', { value: k, text: C.EFFETS[k], selected: x.effet === k }); }));
     var coul = h('input', { type: 'color', value: x.couleur || '#e4eefb', 'aria-label': 'Couleur (information)' });
+    var lim = h('input', { type: 'date', value: x.limite || '', 'aria-label': 'Date limite de dépôt' }), zLim = h('label', {}, 'Date limite de dépôt (incluse)', lim);
+    function majEffet() { zLim.hidden = eff.value !== 'limite'; }
+    eff.addEventListener('change', majEffet); majEffet();
     var roles = rolesProposes().map(function (r) { return { r: r, cb: h('input', { type: 'checkbox', checked: (x.roles || []).indexOf(r) >= 0 }) }; });
     var boutons = [{ texte: 'Annuler' }];
     if (p) boutons.push({ texte: p.effet === 'bloquee' ? 'Lever le blocage' : 'Supprimer la période', classe: 'danger', action: async function () { await s().enregistrer('PERIODE_CONGES', { id: p.id, service: p.service, supprime: true }); U.toast('Période retirée.'); } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
-      var d = { id: (p && p.id) || 'PC' + CR.hex(CR.aleatoire(4)), service: sv.value, libelle: lib.value.trim(), debut: deb.value, fin: fin.value || deb.value, effet: eff.value, couleur: coul.value, roles: roles.filter(function (y) { return y.cb.checked; }).map(function (y) { return y.r; }) };
+      var d = { id: (p && p.id) || 'PC' + CR.hex(CR.aleatoire(4)), service: sv.value, libelle: lib.value.trim(), debut: deb.value, fin: fin.value || deb.value, effet: eff.value, couleur: coul.value, limite: eff.value === 'limite' ? lim.value : '', roles: roles.filter(function (y) { return y.cb.checked; }).map(function (y) { return y.r; }) };
       if (d.effet === 'bloquee') {
         var deja = Object.keys(st().conges).map(function (k) { return st().conges[k]; }).filter(function (c) { return c.service === d.service && c.statut === 'valide' && c.debut <= d.fin && c.fin >= d.debut; });
         if (deja.length && !confirm(deja.length + ' congé(s) déjà validé(s) sur cette période : ils restent validés (' + deja.map(nomDe).join(', ') + '). Bloquer la période pour les nouvelles demandes ?')) return false;
@@ -450,9 +464,9 @@
       await s().enregistrer('PERIODE_CONGES', d); U.toast(d.effet === 'bloquee' ? 'Période bloquée.' : 'Période enregistrée.');
     } });
     U.modale(p ? 'Période' : x.effet === 'bloquee' ? 'Bloquer une période' : 'Nouvelle période', h('div', { class: 'pile' },
-      h('div', { class: 'grille-2' }, h('label', {}, 'Libellé (affiché aux agents)', lib), h('label', {}, 'Pour', sv), h('label', {}, 'Du', deb), h('label', {}, 'Au', fin), h('label', {}, 'Effet', eff), h('label', {}, 'Couleur (information)', coul)),
+      h('div', { class: 'grille-2' }, h('label', {}, 'Libellé (affiché aux agents)', lib), h('label', {}, 'Pour', sv), h('label', {}, 'Du', deb), h('label', {}, 'Au', fin), h('label', {}, 'Effet', eff), h('label', {}, 'Couleur (information)', coul), zLim),
       h('fieldset', {}, h('legend', { text: 'Rôles concernés (aucune case : tous)' }), h('div', { class: 'actions gauche' }, roles.map(function (y) { return h('label', { class: 'case' }, y.cb, h('span', { text: libRole(y.r) })); }))),
-      h('small', { class: 'muted', text: 'Bloquée : aucune demande ni souhait possible ces jours-là (le validateur peut toujours saisir) ; les congés déjà validés restent. Tracée au journal ; se lève à tout moment.' })), boutons);
+      h('small', { class: 'muted', text: 'Bloquée : aucune demande ni souhait possible ces jours-là (le validateur peut toujours saisir) ; les congés déjà validés restent. Dépôt avant une date limite (ex. congés d’été à poser avant le 31 mars) : après cette date, une demande reste possible mais elle est non prioritaire, avec un avertissement, et n’apparaît qu’à l’agent et au validateur jusqu’à sa validation. Tracée au journal ; se lève à tout moment.' })), boutons);
   }
   function panneauTableaux() {
     var sv = servicesGeres().map(function (x) { return x.code; }), ts = Object.keys(st().tableaux).map(function (k) { return st().tableaux[k]; }).filter(function (t) { return !t.supprime && sv.indexOf(t.service) >= 0; });
@@ -468,7 +482,7 @@
       peut('PERIODE_CONGES') ? h('button', { class: 'btn', type: 'button', onclick: function () { modalePeriode(null, { effet: 'bloquee' }); } }, 'Bloquer une période…') : null,
       peut('PERIODE_CONGES') ? h('button', { class: 'btn primaire', type: 'button', onclick: function () { modalePeriode(null); } }, '+ Période') : null),
       ps.length ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Période', 'Pour', 'Dates', 'Effet', ''].map(function (x) { return h('th', { text: x }); }))),
-        h('tbody', {}, ps.map(function (p) { return h('tr', {}, h('td', {}, couleurPeriode(h('span', { class: 'cg-pastille cg-p-' + p.effet }), { periodes: [p] }), p.libelle), h('td', { text: p.service === '*' ? 'Établissement' : U.libService(p.service) }), h('td', { text: jourFr(p.debut) + ' → ' + jourFr(p.fin) }), h('td', { text: C.EFFETS[p.effet] }),
+        h('tbody', {}, ps.map(function (p) { return h('tr', {}, h('td', {}, couleurPeriode(h('span', { class: 'cg-pastille cg-p-' + p.effet }), { periodes: [p] }), p.libelle), h('td', { text: p.service === '*' ? 'Établissement' : U.libService(p.service) }), h('td', { text: jourFr(p.debut) + ' → ' + jourFr(p.fin) }), h('td', { text: p.effet === 'limite' ? 'Dépôt avant le ' + jourFr(p.limite) + ' (après : non prioritaire)' : C.EFFETS[p.effet] }),
           h('td', {}, (p.service !== '*' || s().roles().indexOf('ADMIN') >= 0) && peut('PERIODE_CONGES') ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modalePeriode(p); } }, 'Modifier') : null)); })))) : h('p', { class: 'muted', text: 'Aucune période.' }),
       h('small', { class: 'muted', text: 'Périodes de l’établissement (vacances scolaires…) : administrateur ; périodes et blocages d’un service : son cadre ou son validateur. Délai préalable de demande : ' + o().delaiMois + ' mois (Administration → Congés).' }));
   }
@@ -599,14 +613,16 @@
       U.boutonEnregistrer(enregistrer(function (n) { n.feries = { afficher: aff.checked, locaux: locaux.filter(function (x) { return /^(\d{4}-)?\d{2}-\d{2}$/.test(x.date); }) }; })));
     // Options, couleurs, avertissement
     var delai = h('input', { type: 'number', min: 0, max: 12, value: op.delaiMois, class: 'champ-court', 'aria-label': 'Délai préalable de demande (mois)' });
+    var tpa = h('input', { type: 'checkbox', checked: op.afficherTempsPartiel });
     var sou = h('input', { type: 'checkbox', checked: op.souhaits }), arr = h('select', { 'aria-label': 'Arrondi des droits proratisés' }, [['0.5', 'au demi-jour supérieur'], ['1', 'au jour supérieur']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: String(op.arrondi) === x[0] }); }));
     var couls = Object.keys(C.COULEURS_DEFAUT).map(function (k) { return { k: k, inp: h('input', { type: 'color', value: op.couleurs[k], 'aria-label': 'Couleur : ' + (C.STATUTS[k] || 'Férié posé d’office') }) }; });
     var pOptions = h('section', { class: 'panneau' }, h('h2', { text: 'Options et couleurs' }),
       h('label', { class: 'en-ligne' }, 'Délai préalable de demande', delai, h('span', { text: 'mois (hors délai : signalé, non bloquant ; 0 : aucun)' })),
       h('label', { class: 'case' }, sou, h('span', { text: 'Souhaits activés (brouillons visibles de l’agent et du validateur)' })),
+      h('label', { class: 'case' }, tpa, h('span', { text: 'Afficher la quotité et les jours non travaillés du temps partiel dans les tableaux, la liste « À valider » et « Mes congés » (sinon : seulement dans la fiche de l’agent et « Droits et quotités »)' })),
       h('label', { class: 'en-ligne' }, 'Arrondi des droits proratisés', arr),
       h('div', { class: 'actions gauche' }, couls.map(function (c) { return h('label', { class: 'en-ligne' }, c.inp, h('span', { text: C.STATUTS[c.k] || 'Férié posé d’office' })); })),
-      U.boutonEnregistrer(enregistrer(function (n) { n.delaiMois = +delai.value; n.souhaits = sou.checked; n.arrondi = +arr.value; n.couleurs = {}; couls.forEach(function (c) { n.couleurs[c.k] = c.inp.value; }); })));
+      U.boutonEnregistrer(enregistrer(function (n) { n.delaiMois = +delai.value; n.souhaits = sou.checked; n.afficherTempsPartiel = tpa.checked; n.arrondi = +arr.value; n.couleurs = {}; couls.forEach(function (c) { n.couleurs[c.k] = c.inp.value; }); })));
     var act = h('input', { type: 'checkbox', checked: op.alerte.active }), txt = h('textarea', { rows: 3, maxlength: 600, 'aria-label': 'Message d’avertissement' }); txt.value = op.alerte.texte;
     var pAlerte = h('section', { class: 'panneau' }, h('h2', { text: 'Message d’avertissement' }),
       h('label', { class: 'case' }, act, h('span', { text: 'Afficher le message dans Mes congés, les tableaux, les demandes et la fiche de l’agent' })), txt,

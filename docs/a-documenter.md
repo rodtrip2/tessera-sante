@@ -602,3 +602,13 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 
 - Ancien format des permissions et ancien nombre d'accompagnateurs : lus pour les saisies existantes (journal en ajout seul), plus proposés à la saisie.
 - Identifiants stables des largeurs de colonnes (hors liste des patients) : non faits.
+
+## Version 0.44.1 (branche `conges-2`, 12 novembre 2026)
+
+| Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Temps partiel masqué par défaut | Ni la quotité ni les jours non travaillés du temps partiel ne s'affichent par défaut dans les tableaux, la liste « À valider » et « Mes congés » ; ils restent dans la fiche de l'agent (onglet « Congés et droits ») et dans « Droits et quotités ». Option pour les afficher (désactivée par défaut) | Réglage `conges.afficherTempsPartiel` (Administration → Congés → Options et couleurs) ; `ui-conges.js` (`caseConge`, `grilleJours`, `legende`, `vueAValider`, `vueMesConges`) |
+| Lisibilité (thème sombre, totaux) | Totaux et cases du tableau lisibles en thème sombre ; périodes colorées en voiles translucides | `app.css` (`.cg-case` en `var(--ink)`, `.cg-p-*` en rgba) ; `couleurPeriode` en `color-mix` |
+| Date limite de dépôt | Nouvel effet de période « Dépôt avant une date limite » (ex. congés d'été à poser avant le 31 mars, date incluse). Après la date, la demande reste possible mais elle est **non prioritaire** : avertissement à la demande, visible de l'agent et du validateur seulement jusqu'à sa validation, non comptée dans les totaux et les règles (ligne « Non prioritaires » pour le validateur), présentée en dernier dans « À valider » ; une fois validée, elle apparaît normalement. Rappel de la date limite tant qu'elle n'est pas passée | `PERIODE_CONGES` : `effet: 'limite'`, `limite` (date avant le début, contrôlée) ; `CONGE.tardive` { periode, libelle, limite } fixé au dépôt de la demande ; `limiteDepassee`, `verifier` (`tardive`, `limites`), `grille` (`comptes.tardives`), `aValider` |
+| Jeu de démonstration | Période « Congés d'été (année suivante) (fictif) » à poser avant une date passée depuis un mois ; demande de l'agent E déposée après | `demo.js` (`PC-ETE`) |
+| À valider | Documents : guide du module Congés (périodes, date limite, option temps partiel), `docs/architecture.md` (réglage, saisies), `CHANGELOG.md` | — |
