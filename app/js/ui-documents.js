@@ -50,7 +50,11 @@
     var n = frag;
     if (r.b) n = [h('s', {}, n)]; if (r.s) n = [h('u', {}, n)]; if (r.i) n = [h('i', {}, n)]; if (r.g) n = [h('b', {}, n)];
     var cl = classesRun(r);
-    return cl ? [h('span', { class: cl }, n)] : n;
+    if (cl) n = [h('span', { class: cl }, n)];
+    // Suivi des modifications (0.37.0)
+    if (r.ins) n = [h('ins', { class: 'suivi-ins', 'data-p': r.ins.p, 'data-n': r.ins.n, 'data-le': r.ins.le, title: 'Ajouté par ' + (r.ins.n || r.ins.p) + ' le ' + jourFr(r.ins.le) }, n)];
+    if (r.del) n = [h('del', { class: 'suivi-del', 'data-p': r.del.p, 'data-n': r.del.n, 'data-le': r.del.le, title: 'Supprimé par ' + (r.del.n || r.del.p) + ' le ' + jourFr(r.del.le) }, n)];
+    return n;
   }
   function noeudsRuns(runs) { var res = []; (runs || []).forEach(function (r) { res = res.concat(noeudsRun(r)); }); if (!res.length) res.push(h('br')); return res; }
   function classesBloc(b) { var c = []; if (b.al && b.al !== 'g') c.push('al-' + b.al); if (b.r) c.push('r-' + b.r); return c.join(' ') || null; }
@@ -105,8 +109,10 @@
     var x = Object.assign({}, m), tag = el.tagName;
     if (tag === 'B' || tag === 'STRONG') x.g = true;
     if (tag === 'I' || tag === 'EM') x.i = true;
-    if (tag === 'U' || tag === 'INS') x.s = true;
-    if (tag === 'S' || tag === 'STRIKE' || tag === 'DEL') x.b = true;
+    var suivi = el.getAttribute && el.getAttribute('data-p') && (tag === 'INS' || tag === 'DEL');
+    if (suivi) x[tag === 'INS' ? 'ins' : 'del'] = { p: el.getAttribute('data-p'), n: el.getAttribute('data-n') || '', le: el.getAttribute('data-le') || '' };
+    if (tag === 'U' || (tag === 'INS' && !suivi)) x.s = true;
+    if (tag === 'S' || tag === 'STRIKE' || (tag === 'DEL' && !suivi)) x.b = true;
     (el.classList ? Array.prototype.slice.call(el.classList) : []).forEach(function (c) {
       Object.keys(CL).forEach(function (k) { if (c.indexOf(CL[k]) === 0) { var v = c.slice(CL[k].length); x[k] = k === 'z' ? +v : v; } });
     });
@@ -223,7 +229,9 @@
   function editeur(d0, lu, base) {
     var id = d0.id, meta = JSON.parse(JSON.stringify(lu.meta)), page = JSON.parse(JSON.stringify(lu.contenu.page));
     var droit = DM.droitDe(d0, moi(), cfg()), modifiable = !s().apercu && !d0.corbeille && DM.DROITS_DOC[droit] >= 2;
-    var sale = false, minuteur = null, enregistrement = null, rangeGarde = null, ferme = false;
+    var sale = false, minuteur = null, enregistrement = null, rangeGarde = null, ferme = false, minuteurDirect = null, autres = [], marquesVisibles = true;
+    function opts() { return ((doc(id) || d0).options) || { simultane: false, suivi: false }; }
+    function suiviActif() { return modifiable && opts().suivi; }
     var dlg = h('dialog', { class: 'doc-editeur', 'aria-label': 'Document : ' + meta.titre });
     var titre = h('input', { type: 'text', class: 'doc-titre', maxlength: 160, value: meta.titre === 'Sans titre' && !base ? '' : meta.titre, placeholder: 'Titre du document', 'aria-label': 'Titre du document', readonly: !modifiable });
     var etat = h('span', { class: 'doc-etat muted', 'aria-live': 'polite' });
@@ -231,7 +239,7 @@
     rendreBlocs(lu.contenu.blocs || []).forEach(function (n) { corps.appendChild(n); });
     var entete = h('div'), pied = h('div'), feuille = h('div', { class: 'doc-feuille' }, entete, corps, pied);
     // Tableur (0.35.0) : surface du classeur à la place de la page de texte ; la fenêtre, l'enregistrement et le reste sont communs
-    var tab = lu.contenu.genre === 'tableur' ? U.tableur.surface(lu.contenu, { modifiable: modifiable, changer: function () { marquer(); } }) : null;
+    var tab = lu.contenu.genre === 'tableur' ? U.tableur.surface(lu.contenu, { modifiable: modifiable, changer: function () { marquer(); }, suivi: suiviActif, agent: { id: moi().id, nom: moi().nom }, nomAgent: function (x) { return nomAgent(x, doc(id) || d0); } }) : null;
     if (tab) page = tab.page;
     function lireContenu() { return tab ? DM.contenu(tab.lire()) : DM.contenu({ blocs: lireBlocs(corps), page: page }); }
     function dessinerZones() {
@@ -242,7 +250,56 @@
     }
     dessinerZones();
 
-    function marquer() { if (!modifiable) return; sale = true; etat.textContent = 'Modifications non enregistrées'; clearTimeout(minuteur); minuteur = setTimeout(function () { enregistrer(false); }, SAUVEGARDE_MS); }
+    // Édition simultanée en direct (0.37.0) : enregistrement 3 s après la dernière frappe, sinon 15 s
+    var tours = 0;   // compteur des modifications : une frappe pendant un enregistrement n'est jamais perdue
+    function marquer() { if (!modifiable) return; sale = true; tours++; etat.textContent = 'Modifications non enregistrées'; clearTimeout(minuteur); minuteur = setTimeout(function () { enregistrer(false); }, opts().simultane ? 3000 : SAUVEGARDE_MS); }
+    /** Contenu affiché remplacé (version d'un autre agent ou fusion), position du curseur gardée autant que possible. */
+    function appliquerContenu(x) {
+      if (document.activeElement !== titre && x.meta.titre !== (titre.value.trim() || 'Sans titre')) titre.value = x.meta.titre;
+      meta.rattaches = x.meta.rattaches;
+      if (tab) { tab.remplacer(x.contenu); return; }
+      var pos = positionCurseur();
+      U.vider(corps); rendreBlocs(x.contenu.blocs || []).forEach(function (n) { corps.appendChild(n); });
+      Object.assign(page, x.contenu.page); dessinerZones(); remettreCurseur(pos);
+    }
+    function positionCurseur() {
+      var sel = window.getSelection(); if (!sel.rangeCount || !corps.contains(sel.anchorNode)) return null;
+      var n = sel.anchorNode; while (n && n.parentNode !== corps) n = n.parentNode;
+      if (!n) return null;
+      var i = Array.prototype.indexOf.call(corps.childNodes, n), r = document.createRange(); r.setStart(n, 0); r.setEnd(sel.anchorNode, sel.anchorOffset);
+      return { i: i, off: r.toString().length };
+    }
+    function remettreCurseur(pos) {
+      if (!pos) return;
+      var n = corps.childNodes[Math.min(pos.i, corps.childNodes.length - 1)]; if (!n) return;
+      var w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT), reste = pos.off, t = w.nextNode(), dernier = null;
+      while (t) { if (t.nodeValue.length >= reste) break; reste -= t.nodeValue.length; dernier = t; t = w.nextNode(); }
+      var r = document.createRange();
+      if (t) r.setStart(t, reste); else if (dernier) r.setStart(dernier, dernier.nodeValue.length); else r.setStart(n, 0);
+      r.collapse(true); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    }
+    /**
+     * Version enregistrée par un autre agent depuis la sienne : fusion à trois (base = version de départ) ; ce que chacun a
+     * changé est gardé ; un même passage changé des deux côtés : les deux sont gardés (conflit signalé).
+     */
+    var toursDepart = 0;
+    async function integrerAutres(contenuMien) {
+      var dd = doc(id), der = DM.derniere(dd);
+      if (!der || !base || der.id === base) return null;
+      // Ancêtre commun : la version de départ de la dernière version (enregistrée en même temps que la sienne), sinon la sienne
+      var ancetre = der.base && der.base !== base ? der.base : base, va = dd.versions.filter(function (v) { return v.id === ancetre; })[0];
+      var autre = await lireVersion(dd, der), depart = cache[ancetre] || (va ? await lireVersion(dd, va) : null) || cache[base];
+      if (!autre) return null;
+      if (!depart) { base = der.id; return null; }
+      // Frappe pendant la lecture : la fusion part du contenu affiché à cet instant (rien n'est perdu)
+      if (tours !== toursDepart) contenuMien = lireContenu();
+      var f = DM.fusionnerVersions(depart, { meta: { titre: titre.value.trim() || 'Sans titre', rattaches: meta.rattaches }, contenu: contenuMien }, autre);
+      base = der.id;
+      appliquerContenu(f);
+      var qui = nomAgent(der.par, dd);
+      U.toast('Modifications de ' + qui + ' intégrées' + (f.conflits ? ' ; ' + f.conflits + ' passage(s) modifié(s) des deux côtés : les deux versions sont gardées, à relire.' : '.'));
+      return f;
+    }
     async function enregistrer(fermer) {
       clearTimeout(minuteur);
       if (!modifiable || (!sale && !fermer)) return true;
@@ -250,14 +307,19 @@
       enregistrement = (async function () {
         try {
           if (!tab) normaliserPage();
+          var contenu = lireContenu(); toursDepart = tours;
+          // Version d'un autre agent enregistrée entre-temps : fusion avant d'enregistrer la sienne (0.37.0)
+          try { await s().synchroniser(); } catch (e) { /* lecture des dernières saisies impossible : fusion à la prochaine */ }
+          var fu = await integrerAutres(contenu);
+          if (fu) { contenu = fu.contenu; meta.rattaches = fu.meta.rattaches; }
+          else if (tours !== toursDepart) { if (!tab) normaliserPage(); contenu = lireContenu(); }
+          var toursEnregistres = tours;
           meta.titre = titre.value.trim() || 'Sans titre';
-          var contenu = lireContenu();
-          var dd = doc(id), der = DM.derniere(dd);
-          if (der && base && der.id !== base && der.par !== moi().id) U.toast(nomAgent(der.par, dd) + ' a enregistré une version pendant votre travail : la vôtre vient après (la sienne reste dans l’historique).');
           var c = await s().chiffrerDocument(id, { meta: meta, contenu: contenu });
-          var e = await s().enregistrer('DOC_VERSION', { doc: id, g: c.g, ct: c.ct, nom: moi().nom });
+          var e = await s().enregistrer('DOC_VERSION', { doc: id, g: c.g, ct: c.ct, nom: moi().nom, base: base || '' });
           cache[e.id] = { meta: DM.meta(meta), contenu: contenu };
-          base = e.id; sale = false;
+          base = e.id; sale = tours !== toursEnregistres;   // frappe pendant l'écriture : un nouvel enregistrement suivra
+          if (sale) marquer();
           etat.textContent = 'Enregistré à ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
           dessinerBarre();
           return true;
@@ -267,6 +329,58 @@
       return enregistrement;
     }
     corps.addEventListener('input', marquer);
+    // Suivi des modifications (0.37.0) : texte ajouté et supprimé marqué (auteur, date) au lieu d'être écrit ou effacé
+    corps.addEventListener('beforeinput', function (ev) {
+      if (!suiviActif()) return;
+      var t2 = ev.inputType;
+      if (t2 === 'insertText' || t2 === 'insertReplacementText' || t2 === 'insertCompositionText') {
+        if (t2 === 'insertCompositionText') return;
+        ev.preventDefault(); insererSuivi(ev.data || (ev.dataTransfer && ev.dataTransfer.getData('text/plain')) || ''); marquer();
+      } else if (/^delete/.test(t2)) { ev.preventDefault(); supprimerSuivi(t2); marquer(); }
+    });
+    function marqueSuivi(tag) {
+      var me = moi(), le = new Date().toISOString();
+      return h(tag, { class: 'suivi-' + tag, 'data-p': me.id, 'data-n': me.nom, 'data-le': le, title: (tag === 'ins' ? 'Ajouté' : 'Supprimé') + ' par ' + me.nom + ' le ' + jourFr(le) });
+    }
+    function monIns(n) { var x = n && (n.nodeType === 1 ? n : n.parentNode); x = x && x.closest ? x.closest('ins.suivi-ins') : null; return x && corps.contains(x) && x.getAttribute('data-p') === moi().id ? x : null; }
+    function dansDel(n) { var x = n && (n.nodeType === 1 ? n : n.parentNode); x = x && x.closest ? x.closest('del.suivi-del') : null; return x && corps.contains(x) ? x : null; }
+    function insererSuivi(texte) {
+      var sel = window.getSelection(); if (!sel.rangeCount) return;
+      var r = sel.getRangeAt(0);
+      if (!r.collapsed) { supprimerPlage(r, false); r = window.getSelection().getRangeAt(0); }
+      if (!texte) return;
+      var d = dansDel(r.startContainer); if (d) { r.setStartAfter(d); r.collapse(true); }
+      var noeud = document.createTextNode(texte), ins = monIns(r.startContainer);
+      if (ins) r.insertNode(noeud);
+      else { var el = marqueSuivi('ins'); el.appendChild(noeud); r.insertNode(el); }
+      r.setStartAfter(noeud); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+    }
+    function supprimerSuivi(type) {
+      var sel = window.getSelection(); if (!sel.rangeCount) return;
+      var arriere = /Backward/.test(type);
+      if (sel.getRangeAt(0).collapsed) { try { sel.modify('extend', arriere ? 'backward' : 'forward', /Word/.test(type) ? 'word' : /Line/.test(type) ? 'lineboundary' : 'character'); } catch (e) { return; } }
+      var r = sel.getRangeAt(0); if (r.collapsed) return;
+      supprimerPlage(r, arriere);
+    }
+    /** Plage supprimée avec suivi : son propre texte ajouté disparaît, le reste est marqué « supprimé ». */
+    function supprimerPlage(r, arriere) {
+      var textes = [], w = document.createTreeWalker(r.commonAncestorContainer.nodeType === 3 ? r.commonAncestorContainer.parentNode : r.commonAncestorContainer, NodeFilter.SHOW_TEXT), n;
+      while ((n = w.nextNode())) if (r.intersectsNode(n) && corps.contains(n)) textes.push(n);
+      var premier = null, dernier = null;
+      textes.forEach(function (tn) {
+        var a = tn === r.startContainer ? r.startOffset : 0, b = tn === r.endContainer ? r.endOffset : tn.nodeValue.length;
+        if (b <= a) return;
+        if (dansDel(tn)) { premier = premier || tn; dernier = tn; return; }
+        var milieu = tn; if (a > 0) milieu = tn.splitText(a); if (b - a < milieu.nodeValue.length) milieu.splitText(b - a);
+        if (monIns(milieu)) { var p0 = milieu.parentNode; p0.removeChild(milieu); if (!p0.textContent) { var ancre = h('span'); p0.parentNode.insertBefore(ancre, p0); p0.parentNode.removeChild(p0); premier = premier || ancre; dernier = ancre; } return; }
+        var del = marqueSuivi('del'); milieu.parentNode.insertBefore(del, milieu); del.appendChild(milieu);
+        premier = premier || del; dernier = del;
+      });
+      var sel = window.getSelection(), c = document.createRange();
+      if (premier && premier.isConnected) { if (arriere) c.setStartBefore(premier); else c.setStartAfter(dernier && dernier.isConnected ? dernier : premier); } else { c.setStart(r.startContainer, Math.min(r.startOffset, (r.startContainer.nodeValue || r.startContainer.childNodes || '').length)); }
+      c.collapse(true); sel.removeAllRanges(); sel.addRange(c);
+      Array.prototype.forEach.call(corps.querySelectorAll('span:not([class])'), function (x) { if (!x.textContent) { var r2 = document.createRange(); if (sel.rangeCount && x.contains(sel.anchorNode)) { r2.setStartBefore(x); r2.collapse(true); } x.parentNode.removeChild(x); if (r2.startContainer !== document) { sel.removeAllRanges(); sel.addRange(r2); } } });
+    }
     titre.addEventListener('input', function () { marquer(); dessinerZones(); dlg.setAttribute('aria-label', 'Document : ' + (titre.value || 'Sans titre')); });
 
     // Sélection gardée : les listes de la barre d'outils prennent le focus
@@ -377,7 +491,14 @@
       blocs = blocs.map(DM.bloc).filter(Boolean);
       if (!blocs.length) return;
       var sel = window.getSelection(); if (!sel.rangeCount) return;
-      var r = sel.getRangeAt(0); r.deleteContents();
+      var r = sel.getRangeAt(0);
+      if (suiviActif()) {
+        // Suivi : la sélection remplacée est marquée supprimée, le texte collé marqué ajouté
+        if (!r.collapsed) { supprimerPlage(r, false); r = window.getSelection().getRangeAt(0); }
+        var mq = { p: moi().id, n: moi().nom, le: new Date().toISOString() };
+        blocs.forEach(function (b) { (b.t === 'table' ? [].concat.apply([], b.lignes.map(function (l) { return l.map(function (c) { return c.runs; }); })) : [b.runs || []]).forEach(function (rs) { rs.forEach(function (x) { x.ins = mq; }); }); });
+        var dz = dansDel(r.startContainer); if (dz) { r.setStartAfter(dz); r.collapse(true); }
+      } else r.deleteContents();
       if (blocs.length === 1 && (blocs[0].t === 'p' || blocs[0].t === 'li')) {
         var frag = document.createDocumentFragment(); noeudsRuns(blocs[0].runs).forEach(function (n) { if (n.tagName !== 'BR' || blocs[0].runs.length) frag.appendChild(n); });
         var dernier = frag.lastChild; r.insertNode(frag); if (dernier) { r.setStartAfter(dernier); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
@@ -435,9 +556,10 @@
         modifiable ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleMiseEnPage(tab ? tab.page : page, function (p) { if (tab) { tab.appliquerPage(p); page = tab.page; } dessinerZones(); marquer(); }, !!tab); } }, 'Mise en page') : null,
         h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { var luI = { meta: { titre: titre.value || 'Sans titre', rattaches: meta.rattaches }, contenu: lireContenu() };
           if (tab) { var toutes = luI.contenu.feuilles.length > 1 && confirm('Imprimer toutes les feuilles ? (Annuler : la feuille affichée seulement)'); U.tableur.imprimer(luI.contenu, zonesPage, valeursPage(doc(id) || d0, luI.meta), toutes, tab.feuille()); }
-          else imprimer(id, luI); }); } }, 'Imprimer'),
+          else { if (!marquesVisibles) luI.contenu = DM.resoudreSuivi(luI.contenu, true); imprimer(id, luI); } }); } }, 'Imprimer'),
         gere && !dd.corbeille && !s().apercu ? h('button', { class: 'btn danger', type: 'button', onclick: function () { mettreACorbeille(id); } }, 'Corbeille') : null,
         h('button', { class: 'btn', type: 'button', onclick: fermer }, 'Fermer')));
+      barre.appendChild(ligneTravail(dd));
       if (dd.corbeille) barre.appendChild(h('p', { class: 'alerte', text: 'Dans la corbeille depuis le ' + dateCourte(dd.corbeille.le) + ' : effacé définitivement dans ' + DM.joursAvantEffacement(dd, Date.now(), jc()) + ' jour(s).' }));
       if (stt.statut === 'a-valider' && stt.attendu) barre.appendChild(h('p', { class: 'info', text: 'Validation supplémentaire demandée à ' + nomAgent(stt.attendu, dd) + ' par ' + nomAgent(stt.demandePar, dd) + ' le ' + dateCourte(stt.demandeLe) + (stt.message ? ' : ' + stt.message : '') + '.' }));
       else if (stt.statut === 'a-valider' && stt.message) barre.appendChild(h('p', { class: 'info', text: 'Demande de validation : ' + stt.message }));
@@ -446,11 +568,96 @@
       if (stt.statut === 'brouillon' && stt.message) barre.appendChild(h('p', { class: 'info', text: 'Renvoyé en brouillon : ' + stt.message }));
       if (stt.statut === 'modifie') barre.appendChild(h('p', { class: 'info', text: 'Modifié depuis la validation du ' + dateCourte(stt.le) + ' : la version validée reste en vigueur (Historique) jusqu’à une nouvelle validation.' }));
     }
+    // ---- Travail à plusieurs (0.37.0) : présence, édition simultanée, suivi des modifications
+    var zonePresence = h('span', { class: 'doc-presence', 'aria-live': 'polite' });
+    function nombreMarques() { return tab ? tab.modifsSuivies().length : corps.querySelectorAll('ins.suivi-ins, del.suivi-del').length; }
+    function ligneTravail(dd) {
+      var o = opts(), n = nombreMarques();
+      function option(k, v) { return async function () { try { await s().enregistrer('DOC_OPTIONS', Object.assign({ doc: id, simultane: o.simultane, suivi: o.suivi, nom: moi().nom }, (function () { var x = {}; x[k] = v; return x; })())); dessinerBarre(); U.toast(k === 'suivi' ? (v ? 'Suivi des modifications activé : vos ajouts et suppressions sont marqués.' : 'Suivi des modifications désactivé.') : (v ? 'Édition simultanée activée : les modifications des autres s’affichent en direct.' : 'Édition simultanée désactivée.')); } catch (e) { U.toast(e.message); } }; }
+      var cbMarques = h('input', { type: 'checkbox', checked: marquesVisibles, 'aria-label': 'Afficher les marques' });
+      cbMarques.addEventListener('change', function () { marquesVisibles = cbMarques.checked; corps.classList.toggle('suivi-masque', !marquesVisibles); if (tab) tab.marques(marquesVisibles); });
+      return h('div', { class: 'doc-barre-ligne doc-travail' },
+        modifiable ? h('button', { class: 'btn petit' + (o.suivi ? ' actif' : ''), type: 'button', 'aria-pressed': o.suivi ? 'true' : 'false', onclick: option('suivi', !o.suivi) }, o.suivi ? '✎ Suivi des modifications : activé' : '✎ Suivi des modifications : désactivé') : (o.suivi ? h('span', { class: 'badge', text: 'Suivi des modifications activé' }) : null),
+        o.suivi || n ? h('label', { class: 'case' }, cbMarques, h('span', { text: 'Afficher les marques' })) : null,
+        n ? h('button', { class: 'btn petit', type: 'button', onclick: modaleSuivi }, 'Modifications suivies (' + n + ')…') : null,
+        modifiable ? h('button', { class: 'btn petit' + (o.simultane ? ' actif' : ''), type: 'button', 'aria-pressed': o.simultane ? 'true' : 'false', onclick: option('simultane', !o.simultane), title: 'Activée : enregistrement toutes les 3 secondes et modifications des autres affichées en direct. Désactivée : les modifications de chacun sont fusionnées à l’enregistrement.' }, o.simultane ? '⇄ Édition simultanée : activée' : '⇄ Édition simultanée : désactivée') : null,
+        zonePresence);
+    }
+    function dessinerPresence() {
+      U.vider(zonePresence);
+      if (!autres.length) return;
+      zonePresence.appendChild(h('span', { class: 'muted', text: 'Aussi ouvert par : ' }));
+      autres.forEach(function (x, i) { zonePresence.appendChild(h('span', { class: 'doc-avatar' + (x.modifie ? ' modifie' : ''), title: x.modifie ? 'Peut modifier le document' : 'En lecture', text: (i ? ' ' : '') + x.nom + (x.modifie ? ' (modifie)' : '') })); });
+      if (!opts().simultane && modifiable && autres.some(function (x) { return x.modifie; })) zonePresence.appendChild(h('span', { class: 'muted', text: ' — vos enregistrements seront fusionnés avec les leurs.' }));
+    }
+    /** Marques du suivi : chacune acceptée ou refusée, ou toutes. */
+    function modaleSuivi() {
+      var zone = h('div', { class: 'pile' });
+      function liste() {
+        U.vider(zone);
+        if (tab) {
+          var ms = tab.modifsSuivies();
+          if (!ms.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune modification suivie.' }));
+          ms.forEach(function (m) {
+            zone.appendChild(h('div', { class: 'doc-suivi-ligne' }, h('b', { text: m.feuille + '!' + m.nom }), h('span', { text: ' : ' + (m.avant || '(vide)') + ' → ' + (m.apres || '(vide)') }), h('small', { class: 'muted', text: ' — ' + (m.n || nomAgent(m.p, doc(id))) + ', ' + jourFr(m.le) }),
+              modifiable ? h('span', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { tab.resoudre(true, m.fi, m.nom); liste(); dessinerBarre(); } }, 'Accepter'), h('button', { class: 'btn petit', type: 'button', onclick: function () { tab.resoudre(false, m.fi, m.nom); liste(); dessinerBarre(); } }, 'Refuser')) : null));
+          });
+          return;
+        }
+        var els = Array.prototype.slice.call(corps.querySelectorAll('ins.suivi-ins, del.suivi-del'));
+        if (!els.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune modification suivie.' }));
+        els.forEach(function (el) {
+          var ajout = el.tagName === 'INS';
+          zone.appendChild(h('div', { class: 'doc-suivi-ligne' }, h('span', { class: ajout ? 'diff-ajout' : 'diff-retrait', text: (ajout ? 'Ajout : ' : 'Suppression : ') + el.textContent.slice(0, 160) }),
+            h('small', { class: 'muted', text: ' — ' + (el.getAttribute('data-n') || nomAgent(el.getAttribute('data-p'), doc(id))) + ', ' + jourFr(el.getAttribute('data-le')) }),
+            h('button', { class: 'btn petit lien', type: 'button', onclick: function () { el.scrollIntoView({ block: 'center' }); el.classList.add('suivi-vu'); setTimeout(function () { el.classList.remove('suivi-vu'); }, 1500); } }, 'Voir'),
+            modifiable ? h('span', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { resoudreMarque(el, true); liste(); } }, 'Accepter'), h('button', { class: 'btn petit', type: 'button', onclick: function () { resoudreMarque(el, false); liste(); } }, 'Refuser')) : null));
+        });
+      }
+      liste();
+      U.modale('Modifications suivies', h('div', { class: 'pile' }, zone, h('small', { class: 'muted', text: 'Accepter un ajout le garde ; accepter une suppression retire le texte. Refuser fait l’inverse. Chaque choix est enregistré comme une nouvelle version.' })),
+        [{ texte: 'Fermer' },
+          modifiable ? { texte: 'Tout refuser', action: function () { toutResoudre(false); } } : null,
+          modifiable ? { texte: 'Tout accepter', classe: 'primaire', action: function () { toutResoudre(true); } } : null], { large: true });
+    }
+    function resoudreMarque(el, accepter) {
+      var garder = (el.tagName === 'INS') === accepter;
+      if (garder) { while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el); }
+      el.parentNode.removeChild(el);
+      marquer(); dessinerBarre();
+    }
+    function toutResoudre(accepter) {
+      if (tab) tab.resoudre(accepter);
+      else Array.prototype.slice.call(corps.querySelectorAll('ins.suivi-ins, del.suivi-del')).forEach(function (el) { resoudreMarque(el, accepter); });
+      marquer(); dessinerBarre();
+    }
+    // Présence toutes les 10 s ; édition simultanée : versions des autres reprises toutes les 4 s
+    async function battement() {
+      if (ferme) return;
+      try { await s().signalerPresence(id, { modifie: modifiable }); autres = await s().presencesDocument(id); dessinerPresence(); } catch (e) { /* présence indisponible */ }
+    }
+    async function direct() {
+      if (ferme || !opts().simultane || enregistrement) return;
+      var der = DM.derniere(doc(id));
+      if (!der || !base || der.id === base) return;
+      if (sale && modifiable) { enregistrer(false); return; }   // la fusion se fait à l'enregistrement
+      var t0 = tours, lu2 = await lireVersion(doc(id), der); if (!lu2 || ferme || sale || tours !== t0) return;
+      // Version enregistrée en même temps que la sienne (départ différent) : fusion, puis enregistrement du résultat
+      if (der.base && der.base !== base && modifiable) {
+        var actuel = { meta: { titre: titre.value.trim() || 'Sans titre', rattaches: meta.rattaches }, contenu: lireContenu() };
+        if (JSON.stringify(DM.contenu(actuel.contenu)) !== JSON.stringify(lu2.contenu)) { sale = true; tours++; enregistrer(false); return; }
+      }
+      base = der.id; appliquerContenu(lu2); etat.textContent = 'Mis à jour : modifications de ' + nomAgent(der.par, doc(id)) + ' (' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ')';
+      dessinerBarre();
+    }
+    var minuteurPresence = setInterval(battement, 10000); setTimeout(battement, 500);
+    minuteurDirect = setInterval(function () { direct().catch(function () {}); }, 4000);
     dessinerBarre();
     async function fermer() {
       if (ferme) return;
       if (sale && !(await enregistrer(true)) && !confirm('L’enregistrement a échoué. Fermer quand même (les dernières modifications seront perdues) ?')) return;
-      ferme = true; clearTimeout(minuteur);
+      ferme = true; clearTimeout(minuteur); clearInterval(minuteurPresence); clearInterval(minuteurDirect);
+      s().retirerPresence(id).catch(function () {});
       document.removeEventListener('selectionchange', garderSelection);
       if (tab) tab.detruire();
       dlg.close(); dlg.remove(); U.rendreContenu();
@@ -643,8 +850,10 @@
       U.toast(sup.value ? 'Validé ; validation supplémentaire demandée.' : 'Document validé.'); if (apres) apres();
     } };
     sup.addEventListener('change', function () { var b = Array.prototype.filter.call(document.querySelectorAll('dialog[open] .pied button'), function (x) { return /^Valider/.test(x.textContent); })[0]; if (b) b.textContent = sup.value ? 'Valider et transmettre' : 'Valider'; });
+    var luV = cache[v.id], marques = luV ? (luV.contenu.genre === 'tableur' ? SIC.tableur.modificationsSuivies(luV.contenu) : DM.modificationsSuivies(luV.contenu)).length : 0;
     U.modale(premiere ? 'Validation du document' : 'Validation supplémentaire', h('div', { class: 'pile' },
       h('p', { text: 'Version du ' + dateCourte(v.le) + ' (' + nomAgent(v.par, d) + ').' }),
+      marques ? h('p', { class: 'alerte', text: marques + ' modification(s) suivie(s) pas encore acceptée(s) ni refusée(s) : la version validée les garde telles quelles (marques comprises).' }) : null,
       stt.etapes && stt.etapes.length ? h('p', { class: 'info', text: 'Déjà validé par ' + stt.etapes.map(function (x) { return nomAgent(x.par, d) + ' le ' + jourFr(x.le); }).join(', ') + '.' }) : null,
       h('label', {}, 'À réviser le (facultatif)', revision), h('label', {}, 'Message (facultatif)', msg),
       h('label', {}, 'Validation supplémentaire demandée à (facultatif)', sup),

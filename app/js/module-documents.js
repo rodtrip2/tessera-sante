@@ -22,7 +22,7 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, G, T) {
   'use strict';
 
-  var TYPES = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_VALIDATION', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_TRANSFERT'];
+  var TYPES = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_VALIDATION', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_TRANSFERT', 'DOC_OPTIONS'];
   var DROITS_DOC = { lire: 1, modifier: 2, gerer: 3 };
   var LIB_DROITS = { lire: 'Lire', modifier: 'Modifier', gerer: 'Gérer (partage, corbeille)' };
   var STATUTS = { brouillon: 'Brouillon', 'a-valider': 'À valider', valide: 'Validé', modifie: 'Modifié depuis la validation', 'a-reviser': 'À réviser' };
@@ -61,14 +61,19 @@
     if (TAILLES.indexOf(+r.z) >= 0) x.z = +r.z;
     if (COULEURS[r.c] && r.c) x.c = r.c;
     if (FONDS[r.f] && r.f) x.f = r.f;
+    // Suivi des modifications (0.37.0) : texte ajouté (ins) ou supprimé (del) par un agent, à accepter ou refuser
+    var m = marque(r.ins); if (m) x.ins = m;
+    var d = marque(r.del); if (d) x.del = d;
     return x;
   }
+  function marque(m) { return m && typeof m === 'object' && texte(m.p, 60) ? { p: texte(m.p, 60), n: texte(m.n, 80), le: texte(m.le, 30) } : null; }
+  function memeMarque(a, b) { return (!a && !b) || (a && b && a.p === b.p && a.le.slice(0, 16) === b.le.slice(0, 16)); }
   /** Fusionne les morceaux contigus de même mise en forme. */
   function fusionner(runs) {
     var res = [];
     (runs || []).map(run).filter(Boolean).forEach(function (r) {
       var p = res[res.length - 1];
-      if (p && ['g', 'i', 's', 'b', 'p', 'z', 'c', 'f'].every(function (k) { return p[k] === r[k]; })) p.x += r.x; else res.push(r);
+      if (p && ['g', 'i', 's', 'b', 'p', 'z', 'c', 'f'].every(function (k) { return p[k] === r[k]; }) && memeMarque(p.ins, r.ins) && memeMarque(p.del, r.del)) p.x += r.x; else res.push(r);
     });
     return res;
   }
@@ -148,6 +153,96 @@
     return res;
   }
 
+  // ------------------------------------------------------------ Suivi des modifications (0.37.0)
+  /** Modifications suivies d'un document texte : [{ bloc, genre: 'ins' | 'del', texte, p, n, le }]. */
+  function modificationsSuivies(c) {
+    var res = [];
+    function runs(rs, i) { (rs || []).forEach(function (r) { ['ins', 'del'].forEach(function (g) { if (r[g]) { var d = res[res.length - 1]; if (d && d.bloc === i && d.genre === g && d.p === r[g].p && d.le === r[g].le) d.texte += r.x; else res.push({ bloc: i, genre: g, texte: r.x, p: r[g].p, n: r[g].n, le: r[g].le }); } }); }); }
+    (contenu(c).blocs || []).forEach(function (b, i) { if (b.t === 'table') b.lignes.forEach(function (l) { l.forEach(function (x) { runs(x.runs, i); }); }); else runs(b.runs, i); });
+    return res;
+  }
+  /** Tout accepter (texte ajouté gardé, texte supprimé retiré) ou tout refuser (l'inverse). */
+  function resoudreSuivi(c, accepter) {
+    var x = JSON.parse(JSON.stringify(contenu(c)));
+    function runs(rs) { return fusionner((rs || []).filter(function (r) { return accepter ? !r.del : !r.ins; }).map(function (r) { var y = Object.assign({}, r); delete y.ins; delete y.del; return y; })); }
+    x.blocs = x.blocs.map(function (b) { if (b.t === 'table') { b.lignes.forEach(function (l) { l.forEach(function (y) { y.runs = runs(y.runs); }); }); return b; } if (b.runs) b.runs = runs(b.runs); return b; });
+    return contenu(x);
+  }
+
+  // ------------------------------------------------------------ Fusion à trois (édition simultanée, 0.37.0)
+  /**
+   * Correspondance de deux suites (plus longue sous-suite commune) : paires [i, j] des éléments égaux, dans l'ordre.
+   */
+  function correspondances(x, y) {
+    var n = x.length, m = y.length;
+    if (n * m > 4e6) { var k = 0; while (k < n && k < m && x[k] === y[k]) k++; var r = []; for (var i0 = 0; i0 < k; i0++) r.push([i0, i0]); return r; }
+    var L = []; for (var i = 0; i <= n; i++) L.push(new Array(m + 1).fill(0));
+    for (i = n - 1; i >= 0; i--) for (var j = m - 1; j >= 0; j--) L[i][j] = x[i] === y[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    var res = []; i = 0; j = 0;
+    while (i < n && j < m) { if (x[i] === y[j]) { res.push([i, j]); i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++; }
+    return res;
+  }
+  /**
+   * Fusion à trois de suites d'éléments (comparés par leur texte JSON) : ce que chacun a changé depuis la base est
+   * gardé ; les deux ont changé le même passage différemment : les deux versions sont gardées (la sienne d'abord) et le
+   * conflit est compté. Retourne { elements, conflits }.
+   */
+  function fusion3(base, mien, autre) {
+    var B = base.map(JSON.stringify), M = mien.map(JSON.stringify), A = autre.map(JSON.stringify);
+    // Changements de chaque côté par rapport à la base : { d, f (fin exclue, dans la base), el (éléments à la place) }
+    function changements(S, objets, cote) {
+      var res = [], pb = 0, ps = 0;
+      correspondances(B, S).concat([[B.length, S.length]]).forEach(function (p) {
+        if (p[0] > pb || p[1] > ps) res.push({ d: pb, f: p[0], el: objets.slice(ps, p[1]), js: S.slice(ps, p[1]), cote: cote });
+        pb = p[0] + 1; ps = p[1] + 1;
+      });
+      return res;
+    }
+    var tous = changements(M, mien, 'm').concat(changements(A, autre, 'a')).sort(function (x, y) { return x.d - y.d || x.f - y.f; });
+    function touche(x, y) { return (x.d < y.f && y.d < x.f) || x.d === y.d || (x.d === x.f && x.d > y.d && x.d < y.f) || (y.d === y.f && y.d > x.d && y.d < x.f); }
+    var res = [], pos = 0, conflits = 0, k = 0;
+    function appliquer(hs, d, f) { var r = [], p = d; hs.forEach(function (x) { r = r.concat(base.slice(p, x.d), x.el); p = x.f; }); return r.concat(base.slice(p, f)); }
+    while (k < tous.length) {
+      var groupe = [tous[k]], d = tous[k].d, f = tous[k].f; k++;
+      while (k < tous.length && groupe.some(function (x) { return touche(x, tous[k]); })) { groupe.push(tous[k]); f = Math.max(f, tous[k].f); k++; }
+      res = res.concat(base.slice(pos, d));
+      var hm = groupe.filter(function (x) { return x.cote === 'm'; }), ha = groupe.filter(function (x) { return x.cote === 'a'; });
+      var vm = appliquer(hm, d, f), va = appliquer(ha, d, f);
+      if (!hm.length) res = res.concat(va);
+      else if (!ha.length) res = res.concat(vm);
+      else {
+        var jm = vm.map(JSON.stringify), ja = va.map(JSON.stringify);
+        if (jm.join('\n') === ja.join('\n')) res = res.concat(vm);
+        else { res = res.concat(vm, va.filter(function (x, i) { return jm.indexOf(ja[i]) < 0; })); conflits++; }
+      }
+      pos = f;
+    }
+    return { elements: res.concat(base.slice(pos)), conflits: conflits };
+  }
+  /** Valeur fusionnée d'un objet entier : changée d'un seul côté, ou la sienne si les deux l'ont changée. */
+  function fusionObjet(base, mien, autre) {
+    var b = JSON.stringify(base), m = JSON.stringify(mien), a = JSON.stringify(autre);
+    if (m === b) return { valeur: autre, conflit: false };
+    return { valeur: mien, conflit: a !== b && a !== m };
+  }
+  /**
+   * Fusion de deux versions d'un document (la sienne et celle enregistrée entre-temps par un autre agent), d'après la
+   * version de départ commune : { meta, contenu, conflits }.
+   */
+  function fusionnerVersions(base, mien, autre) {
+    var mb = meta(base.meta), mm = meta(mien.meta), ma = meta(autre.meta), conflits = 0;
+    var t = fusionObjet(mb.titre, mm.titre, ma.titre); if (t.conflit) conflits++;
+    var r = fusionObjet(mb.rattaches, mm.rattaches, ma.rattaches);
+    var m2 = Object.assign({}, mm, { titre: t.valeur, rattaches: r.valeur });
+    var cb = contenu(base.contenu), cm = contenu(mien.contenu), ca = contenu(autre.contenu), c;
+    if (cm.genre === 'tableur' || ca.genre === 'tableur') { var f = T.fusionner(cb.genre === 'tableur' ? cb : T.contenu({}), T.contenu(cm), T.contenu(ca)); c = f.contenu; conflits += f.conflits; }
+    else {
+      var b = fusion3(cb.blocs, cm.blocs, ca.blocs), p = fusionObjet(cb.page, cm.page, ca.page);
+      c = contenu({ blocs: b.elements, page: p.valeur }); conflits += b.conflits + (p.conflit ? 1 : 0);
+    }
+    return { meta: meta(m2), contenu: c, conflits: conflits };
+  }
+
   // ------------------------------------------------------------ Partage et clés (une clé par document)
   /** Entrée de partage validée : { genre: agent | service | role | groupe, code, service (rôle), droit }. */
   function entree(p) {
@@ -219,12 +314,12 @@
       case 'DOC':
         if (!ID.test(d.id || '') || st.docs[d.id]) break;
         st.docs[d.id] = { id: d.id, genre: GENRES[d.genre] ? d.genre : 'texte', modele: d.modele === true, auteur: e.by, cree: e.at, partage: partage(d.partage), services: Array.isArray(d.services) ? d.services.slice(0, 30) : [],
-          depuis: texte(d.depuis, 40), versions: [], statut: { statut: 'brouillon' }, validations: [], corbeille: null, efface: null, modifie: e.at, noms: {} };
+          depuis: texte(d.depuis, 40), versions: [], statut: { statut: 'brouillon' }, validations: [], corbeille: null, efface: null, modifie: e.at, noms: {}, options: { simultane: false, suivi: false } };
         if (d.nom) st.docs[d.id].noms[e.by] = texte(d.nom, 80);
         break;
       case 'DOC_VERSION':
         if (!x || x.efface || typeof d.ct !== 'string') break;
-        x.versions.push({ id: e.id, le: e.at, par: e.by, g: +d.g || 1, ct: d.ct, taille: d.ct.length, restauree: texte(d.restauree, 60) });
+        x.versions.push({ id: e.id, le: e.at, par: e.by, g: +d.g || 1, ct: d.ct, taille: d.ct.length, restauree: texte(d.restauree, 60), base: texte(d.base, 80) });   // base : version de départ (édition simultanée)
         x.modifie = e.at;
         if (x.statut.statut === 'valide') x.statut = Object.assign({}, x.statut, { statut: 'modifie' });
         break;
@@ -258,6 +353,11 @@
       case 'DOC_CORBEILLE':
         if (!x || x.efface) break;
         x.corbeille = d.corbeille ? { le: e.at, par: e.by } : null;
+        break;
+      case 'DOC_OPTIONS':
+        // Options du document (0.37.0) : édition simultanée en direct, suivi des modifications (désactivées par défaut)
+        if (!x || x.efface) break;
+        x.options = { simultane: d.simultane === true, suivi: d.suivi === true, par: e.by, le: e.at };
         break;
       case 'DOC_TRANSFERT':
         // Compte de l'auteur retiré (0.34.1) : la gestion passe au cadre de ses services (session de l'administrateur)
@@ -360,6 +460,7 @@
       if (typeof d.ct !== 'string' || d.ct.length > MAX_VERSION) throw new Error('Document trop volumineux.');
       return;
     }
+    if (type === 'DOC_OPTIONS') { if (!peut(x, compte, config, 'modifier')) throw new Error('Vous ne pouvez pas modifier ce document.'); return; }
     if (type === 'DOC_PARTAGE' || type === 'DOC_CORBEILLE') {
       if (!peut(x, compte, config, 'gerer')) throw new Error('Seul celui qui gère le document change son partage ou le met à la corbeille.');
       if (type === 'DOC_PARTAGE') partage(d.partage).forEach(function (p) { if (p.droit === 'gerer' && p.genre !== 'agent') throw new Error('Le droit de gérer se donne à un agent nommé.'); });
@@ -395,22 +496,22 @@
   }
   /** Saisies permises par le droit sur le document (et non par le seul rôle) : versions, partage, corbeille, statut, effacement échu. */
   function permisPourSoi(type, data, compte, ctx) {
-    if (['DOC_VERSION', 'DOC_PARTAGE', 'DOC_CORBEILLE', 'DOC_STATUT', 'DOC_EFFACE', 'DOC_VALIDATION'].indexOf(type) < 0 || !data || !ctx || !ctx.etat) return false;
+    if (['DOC_VERSION', 'DOC_PARTAGE', 'DOC_CORBEILLE', 'DOC_STATUT', 'DOC_EFFACE', 'DOC_VALIDATION', 'DOC_OPTIONS'].indexOf(type) < 0 || !data || !ctx || !ctx.etat) return false;
     var x = ctx.etat.docs && ctx.etat.docs[data.doc];
     if (!x) return false;
     // Validation supplémentaire : la personne nommée valide (ou renvoie en brouillon) sans le rôle de valideur
     if (type === 'DOC_VALIDATION') return !!statut(x).attendu && statut(x).attendu === (compte && compte.id);
     if (type === 'DOC_STATUT' && data.statut === 'brouillon' && statut(x).attendu === (compte && compte.id)) return true;
     if (type === 'DOC_EFFACE') return !!x.corbeille && (peut(x, compte, ctx.config, 'gerer') || Date.parse(x.corbeille.le) <= Date.now() - joursCorbeille(ctx.config) * 864e5);
-    return peut(x, compte, ctx.config, type === 'DOC_VERSION' || type === 'DOC_STATUT' ? 'modifier' : 'gerer');
+    return peut(x, compte, ctx.config, type === 'DOC_VERSION' || type === 'DOC_STATUT' || type === 'DOC_OPTIONS' ? 'modifier' : 'gerer');
   }
 
   // ------------------------------------------------------------ Droits et contrat
   var ACCES = [
-    { code: 'documents.utiliser', libelle: 'Créer des documents, modifier ceux qui lui sont partagés', types: ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE'] },
+    { code: 'documents.utiliser', libelle: 'Créer des documents, modifier ceux qui lui sont partagés', types: ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_OPTIONS'] },
     { code: 'documents.valider', libelle: 'Valider les documents (procédures, règlements) et fixer leur date de révision', types: ['DOC_VALIDATION'] }
   ];
-  var U_ = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE'];
+  var U_ = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_OPTIONS'];
   // Droits proposés : tous les agents créent ; le cadre et le cadre supérieur valident
   var DROITS = { IDE: U_, AS: U_, SECRETAIRE: U_, MEDECIN: U_, MEDECIN_CHEF_SERVICE: U_, MEDECIN_CHEF_POLE: U_, DIRECTEUR_SOINS: U_, CADRE: TYPES.slice() };
   var D = Droits.creer({
@@ -445,7 +546,7 @@
 
   registre.declarer(contrat);
 
-  return { GENRES: GENRES, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
+  return { GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
     POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
     run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
     entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,

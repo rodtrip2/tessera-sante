@@ -1697,6 +1697,29 @@
     await d.ecrireClesDocument(id, f);
     return { cles: ok, absentes: noms.filter(function (n) { return ok.indexOf(n) < 0; }), generation: f.courante };
   };
+  /**
+   * Présence sur un document ouvert (0.37.0) : { agent, nom, modifie (édition), le }, chiffrée par la clé du document ;
+   * les présences de plus de 45 secondes sont ignorées (poste fermé sans retrait).
+   */
+  Session.prototype.signalerPresence = async function (id, info) {
+    var c = this.compteEffectif(), g = await this.generationDocument(id), k = g && await this.cleDocument(id, g);
+    if (!c || !k) return;
+    var o = { nom: c.nom, modifie: !!(info && info.modifie), le: new Date().toISOString() };
+    await dossierActif(this).ecrirePresence(id, c.id, { g: g, ct: C.b64(await C.chiffrerJSON(k, o, 'docp:' + id + ':' + c.id + ':' + g)) });
+  };
+  Session.prototype.presencesDocument = async function (id) {
+    var s = this, c = this.compteEffectif(), l = await dossierActif(this).lirePresences(id), res = [];
+    for (var i = 0; i < l.length; i++) {
+      var x = l[i]; if (c && x.agent === c.id) continue;
+      try {
+        var k = await s.cleDocument(id, x.objet.g); if (!k) continue;
+        var o = await C.dechiffrerJSON(k, C.deb64(x.objet.ct), 'docp:' + id + ':' + x.agent + ':' + x.objet.g);
+        if (Date.now() - Date.parse(o.le) < 45000) res.push({ agent: x.agent, nom: o.nom, modifie: !!o.modifie, le: o.le });
+      } catch (e) { /* présence illisible : ignorée */ }
+    }
+    return res;
+  };
+  Session.prototype.retirerPresence = function (id) { var c = this.compteEffectif(); return c ? dossierActif(this).retirerPresence(id, c.id) : Promise.resolve(); };
   /** Effacement définitif : destruction du fichier de clés (les versions du journal deviennent illisibles). */
   Session.prototype.effacerCleDocument = async function (id) {
     await dossierActif(this).effacerClesDocument(id);

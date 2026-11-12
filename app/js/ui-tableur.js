@@ -42,7 +42,10 @@
     function memoriser() { annuler.push(JSON.stringify({ C: C, fi: fi })); if (annuler.length > 100) annuler.shift(); retablir = []; }
     function modifie(redessin) { recalculer(); if (redessin !== false) dessiner(); o.changer(); }
     function caseDe(l, c) { return F().cellules[T.nom(l, c)]; }
-    function ecrireCase(l, c, x) { var k = T.nom(l, c), y = T.caseValide(x); if (y) F().cellules[k] = y; else delete F().cellules[k]; }
+    function ecrireCase(l, c, x) {
+      var k = T.nom(l, c), y = o.suivi && o.suivi() ? T.suivre(F().cellules[k], x, o.agent) : T.caseValide(x);   // suivi des modifications (0.37.0)
+      if (y) F().cellules[k] = y; else delete F().cellules[k];
+    }
 
     // -------------------------------------------------------- Éléments
     var nomCase = h('input', { type: 'text', class: 'tb-nom', 'aria-label': 'Case', spellcheck: 'false' });
@@ -75,8 +78,8 @@
           if (couverts[l + ':' + c]) continue;
           var x = f.cellules[T.nom(l, c)], v = calc.valeur(fi, l, c), u = fusionDe(f, l, c), val = T.validationDe(f, l, c), ok = T.conforme(val, v);
           var st = Object.assign({}, x && x.s, T.styleConditionnel(f, l, c, v, maintenant));
-          var td = h('td', { class: classesCase(st, v) + (ok ? '' : ' tb-nonconforme'), 'data-l': l, 'data-c': c, rowspan: u ? u.nl : null, colspan: u ? u.nc : null,
-            title: T.estErr(v) ? messageErreur(v, l, c) : !ok ? 'Valeur non conforme : ' + (T.controlerSaisie(val, typeof v === 'number' ? { v: v, fmt: val.genre === 'date' ? 'date' : undefined } : { v: v }) || '') : null }, T.afficher(v, x && x.s));
+          var td = h('td', { class: classesCase(st, v) + (ok ? '' : ' tb-nonconforme') + (x && x.suivi ? ' tb-suivi' : ''), 'data-l': l, 'data-c': c, rowspan: u ? u.nl : null, colspan: u ? u.nc : null,
+            title: x && x.suivi ? 'Modifié par ' + (x.suivi.n || (o.nomAgent ? o.nomAgent(x.suivi.p) : x.suivi.p)) + ' le ' + new Date(Date.parse(x.suivi.le)).toLocaleDateString('fr-FR') + ' ; avant : ' + (T.texteSaisie(x.suivi.avant) || '(vide)') : T.estErr(v) ? messageErreur(v, l, c) : !ok ? 'Valeur non conforme : ' + (T.controlerSaisie(val, typeof v === 'number' ? { v: v, fmt: val.genre === 'date' ? 'date' : undefined } : { v: v }) || '') : null }, T.afficher(v, x && x.s));
           // Filtre : bouton dans chaque titre de colonne filtrée
           if (fl && l === fl.l && c >= fl.c1 && c <= fl.c2) td.appendChild(boutonFiltre(c, !!fl.masques[c]));
           if (l === 0 && f.figer.l) td.classList.add('tb-fixe-l');
@@ -614,6 +617,10 @@
       redessiner: dessiner,
       feuille: function () { return fi; },
       occupe: function () { return !!edition; },
+      remplacer: function (x) { finirEdition(false); C = T.contenu(x); fi = Math.min(fi, C.feuilles.length - 1); this.page = C.page; recalculer(); dessiner(); },
+      modifsSuivies: function () { return T.modificationsSuivies(C); },
+      resoudre: function (accepter, f2, k) { memoriser(); C = T.resoudreSuivi(C, accepter, f2, k); modifie(); },
+      marques: function (oui) { grille.classList.toggle('tb-sans-marques', !oui); },
       annulerEdition: function () { finirEdition(false); grille.focus(); },
       focus: function () { grille.focus(); },
       detruire: function () { document.removeEventListener('copy', surCopie); document.removeEventListener('cut', surCoupe); document.removeEventListener('paste', surColle); document.removeEventListener('mouseup', finPresse); }
