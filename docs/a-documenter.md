@@ -115,6 +115,16 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.41.0 (branche `import-office`, 12 novembre 2026) : Documents, étape 4 (import Word, Excel, CSV)
+
+| Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Import | Bouton « Importer un fichier… » (liste des documents) : **Word (.docx)** → document texte, **Excel (.xlsx, .xlsm)** → tableur, **CSV** → tableur ; fichier lu sur le poste, **jamais copié sur le partage** : seul le document Tessera créé est gardé (chiffré, privé jusqu'au partage) ; résumé et alertes avant la création ; titre repris des propriétés du fichier ou de son nom ; anciens formats (.doc, .xls) : à réenregistrer depuis Word ou Excel | `documents-import.js` (`importer`, `docx`, `xlsx`, `csv`, lecteur XML minimal) ; lecture des archives par `xlsx.js` (`lireZip`) |
+| Word | Titres (styles de titre ou niveau de plan), paragraphes, mises en forme (couleurs et polices ramenées aux plus proches de Tessera), alignement, retrait, listes à puces et numérotées (d'après la numérotation du fichier), tableaux (ligne de titre, cases fusionnées en largeur dépliées), sauts de page, format et marges de la page, police et taille par défaut ; **révisions Word reprises en modifications suivies** (ajouts, suppressions, mises en forme, avec l'auteur et la date de Word). Non repris (alerte) : images, dessins, en-tête et pied de page | — |
+| Excel | Feuilles (20 au plus), valeurs, **formules traduites en français** (y compris les formules partagées) ; fonction non reconnue : résultat gardé sans la formule (alerte avec les noms) ; mises en forme, formats (dates, heures, pourcentages, euros, nombres), largeurs, hauteurs, fusions, volets figés, filtre, listes de choix et validations, mise en forme conditionnelle simple ; limites du tableur appliquées (alerte) ; non repris : graphiques, images | — |
+| CSV | Séparateur reconnu (« ; », « , », tabulation), guillemets, marque d'octets ; nombres, dates, heures, pourcentages reconnus | — |
+| Tests | Aller-retour Word et Excel (export puis import), CSV, format refusé ; fichiers produits par LibreOffice et openpyxl essayés pendant le développement | `tests/documents-export.test.js` ; parcours des écrans : import d'un fichier Word (avec une révision) et d'un CSV |
+
 ## Version 0.40.0 (branche `exports`, 12 novembre 2026) : Documents, étape 4 (exports PDF, Word, RTF, Excel, CSV)
 
 | Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |

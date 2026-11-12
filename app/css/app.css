@@ -1236,3 +1236,4 @@ span.suivi-fmt { box-shadow: inset 0 -2px 0 #7e57c2; }
 .doc-onglet.actif { background: #fff; color: var(--accent); font-weight: 600; border-bottom: 2px solid var(--accent); }
 .doc-titre-onglet { font-size: 9pt; text-transform: uppercase; letter-spacing: .05em; color: #666; border-bottom: 1px solid #ccc; margin: 0 0 .6em; padding-bottom: .2em; }
 .doc-saut.doc-saut-onglet::after { content: "Onglet suivant"; }
+.cache-fichier { position: fixed; left: -9999px; width: 1px; height: 1px; opacity: 0; }
