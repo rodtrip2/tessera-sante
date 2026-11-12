@@ -156,6 +156,10 @@ with sync_playwright() as p:
     verifier(a.locator('section.panneau.repliable').count() >= 3 and a.locator('section.panneau.repliable.replie').count() == a.locator('section.panneau.repliable').count() - 1, 'rubrique longue : panneaux repliables, le premier ouvert')
     a.get_by_role('button', name='Tout déplier').click(); time.sleep(0.3)
     verifier(a.locator('section.panneau.repliable.replie').count() == 0, '« Tout déplier »')
+    fenetre(a, 'Informations du service')
+    nrep = a.locator('main section.panneau.repliable').count()
+    verifier(nrep >= 3 and a.locator('main section.panneau.repliable.replie').count() == nrep - 1, 'page de module longue : mêmes rubriques repliables (' + str(nrep) + ')')
+    capture(a, 'infos-repliables')
     a.evaluate("window.__toutDeplier = true; document.querySelectorAll('.repliable.replie').forEach(x => x.classList.remove('replie'))")
 
     print('Fiche patient et Vue d’ensemble')
