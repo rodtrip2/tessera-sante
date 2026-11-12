@@ -86,6 +86,8 @@
       if (!x) return null;
       var c = V.cellule(x.col, l, ctx, x.vcol, colsTous);
       c.libelleCol = x.col.libelle;
+      // Médecins : libellé du service de la ligne (« Psychiatre de 1re ligne » en psychiatrie, réglage de la fiche patient)
+      if ((x.col.code === 'medecin1' || x.col.code === 'medecin2') && SIC.patients && SIC.patients.optionsFiche) c.libelleCol = SIC.patients.optionsFiche(cfg(), l.service)[x.col.code];
       if (x.col.code === 'evenements') { var r = x.col.lire(l); c.liste = r.liste; }
       var editable = !!ecran && x.col.code !== 'patient' && VE().modifiable(x.col, l);
       return element(e, c, police, { l: l, col: x.col, ecran: ecran, editable: editable, maintenant: ctx.maintenant });

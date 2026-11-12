@@ -78,3 +78,13 @@ test('Formats de date (12 novembre 2026)', () => {
   assert.equal(T.formaterDate('2026-10-03', ''), null);
   assert.equal(T.element({ code: 'entree', format: 'bizarre' }, 0).format, '');
 });
+
+test('Suivi social et mesure de protection en oui ou non (12 novembre 2026)', () => {
+  const cat = V.catalogue('patients', { config: {}, maintenant: Date.now() });
+  const as = V.colonneDe(cat, 'suiviASOuiNon'), pr = V.colonneDe(cat, 'protectionOuiNon');
+  assert.equal(as.lire({ p: { suiviAS: { suivi: true, nom: 'M. Social (fictif)' } } }).lib, 'Oui');   // sans le nom
+  assert.equal(as.lire({ p: { suiviAS: { suivi: false } } }).lib, 'Non');
+  assert.equal(pr.lire({ p: { protection: 'Curatelle (fictif)' } }).lib, 'Oui (Curatelle (fictif))');
+  assert.equal(pr.lire({ p: {} }).lib, 'Non');
+  assert.ok(T.codes(T.modele()).includes('suiviASOuiNon') && T.codes(T.modele()).includes('protectionOuiNon'));
+});
