@@ -67,3 +67,35 @@ test('Droit d’exporter : réglé par document par celui qui le gère (« modif
   assert.equal(DM.peutExporter(st.docs.DC00000020, lecteur, {}), true); assert.equal(st.docs.DC00000020.exports.length, 1);
   assert.equal(DM.permisPourSoi('DOC_EXPORT', { doc: 'DC00000020' }, lecteur, { etat: st, config: {} }), true);
 });
+
+const I = require('../app/js/documents-import.js');
+test('Import Word : aller-retour d’un document exporté (titres, mises en forme, listes, tableau, saut, révisions)', async () => {
+  const o = X.docx(texte, { titre: 'Essai (fictif)' }, { suivi: 'marques' });
+  const r = await I.importer('Essai (fictif).docx', o);
+  assert.equal(r.titre, 'Essai (fictif)');
+  const b = r.contenu.blocs;
+  assert.deepEqual(b.map((x) => x.t), ['h1', 'p', 'li', 'table', 'saut']);
+  assert.equal(b[1].runs.find((x) => x.x === 'gras').g, true);
+  assert.equal(b[1].runs.find((x) => x.x === ' ajouté').ins.n, 'Agent A (fictif)'); assert.ok(b[1].runs.find((x) => x.x === ' retiré').del);
+  assert.equal(b[2].liste, 'ol'); assert.equal(b[3].entete, true); assert.equal(DM.texteBloc(b[3]), 'A | B & C');
+});
+
+test('Import Excel : aller-retour (valeurs, formules traduites, formats, fusions, volets, filtre, validations, conditions)', async () => {
+  const c = T.contenu({ feuilles: [{ nom: 'Lits', cellules: { A1: { v: 'Titre (fictif)', s: { g: true, f: 'jaune' } }, A2: { v: 2 }, A3: { v: 3.5, s: { fmt: 'eur' } }, A4: { f: '=SOMME(A2:A3)' }, B2: { v: T.serieDepuis(2026, 11, 12), s: { fmt: 'date' } }, B4: { f: '=SI(A4>4;"oui";"non")' }, C4: { f: '=A4*Réglages!A1' } },
+    largeurs: { 0: 140 }, fusions: [{ l: 0, c: 0, nl: 1, nc: 2 }], figer: { l: 1 }, filtre: { l: 0, c1: 0, c2: 1, masques: {} }, validations: [{ plage: { l1: 1, c1: 2, l2: 9, c2: 2 }, genre: 'liste', valeurs: ['Jour', 'Nuit'] }],
+    conditions: [{ plage: { l1: 1, c1: 0, l2: 3, c2: 0 }, op: '>', v1: 3, style: { f: 'rose' } }] }, { nom: 'Réglages', cellules: { A1: { v: 2 } } }] });
+  const r = await I.importer('Lits.xlsx', X.xlsx(c, {}, {}));
+  const f = r.contenu.feuilles[0];
+  assert.deepEqual(r.contenu.feuilles.map((x) => x.nom), ['Lits', 'Réglages']);
+  assert.equal(f.cellules.A4.f, '=SOMME(A2:A3)'); assert.equal(f.cellules.B4.f, '=SI(A4>4;"oui";"non")'); assert.equal(f.cellules.C4.f, "=A4*'Réglages'!A1");
+  assert.deepEqual(f.cellules.A1.s, { g: true, f: 'jaune' }); assert.equal(f.cellules.A3.s.fmt, 'eur'); assert.equal(f.cellules.B2.s.fmt, 'date'); assert.equal(f.largeurs[0], 140);
+  assert.deepEqual(f.fusions, [{ l: 0, c: 0, nl: 1, nc: 2 }]); assert.equal(f.figer.l, 1); assert.equal(f.filtre.c2, 1);
+  assert.deepEqual(f.validations[0].valeurs, ['Jour', 'Nuit']); assert.equal(f.conditions[0].op, '>'); assert.equal(f.conditions[0].style.f, 'rose');
+  const calc = T.calculer(r.contenu); assert.equal(calc.valeur(0, 3, 0), 5.5); assert.equal(calc.valeur(0, 3, 2), 11);
+});
+
+test('Import CSV et formats refusés', async () => {
+  const r = await I.importer('liste.csv', new TextEncoder().encode('﻿Nom;Montant;Date\r\n"Dupont; fictif";12,5;03/11/2026\r\n'));
+  assert.equal(r.contenu.feuilles[0].cellules.A2.v, 'Dupont; fictif'); assert.equal(r.contenu.feuilles[0].cellules.B2.v, 12.5); assert.equal(r.contenu.feuilles[0].cellules.C2.s.fmt, 'date');
+  await assert.rejects(I.importer('ancien.doc', new Uint8Array(4)), /réenregistrer/);
+});
