@@ -41,6 +41,11 @@ with sync_playwright() as p:
     nav = p.chromium.launch(args=['--lang=fr', '--no-sandbox'])
     ctx = nav.new_context(viewport={'width': 1400, 'height': 1000}, locale='fr-FR', timezone_id='Europe/Paris')
     a = ctx.new_page()
+    # Données de démonstration placées autour d'aujourd'hui (événements à J+3…) : le parcours se déroule un mardi à 10 h de la
+    # semaine en cours, pour que les vérifications ne dépendent pas du jour où il est lancé (l'heure s'écoule ensuite normalement)
+    import datetime
+    _auj = datetime.date.today(); _mardi = _auj - datetime.timedelta(days=_auj.weekday()) + datetime.timedelta(days=1)
+    a.clock.install(time=datetime.datetime(_mardi.year, _mardi.month, _mardi.day, 10, 0))
     # Rubriques repliables (0.43.0) : dépliées pendant le parcours pour atteindre leurs champs, sauf dans la vérification
     # qui les replie (window.__toutDeplier = false)
     a.add_init_script("window.__toutDeplier = true; new MutationObserver(function () { if (window.__toutDeplier) document.querySelectorAll('.repliable.replie').forEach(function (x) { x.classList.remove('replie'); }); }).observe(document, { subtree: true, childList: true });")
@@ -208,6 +213,8 @@ with sync_playwright() as p:
     a.locator('nav.onglets button', has_text='Réglages généraux').first.click(); time.sleep(1)
     sous = a.locator('nav.sous-onglets button').all_inner_texts()
     verifier('Comptes' in sous and 'Rôles et accès' in sous and 'Sécurité et clés' in sous, 'réglages généraux : comptes, rôles et sécurité en rubriques séparées')
+    cpt = a.locator('section.panneau', has_text='Trousseau de clés').first
+    verifier('clés de cloisonnement' in cpt.inner_text() and cpt.locator('.repliable.replie', has_text='Détail des clés').count() == 1 and 'm-r.' not in cpt.locator('tbody').inner_text(), 'comptes : trousseau résumé, détail des clés replié (0.45.1)')
     a.locator('nav.sous-onglets button', has_text='Rôles et accès').click(); time.sleep(1)
     verifier(a.locator('fieldset.role.repliable.replie').count() >= 4, 'rôles : chacun replié, résumé visible')
     a.locator('fieldset.role', has_text='IDE').first.locator('legend').click(); time.sleep(0.4)
