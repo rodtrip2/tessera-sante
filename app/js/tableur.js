@@ -610,6 +610,50 @@
     });
     return '=' + res + corps.slice(pos);
   }
+  // ------------------------------------------------------------ Formules en anglais (export et import Office, 0.40.0)
+  var EN = { SOMME: 'SUM', MOYENNE: 'AVERAGE', MIN: 'MIN', MAX: 'MAX', NB: 'COUNT', NBVAL: 'COUNTA', 'NB.VIDE': 'COUNTBLANK', 'NB.SI': 'COUNTIF', 'SOMME.SI': 'SUMIF', 'MOYENNE.SI': 'AVERAGEIF',
+    SI: 'IF', SIERREUR: 'IFERROR', ET: 'AND', OU: 'OR', NON: 'NOT', ARRONDI: 'ROUND', 'ARRONDI.SUP': 'ROUNDUP', 'ARRONDI.INF': 'ROUNDDOWN', ENT: 'INT', ABS: 'ABS', MOD: 'MOD', RACINE: 'SQRT',
+    PUISSANCE: 'POWER', CONCATENER: 'CONCATENATE', CONCAT: 'CONCAT', GAUCHE: 'LEFT', DROITE: 'RIGHT', STXT: 'MID', NBCAR: 'LEN', MAJUSCULE: 'UPPER', MINUSCULE: 'LOWER', SUPPRESPACE: 'TRIM',
+    ESTVIDE: 'ISBLANK', ESTNUM: 'ISNUMBER', ESTERREUR: 'ISERROR', AUJOURDHUI: 'TODAY', DATE: 'DATE', ANNEE: 'YEAR', MOIS: 'MONTH', JOUR: 'DAY', JOURSEM: 'WEEKDAY', JOURS: 'DAYS', HEURE: 'HOUR',
+    MINUTE: 'MINUTE', RECHERCHEV: 'VLOOKUP' };
+  var FR = {}; Object.keys(EN).forEach(function (k) { if (!FR[EN[k]]) FR[EN[k]] = k; }); FR.CONCAT = 'CONCAT';
+  var ERR_EN = { '#NOM?': '#NAME?', '#VALEUR!': '#VALUE!', '#NOMBRE!': '#NUM!', '#CYCLE!': '#REF!' }, ERR_FR = { '#NAME?': '#NOM?', '#VALUE!': '#VALEUR!', '#NUM!': '#NOMBRE!' };
+  /** Formule en français (« =SOMME(A1:A3;2,5) ») → écriture anglaise d'un fichier .xlsx (« SUM(A1:A3,2.5) », sans « = »). */
+  function versAnglais(formule) {
+    var corps = String(formule || '').replace(/^=/, ''), ts;
+    try { ts = jetons(corps); } catch (e) { return null; }
+    return ts.map(function (x) {
+      if (x.t === 'ref') { var r = ecrireRef(Object.assign({}, x.v, { feuille: null })); return x.v.feuille ? (/^[A-Za-z_][A-Za-z0-9_.]*$/.test(x.v.feuille) && !/^[A-Za-z]{1,3}\d+$/.test(x.v.feuille) ? x.v.feuille : "'" + x.v.feuille.replace(/'/g, "''") + "'") + '!' + r : r; }
+      if (x.t === 'num') return String(x.v);
+      if (x.t === 'txt') return '"' + x.v.replace(/"/g, '""') + '"';
+      if (x.t === 'err') return ERR_EN[x.v] || x.v;
+      if (x.t === 'id') return x.v === 'VRAI' ? 'TRUE' : x.v === 'FAUX' ? 'FALSE' : EN[x.v] || x.v;
+      if (x.t === 'op') return x.v === ';' ? ',' : x.v;
+      return '';
+    }).join('');
+  }
+  /** Formule anglaise d'un fichier .xlsx → formule en français de Tessera (null si une fonction n'est pas reconnue). */
+  function depuisAnglais(f) {
+    var s = String(f || ''), res = '', i = 0, inconnue = null;
+    while (i < s.length) {
+      var c = s[i];
+      if (c === '"') { var j = i + 1; while (j < s.length) { if (s[j] === '"') { if (s[j + 1] === '"') { j += 2; continue; } break; } j++; } res += s.slice(i, j + 1); i = j + 1; continue; }
+      if (c === "'") { var k = s.indexOf("'!", i + 1); while (k > 0 && s[k - 1] === "'" && s[k - 2] !== "'") k = s.indexOf("'!", k + 1); if (k < 0) k = s.length - 2; res += s.slice(i, k + 2); i = k + 2; continue; }
+      if (c === ',') { res += ';'; i++; continue; }
+      var m = /^(\d+\.\d+|\d+)/.exec(s.slice(i));
+      if (m && !/[A-Za-z$]/.test(s[i - 1] || '')) { res += m[0].replace('.', ','); i += m[0].length; continue; }
+      m = /^(_xlfn\.)?([A-Za-z][A-Za-z0-9.]*)(\s*\()/.exec(s.slice(i));
+      if (m) { var n = m[2].toUpperCase(); if (!FR[n]) inconnue = inconnue || n; res += (FR[n] || n) + '('; i += m[0].length; continue; }
+      m = /^(TRUE|FALSE)(?![A-Za-z0-9(])/i.exec(s.slice(i));
+      if (m) { res += m[1].toUpperCase() === 'TRUE' ? 'VRAI' : 'FAUX'; i += m[0].length; continue; }
+      m = /^#(NAME\?|VALUE!|NUM!)/.exec(s.slice(i));
+      if (m) { res += ERR_FR[m[0]]; i += m[0].length; continue; }
+      m = /^[A-Za-z_$][A-Za-z0-9_$.]*/.exec(s.slice(i));
+      if (m) { res += m[0]; i += m[0].length; continue; }
+      res += c; i++;
+    }
+    return inconnue ? null : '=' + res;
+  }
   /** Recopie d'une formule de (dl, dc) cases : les références relatives sont décalées. */
   function decaler(formule, dl, dc) {
     return reecrire(formule, function (r) {
@@ -909,7 +953,7 @@
   }
   function ecrireTSV(lignes) { return lignes.map(function (l) { return l.map(function (x) { x = String(x == null ? '' : x); return /[\t\n"]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join('\t'); }).join('\n'); }
 
-  return { suivre: suivre, insererSuivi: insererSuivi, supprimerSuivi: supprimerSuivi, trierSuivi: trierSuivi, supprimerFeuilleSuivi: supprimerFeuilleSuivi, etatCase: etatCase,
+  return { versAnglais: versAnglais, depuisAnglais: depuisAnglais, suivre: suivre, insererSuivi: insererSuivi, supprimerSuivi: supprimerSuivi, trierSuivi: trierSuivi, supprimerFeuilleSuivi: supprimerFeuilleSuivi, etatCase: etatCase,
     modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusionner: fusionner, contenuCase: contenuCase,
     OPS_CONDITION: OPS_CONDITION, GENRES_VALIDATION: GENRES_VALIDATION, condition: condition, validation: validation, styleConditionnel: styleConditionnel, regleVraie: regleVraie,
     validationDe: validationDe, controlerSaisie: controlerSaisie, conforme: conforme, lignesMasquees: lignesMasquees, valeursColonne: valeursColonne, libPlage: libPlage, plageValide: plageValide, dans: dans,

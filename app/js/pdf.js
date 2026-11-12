@@ -116,7 +116,9 @@
     this.o = options || {};
     var m = this.o.marges || { haut: 15, droite: 15, bas: 15, gauche: 15 };
     this.mg = { h: m.haut * MM, d: m.droite * MM, b: m.bas * MM, g: m.gauche * MM };
-    this.largeurUtile = A4.l - this.mg.g - this.mg.d;
+    // Format (0.40.0) : A4 portrait par défaut, `paysage: true` pour l'A4 couché
+    this.F = this.o.paysage ? { l: A4.h, h: A4.l } : { l: A4.l, h: A4.h };
+    this.largeurUtile = this.F.l - this.mg.g - this.mg.d;
     this.pages = [];
     this.image = null;
     if (this.o.fond) {
@@ -129,16 +131,21 @@
   Document.prototype.nouvellePage = function () {
     this.page = { ops: [] };
     this.pages.push(this.page);
-    if (this.image && (this.o.fondPages !== 'premiere' || this.pages.length === 1)) this.page.ops.push('q ' + num(A4.l) + ' 0 0 ' + num(A4.h) + ' 0 0 cm /Fond Do Q');
-    this.y = A4.h - this.mg.h;
+    if (this.image && (this.o.fondPages !== 'premiere' || this.pages.length === 1)) this.page.ops.push('q ' + num(this.F.l) + ' 0 0 ' + num(this.F.h) + ' 0 0 cm /Fond Do Q');
+    this.y = this.F.h - this.mg.h;
   };
 
   /** Réserve `hauteur` points ; saute de page si nécessaire. Retourne vrai si une page a été ajoutée. */
   Document.prototype.place = function (hauteur) {
-    if (this.y - hauteur < this.mg.b && this.y < A4.h - this.mg.h - 1) { this.nouvellePage(); return true; }
+    if (this.y - hauteur < this.mg.b && this.y < this.F.h - this.mg.h - 1) { this.nouvellePage(); return true; }
     return false;
   };
 
+  /** Opérations de texte (sans les ajouter) : pour l'en-tête et le pied de page dessinés à la fin (0.40.0). */
+  Document.prototype.opTexte = function (x, y, t, taille, style, rgb) {
+    var gras = style === 'gras' || style === 'gras-italique', police = style === 'gras-italique' ? '/F4' : gras ? '/F2' : style === 'italique' ? '/F3' : '/F1';
+    return 'BT ' + couleurDe(this, rgb) + ' rg ' + police + ' ' + num(taille) + ' Tf ' + num(x) + ' ' + num(y) + ' Td (' + code(t, gras) + ') Tj ET';
+  };
   Document.prototype.texte = function (x, y, t, taille, style, rgb) {
     var gras = style === 'gras' || style === 'gras-italique', police = style === 'gras-italique' ? '/F4' : gras ? '/F2' : style === 'italique' ? '/F3' : '/F1';
     this.page.ops.push('BT ' + couleurDe(this, rgb) + ' rg ' + police + ' ' + num(taille) + ' Tf ' + num(x) + ' ' + num(y) + ' Td (' + code(t, gras) + ') Tj ET');
@@ -250,12 +257,13 @@
       var ops = p.ops.slice();
       if (self.o.piedDePage) {
         var t = self.o.piedDePage(i + 1, n), lg = largeur(t, 7, false);
-        ops.push('BT 0.35 0.35 0.35 rg /F1 7 Tf ' + num(A4.l - self.mg.d - lg) + ' ' + num(Math.max(10, self.mg.b / 2 - 3)) + ' Td (' + code(t, false) + ') Tj ET');
+        ops.push('BT 0.35 0.35 0.35 rg /F1 7 Tf ' + num(self.F.l - self.mg.d - lg) + ' ' + num(Math.max(10, self.mg.b / 2 - 3)) + ' Td (' + code(t, false) + ') Tj ET');
       }
-      if (gsNb) ops.push('q /GSnb gs 0.5 g 0 0 ' + num(A4.l) + ' ' + num(A4.h) + ' re f Q');
+      if (self.o.finPage) ops = ops.concat(self.o.finPage(i + 1, n) || []);   // en-tête et pied de page dessinés à la fin (0.40.0)
+      if (gsNb) ops.push('q /GSnb gs 0.5 g 0 0 ' + num(self.F.l) + ' ' + num(self.F.h) + ' re f Q');
       var flux = ops.join('\n');
       var c = obj({ entete: '<< /Length ' + flux.length + ' >>', flux: flux });
-      idsPages.push(obj('<< /Type /Page /Parent ' + pagesId + ' 0 R /MediaBox [0 0 ' + num(A4.l) + ' ' + num(A4.h) + '] /Resources ' + ressources + ' /Contents ' + c + ' 0 R >>'));
+      idsPages.push(obj('<< /Type /Page /Parent ' + pagesId + ' 0 R /MediaBox [0 0 ' + num(self.F.l) + ' ' + num(self.F.h) + '] /Resources ' + ressources + ' /Contents ' + c + ' 0 R >>'));
     });
     objets[catalogue - 1] = '<< /Type /Catalog /Pages ' + pagesId + ' 0 R >>';
     objets[pagesId - 1] = '<< /Type /Pages /Kids [' + idsPages.map(function (i) { return i + ' 0 R'; }).join(' ') + '] /Count ' + n + ' >>';
