@@ -69,6 +69,84 @@
     return a;
   }
   function suiviDe(el) { return el && el.getAttribute && el.getAttribute('data-suivi') ? { op: el.getAttribute('data-suivi'), p: el.getAttribute('data-p') || '', n: el.getAttribute('data-n') || '', le: el.getAttribute('data-le') || '', id: el.getAttribute('data-id') || '' } : undefined; }
+  // ------------------------------------------------------------ Images et masques de fond (0.42.0)
+  var images = {};   // document → image → { donnees (data:image/…), largeur, hauteur }
+  function imageDe(idDoc, idImage) { return (images[idDoc] || {})[idImage] || null; }
+  var docRendu = null;   // document dont les images sont rendues (rendreBlocs)
+  /** Images d'un document déchiffrées (mémoire de la session). */
+  async function chargerImages(d) {
+    var l = (d && d.images) || {}, c = images[d.id] = images[d.id] || {};
+    await Promise.all(Object.keys(l).filter(function (k) { return !c[k]; }).map(async function (k) { var o = await s().dechiffrerImageDocument(d.id, k, l[k].g, l[k].ct).catch(function () { return null; }); if (o) c[k] = o; }));
+    return c;
+  }
+  /**
+   * Image choisie par l'agent, ramenée à `max` pixels de large au plus : PNG gardé (transparence) s'il reste léger,
+   * sinon JPEG ; { donnees, largeur, hauteur, nom }.
+   */
+  function preparerImage(fichier, max) {
+    return new Promise(function (ok, ko) {
+      if (!/^image\/(png|jpeg|webp|gif|bmp)$/.test(fichier.type || '')) return ko(new Error('Choisissez une image (PNG, JPEG, GIF, WebP). Pour une page Word ou PDF, enregistrez-la d’abord en image.'));
+      var lecteur = new FileReader();
+      lecteur.onerror = function () { ko(new Error('Lecture du fichier impossible.')); };
+      lecteur.onload = function () { reduireImage(lecteur.result, max || 1600, fichier.type).then(function (r) { r.nom = fichier.name; ok(r); }, ko); };
+      lecteur.readAsDataURL(fichier);
+    });
+  }
+  function reduireImage(src, max, type) {
+    return new Promise(function (ok, ko) {
+      var img = new Image();
+      img.onerror = function () { ko(new Error('Image illisible.')); };
+      img.onload = function () {
+        var l = Math.min(max, img.naturalWidth), ht = Math.max(1, Math.round(img.naturalHeight * l / img.naturalWidth)), cv = document.createElement('canvas'); cv.width = l; cv.height = ht;
+        var ctx = cv.getContext('2d'), donnees;
+        if (type === 'image/png' || type === 'image/gif') { ctx.drawImage(img, 0, 0, l, ht); donnees = cv.toDataURL('image/png'); }
+        if (!donnees || donnees.length > 1500000) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, l, ht); ctx.drawImage(img, 0, 0, l, ht); donnees = cv.toDataURL('image/jpeg', 0.85); if (donnees.length > 1500000) donnees = cv.toDataURL('image/jpeg', 0.7); }
+        if (donnees.length > DM.MAX_IMAGE) return ko(new Error('Image trop lourde, même réduite : choisissez une image plus petite.'));
+        ok({ donnees: donnees, largeur: l, hauteur: ht });
+      };
+      img.src = src;
+    });
+  }
+  /** Image ajoutée à un document : chiffrée par sa clé et inscrite au journal (une fois) ; renvoie son identifiant. */
+  async function ajouterImage(idDoc, o, idImpose) {
+    var idI = idImpose && DM.ID_IMAGE.test(idImpose) ? idImpose : 'im' + hex(6), c = await s().chiffrerImageDocument(idDoc, idI, { donnees: o.donnees, largeur: o.largeur, hauteur: o.hauteur, nom: o.nom || '' });
+    await s().enregistrer('DOC_IMAGE', { doc: idDoc, id: idI, g: c.g, ct: c.ct });
+    (images[idDoc] = images[idDoc] || {})[idI] = { donnees: o.donnees, largeur: o.largeur, hauteur: o.hauteur, nom: o.nom || '' };
+    return idI;
+  }
+  function octetsDe(donnees) { var b = atob(String(donnees).replace(/^data:[^,]*,/, '')), o = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) o[i] = b.charCodeAt(i); return o; }
+  function enJpeg(im) {
+    if (/^data:image\/jpeg/.test(im.donnees)) return Promise.resolve(octetsDe(im.donnees));
+    return new Promise(function (ok) { var i = new Image(); i.onload = function () { var cv = document.createElement('canvas'); cv.width = i.naturalWidth; cv.height = i.naturalHeight; var x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, cv.width, cv.height); x.drawImage(i, 0, 0); ok(octetsDe(cv.toDataURL('image/jpeg', 0.9))); }; i.onerror = function () { ok(null); }; i.src = im.donnees; });
+  }
+  /** Images d'un contenu texte pour l'export : { id: { type, octets, jpeg (PDF), largeur, hauteur } } (texte et masque). */
+  async function imagesExport(idDoc, c, pdf) {
+    var ids = {}, res = {};
+    if (c.genre === 'tableur') return res;
+    DM.ongletsDe(c).forEach(function (o) { o.blocs.forEach(function (b) { if (b.t === 'img') ids[b.id] = 1; }); });
+    if (c.page && c.page.masque) ids[c.page.masque.image] = 1;
+    for (var k in ids) {
+      var im = imageDe(idDoc, k); if (!im) continue;
+      res[k] = { type: /^data:image\/png/.test(im.donnees) ? 'png' : 'jpeg', octets: octetsDe(im.donnees), largeur: im.largeur, hauteur: im.hauteur };
+      if (pdf) res[k].jpeg = await enJpeg(im);
+    }
+    return res;
+  }
+  function figureImage(b) {
+    var im = docRendu ? imageDe(docRendu, b.id) : null;
+    var f = h('figure', attrsSuivi(b, { class: 'doc-image al-' + b.al, contenteditable: 'false', 'data-id': b.id, 'data-l': b.l, 'data-al': b.al, 'data-leg': b.leg || '' }),
+      im ? h('img', { src: im.donnees, alt: b.leg || 'Image' }) : h('span', { class: 'muted', text: '[image indisponible]' }), b.leg ? h('figcaption', { text: b.leg }) : null);
+    f.style.width = b.l + '%';
+    return f;
+  }
+  /** Fond d'une page à l'écran : masque répété toutes les 297 mm (ou la première page seulement), opacité. */
+  function fondMasque(idDoc, p) {
+    var m = p && p.masque, im = m && imageDe(idDoc, m.image); if (!im) return null;
+    var mm = PAGE_MM[p.orientation], el = h('div', { class: 'doc-masque', 'aria-hidden': 'true' });
+    el.style.backgroundImage = 'url("' + im.donnees + '")'; el.style.backgroundSize = mm[0] + 'mm ' + mm[1] + 'mm'; el.style.backgroundRepeat = m.pages === 'premiere' ? 'no-repeat' : 'repeat-y';
+    el.style.opacity = String(m.opacite);
+    return el;
+  }
   /** Rendu d'un contenu texte : avec onglets, chacun précédé de son titre et séparé par un saut de page (lecture, impression). */
   function rendreContenuTexte(c, impression) {
     var os = DM.ongletsDe(c);
@@ -100,6 +178,7 @@
         return;
       }
       if (b.t === 'saut') { res.push(h('div', attrsSuivi(b, { class: 'doc-saut', contenteditable: 'false', title: 'Saut de page' }))); return; }
+      if (b.t === 'img') { res.push(figureImage(b)); return; }
       if (b.t === 'table') {
         var t = h('table', attrsSuivi(b, { class: 'doc-table' }));
         if (b.largeurs) { var cg = h('colgroup'); b.largeurs.forEach(function (w) { var c = h('col'); c.style.width = w + '%'; cg.appendChild(c); }); t.appendChild(cg); }
@@ -198,6 +277,7 @@
       if (!BLOC.test(tag)) { runsDe({ childNodes: [n] }, {}, (enCours = enCours || [])); return; }
       vider();
       if (tag === 'HR' || (n.classList && n.classList.contains('doc-saut'))) { blocs.push({ t: 'saut', suivi: suiviDe(n) }); return; }
+      if (tag === 'FIGURE' && n.classList.contains('doc-image')) { blocs.push({ t: 'img', id: n.getAttribute('data-id'), l: +n.getAttribute('data-l'), al: n.getAttribute('data-al'), leg: n.getAttribute('data-leg') || undefined, suivi: suiviDe(n) }); return; }
       if (tag === 'UL' || tag === 'OL') { liste(n, 0); return; }
       if (tag === 'TABLE') {
         var lignes = [], entete = false;
@@ -243,14 +323,16 @@
     var d = doc(id);
     if (!d) return U.toast('Document introuvable.');
     var v0 = DM.derniere(d);
-    lireVersion(d, v0).then(function (lu) {
+    lireVersion(d, v0).then(async function (lu) {
       if (v0 && !lu) return U.toast('Vous n’avez pas la clé de ce document.');
+      await chargerImages(d);
       editeur(d, lu || { meta: DM.meta({}), contenu: DM.contenu({}) }, v0 ? v0.id : null);
     }, function (e) { U.toast(e.message); });
   }
 
   function editeur(d0, lu, base) {
     var id = d0.id, meta = JSON.parse(JSON.stringify(lu.meta)), page = JSON.parse(JSON.stringify(lu.contenu.page));
+    docRendu = id;
     var droit = DM.droitDe(d0, moi(), cfg()), modifiable = !s().apercu && !d0.corbeille && DM.DROITS_DOC[droit] >= 2;
     var sale = false, minuteur = null, enregistrement = null, rangeGarde = null, ferme = false, minuteurDirect = null, autres = [], marquesVisibles = true;
     function opts() { return ((doc(id) || d0).options) || { simultane: false, suivi: false }; }
@@ -263,7 +345,7 @@
     var onglets = lu.contenu.genre === 'tableur' ? [] : JSON.parse(JSON.stringify(DM.ongletsDe(lu.contenu))), actif = 0;
     if (onglets.length) rendreBlocs(onglets[0].blocs || []).forEach(function (n) { corps.appendChild(n); });
     var barreOnglets = h('div', { class: 'doc-onglets', role: 'tablist', 'aria-label': 'Onglets du document' });
-    var entete = h('div'), pied = h('div'), feuille = h('div', { class: 'doc-feuille' }, entete, corps, pied);
+    var entete = h('div'), pied = h('div'), zoneMasque = h('div', { class: 'doc-masque-zone' }), feuille = h('div', { class: 'doc-feuille' }, zoneMasque, entete, corps, pied);
     // Tableur (0.35.0) : surface du classeur à la place de la page de texte ; la fenêtre, l'enregistrement et le reste sont communs
     var tab = lu.contenu.genre === 'tableur' ? U.tableur.surface(lu.contenu, { modifiable: modifiable, changer: function () { marquer(); }, suivi: suiviActif, agent: { id: moi().id, nom: moi().nom }, nomAgent: function (x) { return nomAgent(x, doc(id) || d0); } }) : null;
     if (tab) page = tab.page;
@@ -322,6 +404,8 @@
       U.vider(entete).appendChild(zonesPage(page.entete, v, 'doc-entete'));
       U.vider(pied).appendChild(zonesPage(page.pied, v, 'doc-pied'));
       appliquerPage(feuille, corps, page);
+      var fm = tab ? null : fondMasque(id, page); U.vider(zoneMasque); if (fm) zoneMasque.appendChild(fm);
+      feuille.classList.toggle('avec-masque', !!fm);
     }
     dessinerZones();
 
@@ -372,6 +456,7 @@
       if (tours !== toursDepart) contenuMien = lireContenu();
       var f = DM.fusionnerVersions(depart, { meta: { titre: titre.value.trim() || 'Sans titre', rattaches: meta.rattaches }, contenu: contenuMien }, autre);
       base = der.id;
+      await chargerImages(dd);
       appliquerContenu(f);
       var qui = nomAgent(der.par, dd);
       U.toast('Modifications de ' + qui + ' intégrées' + (f.conflits ? ' ; ' + f.conflits + ' passage(s) modifié(s) des deux côtés : les deux versions sont gardées, à relire.' : '.'));
@@ -473,7 +558,7 @@
       var cible = arriere ? b : frere(b, 1), voisin = arriere ? frere(b, -1) : b;
       if (!cible || !voisin || cible === voisin) return true;
       var autre = arriere ? voisin : cible;
-      if (autre.classList && (autre.classList.contains('doc-saut') || autre.tagName === 'TABLE')) {
+      if (autre.classList && (autre.classList.contains('doc-saut') || autre.classList.contains('doc-image') || autre.tagName === 'TABLE')) {
         if (autre.getAttribute('data-suivi') === 'ajout' && autre.getAttribute('data-p') === moi().id) autre.parentNode.removeChild(autre); else if (autre.getAttribute('data-suivi') !== 'del') marquerBloc(autre, 'del');
         return true;
       }
@@ -604,6 +689,36 @@
           setTimeout(function () { insererApres(rendreBlocs([DM.bloc({ t: 'table', lignes: lignes, entete: et.checked })])); }, 0);
         } }]);
     }
+    // ---- Images (0.42.0) : fichier réduit, chiffré par la clé du document, inscrit au journal, cité par le texte
+    async function insererImageFichier(f) {
+      try {
+        etat.textContent = 'Image en cours d’ajout…';
+        var o = await preparerImage(f, 1600), idI = await ajouterImage(id, o);
+        insererApres([figureImage({ t: 'img', id: idI, l: o.largeur < 400 ? Math.max(10, Math.round(o.largeur / 6.4)) : 60, al: 'c' })]);
+        etat.textContent = 'Image ajoutée';
+      } catch (e) { etat.textContent = ''; U.toast(e.message); }
+    }
+    function choisirImage() {
+      var inp = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', class: 'cache-fichier' });
+      inp.addEventListener('change', function () { if (inp.files[0]) insererImageFichier(inp.files[0]); });
+      document.body.appendChild(inp); inp.click(); setTimeout(function () { inp.remove(); }, 60000);
+    }
+    /** Réglages d'une image : largeur (en % de la ligne), alignement, légende ; suppression (suivie si le suivi est activé). */
+    function reglerImage(fig) {
+      if (!modifiable) return;
+      var l = h('input', { type: 'range', min: 5, max: 100, step: 5, value: fig.getAttribute('data-l'), 'aria-label': 'Largeur' }), lv = h('span', { text: fig.getAttribute('data-l') + ' %' });
+      l.addEventListener('input', function () { lv.textContent = l.value + ' %'; });
+      var al = h('select', { 'aria-label': 'Alignement' }, [['g', 'À gauche'], ['c', 'Centrée'], ['d', 'À droite']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: fig.getAttribute('data-al') === x[0] }); }));
+      var leg = h('input', { type: 'text', maxlength: 200, value: fig.getAttribute('data-leg') || '', placeholder: 'Facultative', 'aria-label': 'Légende' });
+      function remplacer(b) { var n = figureImage(b); ['data-suivi', 'data-p', 'data-n', 'data-le', 'data-id', 'title'].forEach(function (a) { if (fig.hasAttribute(a)) n.setAttribute(a, fig.getAttribute(a)); }); fig.parentNode.replaceChild(n, fig); marquer(); }
+      U.modale('Image', h('div', { class: 'pile' }, h('label', {}, 'Largeur', h('span', { class: 'actions gauche' }, l, lv)), h('label', {}, 'Alignement', al), h('label', {}, 'Légende', leg)),
+        [{ texte: 'Supprimer l’image', classe: 'danger', action: function () {
+          if (suiviActif() && !(fig.getAttribute('data-suivi') === 'ajout' && fig.getAttribute('data-p') === moi().id)) { if (fig.getAttribute('data-suivi') !== 'del') marquerBloc(fig, 'del'); }
+          else fig.parentNode.removeChild(fig);
+          marquer();
+        } }, { texte: 'Annuler' }, { texte: 'Appliquer', classe: 'primaire', action: function () { remplacer({ t: 'img', id: fig.getAttribute('data-id'), l: +l.value, al: al.value, leg: leg.value.trim() }); } }]);
+    }
+    corps.addEventListener('click', function (ev) { var f = ev.target.closest && ev.target.closest('figure.doc-image'); if (f && corps.contains(f)) { ev.preventDefault(); reglerImage(f); } });
     function caseCourante() { remettreSelection(); var sel = window.getSelection(), n = sel.rangeCount ? sel.getRangeAt(0).startContainer : null; while (n && n !== corps) { if (n.nodeType === 1 && (n.tagName === 'TD' || n.tagName === 'TH')) return n; n = n.parentNode; } return null; }
     function tableau(op) {
       var td = caseCourante();
@@ -631,6 +746,8 @@
     corps.addEventListener('paste', function (ev) {
       if (!modifiable) return;
       ev.preventDefault();
+      var fichiers = Array.prototype.filter.call(ev.clipboardData.files || [], function (f) { return /^image\//.test(f.type); });
+      if (fichiers.length) { fichiers.slice(0, 5).reduce(function (pr, f) { return pr.then(function () { return insererImageFichier(f); }); }, Promise.resolve()); return; }
       var html = ev.clipboardData.getData('text/html'), txt = ev.clipboardData.getData('text/plain');
       var blocs = html ? lireBlocs(new DOMParser().parseFromString(html, 'text/html').body) : String(txt || '').split(/\r?\n/).map(function (l) { return { t: 'p', runs: l ? [{ x: l }] : [] }; });
       blocs = blocs.map(DM.bloc).filter(Boolean);
@@ -682,6 +799,7 @@
       h('span', { class: 'doc-sep' }),
       bouton('▦', 'Insérer un tableau', insererTableau),
       choix('Tableau', { ligne: 'Ajouter une ligne', colonne: 'Ajouter une colonne', '-ligne': 'Supprimer la ligne', '-colonne': 'Supprimer la colonne', entete: 'Ligne de titre (oui / non)' }, tableau),
+      bouton('🖼', 'Insérer une image', choisirImage),
       bouton('⤓', 'Saut de page', function () { insererApres([h('div', { class: 'doc-saut', contenteditable: 'false', title: 'Saut de page' })]); }),
       bouton('⌫', 'Effacer la mise en forme', effacerForme),
       bouton('↶', 'Annuler (Ctrl+Z)', function () { cmd('undo'); }), bouton('↷', 'Rétablir (Ctrl+Y)', function () { cmd('redo'); })) : h('p', { class: 'info', text: d0.corbeille ? 'Document dans la corbeille : lecture seule.' : 'Lecture seule : ce document vous est partagé en lecture.' });
@@ -698,7 +816,7 @@
         h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { modaleHistorique(id); }); } }, 'Historique'),
         modifiable && (stt.statut === 'brouillon' || stt.statut === 'modifie' || stt.statut === 'a-reviser') ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { demanderValidation(id, dessinerBarre); }); } }, 'Demander la validation') : null,
         valideur ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { modaleValidation(id, dessinerBarre); }); } }, 'Valider…') : null,
-        modifiable ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleMiseEnPage(tab ? tab.page : page, function (p) { if (tab) { tab.appliquerPage(p); page = tab.page; } dessinerZones(); marquer(); }, !!tab); } }, 'Mise en page') : null,
+        modifiable ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleMiseEnPage(tab ? tab.page : page, function (p) { if (tab) { tab.appliquerPage(p); page = tab.page; } dessinerZones(); marquer(); }, !!tab, id); } }, 'Mise en page') : null,
         h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { var luI = { meta: { titre: titre.value || 'Sans titre', rattaches: meta.rattaches }, contenu: lireContenu() };
           if (tab) { var toutes = luI.contenu.feuilles.length > 1 && confirm('Imprimer toutes les feuilles ? (Annuler : la feuille affichée seulement)'); U.tableur.imprimer(luI.contenu, zonesPage, valeursPage(doc(id) || d0, luI.meta), toutes, tab.feuille()); }
           else { if (!marquesVisibles) luI.contenu = DM.resoudreSuivi(luI.contenu, true); imprimer(id, luI); } }); } }, 'Imprimer'),
@@ -747,10 +865,11 @@
       function formes() { zSuivi.hidden = !(genre === 'texte' && marques && fmt.value === 'docx'); }
       fmt.addEventListener('change', formes); formes();
       U.modale('Exporter le document', h('div', { class: 'pile' }, h('label', {}, 'Format', fmt), zSuivi,
-        genre === 'tableur' ? h('small', { class: 'muted', text: 'CSV : feuille affichée (« ' + luE.contenu.feuilles[feuille].nom + ' »), séparateur « ; », pour un tableur en français. Excel : formules écrites en anglais avec leurs résultats ; les modifications suivies ne sont pas reprises.' }) : h('small', { class: 'muted', text: 'PDF : polices remplacées par Helvetica (police standard des PDF). RTF et PDF : modifications suivies acceptées.' }),
+        genre === 'tableur' ? h('small', { class: 'muted', text: 'CSV : feuille affichée (« ' + luE.contenu.feuilles[feuille].nom + ' »), séparateur « ; », pour un tableur en français. Excel : formules écrites en anglais avec leurs résultats ; les modifications suivies ne sont pas reprises.' }) : h('small', { class: 'muted', text: 'PDF : polices remplacées par Helvetica (police standard des PDF). RTF et PDF : modifications suivies acceptées.' + (luE.contenu.page && luE.contenu.page.masque ? ' Masque de fond repris en PDF et en Word, pas en RTF.' : '') }),
         h('p', { class: 'alerte', text: 'Le fichier exporté n’est plus chiffré par Tessera : rangez-le sur le réseau de l’établissement, jamais sur un support personnel. Aucune donnée clinique.' })),
         [{ texte: 'Annuler' }, { texte: 'Exporter', classe: 'primaire', action: async function () {
-          var der = DM.derniere(doc(id)), f = X.exporter(luE, { format: fmt.value, suivi: suivi.value, valeurs: valeursPage(doc(id) || d0, luE.meta), feuille: feuille, auteur: moi().nom });
+          var der = DM.derniere(doc(id)), imgs = await imagesExport(id, luE.contenu, fmt.value === 'pdf');
+          var f = X.exporter(luE, { format: fmt.value, suivi: suivi.value, valeurs: valeursPage(doc(id) || d0, luE.meta), feuille: feuille, auteur: moi().nom, images: imgs });
           await s().enregistrer('DOC_EXPORT', { doc: id, format: fmt.value, version: der ? der.id : '', nom: moi().nom });
           await U.exporter('documents', f.nom, f.octets, f.type);
         } }]);
@@ -775,7 +894,7 @@
         els.forEach(function (el) {
           var ajout = el.tagName === 'INS', op = el.getAttribute('data-suivi'), fmt = el.classList.contains('suivi-fmt');
           var texteFmt = fmt ? Array.prototype.map.call(corps.querySelectorAll('span.suivi-fmt[data-id="' + el.getAttribute('data-id') + '"]'), function (x) { return x.textContent; }).join('').slice(0, 120) : '';
-          var lib = op ? DM.OPS_BLOC[op] + (el.tagName === 'TABLE' ? ' (tableau)' : el.classList.contains('doc-saut') ? ' (saut de page)' : ' : ' + el.textContent.slice(0, 120))
+          var lib = op ? DM.OPS_BLOC[op] + (el.tagName === 'TABLE' ? ' (tableau)' : el.classList.contains('doc-saut') ? ' (saut de page)' : el.classList.contains('doc-image') ? ' (image' + (el.getAttribute('data-leg') ? ' « ' + el.getAttribute('data-leg') + ' »' : '') + ')' : ' : ' + el.textContent.slice(0, 120))
             : fmt ? 'Mise en forme modifiée : ' + texteFmt : (ajout ? 'Ajout : ' : 'Suppression : ') + el.textContent.slice(0, 160);
           zone.appendChild(h('div', { class: 'doc-suivi-ligne' }, h('span', { class: ajout || op === 'ins' || op === 'ajout' ? 'diff-ajout' : op || !fmt ? 'diff-retrait' : 'diff-modifie', text: lib }),
             h('small', { class: 'muted', text: ' — ' + (el.getAttribute('data-n') || nomAgent(el.getAttribute('data-p'), doc(id))) + ', ' + jourFr(el.getAttribute('data-le')) }),
@@ -821,6 +940,7 @@
         var actuel = { meta: { titre: titre.value.trim() || 'Sans titre', rattaches: meta.rattaches }, contenu: lireContenu() };
         if (JSON.stringify(DM.contenu(actuel.contenu)) !== JSON.stringify(lu2.contenu)) { sale = true; tours++; enregistrer(false); return; }
       }
+      await chargerImages(doc(id));
       base = der.id; appliquerContenu(lu2); etat.textContent = 'Mis à jour : modifications de ' + nomAgent(der.par, doc(id)) + ' (' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ')';
       dessinerBarre();
     }
@@ -902,7 +1022,7 @@
   }
   function modaleImport(r, nomFichier, o) {
     var tableur = r.contenu.genre === 'tableur', titre = h('input', { type: 'text', maxlength: 160, value: r.titre || nomFichier.replace(/\.[^.]+$/, ''), 'aria-label': 'Titre du document importé' });
-    var resume = tableur ? r.contenu.feuilles.length + ' feuille(s), ' + r.contenu.feuilles.reduce(function (s, x) { return s + Object.keys(x.cellules).length; }, 0) + ' case(s) remplie(s)' : DM.ongletsDe(r.contenu).reduce(function (s, x) { return s + x.blocs.length; }, 0) + ' paragraphe(s) ou élément(s)';
+    var resume = tableur ? r.contenu.feuilles.length + ' feuille(s), ' + r.contenu.feuilles.reduce(function (s, x) { return s + Object.keys(x.cellules).length; }, 0) + ' case(s) remplie(s)' : DM.ongletsDe(r.contenu).reduce(function (s, x) { return s + x.blocs.length; }, 0) + ' paragraphe(s) ou élément(s)' + (r.images && Object.keys(r.images).length ? ', ' + Object.keys(r.images).length + ' image(s)' : '');
     var marques = (tableur ? SIC.tableur.modificationsSuivies(r.contenu) : DM.modificationsSuivies(r.contenu)).length;
     U.modale('Importer « ' + nomFichier + ' »', h('div', { class: 'pile' },
       h('label', {}, 'Titre', titre),
@@ -911,6 +1031,13 @@
       h('p', { class: 'muted', text: 'Le fichier est lu sur ce poste et n’est pas copié : seul le document Tessera créé est gardé, chiffré, privé jusqu’à son partage. Aucune donnée clinique.' })),
       [{ texte: 'Annuler' }, { texte: 'Créer le document', classe: 'primaire', action: async function () {
         var id = await creer({ meta: { titre: titre.value.trim() || 'Document importé', rattaches: o.rattache ? [o.rattache] : [] }, contenu: r.contenu });
+        // Images de Word (0.42.0) : réduites, chiffrées par la clé du nouveau document, sous l'identifiant cité par le texte
+        var ims = r.images || {}, echecs = 0;
+        for (var k in ims) {
+          try { var du = await new Promise(function (ok, ko) { var fr = new FileReader(); fr.onload = function () { ok(fr.result); }; fr.onerror = ko; fr.readAsDataURL(new Blob([ims[k].octets], { type: ims[k].type })); });
+            var red = await reduireImage(du, 1600, ims[k].type); red.nom = ims[k].nom; await ajouterImage(id, red, k); } catch (e) { echecs++; }
+        }
+        if (echecs) U.toast(echecs + ' image(s) de Word illisible(s) : non reprise(s).');
         setTimeout(function () { ouvrirEditeur(id); }, 0);
       } }]);
   }
@@ -1008,6 +1135,7 @@
   }
   async function voir(d, v, zone) {
     var lu = await lireVersion(d, v);
+    await chargerImages(d); docRendu = d.id;
     U.vider(zone).appendChild(lu ? h('div', { class: 'doc-apercu' }, h('h3', { text: lu.meta.titre + ' — version du ' + dateCourte(v.le) }), lu.contenu.genre === 'tableur' ? U.tableur.apercu(lu.contenu) : h('div', { class: 'doc-corps fp-' + lu.contenu.page.police + ' ft-' + lu.contenu.page.taille }, rendreContenuTexte(lu.contenu))) : h('p', { class: 'alerte', text: 'Version illisible (clé retirée ou effacée).' }));
   }
   async function comparerVersions(d, a, b, zone) {
@@ -1071,8 +1199,54 @@
   }
 
   // ------------------------------------------------------------ Mise en page
-  function modaleMiseEnPage(page, apres, tableur) {
+  /**
+   * Masque de fond (0.42.0) : papier à en-tête, filigrane… choisi dans les masques de l'établissement et du service, ou une
+   * image de l'agent ; l'image est copiée dans le document (qui reste lisible même si le masque change ensuite).
+   */
+  function sectionMasque(p, idDoc) {
+    var bib = DM.masquesPour(cfg(), moi()), choixF = null, m0 = p.masque || null;
+    var sel = h('select', { 'aria-label': 'Masque de fond' }, [h('option', { value: '', text: 'Aucun' })]
+      .concat(m0 ? [h('option', { value: '=', text: 'Masque actuel' + (m0.nom ? ' (' + m0.nom + ')' : ''), selected: true })] : [])
+      .concat(bib.length ? [h('optgroup', { label: 'Masques de l’établissement et du service' }, bib.map(function (m) { return h('option', { value: 'mq:' + m.id, text: m.nom + (m.services.length ? ' — ' + m.services.map(U.libService).join(', ') : ' — établissement') }); }))] : [])
+      .concat([h('option', { value: 'fichier', text: 'Une image de mon ordinateur…' })]));
+    var pages = h('select', { 'aria-label': 'Pages' }, [['toutes', 'Toutes les pages'], ['premiere', 'Première page seulement']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: (m0 ? m0.pages : 'toutes') === x[0] }); }));
+    var op = h('input', { type: 'range', min: 5, max: 100, step: 5, value: Math.round((m0 ? m0.opacite : 1) * 100), 'aria-label': 'Opacité' }), opv = h('span', { text: op.value + ' %' });
+    op.addEventListener('input', function () { opv.textContent = op.value + ' %'; });
+    var marges = h('input', { type: 'checkbox', checked: true }), zMarges = h('label', { class: 'case' }, marges, h('span', { text: 'Prendre les marges conseillées par le masque' }));
+    var info = h('small', { class: 'muted' }), apercu = h('div', { class: 'doc-masque-apercu' }), reglages = h('div', { class: 'actions gauche' }, h('label', {}, 'Pages', pages), h('label', {}, 'Opacité', h('span', { class: 'actions gauche' }, op, opv)));
+    function montrer(src) { U.vider(apercu); if (src) apercu.appendChild(h('img', { src: src, alt: 'Aperçu du masque' })); }
+    function maj() {
+      var v = sel.value, m = v.indexOf('mq:') === 0 ? bib.filter(function (x) { return 'mq:' + x.id === v; })[0] : null;
+      reglages.hidden = !v; zMarges.hidden = !(m && m.marges);
+      if (m) { pages.value = m.pages; op.value = Math.round(m.opacite * 100); opv.textContent = op.value + ' %'; info.textContent = m.marges ? 'Marges conseillées : haut ' + m.marges.h + ', bas ' + m.marges.b + ', gauche ' + m.marges.g + ', droite ' + m.marges.d + ' mm.' : ''; montrer(m.image.donnees); }
+      else if (v === '=') { var im = imageDe(idDoc, m0.image); info.textContent = ''; montrer(im && im.donnees); }
+      else if (v === 'fichier') { info.textContent = choixF ? choixF.nom : ''; montrer(choixF && choixF.donnees); if (!choixF) prendreFichier(); }
+      else { info.textContent = ''; montrer(null); }
+    }
+    function prendreFichier() {
+      var inp = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', class: 'cache-fichier' });
+      inp.addEventListener('change', function () { if (!inp.files[0]) return; preparerImage(inp.files[0], 1654).then(function (o) { choixF = o; maj(); }, function (e) { U.toast(e.message); sel.value = m0 ? '=' : ''; maj(); }); });
+      document.body.appendChild(inp); inp.click(); setTimeout(function () { inp.remove(); }, 60000);
+    }
+    sel.addEventListener('change', maj);
+    var el = h('fieldset', {}, h('legend', { text: 'Masque de fond (papier à en-tête, filigrane)' }), h('label', {}, 'Masque', sel), reglages, zMarges, info, apercu,
+      h('small', { class: 'muted', text: 'Le masque couvre toute la page, derrière le texte ; il est imprimé et exporté (PDF, Word). Avec un masque, l’impression du navigateur n’affiche pas les numéros de page : exportez en PDF pour les avoir.' }));
+    maj();
+    /** Appliqué : image copiée dans le document si besoin ; renvoie le masque de la page (ou undefined). */
+    async function valeur() {
+      var v = sel.value, base = { pages: pages.value, opacite: +op.value / 100 };
+      if (!v) return { masque: undefined };
+      if (v === '=') return { masque: Object.assign({}, m0, base) };
+      if (v === 'fichier') { if (!choixF) throw new Error('Choisissez une image pour le masque.'); return { masque: Object.assign(base, { image: await ajouterImage(idDoc, choixF), nom: choixF.nom.slice(0, 80) }) }; }
+      var m = bib.filter(function (x) { return 'mq:' + x.id === v; })[0];
+      var idI = m0 && m0.source === m.id && imageDe(idDoc, m0.image) && imageDe(idDoc, m0.image).donnees === m.image.donnees ? m0.image : await ajouterImage(idDoc, { donnees: m.image.donnees, largeur: m.image.largeur, hauteur: m.image.hauteur, nom: m.nom });
+      return { masque: Object.assign(base, { image: idI, source: m.id, nom: m.nom }), marges: m.marges && marges.checked ? m.marges : null, orientation: m.orientation };
+    }
+    return { el: el, valeur: valeur };
+  }
+  function modaleMiseEnPage(page, apres, tableur, idDoc) {
     var p = JSON.parse(JSON.stringify(page)), dernier = null;
+    var mq = !tableur && idDoc ? sectionMasque(p, idDoc) : null;
     function nombre(k, aria) { var i = h('input', { type: 'number', min: 5, max: 50, value: p.marges[k], class: 'champ-court', 'aria-label': aria }); i.addEventListener('change', function () { p.marges[k] = +i.value; }); return h('label', {}, aria, i); }
     function sel(k, opts, aria) { var x = h('select', { 'aria-label': aria }, Object.keys(opts).filter(Boolean).map(function (o) { return h('option', { value: o, text: opts[o], selected: String(p[k]) === o }); })); x.addEventListener('change', function () { p[k] = isNaN(+x.value) ? x.value : +x.value; }); return h('label', {}, aria, x); }
     function zonesE(nom, obj) { return h('div', { class: 'grille-3' }, ['gauche', 'centre', 'droite'].map(function (k) { var i = h('input', { type: 'text', maxlength: 160, value: obj[k], 'aria-label': nom + ' ' + k }); i.addEventListener('input', function () { obj[k] = i.value; }); i.addEventListener('focus', function () { dernier = { el: i, obj: obj, k: k }; }); return h('label', {}, nom + ' — ' + { gauche: 'à gauche', centre: 'au centre', droite: 'à droite' }[k], i); })); }
@@ -1083,11 +1257,19 @@
       tableur ? h('div', { class: 'actions gauche' }, sel('orientation', { portrait: 'Portrait', paysage: 'Paysage' }, 'Orientation'), caseP('ajuster', 'Ajuster à la largeur de la page'), caseP('quadrillage', 'Imprimer le quadrillage'), caseP('repeter', 'Répéter la 1re ligne sur chaque page'))
         : h('div', { class: 'actions gauche' }, sel('orientation', { portrait: 'Portrait', paysage: 'Paysage' }, 'Orientation'), sel('police', DM.POLICES, 'Police du document'), sel('taille', tailles, 'Taille du texte'), sel('interligne', { 1: 'Simple', 1.15: '1,15', 1.5: '1,5', 2: 'Double' }, 'Interligne')),
       h('fieldset', {}, h('legend', { text: 'Marges (mm)' }), h('div', { class: 'actions gauche' }, nombre('h', 'Haut'), nombre('b', 'Bas'), nombre('g', 'Gauche'), nombre('d', 'Droite'))),
-      zonesE('En-tête', p.entete), zonesE('Pied de page', p.pied),
+      zonesE('En-tête', p.entete), zonesE('Pied de page', p.pied), mq ? mq.el : null,
       h('div', { class: 'actions gauche' }, h('span', { class: 'muted', text: 'Insérer :' }), Object.keys(champs).map(function (k) {
         return h('button', { class: 'btn petit', type: 'button', onmousedown: function (ev) { ev.preventDefault(); }, onclick: function () { if (!dernier) return U.toast('Cliquez d’abord dans une zone de l’en-tête ou du pied de page.'); var el = dernier.el, pos = el.selectionStart || el.value.length; el.value = el.value.slice(0, pos) + '{' + k + '}' + el.value.slice(pos); dernier.obj[dernier.k] = el.value; } }, champs[k]);
       }))),
-      [{ texte: 'Annuler' }, { texte: 'Appliquer', classe: 'primaire', action: function () { if (tableur) apres(p); else { Object.assign(page, DM.page(p)); apres(p); } } }]);
+      [{ texte: 'Annuler' }, { texte: 'Appliquer', classe: 'primaire', action: async function () {
+        if (tableur) return apres(p);
+        if (mq) {
+          var r = await mq.valeur(); p.masque = r.masque;
+          if (r.marges) p.marges = Object.assign({}, r.marges);
+          if (r.orientation && r.masque && r.orientation !== p.orientation && confirm('Ce masque est prévu en ' + r.orientation + ' : passer le document en ' + r.orientation + ' ?')) p.orientation = r.orientation;
+        }
+        var np = DM.page(p); Object.keys(page).forEach(function (k) { delete page[k]; }); Object.assign(page, np); apres(p);
+      } }], { large: true });
   }
 
   // ------------------------------------------------------------ Impression
@@ -1095,22 +1277,30 @@
   function imprimer(id, lu) {
     var d = doc(id), p = lu.contenu.page, mm = PAGE_MM[p.orientation];
     // Page : taille, marges et numéro (« {page} » du pied de page, placé dans la marge du bas) par une règle CSSOM
-    var zonePage = ['gauche', 'centre', 'droite'].filter(function (k) { return /\{page\}/.test(p.pied[k]); })[0];
+    var zonePage = ['gauche', 'centre', 'droite'].filter(function (k) { return /\{page\}/.test(p.pied[k]); })[0], zonePageOrig = zonePage;
     var feuilleCss = Array.prototype.filter.call(document.styleSheets, function (x) { try { return !!x.cssRules; } catch (e) { return false; } })[0];
+    // Masque de fond (0.42.0) : page sans marge (l'image couvre toute la page), marges reportées dans l'en-tête, le pied et le texte
+    var masque = p.masque && imageDe(id, p.masque.image);
+    if (masque) zonePage = null;
     if (feuilleCss) {
       if (regleImpression !== null) { try { feuilleCss.deleteRule(regleImpression); } catch (e) { /* */ } }
-      var boite = zonePage ? ' @bottom-' + { gauche: 'left', centre: 'center', droite: 'right' }[zonePage] + ' { content: "Page " counter(page) " sur " counter(pages); font-size: 8pt; }' : '';
-      try { regleImpression = feuilleCss.insertRule('@page doc-texte { size: ' + mm[0] + 'mm ' + mm[1] + 'mm; margin: ' + p.marges.h + 'mm ' + p.marges.d + 'mm ' + p.marges.b + 'mm ' + p.marges.g + 'mm;' + boite + ' }', feuilleCss.cssRules.length); } catch (e) { regleImpression = null; }
+      if (masque) { try { regleImpression = feuilleCss.insertRule('@page doc-texte { size: ' + mm[0] + 'mm ' + mm[1] + 'mm; margin: 0; }', feuilleCss.cssRules.length); } catch (e) { regleImpression = null; } }
+      var boite = masque ? '' : zonePage ? ' @bottom-' + { gauche: 'left', centre: 'center', droite: 'right' }[zonePage] + ' { content: "Page " counter(page) " sur " counter(pages); font-size: 8pt; }' : '';
+      if (!masque) try { regleImpression = feuilleCss.insertRule('@page doc-texte { size: ' + mm[0] + 'mm ' + mm[1] + 'mm; margin: ' + p.marges.h + 'mm ' + p.marges.d + 'mm ' + p.marges.b + 'mm ' + p.marges.g + 'mm;' + boite + ' }', feuilleCss.cssRules.length); } catch (e) { regleImpression = null; }
     }
     var v = valeursPage(d, lu.meta, '');
     // La zone qui porte « {page} » est remplacée par le numéro « Page n sur N » de la marge du bas
     var pied = { gauche: p.pied.gauche, centre: p.pied.centre, droite: p.pied.droite }; if (zonePage) pied[zonePage] = '';
+    if (masque) { var sansNum = function (z) { return String(z || '').replace(/(Page\s*)?\{page\}(\s*sur\s*\{pages\})?/gi, '').trim(); }; pied = { gauche: sansNum(p.pied.gauche), centre: sansNum(p.pied.centre), droite: sansNum(p.pied.droite) }; }
+    docRendu = id;
     var corps = h('div', { class: 'doc-corps fp-' + p.police + ' ft-' + p.taille + ' lh-' + String(p.interligne).replace('.', '') }, rendreContenuTexte(lu.contenu, true));
-    var t = h('table', { class: 'doc-imprime-table' },
-      h('thead', {}, h('tr', {}, h('td', {}, zonesPage(p.entete, v, 'doc-entete')))),
-      h('tfoot', {}, h('tr', {}, h('td', {}, zonesPage(pied, v, 'doc-pied')))),
-      h('tbody', {}, h('tr', {}, h('td', {}, corps))));
-    U.imprimer(h('article', { class: 'doc-imprime' }, t));
+    var te = h('td', {}, zonesPage(p.entete, v, 'doc-entete')), tp = h('td', {}, zonesPage(pied, v, 'doc-pied')), tc = h('td', {}, corps);
+    if (masque) { te.style.padding = p.marges.h + 'mm ' + p.marges.d + 'mm 0 ' + p.marges.g + 'mm'; tp.style.padding = '0 ' + p.marges.d + 'mm ' + p.marges.b + 'mm ' + p.marges.g + 'mm'; tc.style.padding = '0 ' + p.marges.d + 'mm 0 ' + p.marges.g + 'mm'; }
+    var t = h('table', { class: 'doc-imprime-table' }, h('thead', {}, h('tr', {}, te)), h('tfoot', {}, h('tr', {}, tp)), h('tbody', {}, h('tr', {}, tc)));
+    var fond = null;
+    if (masque) { fond = h('img', { class: 'doc-masque-impression ' + (p.masque.pages === 'premiere' ? 'premiere' : 'toutes'), src: masque.donnees, alt: '' }); fond.style.width = mm[0] + 'mm'; fond.style.height = mm[1] + 'mm'; fond.style.opacity = String(p.masque.opacite); }
+    U.imprimer(h('article', { class: 'doc-imprime' + (masque ? ' avec-masque' : '') }, fond, t));
+    if (masque && zonePageOrig) U.toast('Avec un masque de fond, les numéros de page ne s’impriment pas : exportez en PDF pour les avoir.');
   }
 
   // ------------------------------------------------------------ Vues de la fenêtre
@@ -1180,6 +1370,66 @@
           gere ? h('button', { class: 'btn petit danger', type: 'button', onclick: function () { if (confirm('Effacer définitivement ce document ? Sa clé sera détruite : il ne pourra plus être lu, même depuis le journal.')) effacer(d.id).then(function () { U.rendreContenu(); }, function (e) { U.toast(e.message); }); } }, 'Effacer définitivement') : null);
       })));
   }
+  // ------------------------------------------------------------ Masques de service et d'établissement (0.42.0)
+  /**
+   * Bibliothèque des masques de fond : l'administrateur gère ceux de l'établissement et de tous les services, le cadre
+   * ceux de ses services (réglage `masquesDocuments`, ouvert au cadre). Ils sont proposés dans « Mise en page ».
+   */
+  function vueMasques() {
+    var adm = s().roles().indexOf('ADMIN') >= 0, ro = !!s().apercu, ms = DM.masques(cfg()), sv = moi().services || [];
+    function gerable(m) { return !ro && (adm || (m.services.length && m.services.every(function (x) { return sv.indexOf(x) >= 0; }))); }
+    var liste = Object.keys(ms).map(function (k) { return ms[k]; }).filter(function (m) { return adm || !m.services.length || m.services.some(function (x) { return sv.indexOf(x) >= 0; }); })
+      .sort(function (a, b) { return (a.services.length ? 1 : 0) - (b.services.length ? 1 : 0) || a.nom.localeCompare(b.nom); });
+    return h('div', { class: 'pile' }, h('h1', { text: 'Masques de fond' }),
+      h('p', { class: 'muted', text: 'Papier à en-tête, filigrane, logo : image de la taille d’une page, placée derrière le texte. Les agents la choisissent dans « Mise en page » d’un document texte ; elle est copiée dans le document, qui garde son masque même si celui-ci change ensuite. ' + (adm ? 'Vous gérez les masques de l’établissement et ceux de tous les services.' : 'Vous gérez les masques de vos services ; ceux de l’établissement sont gérés par l’administrateur.') }),
+      !ro ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn primaire', type: 'button', onclick: function () { modaleMasque(null, adm); } }, 'Nouveau masque')) : null,
+      !liste.length ? h('p', { class: 'muted', text: 'Aucun masque pour l’instant.' }) : h('div', { class: 'doc-masques' }, liste.map(function (m) {
+        return h('div', { class: 'doc-masque-carte' }, h('div', { class: 'doc-masque-vignette ' + m.orientation }, h('img', { src: m.image.donnees, alt: 'Masque « ' + m.nom + ' »' })),
+          h('b', { text: m.nom }), h('small', { class: 'muted', text: (m.services.length ? m.services.map(U.libService).join(', ') : 'Établissement') + ' — ' + (m.pages === 'premiere' ? 'première page' : 'toutes les pages') + (m.opacite < 1 ? ', opacité ' + Math.round(m.opacite * 100) + ' %' : '') + (m.marges ? ', marges conseillées' : '') }),
+          gerable(m) ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleMasque(m, adm); } }, 'Modifier'),
+            h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (!confirm('Retirer le masque « ' + m.nom + ' » ? Les documents qui l’utilisent gardent leur copie.')) return; var n = JSON.parse(JSON.stringify(cfg().masquesDocuments || {})); delete n[m.id]; try { await U.enregistrerConfig([['masquesDocuments', n]]); U.rendreContenu(); } catch (e) { U.toast(e.message); } } }, 'Retirer')) : null);
+      })));
+  }
+  function modaleMasque(m, adm) {
+    var sv = moi().services || [], img = m ? m.image : null;
+    var nom = h('input', { type: 'text', maxlength: 80, value: m ? m.nom : '', placeholder: 'Ex. : Papier à en-tête du service (fictif)', 'aria-label': 'Nom du masque' });
+    var portees = (adm ? [['', 'Tout l’établissement']] : []).concat((adm ? (cfg().services || []).map(function (x) { return x.code; }) : sv).map(function (c) { return [c, 'Service : ' + U.libService(c)]; }));
+    var portee = h('select', { 'aria-label': 'Pour' }, portees.map(function (x) { return h('option', { value: x[0], text: x[1], selected: m ? (m.services[0] || '') === x[0] : false }); }));
+    var pages = h('select', { 'aria-label': 'Pages' }, [['toutes', 'Toutes les pages'], ['premiere', 'Première page seulement']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: m && m.pages === x[0] }); }));
+    var orient = h('select', { 'aria-label': 'Orientation' }, [['portrait', 'Portrait'], ['paysage', 'Paysage']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: m && m.orientation === x[0] }); }));
+    var op = h('input', { type: 'range', min: 5, max: 100, step: 5, value: Math.round((m ? m.opacite : 1) * 100), 'aria-label': 'Opacité' }), opv = h('span', { text: op.value + ' %' });
+    var avecM = h('input', { type: 'checkbox', checked: !!(m && m.marges) }), mg = (m && m.marges) || { h: 40, b: 25, g: 20, d: 20 };
+    var champsM = ['h', 'b', 'g', 'd'].map(function (k) { return h('input', { type: 'number', min: 5, max: 50, value: mg[k], class: 'champ-court', 'aria-label': { h: 'Haut', b: 'Bas', g: 'Gauche', d: 'Droite' }[k] }); });
+    var zM = h('div', { class: 'actions gauche' }, champsM.map(function (c) { return h('label', {}, c.getAttribute('aria-label'), c); }));
+    var apercu = h('div', { class: 'doc-masque-vignette grand' });
+    function dessiner() {
+      opv.textContent = op.value + ' %'; zM.hidden = !avecM.checked;
+      apercu.className = 'doc-masque-vignette grand ' + orient.value; U.vider(apercu);
+      if (img) { var i = h('img', { src: img.donnees, alt: 'Aperçu' }); i.style.opacity = String(+op.value / 100); apercu.appendChild(i); }
+      if (avecM.checked) { var z = h('div', { class: 'doc-masque-zone-texte', title: 'Zone du texte' }), mm = PAGE_MM[orient.value]; z.style.top = (+champsM[0].value / mm[1] * 100) + '%'; z.style.bottom = (+champsM[1].value / mm[1] * 100) + '%'; z.style.left = (+champsM[2].value / mm[0] * 100) + '%'; z.style.right = (+champsM[3].value / mm[0] * 100) + '%'; apercu.appendChild(z); }
+      if (!img) apercu.appendChild(h('span', { class: 'muted', text: 'Aucune image' }));
+    }
+    [op, avecM, orient].concat(champsM).forEach(function (x) { x.addEventListener('input', dessiner); x.addEventListener('change', dessiner); });
+    var fichier = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', 'aria-label': 'Image du masque' });
+    fichier.addEventListener('change', function () { if (!fichier.files[0]) return; preparerImage(fichier.files[0], 1654).then(function (o) { img = o; if (o.largeur > o.hauteur && !m) orient.value = 'paysage'; dessiner(); }, function (e) { U.toast(e.message); }); });
+    dessiner();
+    U.modale(m ? 'Modifier le masque' : 'Nouveau masque', h('div', { class: 'grille-2' }, h('div', { class: 'pile' },
+      h('label', {}, 'Nom', nom), h('label', {}, 'Pour', portee),
+      h('label', {}, 'Image (page entière, idéalement au format de la page : A4 portrait 1654 × 2339 pixels)', fichier),
+      h('small', { class: 'muted', text: 'Exportez le papier à en-tête en image (PNG ou JPEG) depuis Word ou un logiciel de dessin. Aucune donnée de patient.' }),
+      h('div', { class: 'actions gauche' }, h('label', {}, 'Orientation', orient), h('label', {}, 'Pages', pages)),
+      h('label', {}, 'Opacité', h('span', { class: 'actions gauche' }, op, opv)),
+      h('label', { class: 'case' }, avecM, h('span', { text: 'Marges conseillées (mm) : le texte évite l’en-tête et le pied du papier' })), zM), apercu),
+      [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: async function () {
+        if (!nom.value.trim()) throw new Error('Donnez un nom au masque.');
+        if (!img) throw new Error('Choisissez l’image du masque.');
+        var n = JSON.parse(JSON.stringify(cfg().masquesDocuments || {})), idm = m ? m.id : 'mq' + hex(5);
+        n[idm] = { nom: nom.value.trim(), services: portee.value ? [portee.value] : [], image: { donnees: img.donnees, largeur: img.largeur, hauteur: img.hauteur }, pages: pages.value, opacite: +op.value / 100, orientation: orient.value,
+          marges: avecM.checked ? { h: +champsM[0].value, b: +champsM[1].value, g: +champsM[2].value, d: +champsM[3].value } : null };
+        if (!DM.masques({ masquesDocuments: n })[idm]) throw new Error('Masque non valide (image PNG ou JPEG de moins de 3 Mo).');
+        await U.enregistrerConfig([['masquesDocuments', n]]); U.rendreContenu();
+      } }], { large: true });
+  }
   async function effacer(id) { await s().enregistrer('DOC_EFFACE', { doc: id }); await s().effacerCleDocument(id); }
   /** Effacement des documents restés 30 jours dans la corbeille (à la connexion, une fois par jour et par poste). */
   async function effacementAutomatique() {
@@ -1235,7 +1485,7 @@
       } }, 'Enregistrer')) : null);
   }
   var LIB = { DOC: 'Documents : création', DOC_VERSION: 'Documents : version', DOC_PARTAGE: 'Documents : partage', DOC_STATUT: 'Documents : demande de validation ou retour en brouillon', DOC_VALIDATION: 'Documents : validation',
-    DOC_CORBEILLE: 'Documents : corbeille', DOC_EFFACE: 'Documents : effacement définitif', DOC_TRANSFERT: 'Documents : transfert de la gestion (compte retiré)', DOC_OPTIONS: 'Documents : options (suivi, édition simultanée, export)', DOC_EXPORT: 'Documents : export' };
+    DOC_CORBEILLE: 'Documents : corbeille', DOC_EFFACE: 'Documents : effacement définitif', DOC_TRANSFERT: 'Documents : transfert de la gestion (compte retiré)', DOC_OPTIONS: 'Documents : options (suivi, édition simultanée, export)', DOC_EXPORT: 'Documents : export', DOC_IMAGE: 'Documents : image ajoutée' };
   function resume(e) {
     var d = e.data || {}, x = doc(d.id || d.doc), m = x && metaConnue(x), nom = m ? '« ' + m.titre + ' »' : 'un document';
     switch (e.type) {
@@ -1247,6 +1497,7 @@
       case 'DOC_CORBEILLE': return (d.corbeille ? 'Mis à la corbeille : ' : 'Restauré : ') + nom;
       case 'DOC_EFFACE': return 'Effacé définitivement : ' + nom + ' (clé détruite)';
       case 'DOC_OPTIONS': return 'Options de ' + nom + ' : suivi des modifications ' + (d.suivi ? 'activé' : 'désactivé') + ', édition simultanée ' + (d.simultane ? 'activée' : 'désactivée') + (d.export ? ', export : ' + { lire: 'lecteurs', modifier: 'qui peut modifier', gerer: 'qui gère' }[d.export] : '');
+      case 'DOC_IMAGE': return 'Image ajoutée à ' + nom;
       case 'DOC_EXPORT': return 'Export de ' + nom + ' (' + String(d.format || '').toUpperCase() + ')';
       case 'DOC_TRANSFERT': return 'Gestion de ' + nom + ' transférée à ' + (d.vers || []).map(function (y) { return nomAgent(y, x); }).join(', ');
     }
@@ -1254,7 +1505,7 @@
   }
 
   SIC.modules.completerInterface('documents', {
-    vues: { documents: vueDocuments, modeles: vueModeles, 'a-valider': vueAValider, corbeille: vueCorbeille },
+    vues: { documents: vueDocuments, modeles: vueModeles, 'a-valider': vueAValider, corbeille: vueCorbeille, masques: vueMasques },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'Le document revient à son état précédent (les fichiers de clés ne changent pas).'; } },
     admin: { onglets: function () { return [['documents', 'Documents', [panneauReglages()]]]; } }
   });

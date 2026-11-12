@@ -22,7 +22,7 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, G, T) {
   'use strict';
 
-  var TYPES = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_VALIDATION', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_TRANSFERT', 'DOC_OPTIONS', 'DOC_EXPORT'];
+  var TYPES = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_VALIDATION', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_TRANSFERT', 'DOC_OPTIONS', 'DOC_EXPORT', 'DOC_IMAGE'];
   var DROITS_DOC = { lire: 1, modifier: 2, gerer: 3 };
   var LIB_DROITS = { lire: 'Lire', modifier: 'Modifier', gerer: 'Gérer (partage, corbeille)' };
   var STATUTS = { brouillon: 'Brouillon', 'a-valider': 'À valider', valide: 'Validé', modifie: 'Modifié depuis la validation', 'a-reviser': 'À réviser' };
@@ -87,6 +87,8 @@
   function bloc(b) {
     if (!b || typeof b !== 'object') return null;
     if (b.t === 'saut') return avecSuivi({ t: 'saut' }, b);
+    // Image (0.42.0) : renvoi à une image du document (saisie DOC_IMAGE), largeur en % de la page, alignement
+    if (b.t === 'img') { var iid = texte(b.id, 30); if (!ID_IMAGE.test(iid)) return null; var lp = Math.round(+b.l); var im = { t: 'img', id: iid, l: lp >= 5 && lp <= 100 ? lp : 50, al: b.al === 'g' || b.al === 'd' ? b.al : 'c' }, lg = texte(b.leg, 200); if (lg) im.leg = lg; return avecSuivi(im, b); }
     if (b.t === 'table') {
       var lignes = (Array.isArray(b.lignes) ? b.lignes : []).slice(0, 200).map(function (l) { return (Array.isArray(l) ? l : []).slice(0, 20).map(cellule); }).filter(function (l) { return l.length; });
       if (!lignes.length) return null;
@@ -109,7 +111,50 @@
     var m = p.marges || {};
     return { orientation: p.orientation === 'paysage' ? 'paysage' : 'portrait', marges: { h: marge(m.h, 20), b: marge(m.b, 20), g: marge(m.g, 20), d: marge(m.d, 20) },
       police: POLICES[p.police] && p.police ? p.police : 'calibri', taille: TAILLES.indexOf(+p.taille) >= 0 ? +p.taille : 11,
-      entete: zones(p.entete), pied: p.pied ? zones(p.pied) : { gauche: '{titre}', centre: '', droite: 'Page {page}' }, interligne: [1, 1.15, 1.5, 2].indexOf(+p.interligne) >= 0 ? +p.interligne : 1.15 };
+      entete: zones(p.entete), pied: p.pied ? zones(p.pied) : { gauche: '{titre}', centre: '', droite: 'Page {page}' }, interligne: [1, 1.15, 1.5, 2].indexOf(+p.interligne) >= 0 ? +p.interligne : 1.15,
+      masque: masquePage(p.masque) };
+  }
+  /**
+   * Masque de fond d'un document (0.42.0) : image du document (papier à en-tête, filigrane) sous le texte, sur toutes
+   * les pages ou la première, opacité ; `source` : masque de service ou d'établissement dont il vient.
+   */
+  function masquePage(m) {
+    if (!m || !ID_IMAGE.test(texte(m.image, 30))) return undefined;
+    var o = Math.round(+m.opacite * 100) / 100;
+    return { image: texte(m.image, 30), pages: m.pages === 'premiere' ? 'premiere' : 'toutes', opacite: o >= 0.05 && o <= 1 ? o : 1, source: texte(m.source, 40) || undefined, nom: texte(m.nom, 80) || undefined };
+  }
+  var ID_IMAGE = /^im[0-9a-f]{6,24}$/, MAX_IMAGE = 3000000;
+  /**
+   * Masques de service et d'établissement (réglage commun `masquesDocuments`, 0.42.0) :
+   * { id: { nom, services (vide : établissement), image: { donnees (data:image/…), largeur, hauteur }, pages, opacite,
+   * marges (facultatives, mm), orientation } }. Validés à la lecture.
+   */
+  function masques(config) {
+    var src = (config && config.masquesDocuments) || {}, res = {};
+    Object.keys(src).slice(0, 100).forEach(function (k) {
+      var m = src[k]; if (!/^mq[0-9a-z]{4,24}$/.test(k) || !m || !m.image || !/^data:image\/(png|jpeg);base64,/.test(String(m.image.donnees || '')) || m.image.donnees.length > MAX_IMAGE) return;
+      var mg = m.marges, o = Math.round(+m.opacite * 100) / 100;
+      res[k] = { id: k, nom: texte(m.nom, 80) || 'Masque', services: (Array.isArray(m.services) ? m.services : []).map(function (s) { return texte(s, 30); }).filter(Boolean).slice(0, 50),
+        image: { donnees: m.image.donnees, largeur: Math.round(+m.image.largeur) || 0, hauteur: Math.round(+m.image.hauteur) || 0 },
+        pages: m.pages === 'premiere' ? 'premiere' : 'toutes', opacite: o >= 0.05 && o <= 1 ? o : 1, orientation: m.orientation === 'paysage' ? 'paysage' : 'portrait',
+        marges: mg ? { h: marge(mg.h, 20), b: marge(mg.b, 20), g: marge(mg.g, 20), d: marge(mg.d, 20) } : null };
+    });
+    return res;
+  }
+  /** Masques proposés à un agent : ceux de l'établissement et ceux de ses services. */
+  function masquesPour(config, compte) {
+    var ms = masques(config), sv = (compte && compte.services) || [];
+    return Object.keys(ms).map(function (k) { return ms[k]; }).filter(function (m) { return !m.services.length || m.services.some(function (s) { return sv.indexOf(s) >= 0; }); })
+      .sort(function (a, b) { return (a.services.length ? 1 : 0) - (b.services.length ? 1 : 0) || a.nom.localeCompare(b.nom); });
+  }
+  /**
+   * Changement des masques par un cadre (réglage ouvert au cadre) : seulement les masques de ses services (ajout,
+   * modification, retrait) ; les masques d'établissement sont réservés à l'administrateur.
+   */
+  function controlerMasques(ancien, nouveau, compte) {
+    var sv = (compte && compte.services) || [], a = ancien || {}, n = nouveau || {};
+    function sien(m) { return m && Array.isArray(m.services) && m.services.length && m.services.every(function (s) { return sv.indexOf(s) >= 0; }); }
+    return Object.keys(Object.assign({}, a, n)).every(function (k) { return JSON.stringify(a[k]) === JSON.stringify(n[k]) || ((!a[k] || sien(a[k])) && (!n[k] || sien(n[k]))); });
   }
   var GENRES = { texte: 'Document texte', tableur: 'Tableur' };
   /** Contenu d'un document, validé à la lecture : texte (blocs, page) ou tableur (feuilles, page, 0.35.0). */
@@ -136,6 +181,7 @@
   function texteBloc(b) {
     if (!b) return '';
     if (b.t === 'saut') return '— saut de page —';
+    if (b.t === 'img') return '[image' + (b.leg ? ' : ' + b.leg : '') + ']';
     if (b.t === 'table') return b.lignes.map(function (l) { return l.map(function (c) { return c.runs.map(function (r) { return r.x; }).join(''); }).join(' | '); }).join('\n');
     return (b.runs || []).map(function (r) { return r.x; }).join('');
   }
@@ -447,6 +493,11 @@
         if (!x || x.efface) break;
         x.options = { simultane: d.simultane === true, suivi: d.suivi === true, export: DROITS_DOC[d.export] ? d.export : (x.options.export || 'modifier'), par: e.by, le: e.at };
         break;
+      case 'DOC_IMAGE':
+        // Image d'un document (0.42.0) : chiffrée par la clé du document, écrite une fois, citée par les versions
+        if (!x || x.efface || !ID_IMAGE.test(texte(d.id, 30)) || typeof d.ct !== 'string') break;
+        (x.images = x.images || {})[d.id] = { id: d.id, g: +d.g || 1, ct: d.ct, le: e.at, par: e.by };
+        break;
       case 'DOC_EXPORT':
         // Export (0.40.0) : le fichier sort du chiffrement de Tessera ; inscrit au journal du module (format, version)
         if (!x || x.efface) break;
@@ -466,6 +517,7 @@
         if (!x || x.efface) break;
         x.efface = { le: e.at, par: e.by };
         x.versions.forEach(function (y) { y.ct = null; });   // illisibles de toute façon : clé détruite
+        if (x.images) Object.keys(x.images).forEach(function (k) { x.images[k].ct = null; });
         break;
     }
   }
@@ -558,6 +610,11 @@
       if (d.export && d.export !== ((x.options && x.options.export) || 'modifier') && !peut(x, compte, config, 'gerer')) throw new Error('Seul celui qui gère le document règle qui peut l’exporter.');
       return;
     }
+    if (type === 'DOC_IMAGE') {
+      if (!peut(x, compte, config, 'modifier')) throw new Error('Vous ne pouvez pas modifier ce document.');
+      if (!ID_IMAGE.test(String(d.id || '')) || typeof d.ct !== 'string' || d.ct.length > MAX_IMAGE * 1.4) throw new Error('Image trop lourde ou invalide.');
+      return;
+    }
     if (type === 'DOC_EXPORT') { if (!peutExporter(x, compte, config)) throw new Error('Vous ne pouvez pas exporter ce document.'); return; }
     if (type === 'DOC_PARTAGE' || type === 'DOC_CORBEILLE') {
       if (!peut(x, compte, config, 'gerer')) throw new Error('Seul celui qui gère le document change son partage ou le met à la corbeille.');
@@ -595,22 +652,22 @@
   /** Saisies permises par le droit sur le document (et non par le seul rôle) : versions, partage, corbeille, statut, effacement échu. */
   function permisPourSoi(type, data, compte, ctx) {
     if (type === 'DOC_EXPORT' && data && ctx && ctx.etat && ctx.etat.docs && ctx.etat.docs[data.doc]) return peutExporter(ctx.etat.docs[data.doc], compte, ctx.config);
-    if (['DOC_VERSION', 'DOC_PARTAGE', 'DOC_CORBEILLE', 'DOC_STATUT', 'DOC_EFFACE', 'DOC_VALIDATION', 'DOC_OPTIONS'].indexOf(type) < 0 || !data || !ctx || !ctx.etat) return false;
+    if (['DOC_VERSION', 'DOC_PARTAGE', 'DOC_CORBEILLE', 'DOC_STATUT', 'DOC_EFFACE', 'DOC_VALIDATION', 'DOC_OPTIONS', 'DOC_IMAGE'].indexOf(type) < 0 || !data || !ctx || !ctx.etat) return false;
     var x = ctx.etat.docs && ctx.etat.docs[data.doc];
     if (!x) return false;
     // Validation supplémentaire : la personne nommée valide (ou renvoie en brouillon) sans le rôle de valideur
     if (type === 'DOC_VALIDATION') return !!statut(x).attendu && statut(x).attendu === (compte && compte.id);
     if (type === 'DOC_STATUT' && data.statut === 'brouillon' && statut(x).attendu === (compte && compte.id)) return true;
     if (type === 'DOC_EFFACE') return !!x.corbeille && (peut(x, compte, ctx.config, 'gerer') || Date.parse(x.corbeille.le) <= Date.now() - joursCorbeille(ctx.config) * 864e5);
-    return peut(x, compte, ctx.config, type === 'DOC_VERSION' || type === 'DOC_STATUT' || type === 'DOC_OPTIONS' ? 'modifier' : 'gerer');
+    return peut(x, compte, ctx.config, type === 'DOC_VERSION' || type === 'DOC_STATUT' || type === 'DOC_OPTIONS' || type === 'DOC_IMAGE' ? 'modifier' : 'gerer');
   }
 
   // ------------------------------------------------------------ Droits et contrat
   var ACCES = [
-    { code: 'documents.utiliser', libelle: 'Créer des documents, modifier ceux qui lui sont partagés', types: ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_OPTIONS', 'DOC_EXPORT'] },
+    { code: 'documents.utiliser', libelle: 'Créer des documents, modifier ceux qui lui sont partagés', types: ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_OPTIONS', 'DOC_EXPORT', 'DOC_IMAGE'] },
     { code: 'documents.valider', libelle: 'Valider les documents (procédures, règlements) et fixer leur date de révision', types: ['DOC_VALIDATION'] }
   ];
-  var U_ = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_OPTIONS', 'DOC_EXPORT'];
+  var U_ = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_OPTIONS', 'DOC_EXPORT', 'DOC_IMAGE'];
   // Droits proposés : tous les agents créent ; le cadre et le cadre supérieur valident
   var DROITS = { IDE: U_, AS: U_, SECRETAIRE: U_, MEDECIN: U_, MEDECIN_CHEF_SERVICE: U_, MEDECIN_CHEF_POLE: U_, DIRECTEUR_SOINS: U_, CADRE: TYPES.slice() };
   var D = Droits.creer({
@@ -636,8 +693,8 @@
     acces: ACCES,
     droits: D,
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: function (st, e) { return cibles(st, e); } },
-    reglages: { defaut: {}, groupes: [], exclus: [] },
-    vues: { onglets: [{ code: 'documents', libelle: 'Documents' }, { code: 'modeles', libelle: 'Modèles' }, { code: 'a-valider', libelle: 'À valider', droit: 'DOC_VALIDATION' }, { code: 'corbeille', libelle: 'Corbeille' }] },
+    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { masquesDocuments: controlerMasques } },
+    vues: { onglets: [{ code: 'documents', libelle: 'Documents' }, { code: 'modeles', libelle: 'Modèles' }, { code: 'a-valider', libelle: 'À valider', droit: 'DOC_VALIDATION' }, { code: 'corbeille', libelle: 'Corbeille' }, { code: 'masques', libelle: 'Masques', droit: 'DOC_VALIDATION' }] },
     migrations: [],
     fournitures: [],
     besoins: []
@@ -645,7 +702,7 @@
 
   registre.declarer(contrat);
 
-  return { peutExporter: peutExporter, MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
+  return { masques: masques, masquesPour: masquesPour, controlerMasques: controlerMasques, ID_IMAGE: ID_IMAGE, MAX_IMAGE: MAX_IMAGE, peutExporter: peutExporter, MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
     POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
     run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
     entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,
