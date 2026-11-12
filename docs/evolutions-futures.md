@@ -259,7 +259,7 @@ Trier un tableau en cliquant sur le titre d'une colonne (un clic : ordre croissa
 - **Fonctionnement envisagé** : une aide commune de l'interface, comme la largeur des colonnes (`ui.js` `activerLargeurs`) ; tri selon le type de la colonne (texte, nombre, date, durée) ; flèche dans le titre ; accessible au clavier (titre en bouton, `aria-sort`).
 - **À trancher** : tri retenu sur le poste (comme la largeur des colonnes) ou oublié en quittant l'écran ; tableaux qui ont déjà un ordre réglé (Vue d'ensemble, liste des patients par chambre, groupes) : le clic remplace-t-il l'ordre réglé le temps de l'écran ; tableaux imprimés et exportés dans l'ordre affiché ou dans l'ordre d'origine.
 
-## Module Demandes de congés (demande du porteur, 11 novembre 2026)
+## Module Demandes de congés (demande du porteur, 11 novembre 2026) — réalisé en 0.44.0 (module Congés), à retirer à la prochaine mise à jour de la documentation
 
 Demander et valider les congés des agents et des médecins, avec un tableau annuel.
 
