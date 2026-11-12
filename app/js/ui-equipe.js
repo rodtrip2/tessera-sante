@@ -118,14 +118,17 @@
     var a = agent(id) || { id: id, nom: nom || id, roles: [], services: [], compte: false }, f = E.fiche(st(), id), zonePerso = h('div', { class: 'pile' });
     var med = medecinDe(id);
     var c = compte(), gere = E.gere(c, id, a.services) && !s().apercu;
-    U.modale(a.nom, h('div', { class: 'pile eq-contact' },
+    // Fiche en onglets (0.44.0) : coordonnées, et congés (quotité, droits et soldes) pour l'agent, son cadre et son validateur
+    var conges = U.conges && U.conges.voitFiche && U.conges.voitFiche(agent(id) || a) ? function () { return U.conges.sectionAgent(id); } : null;
+    var coord = h('div', { class: 'pile eq-contact' },
       h('div', { class: 'grille-2' },
         h('div', {}, h('small', { class: 'muted', text: 'Fonction' }), h('div', { text: f.fonction || (med ? (SIC.medecins.FONCTIONS || {})[med.fonction] || 'Médecin' : '') || libRoles(a.roles) || '—' })),
         h('div', {}, h('small', { class: 'muted', text: 'Services' }), h('div', { text: a.services.map(U.libService).join(', ') || '—' })),
         h('div', {}, h('small', { class: 'muted', text: 'Téléphone professionnel' }), h('div', {}, boutonCopie(f.telPro, 'Copier le numéro'))),
         h('div', {}, h('small', { class: 'muted', text: 'Courriel professionnel' }), h('div', {}, boutonCopie(f.mailPro, 'Copier l’adresse')))),
       zonePerso, id === moi().id ? null : blocDonnees(a, false).noeud,
-      U.documents ? U.documents.section('equipe', 'agent', id, 'Agent : ' + a.nom, (a.services || [])[0]) : null),
+      U.documents ? U.documents.section('equipe', 'agent', id, 'Agent : ' + a.nom, (a.services || [])[0]) : null);
+    U.modale(a.nom, conges ? U.ongletsLocaux([['coordonnees', 'Coordonnées', coord], ['conges', 'Congés et droits', conges]], { cle: 'fiche-agent', libelle: 'Rubriques de la fiche' }) : coord,
     [{ texte: 'Fermer' },
       a.compte && peutEcrire() && id !== moi().id ? { texte: 'Écrire', classe: 'primaire', action: function () { setTimeout(function () { U.messagerie.nouveau({ destinataires: ['agent|' + id] }); }, 0); } } : null,
       gere ? { texte: id === moi().id ? 'Ma fiche' : 'Modifier', action: function () { setTimeout(function () { if (id === moi().id) { U.ouvrirFenetre('equipe'); U.App.onglet = 'ma-fiche'; U.rendreContenu(); } else modaleFiche(a); }, 0); } } : null,
@@ -193,7 +196,7 @@
     var lecteurs = 'le cadre de ' + (a.services.length > 1 ? 'vos services' : 'votre service') + ' et l’administrateur';
     zone.appendChild(h('div', { class: 'grille-2' }, h('label', {}, 'Téléphone personnel', tpe), h('label', {}, 'Courriel personnel', mpe)));
     zone.appendChild(h('small', { class: 'muted', text: 'Chiffrées pour vous, ' + lecteurs + ' seulement.' }));
-    return h('section', { class: 'panneau' }, h('h2', { text: 'Ma fiche' }),
+    var fiche = h('section', { class: 'panneau' }, h('h2', { text: 'Ma fiche' }),
       h('div', { class: 'grille-2' }, h('label', {}, 'Téléphone professionnel', tp), h('label', {}, 'Courriel professionnel', mp), h('label', {}, 'Fonction (facultatif)', fo)),
       h('small', { class: 'muted', text: 'Vos coordonnées professionnelles sont visibles de tous les agents de l’établissement.' }),
       h('h3', { text: 'Coordonnées personnelles (facultatif)' }),
@@ -207,6 +210,9 @@
           U.toast('Fiche enregistrée.');
         } catch (e) { alert(e.message); }
       } }, 'Enregistrer')));
+    // Récapitulatif des congés et droits (0.44.0) : onglet de la fiche
+    var cg = U.conges && U.conges.voitFiche && U.conges.voitFiche(a) ? U.conges.sectionAgent(a.id) : null;
+    return cg ? U.ongletsLocaux([['coordonnees', 'Coordonnées', fiche], ['conges', 'Mes congés et droits', h('section', { class: 'panneau' }, h('h2', { text: 'Mes congés et droits' }), cg)]], { cle: 'ma-fiche', libelle: 'Rubriques de ma fiche' }) : fiche;
   }
   function vueMedecins() {
     var MED = SIC.medecins, mes = mesServices(), admin = s().roles().indexOf('ADMIN') >= 0;

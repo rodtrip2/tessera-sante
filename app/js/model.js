@@ -268,6 +268,7 @@
     poles: [],             // pôles : regroupements de services (0.27.2)
     infos: {},             // informations du service : pièces jointes (désactivées par défaut), taille maximale (0.26.2)
     salles: {},            // salles et bureaux : plage affichée, horaires des demi-journées des présences, par service (0.25.0)
+    conges: {},            // congés : types, validateurs, fériés, couleurs, délai, message d'avertissement (0.44.0)
     documents: {},         // documents : durée de la corbeille (0.34.1, administrateur)
     masquesDocuments: {},  // documents : masques de fond de service et d'établissement (0.42.0, cadre pour ses services)
     messagerie: {},        // messagerie : onglet Informations, pièces jointes, conservation, affichage par service (0.23.0)
@@ -2087,6 +2088,7 @@
     { code: 'salles', libelle: 'Salles et bureaux : plage affichée, horaires des présences, nom sur les occupations des autres plannings', cles: ['salles'] },
     { code: 'messagerie', libelle: 'Messagerie : onglet Informations, pièces jointes, conservation, durée d’affichage', cles: ['messagerie'] },
     { code: 'documents', libelle: 'Documents : corbeille, masques de fond', cles: ['documents', 'masquesDocuments'] },
+    { code: 'conges', libelle: 'Congés : types, droits, validateurs, jours fériés, couleurs, avertissement', cles: ['conges'] },
     { code: 'travaux', libelle: 'Demandes de travaux : types, lieux, gravités, urgences, délai d’affichage, numéro des services techniques', cles: ['travaux'] },
     { code: 'intervenants', libelle: 'Patients : types et champs des professionnels ou structures de la prise en charge', cles: ['intervenants'] },
     { code: 'agendaReglages', libelle: 'Agenda : réglages par service (inscriptions, permissions, sorties)', cles: ['agendaReglages'] },

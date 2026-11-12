@@ -11,7 +11,8 @@
   var vue = { mode: 'semaine', ref: minuit(Date.now()), nature: '', alertesVues: false };
   try { vue.mode = localStorage.getItem('sic-agenda-mode') === 'jour' ? 'jour' : 'semaine'; } catch (e) { /* stockage indisponible */ }
 
-  function st() { return (U.App.session && U.App.session.etatModule('agenda')) || { rdv: {}, taches: {}, absences: {}, alertes: {} }; }
+  // Congés validés (module Congés, 0.44.0) : lus comme des absences de l'agent, sans écrire dans le journal de l'Agenda
+  function st() { var e = (U.App.session && U.App.session.etatModule('agenda')) || { rdv: {}, taches: {}, absences: {}, alertes: {} }; return U.conges && U.conges.agendaAvecConges ? U.conges.agendaAvecConges(e) : e; }
   function fiches() { return (U.st() && U.st().patients) || {}; }
   function opts() { return A.optionsAgenda(U.config()); }
   function minuit(t) { var d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); }
@@ -268,7 +269,7 @@
     A.alertesChecklists(st(), fiches(), svs, maintenant).forEach(function (c) { ajouter(aujourdhui, puce('alerte', 'Check-list en retard : ' + c.item.libelle + ' (' + libelleElement(c.rdv) + ')', function () { modaleElement(c.rdv, null, !peut('RDV'), null, false, c.occurrence); }, couleurs().alerte)); });
     return res;
   }
-  function puceAbsence(a) { return puce('absence', 'Absent(e) : ' + (a.nom || '') + (a.categorie ? ' (' + (A.CATEGORIES_ABSENCE[a.categorie] || a.categorie).toLowerCase() + ')' : ''), function () { modaleAbsence(a); }); }
+  function puceAbsence(a) { return puce('absence', 'Absent(e) : ' + (a.nom || '') + (a.categorie ? ' (' + (A.CATEGORIES_ABSENCE[a.categorie] || a.categorie).toLowerCase() + ')' : ''), function () { if (a.source === 'conges' && U.conges) U.conges.ouvrirConge(a.id.slice(3)); else modaleAbsence(a); }); }
   function bornesHeures(items) {
     var h0 = 7, h1 = 21;
     items.forEach(function (it) { var d = new Date(it.debut), f = new Date(it.fin - 1); if (memeJour(it.debut, it.fin - 1)) { h0 = Math.min(h0, d.getHours()); h1 = Math.max(h1, f.getHours() + 1); } });

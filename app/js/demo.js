@@ -666,6 +666,50 @@
     if (!reel) cfg('messagerie', { '*': { informations: { agenda: true, vehicules: true, travaux: true, suivi: true }, piecesJointes: true, chiffrement: 'choixCoche' }, U1: { affichageJours: 15 } });
 
     file.sort(function (a, b) { return a.at - b.at || a.n - b.n; });
+    // Congés (0.44.0) : types (dont un ajouté), fériés à récupérer pour les IDE et AS de l'Unité 1, message d'avertissement
+    // activé ; tableaux de l'année et de l'année suivante, règles (une non respectée), période bloquée, à éviter, vacances
+    // scolaires ; souhaits, demandes à valider, validées, refusée, annulée ; temps partiel (dont un changement en cours d'année)
+    (function () {
+      var moiC = options.moi || {}, Y = new Date(now).getFullYear();
+      if (!reel) cfg('conges', { types: [{ code: 'CA', libelle: 'Congés annuels', abrev: 'CA', unite: 'ouvres', droit: 25 }, { code: 'RTT', libelle: 'RTT', abrev: 'RTT', unite: 'ouvres', droit: 15 },
+        { code: 'JF', libelle: 'Jours fériés', abrev: 'JF', ferie: true }, { code: 'FR', libelle: 'Fractionnement', abrev: 'FR', unite: 'ouvres', droit: 2 }],
+        regleFeries: { U1: { IDE: 'recuperer', AS: 'recuperer' }, U2: { IDE: 'recuperer', AS: 'recuperer' } }, alerte: { active: true } });
+      function iso(n) { return SIC.model.dateLocaleISO(now + n * J); }
+      function lundi(n) { var d = new Date(now + n * 7 * J); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return SIC.model.dateLocaleISO(d.getTime()); }
+      function plus(isoD, k) { var d = new Date(isoD + 'T12:00:00'); d.setDate(d.getDate() + k); return SIC.model.dateLocaleISO(d.getTime()); }
+      ajouter(t(-24 * 60), 'TABLEAU_CONGES', { id: 'TC-AN', service: U1, nom: 'Année ' + Y + ' — Unité 1 (fictive)', debut: Y + '-01-01', fin: Y + '-12-31', resolution: 'deux', roles: [], visible: true, souhaits: true, totaux: true,
+        regles: [{ pour: 'IDE', max: 2, bloquante: false }, { pour: 'AS', max: 2, bloquante: false }, { pour: '*', max: 5, bloquante: false }] }, moiC.id);
+      ajouter(t(-24 * 30), 'TABLEAU_CONGES', { id: 'TC-AN2', service: U1, nom: 'Année ' + (Y + 1) + ' — Unité 1 (fictive)', debut: (Y + 1) + '-01-01', fin: (Y + 1) + '-12-31', resolution: 'deux', roles: [], visible: true, souhaits: true, totaux: true,
+        regles: [{ pour: 'IDE', max: 2, bloquante: false }, { pour: '*', max: 5, bloquante: false }] }, moiC.id);
+      ajouter(t(-24 * 90), 'PERIODE_CONGES', { id: 'PC-VAC', service: '*', libelle: 'Vacances scolaires (zone fictive)', debut: lundi(3), fin: plus(lundi(3), 15), effet: 'info', couleur: '#e4eefb' });
+      ajouter(t(-24 * 20), 'PERIODE_CONGES', { id: 'PC-BLQ', service: U1, libelle: 'Visite de certification (fictif)', debut: lundi(1), fin: plus(lundi(1), 4), effet: 'bloquee' }, moiC.id);
+      ajouter(t(-24 * 20), 'PERIODE_CONGES', { id: 'PC-EVI', service: U1, libelle: 'Formation d’équipe (fictif)', debut: plus(lundi(5), 1), fin: plus(lundi(5), 3), effet: 'eviter' }, moiC.id);
+      ajouter(t(-24 * 100), 'QUOTITE', { agent: 'demo-b', depuis: Y + '-01-01', quotite: 80, nonTravailles: [3], service: U1 }, moiC.id);
+      ajouter(t(-24 * 100), 'QUOTITE', { agent: 'demo-d', depuis: Y + '-01-01', quotite: 100, nonTravailles: [], service: U1 }, moiC.id);
+      ajouter(t(-24 * 50), 'QUOTITE', { agent: 'demo-d', depuis: Y + '-07-01', quotite: 50, nonTravailles: [3, 4, 5], service: U1 }, moiC.id);
+      ajouter(t(-24 * 40), 'DROITS_CONGES', { agent: 'demo-a', annee: Y, droits: { CA: 27 }, service: U1 }, moiC.id);
+      var nC = 0;
+      function cg(h0, ag, nom, roles, type, debut, fin, statut, suite) {
+        var id = 'CG-DEMO' + (++nC);
+        ajouter(t(h0), 'CONGE', { id: id, agent: ag, nom: nom, roles: roles, service: U1, type: type, debut: debut, fin: fin, statut: statut === 'souhait' ? 'souhait' : 'demande', commentaire: '' }, ag);
+        if (statut === 'valide' || statut === 'refuse') ajouter(t(h0 + 2), 'CONGE_DECISION', { conge: id, decision: statut, motif: statut === 'refuse' ? 'Effectif minimal ces jours-là (fictif)' : '', nom: moiC.nom || 'Cadre (fictif)', service: U1 }, moiC.id);
+        if (statut === 'annule') ajouter(t(h0 + 2), 'CONGE_ANNULATION', { conge: id, motif: '', service: U1 }, ag);
+        return id;
+      }
+      var L2 = lundi(2), L4 = lundi(4), L6 = lundi(6);
+      cg(-24 * 30, 'demo-a', 'Agent A (fictif)', ['IDE'], 'CA', L2, plus(L2, 4), 'valide');
+      cg(-24 * 12, 'demo-b', 'Agent B (fictif)', ['IDE'], 'CA', plus(L2, 2), plus(L2, 8), 'demande');
+      cg(-24 * 8, 'demo-c', 'Agent C (fictif)', ['IDE'], 'CA', plus(L2, 3), plus(L2, 4), 'demande');
+      cg(-24 * 5, 'demo-e', 'Agent E (fictif)', ['IDE'], 'RTT', plus(L4, 1), plus(L4, 1), 'souhait');
+      cg(-24 * 25, 'demo-f', 'Agent F (fictif)', ['AS'], 'CA', L4, plus(L4, 11), 'valide');
+      cg(-24 * 22, 'demo-g', 'Agent G (fictif)', ['AS'], 'CA', plus(L4, 3), plus(L4, 4), 'refuse');
+      cg(-24 * 15, 'demo-d', 'Agent D (fictif)', ['IDE'], 'CA', L6, plus(L6, 4), 'annule');
+      cg(-24 * 10, 'demo-d', 'Agent D (fictif)', ['IDE'], 'FR', plus(L6, 7), plus(L6, 8), 'demande');
+      cg(-24 * 18, 'demo-c', 'Agent C (fictif)', ['IDE'], 'JF', iso(-20), iso(-20), 'valide');
+      cg(-24 * 6, 'demo-a', 'Agent A (fictif)', ['IDE'], 'CA', (Y + 1) + '-07-05', (Y + 1) + '-07-16', 'demande');
+      cg(-24 * 4, 'demo-b', 'Agent B (fictif)', ['IDE'], 'CA', (Y + 1) + '-07-12', (Y + 1) + '-07-23', 'souhait');
+      if (moiC.id) { cg(-24 * 35, moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE'], 'CA', plus(L6, 14), plus(L6, 18), 'demande'); cg(-24 * 3, moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE'], 'RTT', plus(L4, 4), plus(L4, 4), 'souhait'); }
+    })();
     return file.map(function (x, i) { return { at: new Date(Math.min(x.at, now) + i).toISOString(), by: x.by || 'demo', type: x.type, data: x.data }; });
   };
 
