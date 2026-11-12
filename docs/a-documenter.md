@@ -115,6 +115,18 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.34.1 (branche `documents-2`, 12 novembre 2026) : Documents, réponses du porteur
+
+| Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Validation | Le cadre seul par défaut (accès « Valider les documents ») ; il peut **demander une validation supplémentaire** à un agent nommé (cadre supérieur, directeur des soins, médecin chef…), qui reçoit le document en lecture (clé de son agent ajoutée) et le valide à son tour, sans avoir le rôle de valideur ; il peut lui aussi en demander une autre ou renvoyer en brouillon. Le document reste « à valider » jusqu'à la dernière validation ; les étapes sont gardées et affichées (« Validé par A, puis par B ») ; la date de révision choisie à la 1re étape est reprise. Alerte « Validation qui vous est demandée » dans l'onglet Documents | `DOC_VALIDATION` avec `supplementaire` ; statut `attendu`, `etapes` ; `DM.peutValider`, `validationsDemandees`, `aValider` (seule la personne attendue) ; `permisPourSoi` |
+| Durée de la corbeille | Réglable par l'administrateur, de 7 à 365 jours (30 par défaut) | Réglage commun `documents.corbeilleJours` (journal du socle, groupe d'export « Documents », libellé du journal) ; `DM.options`, `joursCorbeille` ; onglet *Administration → Documents* |
+| Compte de l'auteur retiré | Oui : la gestion de ses documents passe au cadre (rôle « Cadre » actif) d'un de ses services, automatiquement à la connexion de l'administrateur (sa session ouvre la clé du document sans la garder et l'emballe pour la clé d'agent du cadre) ; un document sans cadre trouvé attend | `DOC_TRANSFERT` (`vers`, saisie de l'administrateur) ; `DM.aTransferer` ; session `transfererCleDocument` ; `U.documents.transfertsAutomatiques` (`ui.js`, `demarrerMinuteurs`) |
+| Registre des traitements | À voir plus tard | — |
+| Journal | Libellés et résumés des saisies du module (titre déchiffré quand l'agent le peut) | `ui-documents.js` (`journal`) ; nom affiché de l'agent gardé dans les saisies (`nom`) |
+| Démonstration | Charte du téléphone validée par un cadre, validation supplémentaire demandée à l'agent connecté ; fiches réflexes d'un ancien agent, gestion transférée | `demo.js` |
+| Tests | Validation supplémentaire, durée de la corbeille, transfert (logique et session de l'administrateur) | `tests/documents.test.js` ; parcours des écrans complété |
+
 ## Version 0.34.0 (branche `documents`, 12 novembre 2026) : module Documents, étape 1 (documents texte)
 
 | Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
@@ -134,7 +146,7 @@ Démonstration : chiffrement « au choix, coché au départ » ; message chiffr�
 
 **Pour la fiche technique et le kit RGPD (responsable de la sécurité informatique, délégué à la protection des données)** : une clé par document (familles `k-`), fichiers de clés modifiables hors du journal en ajout seul ; effacement par destruction de la clé ; **limite** : les sauvegardes et copies faites avant l'effacement gardent la clé jusqu'à leur propre expiration (durée de conservation des sauvegardes à indiquer) ; base légale et durée de conservation des documents d'organisation (nouveau traitement à inscrire au registre) ; rappel « aucune donnée clinique ».
 
-**Points à valider par le porteur** : accès « documents.valider » donné au cadre seul par défaut (cadre supérieur, directeur des soins ?) ; durée de la corbeille (30 jours) réglable ou non ; documents d'un agent dont le compte est retiré (transfert de la gestion au cadre ?).
+**Points à valider par le porteur** : tranchés le 12 novembre 2026 (version 0.34.1), sauf l'inscription au registre des traitements (plus tard).
 
 ## Version 0.33.0 (branche `rangement-jour`, 12 novembre 2026) : rangement des saisies par jour
 

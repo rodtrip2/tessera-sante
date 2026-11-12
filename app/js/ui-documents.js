@@ -21,6 +21,7 @@
   function dateCourte(iso) { return iso ? U.court(Date.parse(iso)) : ''; }
   function jourFr(iso) { return iso ? new Date(Date.parse(iso)).toLocaleDateString('fr-FR') : ''; }
   function plusJours(n) { return DM.jourISO(Date.now() + n * 864e5); }
+  function jc() { return DM.joursCorbeille(cfg()); }
   var SAUVEGARDE_MS = 15000;
 
   // ------------------------------------------------------------ Contenus déchiffrés (mémoire de la session)
@@ -417,7 +418,7 @@
 
     var barre = h('div', { class: 'doc-barre' });
     function dessinerBarre() {
-      var dd = doc(id) || d0, stt = DM.statut(dd), gere = DM.peut(dd, moi(), cfg(), 'gerer'), valideur = DM.droits.peut(s().roles(), 'DOC_VALIDATION', cfg());
+      var dd = doc(id) || d0, stt = DM.statut(dd), gere = DM.peut(dd, moi(), cfg(), 'gerer'), valideur = !s().apercu && DM.peutValider(dd, moi(), cfg());
       U.vider(barre).appendChild(h('div', { class: 'doc-barre-ligne' }, titre,
         h('span', { class: 'badge statut-' + stt.statut, text: DM.STATUTS[stt.statut] + (stt.revision ? ' — révision le ' + stt.revision.split('-').reverse().join('/') : '') }),
         dd.modele ? h('span', { class: 'badge', text: 'Modèle' }) : null, etat, h('span', { class: 'espace' }),
@@ -426,13 +427,16 @@
         modifiable ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleRattacher(meta, function () { marquer(); enregistrer(false); }); } }, 'Rattacher' + (meta.rattaches.length ? ' (' + meta.rattaches.length + ')' : '')) : null,
         h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { modaleHistorique(id); }); } }, 'Historique'),
         modifiable && (stt.statut === 'brouillon' || stt.statut === 'modifie' || stt.statut === 'a-reviser') ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { demanderValidation(id, dessinerBarre); }); } }, 'Demander la validation') : null,
-        valideur && stt.statut === 'a-valider' ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { modaleValidation(id, dessinerBarre); }); } }, 'Valider…') : null,
+        valideur ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { modaleValidation(id, dessinerBarre); }); } }, 'Valider…') : null,
         modifiable ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleMiseEnPage(page, function () { dessinerZones(); marquer(); }); } }, 'Mise en page') : null,
         h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { imprimer(id, { meta: { titre: titre.value || 'Sans titre', rattaches: meta.rattaches }, contenu: DM.contenu({ blocs: lireBlocs(corps), page: page }) }); }); } }, 'Imprimer'),
         gere && !dd.corbeille && !s().apercu ? h('button', { class: 'btn danger', type: 'button', onclick: function () { mettreACorbeille(id); } }, 'Corbeille') : null,
         h('button', { class: 'btn', type: 'button', onclick: fermer }, 'Fermer')));
-      if (dd.corbeille) barre.appendChild(h('p', { class: 'alerte', text: 'Dans la corbeille depuis le ' + dateCourte(dd.corbeille.le) + ' : effacé définitivement dans ' + DM.joursAvantEffacement(dd) + ' jour(s).' }));
-      if (stt.statut === 'a-valider' && stt.message) barre.appendChild(h('p', { class: 'info', text: 'Demande de validation : ' + stt.message }));
+      if (dd.corbeille) barre.appendChild(h('p', { class: 'alerte', text: 'Dans la corbeille depuis le ' + dateCourte(dd.corbeille.le) + ' : effacé définitivement dans ' + DM.joursAvantEffacement(dd, Date.now(), jc()) + ' jour(s).' }));
+      if (stt.statut === 'a-valider' && stt.attendu) barre.appendChild(h('p', { class: 'info', text: 'Validation supplémentaire demandée à ' + nomAgent(stt.attendu, dd) + ' par ' + nomAgent(stt.demandePar, dd) + ' le ' + dateCourte(stt.demandeLe) + (stt.message ? ' : ' + stt.message : '') + '.' }));
+      else if (stt.statut === 'a-valider' && stt.message) barre.appendChild(h('p', { class: 'info', text: 'Demande de validation : ' + stt.message }));
+      if (/^(valide|modifie|a-reviser)$/.test(stt.statut) && stt.etapes && stt.etapes.length > 1) barre.appendChild(h('p', { class: 'info', text: 'Validé par ' + stt.etapes.map(function (x) { return nomAgent(x.par, dd) + ' (' + jourFr(x.le) + ')'; }).join(', puis ') + '.' }));
+      if (dd.transfert) barre.appendChild(h('p', { class: 'muted', text: 'Compte de l’auteur retiré : gestion transférée le ' + jourFr(dd.transfert.le) + ' à ' + dd.transfert.vers.map(function (x) { return nomAgent(x, dd); }).join(', ') + '.' }));
       if (stt.statut === 'brouillon' && stt.message) barre.appendChild(h('p', { class: 'info', text: 'Renvoyé en brouillon : ' + stt.message }));
       if (stt.statut === 'modifie') barre.appendChild(h('p', { class: 'info', text: 'Modifié depuis la validation du ' + dateCourte(stt.le) + ' : la version validée reste en vigueur (Historique) jusqu’à une nouvelle validation.' }));
     }
@@ -608,18 +612,35 @@
     var d = doc(id), valideurs = (d.partage || []).length;
     U.modale('Demander la validation', h('div', { class: 'pile' }, h('label', {}, 'Message', msg),
       valideurs ? null : h('p', { class: 'alerte', text: 'Le document n’est partagé avec personne : partagez-le avec le cadre (au moins en lecture) pour qu’il puisse le valider.' })),
-      [{ texte: 'Annuler' }, { texte: 'Demander', classe: 'primaire', action: async function () { await s().enregistrer('DOC_STATUT', { doc: id, statut: 'a-valider', message: msg.value.trim() }); U.toast('Validation demandée.'); if (apres) apres(); } }]);
+      [{ texte: 'Annuler' }, { texte: 'Demander', classe: 'primaire', action: async function () { await s().enregistrer('DOC_STATUT', { doc: id, statut: 'a-valider', message: msg.value.trim(), nom: moi().nom }); U.toast('Validation demandée.'); if (apres) apres(); } }]);
   }
   function modaleValidation(id, apres) {
-    var d = doc(id), v = DM.derniere(d);
-    var revision = h('input', { type: 'date', value: plusJours(365), min: plusJours(1), 'aria-label': 'Date de révision' });
+    var d = doc(id), v = DM.derniere(d), stt = DM.statut(d), premiere = !stt.attendu;
+    var revision = h('input', { type: 'date', value: stt.revision || plusJours(365), min: plusJours(1), 'aria-label': 'Date de révision' });
     var msg = h('input', { type: 'text', maxlength: 300, 'aria-label': 'Message' });
-    U.modale('Validation du document', h('div', { class: 'pile' },
+    // Validation supplémentaire (décision du porteur du 12 novembre 2026) : le valideur la demande à un agent nommé
+    var sup = h('select', { 'aria-label': 'Validation supplémentaire demandée à' }, [h('option', { value: '', text: 'Aucune : validation définitive' })].concat((s().comptes || [])
+      .filter(function (c) { return c.actif !== false && c.id !== 'secours' && c.id !== moi().id && (c.roles || []).indexOf('INTERVENANT') < 0 && (stt.etapes || []).every(function (x) { return x.par !== c.id; }); })
+      .sort(function (a, b) { return a.nom.localeCompare(b.nom); }).map(function (c) { return h('option', { value: c.id, text: c.nom }); })));
+    var bouton = { texte: 'Valider', classe: 'primaire', action: async function () {
+      if (sup.value) {
+        // La personne choisie reçoit le document en lecture (clé de son agent ajoutée au document)
+        var r = await s().partagerCleDocument(id, DM.clesDocument(d.auteur, d.partage).concat(['k-a.' + sup.value]), false);
+        if (r.absentes.indexOf('k-a.' + sup.value) >= 0) throw new Error('La clé de documents de cet agent n’est pas encore créée (prochaine connexion d’un administrateur).');
+      }
+      await s().enregistrer('DOC_VALIDATION', { doc: id, version: v.id, revision: revision.value, message: msg.value.trim(), supplementaire: sup.value, nom: moi().nom });
+      U.toast(sup.value ? 'Validé ; validation supplémentaire demandée.' : 'Document validé.'); if (apres) apres();
+    } };
+    sup.addEventListener('change', function () { var b = Array.prototype.filter.call(document.querySelectorAll('dialog[open] .pied button'), function (x) { return /^Valider/.test(x.textContent); })[0]; if (b) b.textContent = sup.value ? 'Valider et transmettre' : 'Valider'; });
+    U.modale(premiere ? 'Validation du document' : 'Validation supplémentaire', h('div', { class: 'pile' },
       h('p', { text: 'Version du ' + dateCourte(v.le) + ' (' + nomAgent(v.par, d) + ').' }),
-      h('label', {}, 'À réviser le (facultatif)', revision), h('label', {}, 'Message (facultatif)', msg)),
+      stt.etapes && stt.etapes.length ? h('p', { class: 'info', text: 'Déjà validé par ' + stt.etapes.map(function (x) { return nomAgent(x.par, d) + ' le ' + jourFr(x.le); }).join(', ') + '.' }) : null,
+      h('label', {}, 'À réviser le (facultatif)', revision), h('label', {}, 'Message (facultatif)', msg),
+      h('label', {}, 'Validation supplémentaire demandée à (facultatif)', sup),
+      h('small', { class: 'muted', text: 'Par exemple le cadre supérieur, le directeur des soins ou le médecin chef : la personne choisie reçoit le document en lecture et le valide à son tour ; il reste « à valider » jusqu’à la dernière validation.' })),
       [{ texte: 'Annuler' },
-        { texte: 'Renvoyer en brouillon', action: async function () { await s().enregistrer('DOC_STATUT', { doc: id, statut: 'brouillon', message: msg.value.trim() || 'à reprendre' }); if (apres) apres(); } },
-        { texte: 'Valider', classe: 'primaire', action: async function () { await s().enregistrer('DOC_VALIDATION', { doc: id, version: v.id, revision: revision.value, message: msg.value.trim() }); U.toast('Document validé.'); if (apres) apres(); } }]);
+        { texte: 'Renvoyer en brouillon', action: async function () { await s().enregistrer('DOC_STATUT', { doc: id, statut: 'brouillon', message: msg.value.trim() || 'à reprendre', nom: moi().nom }); if (apres) apres(); } },
+        bouton]);
   }
 
   // ------------------------------------------------------------ Mise en page
@@ -693,11 +714,12 @@
     chargerTitres(tous, function () { U.rendreContenu(); });
     var mes = filtrer(tous.filter(function (d) { return d.auteur === moi().id; })), partages = filtrer(tous.filter(function (d) { return d.auteur !== moi().id; }));
     var aReviser = tous.filter(function (d) { return DM.statut(d).statut === 'a-reviser' && DM.peut(d, moi(), cfg(), 'modifier'); });
-    var cle = s().clesDocumentManquantes(['k-a.' + moi().id]).length === 0;
+    var cle = s().clesDocumentManquantes(['k-a.' + moi().id]).length === 0, demandes = DM.validationsDemandees(st(), moi(), cfg());
     return h('div', { class: 'pile' },
       h('div', { class: 'barre' }, h('h1', { text: 'Documents' }), recherche(), h('div', { class: 'espace' }),
         !s().apercu ? h('button', { class: 'btn primaire', type: 'button', disabled: !cle, onclick: function () { modaleNouveau(); } }, '+ Nouveau document') : null),
       cle ? null : h('p', { class: 'alerte', text: 'Votre clé de documents n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.' }),
+      demandes.length ? h('div', { class: 'alerte' }, h('b', { text: 'Validation qui vous est demandée : ' }), demandes.map(function (d, i) { var m = metaConnue(d); return [i ? ', ' : '', h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…')]; })) : null,
       aReviser.length ? h('p', { class: 'alerte', text: aReviser.length + ' document(s) à réviser : ' + aReviser.map(function (d) { var m = metaConnue(d); return m ? m.titre : '…'; }).join(', ') + '.' }) : null,
       h('h2', { text: 'Mes documents (' + mes.length + ')' }), table(mes, 'Aucun document.'),
       h('h2', { text: 'Partagés avec moi (' + partages.length + ')' }), table(partages, 'Aucun document partagé avec vous.'),
@@ -718,10 +740,10 @@
     var ds = DM.visibles(st(), moi(), cfg(), { corbeille: true });
     chargerTitres(ds, function () { U.rendreContenu(); });
     return h('div', { class: 'pile' }, h('h1', { text: 'Corbeille' }),
-      h('p', { class: 'muted', text: 'Un document reste ' + DM.CORBEILLE_JOURS + ' jours dans la corbeille, puis il est effacé définitivement : sa clé est détruite, ses versions deviennent illisibles.' }),
+      h('p', { class: 'muted', text: 'Un document reste ' + jc() + ' jours dans la corbeille, puis il est effacé définitivement : sa clé est détruite, ses versions deviennent illisibles.' }),
       !ds.length ? h('p', { class: 'muted', text: 'Corbeille vide.' }) : h('ul', { class: 'liste-simple' }, ds.map(function (d) {
         var m = metaConnue(d), gere = DM.peut(d, moi(), cfg(), 'gerer') && !s().apercu;
-        return h('li', {}, h('b', { text: m ? m.titre : '…' }), ' — effacé dans ' + DM.joursAvantEffacement(d) + ' jour(s) ',
+        return h('li', {}, h('b', { text: m ? m.titre : '…' }), ' — effacé dans ' + DM.joursAvantEffacement(d, Date.now(), jc()) + ' jour(s) ',
           gere ? h('button', { class: 'btn petit', type: 'button', onclick: function () { s().enregistrer('DOC_CORBEILLE', { doc: d.id, corbeille: false }).then(function () { U.toast('Document restauré.'); U.rendreContenu(); }, function (e) { U.toast(e.message); }); } }, 'Restaurer') : null,
           gere ? h('button', { class: 'btn petit danger', type: 'button', onclick: function () { if (confirm('Effacer définitivement ce document ? Sa clé sera détruite : il ne pourra plus être lu, même depuis le journal.')) effacer(d.id).then(function () { U.rendreContenu(); }, function (e) { U.toast(e.message); }); } }, 'Effacer définitivement') : null);
       })));
@@ -729,12 +751,12 @@
   async function effacer(id) { await s().enregistrer('DOC_EFFACE', { doc: id }); await s().effacerCleDocument(id); }
   /** Effacement des documents restés 30 jours dans la corbeille (à la connexion, une fois par jour et par poste). */
   async function effacementAutomatique() {
-    var ds = DM.aEffacer(st(), Date.now());
+    var ds = DM.aEffacer(st(), Date.now(), jc());
     for (var i = 0; i < ds.length; i++) { try { await effacer(ds[i].id); } catch (e) { /* nouvelle tentative plus tard */ } }
     return ds.length;
   }
   function mettreACorbeille(id) {
-    if (!confirm('Mettre ce document à la corbeille ? Il y reste ' + DM.CORBEILLE_JOURS + ' jours, puis il est effacé définitivement.')) return;
+    if (!confirm('Mettre ce document à la corbeille ? Il y reste ' + jc() + ' jours, puis il est effacé définitivement.')) return;
     s().enregistrer('DOC_CORBEILLE', { doc: id, corbeille: true }).then(function () { var o = U.App.documentOuvert; if (o && o.id === id) o.editeur.fermer(); U.toast('Document mis à la corbeille.'); U.rendreContenu(); }, function (e) { U.toast(e.message); });
   }
 
@@ -751,6 +773,54 @@
     return zone;
   }
 
-  SIC.modules.completerInterface('documents', { vues: { documents: vueDocuments, modeles: vueModeles, 'a-valider': vueAValider, corbeille: vueCorbeille } });
-  U.documents = { ouvrir: ouvrirEditeur, creer: creer, nouveau: modaleNouveau, section: section, effacementAutomatique: effacementAutomatique, lireBlocs: lireBlocs, rendreBlocs: rendreBlocs, imprimer: imprimer, lireVersion: lireVersion };
+  // ------------------------------------------------------------ Comptes retirés : gestion transférée au cadre (0.34.1)
+  /** Session de l'administrateur : documents dont l'auteur n'a plus de compte actif, transférés au cadre de ses services. */
+  async function transfertsAutomatiques() {
+    if (s().roles().indexOf('ADMIN') < 0 || s().apercu) return 0;
+    var l = DM.aTransferer(st(), s().comptes || [], cfg()), n = 0;
+    for (var i = 0; i < l.length; i++) {
+      try {
+        var r = await s().transfererCleDocument(l[i].doc, l[i].vers.map(function (x) { return 'k-a.' + x; }));
+        var vers = l[i].vers.filter(function (x) { return r.cles.indexOf('k-a.' + x) >= 0; });
+        if (vers.length) { await s().enregistrer('DOC_TRANSFERT', { doc: l[i].doc, vers: vers }); n++; }
+      } catch (e) { /* nouvelle tentative à la prochaine connexion */ }
+    }
+    return n;
+  }
+
+  // ------------------------------------------------------------ Administration, journal
+  function panneauReglages() {
+    var o = DM.options(cfg()), adm = s().roles().indexOf('ADMIN') >= 0 && !s().apercu;
+    var j = h('input', { type: 'number', min: 7, max: 365, value: o.corbeilleJours, class: 'champ-court', 'aria-label': 'Durée de la corbeille (jours)', disabled: !adm });
+    return h('section', { class: 'panneau' }, h('h2', { text: 'Documents' }),
+      h('label', {}, 'Durée de la corbeille, en jours (7 à 365 ; 30 par défaut)', j),
+      h('p', { class: 'muted', text: 'Passé ce délai, un document de la corbeille est effacé définitivement à la connexion d’un agent du module : sa clé est détruite. Les sauvegardes faites avant gardent la clé jusqu’à leur propre expiration.' }),
+      h('p', { class: 'muted', text: 'Validation : rôle avec l’accès « Valider les documents » (cadre par défaut, Rôles et accès) ; il peut demander une validation supplémentaire à un agent nommé. Compte d’un auteur retiré : la gestion de ses documents passe au cadre de ses services, à la connexion de l’administrateur.' }),
+      adm ? h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
+        try { var v = Math.round(+j.value); if (!(v >= 7 && v <= 365)) throw new Error('De 7 à 365 jours.'); await U.enregistrerConfig([['documents', v === 30 ? {} : { corbeilleJours: v }]]); U.toast('Réglages enregistrés.'); } catch (e) { alert(e.message); }
+      } }, 'Enregistrer')) : null);
+  }
+  var LIB = { DOC: 'Documents : création', DOC_VERSION: 'Documents : version', DOC_PARTAGE: 'Documents : partage', DOC_STATUT: 'Documents : demande de validation ou retour en brouillon', DOC_VALIDATION: 'Documents : validation',
+    DOC_CORBEILLE: 'Documents : corbeille', DOC_EFFACE: 'Documents : effacement définitif', DOC_TRANSFERT: 'Documents : transfert de la gestion (compte retiré)' };
+  function resume(e) {
+    var d = e.data || {}, x = doc(d.id || d.doc), m = x && metaConnue(x), nom = m ? '« ' + m.titre + ' »' : 'un document';
+    switch (e.type) {
+      case 'DOC': return (d.modele ? 'Modèle ' : 'Document ') + nom + ' créé';
+      case 'DOC_VERSION': return 'Version de ' + nom + (d.restauree ? ' (retour à une version)' : '');
+      case 'DOC_PARTAGE': return 'Partage de ' + nom + ' : ' + ((d.partage || []).length ? d.partage.map(libEntree).join(', ') : 'privé');
+      case 'DOC_STATUT': return (d.statut === 'a-valider' ? 'Validation demandée : ' : 'Renvoyé en brouillon : ') + nom;
+      case 'DOC_VALIDATION': return 'Validation de ' + nom + (d.supplementaire ? ', validation supplémentaire demandée à ' + nomAgent(d.supplementaire, x) : '') + (d.revision ? ' ; révision le ' + d.revision.split('-').reverse().join('/') : '');
+      case 'DOC_CORBEILLE': return (d.corbeille ? 'Mis à la corbeille : ' : 'Restauré : ') + nom;
+      case 'DOC_EFFACE': return 'Effacé définitivement : ' + nom + ' (clé détruite)';
+      case 'DOC_TRANSFERT': return 'Gestion de ' + nom + ' transférée à ' + (d.vers || []).map(function (y) { return nomAgent(y, x); }).join(', ');
+    }
+    return LIB[e.type] || e.type;
+  }
+
+  SIC.modules.completerInterface('documents', {
+    vues: { documents: vueDocuments, modeles: vueModeles, 'a-valider': vueAValider, corbeille: vueCorbeille },
+    journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'Le document revient à son état précédent (les fichiers de clés ne changent pas).'; } },
+    admin: { onglets: function () { return [['documents', 'Documents', [panneauReglages()]]]; } }
+  });
+  U.documents = { transfertsAutomatiques: transfertsAutomatiques, ouvrir: ouvrirEditeur, creer: creer, nouveau: modaleNouveau, section: section, effacementAutomatique: effacementAutomatique, lireBlocs: lireBlocs, rendreBlocs: rendreBlocs, imprimer: imprimer, lireVersion: lireVersion };
 })();

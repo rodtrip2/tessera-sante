@@ -22,11 +22,20 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, G) {
   'use strict';
 
-  var TYPES = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_VALIDATION', 'DOC_CORBEILLE', 'DOC_EFFACE'];
+  var TYPES = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_VALIDATION', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_TRANSFERT'];
   var DROITS_DOC = { lire: 1, modifier: 2, gerer: 3 };
   var LIB_DROITS = { lire: 'Lire', modifier: 'Modifier', gerer: 'Gérer (partage, corbeille)' };
   var STATUTS = { brouillon: 'Brouillon', 'a-valider': 'À valider', valide: 'Validé', modifie: 'Modifié depuis la validation', 'a-reviser': 'À réviser' };
   var CORBEILLE_JOURS = 30;
+  /**
+   * Réglages de l'établissement (`config.documents`, administrateur, 0.34.1) : durée de la corbeille, de 7 à 365 jours
+   * (30 par défaut). Validés à la lecture.
+   */
+  function options(config) {
+    var o = (config && config.documents) || {}, j = Math.round(+o.corbeilleJours);
+    return { corbeilleJours: j >= 7 && j <= 365 ? j : CORBEILLE_JOURS };
+  }
+  function joursCorbeille(config) { return options(config).corbeilleJours; }
   var ID = /^DC[0-9a-f]{8,32}$/, JOUR = /^\d{4}-\d{2}-\d{2}$/;
   var MAX_VERSION = 600000;   // caractères du contenu chiffré d'une version (≈ 400 Ko de texte)
 
@@ -200,6 +209,7 @@
   // ------------------------------------------------------------ Reconstitution de l'état
   function appliquer(st, e) {
     var d = e.data || {}, x = d.doc && st.docs[d.doc];
+    if (x && x.noms && d.nom && !x.efface) x.noms[e.by] = texte(d.nom, 80);   // nom affiché de l'agent (comptes fictifs ou retirés)
     switch (e.type) {
       case 'DOC':
         if (!ID.test(d.id || '') || st.docs[d.id]) break;
@@ -211,7 +221,6 @@
         if (!x || x.efface || typeof d.ct !== 'string') break;
         x.versions.push({ id: e.id, le: e.at, par: e.by, g: +d.g || 1, ct: d.ct, taille: d.ct.length, restauree: texte(d.restauree, 60) });
         x.modifie = e.at;
-        if (d.nom) x.noms[e.by] = texte(d.nom, 80);   // nom affiché de l'agent (comptes fictifs ou retirés)
         if (x.statut.statut === 'valide') x.statut = Object.assign({}, x.statut, { statut: 'modifie' });
         break;
       case 'DOC_PARTAGE':
@@ -222,18 +231,38 @@
       case 'DOC_STATUT':
         // Demande de validation, retour en brouillon (avec message)
         if (!x || x.efface) break;
-        if (d.statut === 'a-valider' || d.statut === 'brouillon') x.statut = Object.assign({}, x.statut, { statut: d.statut, demandePar: e.by, demandeLe: e.at, message: texte(d.message, 300) });
+        if (d.statut === 'a-valider' || d.statut === 'brouillon') x.statut = Object.assign({}, x.statut, { statut: d.statut, demandePar: e.by, demandeLe: e.at, message: texte(d.message, 300), attendu: '', etapes: [] });
         break;
       case 'DOC_VALIDATION':
         if (!x || x.efface) break;
         var v = x.versions.filter(function (y) { return y.id === d.version; })[0];
         if (!v) break;
-        x.statut = { statut: 'valide', par: e.by, le: e.at, version: v.id, revision: JOUR.test(d.revision || '') ? d.revision : '', message: texte(d.message, 300) };
-        x.validations.push({ par: e.by, le: e.at, version: v.id, revision: x.statut.revision });
+        // Validation supplémentaire (0.34.1) : le valideur la demande à un agent nommé, qui reçoit le document en lecture ;
+        // le document reste « à valider » jusqu'à la dernière validation. Les étapes déjà faites sont gardées.
+        var etapes = ((x.statut.statut === 'a-valider' && x.statut.etapes) || []).concat([{ par: e.by, le: e.at, version: v.id, message: texte(d.message, 300) }]);
+        var sup = texte(d.supplementaire, 60);
+        x.validations.push({ par: e.by, le: e.at, version: v.id, revision: JOUR.test(d.revision || '') ? d.revision : '', supplementaire: sup });
+        if (sup) {
+          x.statut = { statut: 'a-valider', attendu: sup, etapes: etapes, demandePar: e.by, demandeLe: e.at, message: texte(d.message, 300), revision: JOUR.test(d.revision || '') ? d.revision : '' };
+          if (!x.partage.some(function (p) { return p.genre === 'agent' && p.code === sup; })) x.partage.push({ genre: 'agent', code: sup, droit: 'lire' });
+          break;
+        }
+        var rev = JOUR.test(d.revision || '') ? d.revision : (x.statut.attendu ? x.statut.revision || '' : '');   // date choisie à la 1re étape
+        x.statut = { statut: 'valide', par: e.by, le: e.at, version: v.id, revision: rev, message: texte(d.message, 300), etapes: etapes };
         break;
       case 'DOC_CORBEILLE':
         if (!x || x.efface) break;
         x.corbeille = d.corbeille ? { le: e.at, par: e.by } : null;
+        break;
+      case 'DOC_TRANSFERT':
+        // Compte de l'auteur retiré (0.34.1) : la gestion passe au cadre de ses services (session de l'administrateur)
+        if (!x || x.efface || !Array.isArray(d.vers)) break;
+        d.vers.slice(0, 20).forEach(function (id) {
+          id = texte(id, 60); if (!id) return;
+          var p = x.partage.filter(function (y) { return y.genre === 'agent' && y.code === id; })[0];
+          if (p) p.droit = 'gerer'; else x.partage.push({ genre: 'agent', code: id, droit: 'gerer' });
+        });
+        x.transfert = { le: e.at, vers: d.vers.slice(0, 20), de: x.auteur };
         break;
       case 'DOC_EFFACE':
         if (!x || x.efface) break;
@@ -270,13 +299,37 @@
     }).sort(function (a, b) { return String(b.modifie).localeCompare(String(a.modifie)); });
   }
   /** Documents à valider pour un valideur (cadre) : demandes de validation des documents qu'il peut lire. */
-  function aValider(st, compte, config) { return visibles(st, compte, config, { modeles: undefined }).filter(function (d) { return statut(d).statut === 'a-valider'; }); }
+  function aValider(st, compte, config) {
+    var v = estValideur(compte, config);
+    return visibles(st, compte, config, { modeles: undefined }).filter(function (d) { var s = statut(d); return s.statut === 'a-valider' && (s.attendu ? s.attendu === compte.id : v); });
+  }
+  /** Validations supplémentaires demandées nommément à cet agent. */
+  function validationsDemandees(st, compte, config) { return visibles(st, compte, config, { modeles: undefined }).filter(function (d) { var s = statut(d); return s.statut === 'a-valider' && s.attendu && s.attendu === compte.id; }); }
+  /** Peut valider ce document : la personne attendue (validation supplémentaire), sinon un valideur à qui il est partagé. */
+  function peutValider(doc, compte, config) {
+    var s = statut(doc); if (s.statut !== 'a-valider' || !compte) return false;
+    return s.attendu ? s.attendu === compte.id : estValideur(compte, config) && !!droitDe(doc, compte, config);
+  }
+  /**
+   * Documents dont l'auteur n'a plus de compte actif, sans transfert : gestion à transférer au cadre (rôle CADRE actif)
+   * d'un des services de l'auteur. [{ doc, vers: [ids] }] ; un document sans cadre trouvé attend.
+   */
+  function aTransferer(st, comptes, config) {
+    var cs = comptes || [], res = [];
+    Object.keys((st && st.docs) || {}).forEach(function (k) {
+      var d = st.docs[k], a = cs.filter(function (c) { return c.id === d.auteur; })[0];
+      if (d.efface || d.transfert || !a || a.actif !== false) return;
+      var vers = cs.filter(function (c) { return c.actif !== false && c.id !== a.id && (c.roles || []).indexOf('CADRE') >= 0 && (c.services || []).some(function (x) { return (a.services || []).indexOf(x) >= 0; }); }).map(function (c) { return c.id; });
+      if (vers.length) res.push({ doc: d.id, vers: vers });
+    });
+    return res;
+  }
   /** Documents de la corbeille dont l'effacement est échu (30 jours). */
-  function aEffacer(st, maintenant) {
-    var lim = (maintenant || Date.now()) - CORBEILLE_JOURS * 864e5;
+  function aEffacer(st, maintenant, jours) {
+    var lim = (maintenant || Date.now()) - (jours || CORBEILLE_JOURS) * 864e5;
     return Object.keys((st && st.docs) || {}).map(function (k) { return st.docs[k]; }).filter(function (d) { return d.corbeille && !d.efface && Date.parse(d.corbeille.le) <= lim; });
   }
-  function joursAvantEffacement(doc, maintenant) { return doc && doc.corbeille ? Math.max(0, Math.ceil((Date.parse(doc.corbeille.le) + CORBEILLE_JOURS * 864e5 - (maintenant || Date.now())) / 864e5)) : null; }
+  function joursAvantEffacement(doc, maintenant, jours) { return doc && doc.corbeille ? Math.max(0, Math.ceil((Date.parse(doc.corbeille.le) + (jours || CORBEILLE_JOURS) * 864e5 - (maintenant || Date.now())) / 864e5)) : null; }
 
   // ------------------------------------------------------------ Contrôles
   function estValideur(compte, config) { return D.peut((compte && compte.roles) || [], 'DOC_VALIDATION', config); }
@@ -308,14 +361,18 @@
     }
     if (type === 'DOC_STATUT') {
       if (d.statut === 'a-valider' && !peut(x, compte, config, 'modifier')) throw new Error('Vous ne pouvez pas demander la validation de ce document.');
-      if (d.statut === 'brouillon' && !peut(x, compte, config, 'modifier') && !(estValideur(compte, config) && statut(x).statut === 'a-valider')) throw new Error('Changement de statut non permis.');
+      if (d.statut === 'brouillon' && !peut(x, compte, config, 'modifier') && !peutValider(x, compte, config)) throw new Error('Changement de statut non permis.');
       if (['a-valider', 'brouillon'].indexOf(d.statut) < 0) throw new Error('Statut inconnu.');
       if (!x.versions.length) throw new Error('Document vide : enregistrez-le d’abord.');
       return;
     }
     if (type === 'DOC_VALIDATION') {
-      if (!estValideur(compte, config)) throw new Error('Votre rôle ne permet pas de valider les documents.');
-      if (!droitDe(x, compte, config)) throw new Error('Le document doit vous être partagé pour être validé.');
+      var att = statut(x).attendu;
+      if (att && att !== (compte && compte.id)) throw new Error('Une validation supplémentaire est demandée à un autre agent.');
+      if (!att && !estValideur(compte, config)) throw new Error('Votre rôle ne permet pas de valider les documents.');
+      if (!att && !droitDe(x, compte, config)) throw new Error('Le document doit vous être partagé pour être validé.');
+      if (statut(x).statut !== 'a-valider') throw new Error('Le document n’est pas à valider.');
+      if (d.supplementaire && (!texte(d.supplementaire, 60) || d.supplementaire === compte.id)) throw new Error('Validation supplémentaire : choisissez un autre agent.');
       if (!x.versions.some(function (v) { return v.id === d.version; })) throw new Error('Version inconnue.');
       if (d.revision && (!JOUR.test(d.revision) || d.revision <= jourISO(Date.now()))) throw new Error('La date de révision doit être à venir.');
       return;
@@ -323,15 +380,22 @@
     if (type === 'DOC_EFFACE') {
       // Effacement : celui qui gère le document (depuis la corbeille), ou n'importe quel poste à l'échéance des 30 jours
       if (!x.corbeille) throw new Error('Seul un document de la corbeille est effacé.');
-      if (!peut(x, compte, config, 'gerer') && Date.parse(x.corbeille.le) > Date.now() - CORBEILLE_JOURS * 864e5) throw new Error('Effacement réservé à celui qui gère le document avant l’échéance.');
+      if (!peut(x, compte, config, 'gerer') && Date.parse(x.corbeille.le) > Date.now() - joursCorbeille(config) * 864e5) throw new Error('Effacement réservé à celui qui gère le document avant l’échéance.');
+    }
+    if (type === 'DOC_TRANSFERT') {
+      if (roles.indexOf('ADMIN') < 0) throw new Error('Le transfert des documents d’un compte retiré est fait par l’administrateur.');
+      if (!Array.isArray(d.vers) || !d.vers.length) throw new Error('Transfert : aucun destinataire.');
     }
   }
   /** Saisies permises par le droit sur le document (et non par le seul rôle) : versions, partage, corbeille, statut, effacement échu. */
   function permisPourSoi(type, data, compte, ctx) {
-    if (['DOC_VERSION', 'DOC_PARTAGE', 'DOC_CORBEILLE', 'DOC_STATUT', 'DOC_EFFACE'].indexOf(type) < 0 || !data || !ctx || !ctx.etat) return false;
+    if (['DOC_VERSION', 'DOC_PARTAGE', 'DOC_CORBEILLE', 'DOC_STATUT', 'DOC_EFFACE', 'DOC_VALIDATION'].indexOf(type) < 0 || !data || !ctx || !ctx.etat) return false;
     var x = ctx.etat.docs && ctx.etat.docs[data.doc];
     if (!x) return false;
-    if (type === 'DOC_EFFACE') return !!x.corbeille && (peut(x, compte, ctx.config, 'gerer') || Date.parse(x.corbeille.le) <= Date.now() - CORBEILLE_JOURS * 864e5);
+    // Validation supplémentaire : la personne nommée valide (ou renvoie en brouillon) sans le rôle de valideur
+    if (type === 'DOC_VALIDATION') return !!statut(x).attendu && statut(x).attendu === (compte && compte.id);
+    if (type === 'DOC_STATUT' && data.statut === 'brouillon' && statut(x).attendu === (compte && compte.id)) return true;
+    if (type === 'DOC_EFFACE') return !!x.corbeille && (peut(x, compte, ctx.config, 'gerer') || Date.parse(x.corbeille.le) <= Date.now() - joursCorbeille(ctx.config) * 864e5);
     return peut(x, compte, ctx.config, type === 'DOC_VERSION' || type === 'DOC_STATUT' ? 'modifier' : 'gerer');
   }
 
@@ -344,7 +408,7 @@
   // Droits proposés : tous les agents créent ; le cadre et le cadre supérieur valident
   var DROITS = { IDE: U_, AS: U_, SECRETAIRE: U_, MEDECIN: U_, MEDECIN_CHEF_SERVICE: U_, MEDECIN_CHEF_POLE: U_, DIRECTEUR_SOINS: U_, CADRE: TYPES.slice() };
   var D = Droits.creer({
-    roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
+    roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: ['DOC_TRANSFERT'], rolesFournis: M.ROLES_FOURNIS,
     ongletsMasquables: [], rolesJournalComplet: ['CADRE'], module: 'documents', rolesEncadrement: ['CADRE'],
     lireAcces: function (r) { return r.accesModules ? r.accesModules.documents : undefined; },
     appartenance: 'acces'
@@ -379,5 +443,6 @@
     POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
     run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
     entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,
+    options: options, joursCorbeille: joursCorbeille, validationsDemandees: validationsDemandees, peutValider: peutValider, aTransferer: aTransferer, estValideur: estValideur,
     statut: statut, derniere: derniere, enVigueur: enVigueur, visibles: visibles, aValider: aValider, aEffacer: aEffacer, joursAvantEffacement: joursAvantEffacement, controler: controler, permisPourSoi: permisPourSoi, jourISO: jourISO };
 });

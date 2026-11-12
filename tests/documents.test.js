@@ -178,3 +178,71 @@ test('Saisies du module : un document créé, versionné, partagé dans le journ
   const b = await co(racine, 'ide.b', 'mot de passe ide b');
   await assert.rejects(b.enregistrer('DOC_VERSION', { doc: 'DC0000000b', g: 1, ct: 'x' }));
 });
+
+test('Validation supplémentaire : le cadre valide et la demande à un agent nommé, qui reçoit le document en lecture', () => {
+  const t0 = Date.now(), at = (h) => new Date(t0 + h * 36e5).toISOString();
+  const cadre = { id: 'c', roles: ['CADRE'], services: ['U1'] }, ds = { id: 'ds', roles: ['DIRECTEUR_SOINS'], services: [] }, autre = { id: 'x', roles: ['CADRE'], services: ['U1'] };
+  const ev = [{ id: 'e1', at: at(-5), by: 'a1', type: 'DOC', data: { id: 'DC00000009', partage: [{ genre: 'service', code: 'U1', droit: 'lire' }] } },
+    { id: 'e2', at: at(-5), by: 'a1', type: 'DOC_VERSION', data: { doc: 'DC00000009', g: 1, ct: 'x' } },
+    { id: 'e3', at: at(-4), by: 'a1', type: 'DOC_STATUT', data: { doc: 'DC00000009', statut: 'a-valider' } }];
+  let st = DM.reduire(ev);
+  assert.throws(() => DM.controler('DOC_VALIDATION', { doc: 'DC00000009', version: 'e2', supplementaire: 'c' }, { etat: st, compte: cadre, config: {} }), /autre agent/);
+  DM.controler('DOC_VALIDATION', { doc: 'DC00000009', version: 'e2', supplementaire: 'ds' }, { etat: st, compte: cadre, config: {} });
+  ev.push({ id: 'e4', at: at(-3), by: 'c', type: 'DOC_VALIDATION', data: { doc: 'DC00000009', version: 'e2', revision: DM.jourISO(t0 + 200 * 864e5), supplementaire: 'ds' } });
+  st = DM.reduire(ev);
+  const d = st.docs.DC00000009;
+  assert.equal(DM.statut(d).statut, 'a-valider'); assert.equal(DM.statut(d).attendu, 'ds');
+  assert.equal(DM.droitDe(d, ds, {}), 'lire');                                    // document partagé en lecture
+  assert.deepEqual(DM.aValider(st, ds, {}).map((x) => x.id), ['DC00000009']);
+  assert.deepEqual(DM.aValider(st, autre, {}), []);                                // les autres valideurs ne le voient plus
+  assert.equal(DM.peutValider(d, ds, {}), true); assert.equal(DM.peutValider(d, autre, {}), false);
+  assert.equal(DM.permisPourSoi('DOC_VALIDATION', { doc: 'DC00000009' }, ds, { etat: st, config: {} }), true);
+  assert.throws(() => DM.controler('DOC_VALIDATION', { doc: 'DC00000009', version: 'e2' }, { etat: st, compte: autre, config: {} }), /autre agent/);
+  ev.push({ id: 'e5', at: at(-2), by: 'ds', type: 'DOC_VALIDATION', data: { doc: 'DC00000009', version: 'e2' } });
+  st = DM.reduire(ev);
+  const f = DM.statut(st.docs.DC00000009);
+  assert.equal(f.statut, 'valide'); assert.deepEqual(f.etapes.map((x) => x.par), ['c', 'ds']);
+  assert.equal(f.revision, DM.jourISO(t0 + 200 * 864e5));                         // date de révision de la 1re étape
+});
+
+test('Corbeille : durée réglée par l’administrateur (7 à 365 jours, 30 par défaut)', () => {
+  assert.equal(DM.joursCorbeille({}), 30);
+  assert.equal(DM.joursCorbeille({ documents: { corbeilleJours: 90 } }), 90);
+  assert.equal(DM.joursCorbeille({ documents: { corbeilleJours: 2 } }), 30);
+  const t0 = Date.parse('2026-01-01T10:00:00Z');
+  const st = DM.reduire([{ id: 'e1', at: new Date(t0).toISOString(), by: 'a1', type: 'DOC', data: { id: 'DC0000000c' } },
+    { id: 'e2', at: new Date(t0).toISOString(), by: 'a1', type: 'DOC_CORBEILLE', data: { doc: 'DC0000000c', corbeille: true } }]);
+  assert.equal(DM.aEffacer(st, t0 + 40 * 864e5, 90).length, 0);
+  assert.equal(DM.aEffacer(st, t0 + 91 * 864e5, 90).length, 1);
+  assert.equal(DM.joursAvantEffacement(st.docs.DC0000000c, t0 + 10 * 864e5, 90), 80);
+});
+
+test('Compte de l’auteur retiré : gestion transférée au cadre de ses services', () => {
+  const comptes = [{ id: 'a1', actif: false, roles: ['IDE'], services: ['U1'] }, { id: 'c1', roles: ['CADRE'], services: ['U1'] }, { id: 'c2', roles: ['CADRE'], services: ['U2'] }, { id: 'i2', roles: ['IDE'], services: ['U1'] }];
+  let st = DM.reduire([{ id: 'e1', at: new Date().toISOString(), by: 'a1', type: 'DOC', data: { id: 'DC0000000d' } }]);
+  assert.deepEqual(DM.aTransferer(st, comptes, {}), [{ doc: 'DC0000000d', vers: ['c1'] }]);
+  assert.throws(() => DM.controler('DOC_TRANSFERT', { doc: 'DC0000000d', vers: ['c1'] }, { etat: st, compte: comptes[1], config: {} }), /administrateur/);
+  st = DM.reduire([{ id: 'e1', at: new Date().toISOString(), by: 'a1', type: 'DOC', data: { id: 'DC0000000d' } }, { id: 'e2', at: new Date().toISOString(), by: 'adm', type: 'DOC_TRANSFERT', data: { doc: 'DC0000000d', vers: ['c1'] } }]);
+  assert.equal(DM.droitDe(st.docs.DC0000000d, comptes[1], {}), 'gerer');
+  assert.deepEqual(DM.aTransferer(st, comptes, {}), []);
+});
+
+test('Transfert par la session de l’administrateur : le cadre lit le document privé de l’agent parti', async () => {
+  const { racine, admin, id } = await equipe();
+  const a = await co(racine, 'ide.a', 'mot de passe ide a');
+  await a.creerCleDocument('DC0000000e', ['k-a.' + id('ide.a')]);
+  await a.enregistrer('DOC', { id: 'DC0000000e', modele: false, partage: [], services: [], depuis: '' });
+  const v = await a.chiffrerDocument('DC0000000e', { meta: DM.meta({ titre: 'Notes de l’agent parti (fictif)' }), contenu: contenu('x') });
+  await a.enregistrer('DOC_VERSION', { doc: 'DC0000000e', g: v.g, ct: v.ct });
+  const c = admin.comptes.find((x) => x.login === 'ide.a');
+  await admin.modifierRoles(c.id, c.roles, false, c.services);
+  const ad = await co(racine, 'admin', 'mot de passe solide');
+  const l = DM.aTransferer(ad.etatModule('documents'), ad.comptes, ad.etat.config);
+  assert.deepEqual(l, [{ doc: 'DC0000000e', vers: [id('cadre')] }]);
+  await ad.transfererCleDocument('DC0000000e', ['k-a.' + id('cadre')]);
+  await ad.enregistrer('DOC_TRANSFERT', { doc: 'DC0000000e', vers: [id('cadre')] });
+  assert.equal(await ad.dechiffrerDocument('DC0000000e', v.g, v.ct), null);   // l'administrateur ne garde pas la clé
+  const cd = await co(racine, 'cadre', 'mot de passe cadre');
+  assert.equal((await cd.dechiffrerDocument('DC0000000e', v.g, v.ct)).meta.titre, 'Notes de l’agent parti (fictif)');
+  assert.equal(DM.droitDe(cd.etatModule('documents').docs.DC0000000e, cd.compteEffectif(), cd.etat.config), 'gerer');
+});
