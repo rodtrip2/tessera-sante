@@ -1,0 +1,383 @@
+// SPDX-License-Identifier: EUPL-1.2
+/*
+ * Module Documents — contrat déclaré au registre des modules (0.34.0, étape 1 : documents texte ; décisions du porteur
+ * du 12 novembre 2026).
+ *
+ * Documents texte mis en forme (polices, tailles, couleurs, titres, listes, tableaux, alignements, marges, orientation,
+ * en-tête et pied de page, sauts de page), chiffrés chacun par sa propre clé : la clé du document est emballée pour les
+ * seules clés de ceux avec qui il est partagé (agent, service, rôle d'un service, groupe), dans un fichier de clés tenu
+ * par la session ; un document supprimé passe 30 jours dans la corbeille, puis son fichier de clés est détruit : ses
+ * versions, toujours dans le journal (ajout seul), deviennent illisibles. Le module ne voit ni les clés ni le coffre.
+ *
+ * Privé à son auteur jusqu'au partage (décision) ; droits par document : lire, modifier, gérer (partage, corbeille,
+ * validation demandée). Titre, rattachements (patient, agent, salle…) et contenu sont chiffrés par la clé du document ;
+ * seuls l'existence du document, son auteur, ses dates, son partage et son statut sont lisibles par les agents du module.
+ * Chaque enregistrement est une version (historique, retour à une version, comparaison). Circuit de validation (décision) :
+ * brouillon, à valider, validé (par qui, quand, version en vigueur), à réviser à la date prévue. Modèles : par le cadre
+ * pour ses services, par l'administrateur pour l'établissement. Aucune donnée clinique. Journal `modules\documents\`.
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./droits.js'), require('./model.js'), require('./modules.js'), require('./groupes.js'));
+  else (root.SIC = root.SIC || {}).documents = factory(root.SIC.noyauJournal, root.SIC.droits, root.SIC.model, root.SIC.modules, root.SIC.groupes);
+})(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, G) {
+  'use strict';
+
+  var TYPES = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_VALIDATION', 'DOC_CORBEILLE', 'DOC_EFFACE'];
+  var DROITS_DOC = { lire: 1, modifier: 2, gerer: 3 };
+  var LIB_DROITS = { lire: 'Lire', modifier: 'Modifier', gerer: 'Gérer (partage, corbeille)' };
+  var STATUTS = { brouillon: 'Brouillon', 'a-valider': 'À valider', valide: 'Validé', modifie: 'Modifié depuis la validation', 'a-reviser': 'À réviser' };
+  var CORBEILLE_JOURS = 30;
+  var ID = /^DC[0-9a-f]{8,32}$/, JOUR = /^\d{4}-\d{2}-\d{2}$/;
+  var MAX_VERSION = 600000;   // caractères du contenu chiffré d'une version (≈ 400 Ko de texte)
+
+  function texte(v, n) { return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ').trim().slice(0, n || 120); }
+  function jourISO(t) { var d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+  // ------------------------------------------------------------ Mise en forme : polices, tailles, couleurs (classes CSS)
+  var POLICES = { '': 'Police du document', arial: 'Arial', calibri: 'Calibri', cambria: 'Cambria', georgia: 'Georgia', times: 'Times New Roman', verdana: 'Verdana', tahoma: 'Tahoma', trebuchet: 'Trebuchet MS', courier: 'Courier New' };
+  var TAILLES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36];
+  var COULEURS = { '': 'Automatique', gris: 'Gris', rouge: 'Rouge', orange: 'Orange', vert: 'Vert', bleu: 'Bleu', violet: 'Violet', marron: 'Marron' };
+  var FONDS = { '': 'Aucun', jaune: 'Surligné jaune', vert: 'Surligné vert', bleu: 'Surligné bleu', rose: 'Surligné rose', gris: 'Surligné gris' };
+  var BLOCS = { p: 'Texte', h1: 'Titre 1', h2: 'Titre 2', h3: 'Titre 3' };
+  var ALIGNEMENTS = { g: 'À gauche', c: 'Centré', d: 'À droite', j: 'Justifié' };
+  var CHAMPS_PAGE = { titre: 'Titre du document', date: 'Date d’impression', page: 'Numéro de page', service: 'Service', auteur: 'Auteur', version: 'Version en vigueur' };
+
+  function run(r) {
+    if (!r || typeof r.x !== 'string' || !r.x) return null;
+    var x = { x: r.x.replace(/\r\n?/g, '\n').slice(0, 20000) };
+    ['g', 'i', 's', 'b'].forEach(function (k) { if (r[k] === true) x[k] = true; });
+    if (POLICES[r.p] && r.p) x.p = r.p;
+    if (TAILLES.indexOf(+r.z) >= 0) x.z = +r.z;
+    if (COULEURS[r.c] && r.c) x.c = r.c;
+    if (FONDS[r.f] && r.f) x.f = r.f;
+    return x;
+  }
+  /** Fusionne les morceaux contigus de même mise en forme. */
+  function fusionner(runs) {
+    var res = [];
+    (runs || []).map(run).filter(Boolean).forEach(function (r) {
+      var p = res[res.length - 1];
+      if (p && ['g', 'i', 's', 'b', 'p', 'z', 'c', 'f'].every(function (k) { return p[k] === r[k]; })) p.x += r.x; else res.push(r);
+    });
+    return res;
+  }
+  function cellule(c) { return { runs: fusionner(c && c.runs), al: ALIGNEMENTS[c && c.al] ? c.al : 'g' }; }
+  function bloc(b) {
+    if (!b || typeof b !== 'object') return null;
+    if (b.t === 'saut') return { t: 'saut' };
+    if (b.t === 'table') {
+      var lignes = (Array.isArray(b.lignes) ? b.lignes : []).slice(0, 200).map(function (l) { return (Array.isArray(l) ? l : []).slice(0, 20).map(cellule); }).filter(function (l) { return l.length; });
+      if (!lignes.length) return null;
+      var n = Math.max.apply(null, lignes.map(function (l) { return l.length; }));
+      lignes.forEach(function (l) { while (l.length < n) l.push(cellule({})); });
+      var larg = Array.isArray(b.largeurs) && b.largeurs.length === n ? b.largeurs.map(function (x) { return Math.max(5, Math.min(95, +x || 0)); }) : null;
+      return { t: 'table', lignes: lignes, entete: b.entete === true, largeurs: larg };
+    }
+    var t = BLOCS[b.t] ? b.t : b.t === 'li' ? 'li' : 'p';
+    var x = { t: t, runs: fusionner(b.runs), al: ALIGNEMENTS[b.al] ? b.al : 'g' };
+    var r = Math.round(+b.r); if (r > 0 && r <= 8) x.r = r;
+    if (t === 'li') { x.liste = b.liste === 'ol' ? 'ol' : 'ul'; var n2 = Math.round(+b.n); x.n = n2 > 0 && n2 <= 6 ? n2 : 0; }
+    return x;
+  }
+  function zones(z) { z = z || {}; return { gauche: texte(z.gauche, 160), centre: texte(z.centre, 160), droite: texte(z.droite, 160) }; }
+  function marge(v, d) { var n = Math.round(+v); return n >= 5 && n <= 50 ? n : d; }
+  /** Page : orientation, marges (mm), police et taille par défaut, en-tête et pied de page, numéro de page. */
+  function page(p) {
+    p = p && typeof p === 'object' ? p : {};
+    var m = p.marges || {};
+    return { orientation: p.orientation === 'paysage' ? 'paysage' : 'portrait', marges: { h: marge(m.h, 20), b: marge(m.b, 20), g: marge(m.g, 20), d: marge(m.d, 20) },
+      police: POLICES[p.police] && p.police ? p.police : 'calibri', taille: TAILLES.indexOf(+p.taille) >= 0 ? +p.taille : 11,
+      entete: zones(p.entete), pied: p.pied ? zones(p.pied) : { gauche: '{titre}', centre: '', droite: 'Page {page}' }, interligne: [1, 1.15, 1.5, 2].indexOf(+p.interligne) >= 0 ? +p.interligne : 1.15 };
+  }
+  /** Contenu d'un document texte, validé à la lecture (blocs, page). */
+  function contenu(c) {
+    c = c && typeof c === 'object' ? c : {};
+    var blocs = (Array.isArray(c.blocs) ? c.blocs : []).slice(0, 5000).map(bloc).filter(Boolean);
+    if (!blocs.length) blocs = [{ t: 'p', runs: [], al: 'g' }];
+    return { v: 1, blocs: blocs, page: page(c.page) };
+  }
+  /** Texte brut d'un bloc (recherche, comparaison des versions). */
+  function texteBloc(b) {
+    if (!b) return '';
+    if (b.t === 'saut') return '— saut de page —';
+    if (b.t === 'table') return b.lignes.map(function (l) { return l.map(function (c) { return c.runs.map(function (r) { return r.x; }).join(''); }).join(' | '); }).join('\n');
+    return (b.runs || []).map(function (r) { return r.x; }).join('');
+  }
+  function texteContenu(c) { return contenu(c).blocs.map(texteBloc).join('\n'); }
+  /** Titres du document (sommaire). */
+  function sommaire(c) { return contenu(c).blocs.map(function (b, i) { return /^h[123]$/.test(b.t) ? { niveau: +b.t.slice(1), texte: texteBloc(b), index: i } : null; }).filter(function (x) { return x && x.texte; }); }
+  /** Métadonnées chiffrées avec le contenu : titre, rattachements. */
+  function meta(m) {
+    m = m && typeof m === 'object' ? m : {};
+    var r = (Array.isArray(m.rattaches) ? m.rattaches : []).filter(function (x) { return x && /^[a-z]{2,20}$/.test(x.module || '') && /^[a-z-]{2,20}$/.test(x.genre || '') && texte(x.id, 60); }).slice(0, 30)
+      .map(function (x) { return { module: x.module, genre: x.genre, id: texte(x.id, 60), libelle: texte(x.libelle, 120), service: texte(x.service, 30) }; });
+    return { titre: texte(m.titre, 160) || 'Sans titre', rattaches: r, resume: texte(m.resume, 300) };
+  }
+
+  /**
+   * Comparaison de deux versions, bloc par bloc (plus longue sous-suite commune sur le texte des blocs) :
+   * [{ etat: 'egal' | 'ajout' | 'retrait', texte }].
+   */
+  function comparer(a, b) {
+    var x = contenu(a).blocs.map(texteBloc), y = contenu(b).blocs.map(texteBloc), n = x.length, m = y.length;
+    if (n * m > 4e6) return [{ etat: 'retrait', texte: x.join('\n') }, { etat: 'ajout', texte: y.join('\n') }];
+    var L = []; for (var i = 0; i <= n; i++) { L.push(new Array(m + 1).fill(0)); }
+    for (i = n - 1; i >= 0; i--) for (var j = m - 1; j >= 0; j--) L[i][j] = x[i] === y[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    var res = []; i = 0; j = 0;
+    while (i < n && j < m) {
+      if (x[i] === y[j]) { res.push({ etat: 'egal', texte: x[i] }); i++; j++; }
+      else if (L[i + 1][j] >= L[i][j + 1]) { res.push({ etat: 'retrait', texte: x[i] }); i++; }
+      else { res.push({ etat: 'ajout', texte: y[j] }); j++; }
+    }
+    while (i < n) res.push({ etat: 'retrait', texte: x[i++] });
+    while (j < m) res.push({ etat: 'ajout', texte: y[j++] });
+    return res;
+  }
+
+  // ------------------------------------------------------------ Partage et clés (une clé par document)
+  /** Entrée de partage validée : { genre: agent | service | role | groupe, code, service (rôle), droit }. */
+  function entree(p) {
+    if (!p || ['agent', 'service', 'role', 'groupe'].indexOf(p.genre) < 0 || !texte(p.code, 60)) return null;
+    var x = { genre: p.genre, code: texte(p.code, 60), droit: DROITS_DOC[p.droit] ? p.droit : 'lire' };
+    if (p.genre === 'role') { if (!texte(p.service, 30)) return null; x.service = texte(p.service, 30); }
+    if (x.droit === 'gerer' && p.genre !== 'agent') x.droit = 'modifier';   // gérer : agent nommé seulement
+    return x;
+  }
+  function partage(l) {
+    var vus = {}, res = [];
+    (Array.isArray(l) ? l : []).map(entree).filter(Boolean).forEach(function (p) { var k = p.genre + '|' + p.code + '|' + (p.service || ''); if (vus[k]) return; vus[k] = 1; res.push(p); });
+    return res.slice(0, 200);
+  }
+  /** Nom de la clé d'une entrée de partage (familles « k- » : agent, service, rôle d'un service, groupe). */
+  function nomCle(p) {
+    if (p.genre === 'agent') return 'k-a.' + p.code;
+    if (p.genre === 'service') return 'k-s.' + p.code;
+    if (p.genre === 'role') return 'k-r.' + p.code + '.' + p.service;
+    return 'k-g.' + p.code;
+  }
+  /** Clés pour lesquelles la clé du document est emballée : son auteur et chaque entrée de partage. */
+  function clesDocument(auteur, l) {
+    var res = ['k-a.' + auteur];
+    partage(l).forEach(function (p) { var n = nomCle(p); if (res.indexOf(n) < 0) res.push(n); });
+    return res;
+  }
+  /** Clés à créer (administrateur) : une par agent, par service, par rôle de service dans chaque service, par groupe. */
+  function clesNecessaires(config, comptes) {
+    var res = [], svs = ((config && config.services) || []).map(function (s) { return s.code; });
+    (comptes || []).filter(function (c) { return c && c.actif !== false && c.id !== 'secours'; }).forEach(function (c) { res.push('k-a.' + c.id); });
+    svs.forEach(function (s) { res.push('k-s.' + s); M.ROLES_DE_SERVICE.filter(function (r) { return r !== 'INTERVENANT'; }).forEach(function (r) { res.push('k-r.' + r + '.' + s); }); });
+    ((config && config.groupes) || []).forEach(function (g) { if (g && g.code) res.push('k-g.' + g.code); });
+    return res;
+  }
+  /** Un compte a-t-il droit à une clé de document (membre du module ; agent, service, rôle du service, groupe) ? */
+  function aDroitCle(nom, compte, config, membre) {
+    if (!compte || !membre) return false;
+    var p = String(nom).split('.'), genre = p[0], sv = compte.services || [];
+    if (genre === 'k-a') return p.slice(1).join('.') === compte.id;
+    if (genre === 'k-s') return sv.indexOf(p[1]) >= 0;
+    if (genre === 'k-r') return (compte.roles || []).indexOf(p[1]) >= 0 && sv.indexOf(p[2]) >= 0;
+    if (genre === 'k-g') return G ? G.de(config, compte.id).indexOf(p.slice(1).join('.')) >= 0 : false;
+    return false;
+  }
+  /** Droit d'un compte sur un document : 'gerer' (auteur), le plus haut des partages qui le concernent, ou null. */
+  function droitDe(doc, compte, config) {
+    if (!doc || !compte) return null;
+    if (doc.auteur === compte.id) return 'gerer';
+    var gr = G ? G.de(config, compte.id) : [], sv = compte.services || [], ro = compte.roles || [], best = null;
+    (doc.partage || []).forEach(function (p) {
+      var ok = p.genre === 'agent' ? p.code === compte.id : p.genre === 'service' ? sv.indexOf(p.code) >= 0 : p.genre === 'role' ? ro.indexOf(p.code) >= 0 && sv.indexOf(p.service) >= 0 : gr.indexOf(p.code) >= 0;
+      if (ok && (!best || DROITS_DOC[p.droit] > DROITS_DOC[best])) best = p.droit;
+    });
+    return best;
+  }
+  function peut(doc, compte, config, droit) { var d = droitDe(doc, compte, config); return !!d && DROITS_DOC[d] >= DROITS_DOC[droit]; }
+  /** Partage retiré (une entrée en moins, ou un droit abaissé à rien) : nouvelle génération de la clé du document. */
+  function retraitDe(ancien, nouveau) {
+    var cles = {}; partage(nouveau).forEach(function (p) { cles[nomCle(p)] = 1; });
+    return partage(ancien).some(function (p) { return !cles[nomCle(p)]; });
+  }
+
+  // ------------------------------------------------------------ Reconstitution de l'état
+  function appliquer(st, e) {
+    var d = e.data || {}, x = d.doc && st.docs[d.doc];
+    switch (e.type) {
+      case 'DOC':
+        if (!ID.test(d.id || '') || st.docs[d.id]) break;
+        st.docs[d.id] = { id: d.id, genre: 'texte', modele: d.modele === true, auteur: e.by, cree: e.at, partage: partage(d.partage), services: Array.isArray(d.services) ? d.services.slice(0, 30) : [],
+          depuis: texte(d.depuis, 40), versions: [], statut: { statut: 'brouillon' }, validations: [], corbeille: null, efface: null, modifie: e.at, noms: {} };
+        if (d.nom) st.docs[d.id].noms[e.by] = texte(d.nom, 80);
+        break;
+      case 'DOC_VERSION':
+        if (!x || x.efface || typeof d.ct !== 'string') break;
+        x.versions.push({ id: e.id, le: e.at, par: e.by, g: +d.g || 1, ct: d.ct, taille: d.ct.length, restauree: texte(d.restauree, 60) });
+        x.modifie = e.at;
+        if (d.nom) x.noms[e.by] = texte(d.nom, 80);   // nom affiché de l'agent (comptes fictifs ou retirés)
+        if (x.statut.statut === 'valide') x.statut = Object.assign({}, x.statut, { statut: 'modifie' });
+        break;
+      case 'DOC_PARTAGE':
+        if (!x || x.efface) break;
+        x.partage = partage(d.partage);
+        if (Array.isArray(d.services)) x.services = d.services.slice(0, 30);
+        break;
+      case 'DOC_STATUT':
+        // Demande de validation, retour en brouillon (avec message)
+        if (!x || x.efface) break;
+        if (d.statut === 'a-valider' || d.statut === 'brouillon') x.statut = Object.assign({}, x.statut, { statut: d.statut, demandePar: e.by, demandeLe: e.at, message: texte(d.message, 300) });
+        break;
+      case 'DOC_VALIDATION':
+        if (!x || x.efface) break;
+        var v = x.versions.filter(function (y) { return y.id === d.version; })[0];
+        if (!v) break;
+        x.statut = { statut: 'valide', par: e.by, le: e.at, version: v.id, revision: JOUR.test(d.revision || '') ? d.revision : '', message: texte(d.message, 300) };
+        x.validations.push({ par: e.by, le: e.at, version: v.id, revision: x.statut.revision });
+        break;
+      case 'DOC_CORBEILLE':
+        if (!x || x.efface) break;
+        x.corbeille = d.corbeille ? { le: e.at, par: e.by } : null;
+        break;
+      case 'DOC_EFFACE':
+        if (!x || x.efface) break;
+        x.efface = { le: e.at, par: e.by };
+        x.versions.forEach(function (y) { y.ct = null; });   // illisibles de toute façon : clé détruite
+        break;
+    }
+  }
+  function reduire(evts) {
+    return N.reduire(evts, { cle: 'documents', etat: function () { return { docs: {} }; }, appliquer: appliquer });
+  }
+
+  // ------------------------------------------------------------ Lecture
+  /** Statut affiché : « à réviser » quand la date de révision d'un document validé est passée. */
+  function statut(doc, maintenant) {
+    var s = (doc && doc.statut) || { statut: 'brouillon' };
+    if ((s.statut === 'valide' || s.statut === 'modifie') && s.revision && s.revision <= jourISO(maintenant || Date.now())) return Object.assign({}, s, { statut: 'a-reviser', avant: s.statut });
+    return s;
+  }
+  function derniere(doc) { return doc && doc.versions.length ? doc.versions[doc.versions.length - 1] : null; }
+  /** Version en vigueur : la dernière validée, sinon la dernière. */
+  function enVigueur(doc) {
+    var s = doc && doc.statut, v = s && s.version && doc.versions.filter(function (y) { return y.id === s.version; })[0];
+    return v || derniere(doc);
+  }
+  /** Documents que le compte peut lire (hors effacés) ; `options` : { modeles, corbeille }. */
+  function visibles(st, compte, config, options) {
+    var o = options || {};
+    return Object.keys((st && st.docs) || {}).map(function (k) { return st.docs[k]; }).filter(function (d) {
+      if (d.efface || !droitDe(d, compte, config)) return false;
+      if (o.corbeille) return !!d.corbeille;
+      if (d.corbeille) return false;
+      return o.modeles === undefined ? true : !!d.modele === !!o.modeles;
+    }).sort(function (a, b) { return String(b.modifie).localeCompare(String(a.modifie)); });
+  }
+  /** Documents à valider pour un valideur (cadre) : demandes de validation des documents qu'il peut lire. */
+  function aValider(st, compte, config) { return visibles(st, compte, config, { modeles: undefined }).filter(function (d) { return statut(d).statut === 'a-valider'; }); }
+  /** Documents de la corbeille dont l'effacement est échu (30 jours). */
+  function aEffacer(st, maintenant) {
+    var lim = (maintenant || Date.now()) - CORBEILLE_JOURS * 864e5;
+    return Object.keys((st && st.docs) || {}).map(function (k) { return st.docs[k]; }).filter(function (d) { return d.corbeille && !d.efface && Date.parse(d.corbeille.le) <= lim; });
+  }
+  function joursAvantEffacement(doc, maintenant) { return doc && doc.corbeille ? Math.max(0, Math.ceil((Date.parse(doc.corbeille.le) + CORBEILLE_JOURS * 864e5 - (maintenant || Date.now())) / 864e5)) : null; }
+
+  // ------------------------------------------------------------ Contrôles
+  function estValideur(compte, config) { return D.peut((compte && compte.roles) || [], 'DOC_VALIDATION', config); }
+  function controler(type, d, ctx) {
+    var st = (ctx && ctx.etat) || reduire([]), compte = ctx && ctx.compte, config = ctx && ctx.config, x = d && d.doc ? st.docs[d.doc] : null, roles = (compte && compte.roles) || [];
+    if (type === 'DOC') {
+      if (!ID.test(d.id || '')) throw new Error('Identifiant du document invalide.');
+      if (st.docs[d.id]) throw new Error('Document déjà créé.');
+      if (d.modele) {
+        var svs = d.services || [];
+        if (roles.indexOf('ADMIN') < 0 && !(roles.indexOf('CADRE') >= 0 || roles.indexOf('CADRE_SUP') >= 0)) throw new Error('Les modèles sont créés par le cadre (ses services) ou l’administrateur (établissement).');
+        if (roles.indexOf('ADMIN') < 0 && svs.some(function (s) { return (compte.services || []).indexOf(s) < 0; })) throw new Error('Modèle : choisissez parmi vos services.');
+      }
+      partage(d.partage).forEach(function (p) { if (p.droit === 'gerer' && p.genre !== 'agent') throw new Error('Le droit de gérer se donne à un agent nommé.'); });
+      return;
+    }
+    if (!x) throw new Error('Document introuvable.');
+    if (x.efface) throw new Error('Document effacé.');
+    if (type === 'DOC_VERSION') {
+      if (!peut(x, compte, config, 'modifier')) throw new Error('Vous ne pouvez pas modifier ce document.');
+      if (x.corbeille) throw new Error('Document dans la corbeille : restaurez-le d’abord.');
+      if (typeof d.ct !== 'string' || d.ct.length > MAX_VERSION) throw new Error('Document trop volumineux.');
+      return;
+    }
+    if (type === 'DOC_PARTAGE' || type === 'DOC_CORBEILLE') {
+      if (!peut(x, compte, config, 'gerer')) throw new Error('Seul celui qui gère le document change son partage ou le met à la corbeille.');
+      if (type === 'DOC_PARTAGE') partage(d.partage).forEach(function (p) { if (p.droit === 'gerer' && p.genre !== 'agent') throw new Error('Le droit de gérer se donne à un agent nommé.'); });
+      return;
+    }
+    if (type === 'DOC_STATUT') {
+      if (d.statut === 'a-valider' && !peut(x, compte, config, 'modifier')) throw new Error('Vous ne pouvez pas demander la validation de ce document.');
+      if (d.statut === 'brouillon' && !peut(x, compte, config, 'modifier') && !(estValideur(compte, config) && statut(x).statut === 'a-valider')) throw new Error('Changement de statut non permis.');
+      if (['a-valider', 'brouillon'].indexOf(d.statut) < 0) throw new Error('Statut inconnu.');
+      if (!x.versions.length) throw new Error('Document vide : enregistrez-le d’abord.');
+      return;
+    }
+    if (type === 'DOC_VALIDATION') {
+      if (!estValideur(compte, config)) throw new Error('Votre rôle ne permet pas de valider les documents.');
+      if (!droitDe(x, compte, config)) throw new Error('Le document doit vous être partagé pour être validé.');
+      if (!x.versions.some(function (v) { return v.id === d.version; })) throw new Error('Version inconnue.');
+      if (d.revision && (!JOUR.test(d.revision) || d.revision <= jourISO(Date.now()))) throw new Error('La date de révision doit être à venir.');
+      return;
+    }
+    if (type === 'DOC_EFFACE') {
+      // Effacement : celui qui gère le document (depuis la corbeille), ou n'importe quel poste à l'échéance des 30 jours
+      if (!x.corbeille) throw new Error('Seul un document de la corbeille est effacé.');
+      if (!peut(x, compte, config, 'gerer') && Date.parse(x.corbeille.le) > Date.now() - CORBEILLE_JOURS * 864e5) throw new Error('Effacement réservé à celui qui gère le document avant l’échéance.');
+    }
+  }
+  /** Saisies permises par le droit sur le document (et non par le seul rôle) : versions, partage, corbeille, statut, effacement échu. */
+  function permisPourSoi(type, data, compte, ctx) {
+    if (['DOC_VERSION', 'DOC_PARTAGE', 'DOC_CORBEILLE', 'DOC_STATUT', 'DOC_EFFACE'].indexOf(type) < 0 || !data || !ctx || !ctx.etat) return false;
+    var x = ctx.etat.docs && ctx.etat.docs[data.doc];
+    if (!x) return false;
+    if (type === 'DOC_EFFACE') return !!x.corbeille && (peut(x, compte, ctx.config, 'gerer') || Date.parse(x.corbeille.le) <= Date.now() - CORBEILLE_JOURS * 864e5);
+    return peut(x, compte, ctx.config, type === 'DOC_VERSION' || type === 'DOC_STATUT' ? 'modifier' : 'gerer');
+  }
+
+  // ------------------------------------------------------------ Droits et contrat
+  var ACCES = [
+    { code: 'documents.utiliser', libelle: 'Créer des documents, modifier ceux qui lui sont partagés', types: ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE'] },
+    { code: 'documents.valider', libelle: 'Valider les documents (procédures, règlements) et fixer leur date de révision', types: ['DOC_VALIDATION'] }
+  ];
+  var U_ = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_CORBEILLE', 'DOC_EFFACE'];
+  // Droits proposés : tous les agents créent ; le cadre et le cadre supérieur valident
+  var DROITS = { IDE: U_, AS: U_, SECRETAIRE: U_, MEDECIN: U_, MEDECIN_CHEF_SERVICE: U_, MEDECIN_CHEF_POLE: U_, DIRECTEUR_SOINS: U_, CADRE: TYPES.slice() };
+  var D = Droits.creer({
+    roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
+    ongletsMasquables: [], rolesJournalComplet: ['CADRE'], module: 'documents', rolesEncadrement: ['CADRE'],
+    lireAcces: function (r) { return r.accesModules ? r.accesModules.documents : undefined; },
+    appartenance: 'acces'
+  });
+  /** Services concernés par une saisie : ceux du partage (services, rôles) et du modèle. */
+  function cibles(st, e) {
+    var d = e.data || {}, x = (d.doc && st && st.docs && st.docs[d.doc]) || (e.type === 'DOC' ? { partage: partage(d.partage), services: d.services || [] } : null), res = [];
+    if (!x) return res;
+    (x.services || []).forEach(function (s) { if (res.indexOf(s) < 0) res.push(s); });
+    (x.partage || []).forEach(function (p) { var s = p.genre === 'service' ? p.code : p.genre === 'role' ? p.service : null; if (s && res.indexOf(s) < 0) res.push(s); });
+    return res;
+  }
+
+  var contrat = {
+    id: 'documents',
+    libelle: 'Documents',
+    version: '0.1.0',
+    icone: 'DO',
+    acces: ACCES,
+    droits: D,
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: function (st, e) { return cibles(st, e); } },
+    reglages: { defaut: {}, groupes: [], exclus: [] },
+    vues: { onglets: [{ code: 'documents', libelle: 'Documents' }, { code: 'modeles', libelle: 'Modèles' }, { code: 'a-valider', libelle: 'À valider', droit: 'DOC_VALIDATION' }, { code: 'corbeille', libelle: 'Corbeille' }] },
+    migrations: [],
+    fournitures: [],
+    besoins: []
+  };
+
+  registre.declarer(contrat);
+
+  return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
+    POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
+    run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
+    entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,
+    statut: statut, derniere: derniere, enVigueur: enVigueur, visibles: visibles, aValider: aValider, aEffacer: aEffacer, joursAvantEffacement: joursAvantEffacement, controler: controler, permisPourSoi: permisPourSoi, jourISO: jourISO };
+});
