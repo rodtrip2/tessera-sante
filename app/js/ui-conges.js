@@ -76,7 +76,7 @@
   function anneeVue() { return vue.annee || new Date().getFullYear(); }
   function cartesSoldes(a, an) {
     var so = C.soldes(st(), cfg(), a.id, an, info(a));
-    return h('div', { class: 'cg-cartes' }, o().types.filter(function (t) { return t.actif && so[t.code]; }).map(function (t) {
+    return h('div', { class: 'cg-cartes' }, o().types.filter(function (t) { var x = so[t.code]; return t.actif && x && !(t.rtp && !x.droit && !x.valide && !x.demande && !x.souhait); }).map(function (t) {
       var x = so[t.code], tot = Math.max(x.droit, x.valide + x.demande + x.souhait, 1);
       function part(v, statut) { var e = h('span', {}); e.style.width = (v / tot * 100) + '%'; return teinte(e, statut); }
       var detail = t.ferie ? (x.mode === 'office' ? 'Posés d’office (service fermé ou rôle qui ne travaille pas ces jours-là) : ' + nb(x.office) + ' jour(s)' : x.mode === 'recuperer' ? 'Fériés travaillés, à récupérer : ' + nb(x.acquis) + ' passé(s) à ce jour · ' + nb(x.valide) + ' récupéré(s) · ' + nb(x.demande) + ' demandé(s)' : 'Droits saisis par le cadre selon le planning')
@@ -85,7 +85,7 @@
         h('div', { class: 'cg-jauge', 'aria-hidden': 'true' }, part(x.valide, 'valide'), part(x.demande, 'demande'), part(x.souhait, 'souhait')),
         h('small', { class: 'muted', text: detail }),
         h('div', { class: 'cg-reste' }, h('b', { text: nb(x.reste) + ' j' }), h('span', { class: 'muted', text: ' restants après les demandes' })),
-        !t.ferie && x.quotite < 100 ? h('small', { class: 'muted', text: 'Proratisé : quotité moyenne de l’année ' + nb(x.quotite) + ' %' }) : null);
+        t.rtp ? h('small', { class: 'muted', text: x.saisi !== null ? 'Corrigé par le cadre (calcul proposé : ' + nb(x.calcule) + ' j)' : 'Calculé selon la quotité de l’année' }) : !t.ferie && x.quotite < 100 ? h('small', { class: 'muted', text: 'Proratisé : quotité moyenne de l’année ' + nb(x.quotite) + ' %' }) : null);
     }));
   }
   /** Demande déposée après la date limite d'une période de dépôt : non prioritaire, vue de l'agent et du validateur seulement. */
@@ -502,7 +502,7 @@
     var selAn = h('select', { class: 'cg-annee', 'aria-label': 'Année', onchange: function () { vue.annee = +selAn.value; U.rendreContenu(); } }, annees().map(function (x) { return h('option', { value: x, text: String(x), selected: x === an }); }));
     return h('section', { class: 'panneau' }, h('div', { class: 'barre' }, h('h2', { text: 'Droits et quotités' }), selAn),
       alerte(),
-      h('small', { class: 'muted', text: 'Droit calculé = droit à temps plein × quotité moyenne de l’année (la quotité peut changer en cours d’année), arrondi au ' + (o().arrondi === 1 ? 'jour' : 'demi-jour') + ' supérieur ; jours fériés : selon le service et le rôle. Une valeur saisie remplace le calcul ; videz-la pour revenir au calcul.' }),
+      h('small', { class: 'muted', text: 'Droit calculé = droit à temps plein × quotité moyenne de l’année (la quotité peut changer en cours d’année), arrondi au ' + (o().arrondi === 1 ? 'jour' : 'demi-jour') + ' supérieur ; jours fériés : selon le service et le rôle ; RTP (récupérations de temps partiel) : selon la quotité de chaque jour de l’année (Administration → Congés). Une valeur saisie remplace le calcul, qui reste affiché pour référence (par exemple quand la quotité a changé en cours d’année) ; videz-la pour revenir au calcul.' }),
       h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, [h('th', { text: 'Agent' }), h('th', { text: 'Quotité' })].concat(types.map(function (t) { return h('th', { text: t.abrev }); }), [h('th')]))),
         h('tbody', {}, ags.map(function (a) {
           var dr = C.droitsAnnee(st(), cfg(), a.id, an, info(a)), q = C.quotiteLe(st(), a.id, auj()), ok = gereDroits(a);
@@ -511,7 +511,8 @@
             types.map(function (t) {
               var x = dr[t.code] || {}, inp = h('input', { type: 'number', min: 0, max: 400, step: 0.5, value: x.saisi !== null && x.saisi !== undefined ? x.saisi : '', placeholder: nb(x.calcule || 0), class: 'champ-court', disabled: !ok || t.ferie && false, 'aria-label': t.libelle + ' ' + an + ' — ' + a.nom });
               champs.push({ a: a, t: t, inp: inp, avant: x.saisi });
-              return h('td', {}, inp);
+              // Valeur saisie : le calcul proposé reste noté pour référence
+              return h('td', {}, inp, x.saisi !== null && x.saisi !== undefined && x.saisi !== x.calcule ? h('div', {}, h('small', { class: 'muted', text: 'calcul : ' + nb(x.calcule || 0) })) : null);
             }),
             h('td', {}, ok ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleQuotite(a); } }, 'Quotité…') : null));
         })))),
@@ -575,11 +576,11 @@
       types.forEach(function (t, i) {
         var lib = h('input', { type: 'text', maxlength: 60, value: t.libelle, 'aria-label': 'Libellé du type ' + (i + 1) }), ab = h('input', { type: 'text', maxlength: 6, value: t.abrev, class: 'champ-court', 'aria-label': 'Abréviation du type ' + (i + 1) });
         var un = h('select', { 'aria-label': 'Unité du type ' + (i + 1), disabled: t.ferie }, Object.keys(C.UNITES).map(function (k) { return h('option', { value: k, text: C.UNITES[k], selected: t.unite === k }); }));
-        var dr = h('input', { type: 'number', min: 0, max: 400, step: 0.5, value: t.droit === null ? '' : t.droit, class: 'champ-court', disabled: t.ferie, placeholder: t.ferie ? 'calculé' : 'aucun', 'aria-label': 'Droit à temps plein du type ' + (i + 1) });
+        var dr = h('input', { type: 'number', min: 0, max: 400, step: 0.5, value: t.droit === null ? '' : t.droit, class: 'champ-court', disabled: t.ferie || t.rtp, placeholder: t.ferie || t.rtp ? 'calculé' : 'aucun', 'aria-label': 'Droit à temps plein du type ' + (i + 1) });
         var ac = h('input', { type: 'checkbox', checked: t.actif !== false, 'aria-label': 'Type ' + (i + 1) + ' actif' });
         lib.addEventListener('input', function () { t.libelle = lib.value; }); ab.addEventListener('input', function () { t.abrev = ab.value; }); un.addEventListener('change', function () { t.unite = un.value; });
         dr.addEventListener('change', function () { t.droit = dr.value === '' ? null : +dr.value; }); ac.addEventListener('change', function () { t.actif = ac.checked; });
-        zt.appendChild(h('tr', {}, h('td', {}, lib), h('td', {}, ab, h('small', { class: 'muted', text: ' ' + t.code })), h('td', {}, un), h('td', {}, dr, t.ferie ? h('small', { class: 'muted', text: ' selon service et rôle' }) : null), h('td', {}, h('label', { class: 'case' }, ac, h('span', { text: 'actif' })))));
+        zt.appendChild(h('tr', {}, h('td', {}, lib), h('td', {}, ab, h('small', { class: 'muted', text: ' ' + t.code })), h('td', {}, un), h('td', {}, dr, t.ferie ? h('small', { class: 'muted', text: ' selon service et rôle' }) : t.rtp ? h('small', { class: 'muted', text: ' selon la quotité (rubrique « Récupérations de temps partiel »)' }) : null), h('td', {}, h('label', { class: 'case' }, ac, h('span', { text: 'actif' })))));
       });
     }
     dessinerTypes();
@@ -592,7 +593,20 @@
         types.push({ code: code, libelle: l, abrev: code.slice(0, 4), unite: 'ouvres', droit: null, actif: true }); nouveauType.value = ''; dessinerTypes();
       } }, '+ Type de congé')),
       h('small', { class: 'muted', text: 'Un type déjà utilisé ne se supprime pas : décochez « actif ». Le droit de chaque agent est proratisé selon sa quotité, et le cadre peut le corriger (Congés → Tableaux et périodes → Droits et quotités).' }),
-      U.boutonEnregistrer(enregistrer(function (n) { n.types = types.map(function (t) { return { code: t.code, libelle: String(t.libelle || '').trim() || t.code, abrev: String(t.abrev || '').trim() || t.code, unite: t.unite, droit: t.droit, actif: t.actif !== false, ferie: !!t.ferie }; }); })));
+      U.boutonEnregistrer(enregistrer(function (n) { n.types = types.map(function (t) { return { code: t.code, libelle: String(t.libelle || '').trim() || t.code, abrev: String(t.abrev || '').trim() || t.code, unite: t.unite, droit: t.droit, actif: t.actif !== false, ferie: !!t.ferie, rtp: !!t.rtp }; }); })));
+    // Récupérations de temps partiel : calcul selon la quotité, réglable pour l'établissement
+    var baseR = h('input', { type: 'number', min: 0, max: 366, step: 1, value: op.rtp.base, class: 'champ-court', 'aria-label': 'Base de calcul des RTP (jours travaillés par an à temps plein)' });
+    var qtsAgents = []; Object.keys(st().quotites || {}).forEach(function (k) { (st().quotites[k] || []).forEach(function (x) { if (x.quotite < 100) qtsAgents.push(+x.quotite); }); });
+    var qts = [50, 60, 70, 75, 80, 90].concat(Object.keys(op.rtp.table).map(Number), qtsAgents).filter(function (q, i, l) { return l.indexOf(q) === i; }).sort(function (a, b) { return a - b; });
+    var lignesR = qts.map(function (q) { return { q: q, inp: h('input', { type: 'number', min: 0, max: 200, step: 0.5, value: typeof op.rtp.table[q] === 'number' ? op.rtp.table[q] : '', class: 'champ-court', 'aria-label': 'RTP par an à ' + q + ' %' }), calc: h('span', { class: 'muted' }) }; });
+    function majRtp() { lignesR.forEach(function (l) { U.vider(l.calc); l.calc.appendChild(document.createTextNode(nb(Math.round((100 - l.q) * (+baseR.value || 0)) / 100) + ' j')); }); }
+    baseR.addEventListener('input', majRtp); majRtp();
+    var pRtp = h('section', { class: 'panneau' }, h('h2', { text: 'Récupérations de temps partiel (RTP)' }),
+      h('p', { class: 'muted', text: 'Les RTP sont annualisées. Calcul proposé : jours de RTP par an = (100 − quotité) % × base. Une valeur de la table remplace le calcul pour cette quotité (règle de l’établissement). Quand la quotité change en cours d’année, chaque jour compte pour la quotité de ce jour-là ; le cadre peut corriger le résultat agent par agent (Congés → Tableaux et périodes → Droits et quotités), le calcul proposé restant affiché.' }),
+      h('label', { class: 'en-ligne' }, 'Base : jours travaillés par an à temps plein', baseR, h('span', { text: 'jours' })),
+      h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Quotité', 'Calcul proposé', 'Valeur de l’établissement (vide : calcul)'].map(function (x) { return h('th', { text: x }); }))),
+        h('tbody', {}, lignesR.map(function (l) { return h('tr', {}, h('td', { text: l.q + ' %' }), h('td', {}, l.calc), h('td', {}, l.inp)); })))),
+      U.boutonEnregistrer(enregistrer(function (n) { var tb = {}; lignesR.forEach(function (l) { if (l.inp.value !== '') tb[l.q] = +l.inp.value; }); n.rtp = { base: +baseR.value, table: tb }; })));
     // Validateurs
     var roles = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN', 'MEDECIN_CHEF_SERVICE'].concat((SIC.modules.obtenir('isocont').droits.rolesConfig(cfg()) || []).map(function (r) { return r.code; }).filter(function (c) { return /^R_/.test(c); })).concat(['*']);
     var validables = ['CADRE', 'CADRE_SUP', 'DIRECTEUR_SOINS', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE'];
@@ -636,7 +650,7 @@
     var pAlerte = h('section', { class: 'panneau' }, h('h2', { text: 'Message d’avertissement' }),
       h('label', { class: 'case' }, act, h('span', { text: 'Afficher le message dans Mes congés, les tableaux, les demandes et la fiche de l’agent' })), txt,
       U.boutonEnregistrer(enregistrer(function (n) { n.alerte = { active: act.checked, texte: txt.value.trim() || C.ALERTE_DEFAUT }; })));
-    return [['conges', 'Congés', [pTypes, pVal, pFeries, panneauReglesFeries(true), pOptions, pAlerte]]];
+    return [['conges', 'Congés', [pTypes, pRtp, pVal, pFeries, panneauReglesFeries(true), pOptions, pAlerte]]];
   }
   /** Jours fériés selon le service et le rôle : l'administrateur pour tous les services, le cadre pour les siens. */
   function panneauReglesFeries(admin) {

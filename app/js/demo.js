@@ -690,6 +690,8 @@
       ajouter(t(-24 * 100), 'QUOTITE', { agent: 'demo-d', depuis: Y + '-01-01', quotite: 100, nonTravailles: [], service: U1 }, moiC.id);
       ajouter(t(-24 * 50), 'QUOTITE', { agent: 'demo-d', depuis: Y + '-07-01', quotite: 50, nonTravailles: [3, 4, 5], service: U1 }, moiC.id);
       ajouter(t(-24 * 40), 'DROITS_CONGES', { agent: 'demo-a', annee: Y, droits: { CA: 27 }, service: U1 }, moiC.id);
+      // RTP (0.45.0) : calculées selon la quotité ; corrigées par le cadre pour l'agent D (quotité changée en cours d'année)
+      ajouter(t(-24 * 45), 'DROITS_CONGES', { agent: 'demo-d', annee: Y, droits: { RTP: 55 }, service: U1 }, moiC.id);
       var nC = 0;
       function cg(h0, ag, nom, roles, type, debut, fin, statut, suite) {
         var id = 'CG-DEMO' + (++nC);
@@ -708,6 +710,7 @@
       cg(-24 * 15, 'demo-d', 'Agent D (fictif)', ['IDE'], 'CA', L6, plus(L6, 4), 'annule');
       cg(-24 * 10, 'demo-d', 'Agent D (fictif)', ['IDE'], 'FR', plus(L6, 7), plus(L6, 8), 'demande');
       cg(-24 * 18, 'demo-c', 'Agent C (fictif)', ['IDE'], 'JF', iso(-20), iso(-20), 'valide');
+      cg(-24 * 16, 'demo-b', 'Agent B (fictif)', ['IDE'], 'RTP', iso(-9), iso(-9), 'valide');
       cg(-24 * 40, 'demo-a', 'Agent A (fictif)', ['IDE'], 'CA', (Y + 1) + '-07-05', (Y + 1) + '-07-16', 'demande');
       cg(-24 * 2, 'demo-e', 'Agent E (fictif)', ['IDE'], 'CA', (Y + 1) + '-08-02', (Y + 1) + '-08-13', 'demande');   // déposée après la date limite : non prioritaire
       cg(-24 * 4, 'demo-b', 'Agent B (fictif)', ['IDE'], 'CA', (Y + 1) + '-07-12', (Y + 1) + '-07-23', 'souhait');
