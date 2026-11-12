@@ -180,7 +180,7 @@
     droits: D,
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: cibles },
     reglages: { defaut: {}, groupes: [], exclus: [] },
-    vues: { onglets: [{ code: 'annuaire', libelle: 'Annuaire' }, { code: 'referents', libelle: 'Référents' }, { code: 'ma-fiche', libelle: 'Ma fiche' }, { code: 'medecins', libelle: 'Médecins', droit: 'COORDONNEES_MEDECIN' }] },
+    vues: { onglets: [{ code: 'annuaire', libelle: 'Annuaire' }, { code: 'referents', libelle: 'Référents' }, { code: 'ma-fiche', libelle: 'Ma fiche' }, { code: 'prets', libelle: 'Prêts de droits' }, { code: 'medecins', libelle: 'Médecins', droit: 'COORDONNEES_MEDECIN' }] },
     migrations: [],
     fournitures: [
       // Numéro et courriel professionnels d'un agent, pour la petite fiche de contact des autres modules

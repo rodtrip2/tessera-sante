@@ -357,7 +357,14 @@
     var els = vue.nature === 'tache' ? [] : A.elements(st(), fiches(), svs, debut, fin, true).filter(function (x) { return !vue.nature || x.rdv.nature === vue.nature; });
     var dues = !vue.nature || vue.nature === 'tache' ? A.tachesDues(st(), svs, debut, fin) : [];
     var abs = A.absences(st(), debut, fin).filter(function (a) { return !a.service || svs.indexOf(a.service) >= 0; });
-    var reperes = reperesParJour(debut, n, maintenant);
+    // Intervenant extérieur (0.31.0) : ses activités seulement (désigné, inscrit, invité, ou auteur), ni tâches ni absences
+    var cpt = U.App.session.compteEffectif();
+    if (A.limiteAuxSiens(cpt && cpt.roles)) {
+      els = els.filter(function (x) { var si = A.participants.situation(x.rdv, x.occurrence, cpt); return x.rdv.par === cpt.id || ['designe', 'inscrit', 'attente', 'propose', 'demande', 'invite'].indexOf(si.etat) >= 0; });
+      dues = []; abs = [];
+    }
+    var limite = A.limiteAuxSiens(cpt && cpt.roles);
+    var reperes = limite ? {} : reperesParJour(debut, n, maintenant);
     var selNature = h('select', { 'aria-label': 'Type d’élément', onchange: function () { vue.nature = selNature.value; U.rendreContenu(); } },
       [h('option', { value: '', text: 'Tous les éléments' })].concat(A.categories(U.config(), U.App.service !== '*' ? U.App.service : null).filter(function (c) { return c.actif; }).map(function (c) { return h('option', { value: c.code, text: c.libelle, selected: vue.nature === c.code }); }), [h('option', { value: 'tache', text: 'Tâches', selected: vue.nature === 'tache' })]));
     function mode(m, lib) { return h('button', { class: 'btn petit' + (vue.mode === m ? ' primaire' : ''), type: 'button', 'aria-pressed': String(vue.mode === m), onclick: function () { vue.mode = m; try { localStorage.setItem('sic-agenda-mode', m); } catch (e) { /* */ } U.rendreContenu(); } }, lib); }
@@ -394,10 +401,10 @@
     return h('div', {},
       h('div', { class: 'barre' }, h('h1', { text: 'Agenda du service' }),
         peut('RDV') || peut('TACHE_EQUIPE') || peut('TACHE') ? h('button', { class: 'btn primaire', onclick: function () { modaleAjout(semaine ? null : vue.ref); } }, '+ Nouveau') : null,
-        h('button', { class: 'btn', onclick: function () { modaleAbsence(null); } }, '+ Absence'),
+        limite ? null : h('button', { class: 'btn', onclick: function () { modaleAbsence(null); } }, '+ Absence'),
         h('div', { class: 'espace' }), h('label', { class: 'en-ligne nowrap' }, 'Afficher', selNature), mode('jour', 'Jour'), mode('semaine', 'Semaine')),
       bandeauAvis(),
-      resumeAlertes(maintenant),
+      limite ? h('p', { class: 'info', text: 'Vous voyez les activités où vous êtes inscrit(e), désigné(e) ou invité(e).' }) : resumeAlertes(maintenant),
       h('div', { class: 'barre' },
         h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Précédent', onclick: function () { vue.ref = plusJours(vue.ref, -pas); U.rendreContenu(); } }, '◀'),
         h('button', { class: 'btn petit', type: 'button', onclick: function () { vue.ref = minuit(Date.now()); U.rendreContenu(); } }, 'Aujourd’hui'),

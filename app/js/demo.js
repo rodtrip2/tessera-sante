@@ -27,7 +27,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -58,6 +58,14 @@
           { id: 'off', nom: 'Office', type: 'piece', nature: 'office', x: 0, y: 2, w: 2 }] }
       });
       cfg('lieuxCSI', { U1: ['CSI 1', 'CSI 2'], U2: ['CSI A'] });
+      // Accès particuliers (0.31.0) : prêts de droits (en cours, reçu par l'agent connecté ; à venir, donné par lui ; terminé
+      // pendant son absence) et charte de confidentialité des intervenants extérieurs (fictifs)
+      var idMoi = options.moi && options.moi.id, jD = function (n) { return SIC.model.dateLocaleISO(Date.now() + n * 864e5); };
+      if (idMoi) cfg('delegations', { prets: [
+        { id: 'pr-demo1', de: 'demo-d', a: idMoi, debut: jD(-2), fin: jD(5), roles: ['IDE'], services: ['U1'], motif: 'Congés annuels (fictif)', par: 'demo-d', le: new Date(Date.now() - 3 * 864e5).toISOString() },
+        { id: 'pr-demo2', de: idMoi, a: 'demo-a', debut: jD(20), fin: jD(34), roles: ['CADRE'], services: ['U1'], motif: 'Formation (fictif)', par: idMoi, le: new Date(Date.now() - 864e5).toISOString() },
+        { id: 'pr-demo3', de: idMoi, a: 'demo-c', debut: jD(-9), fin: jD(-2), roles: ['CADRE'], services: ['U2'], motif: 'Congés (fictif)', par: idMoi, le: new Date(Date.now() - 12 * 864e5).toISOString() }] });
+      cfg('charteIntervenants', { version: 1, texte: 'Charte de confidentialité (fictive, à rédiger par l’établissement)\n\n1. Je respecte le secret professionnel et la vie privée des patients rencontrés.\n2. Je ne communique à personne les informations vues dans Tessera Santé.\n3. Je ne prends ni photo ni note nominative.\n4. Mon compte est personnel : je ne le prête pas et je verrouille l’écran en partant.' });
       // Agenda : audiences JLD et activités thérapeutiques en transparence tant qu'aucun patient n'y est prévu
       // Fiche patient : données complémentaires (sorties libres saisies aussi par les AS dans l'Unité 1 ; éducateur référent
       // visible des IDE et cadres ; repas favori en liste de choix ; une donnée masquée)

@@ -34,8 +34,11 @@
    */
   // Rôles fournis de lecture (0.27.3) : tous les services, journal fermé et identité réduite par défaut, selon le rôle
   var TOUS_SERVICES_DEFAUT = ['ADMIN_GARDE', 'DIRECTEUR_SOINS'];
-  var SANS_JOURNAL_DEFAUT = ['MEDECIN', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS'];
-  var IDENTITE_REDUITE_DEFAUT = ['ADMIN_GARDE'];
+  var SANS_JOURNAL_DEFAUT = ['MEDECIN', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'ADMIN_GARDE', 'DIRECTEUR_SOINS', 'INTERVENANT'];
+  var IDENTITE_REDUITE_DEFAUT = ['ADMIN_GARDE', 'INTERVENANT'];
+  // Intervenant extérieur (0.31.0) : n'entre dans un module que par un accès coché (jamais par son seul rôle), et n'a par
+  // défaut que les accès que le module lui donne expressément (l'agenda de ses activités)
+  var ACCES_SEULS = ['INTERVENANT'];
   var IDENTITES = { complete: 'Identité complète', initiales: 'Initiales seulement' };
 
   function creer(def) {
@@ -78,6 +81,7 @@
 
     /** Accès par défaut d'un rôle fourni, déduits de ses droits historiques. */
     function accesDefaut(code) {
+      if (ACCES_SEULS.indexOf(code) >= 0 && !DROITS[code]) return [];
       var droits = (DROITS[code] || []).slice();
       (TYPES_EN_PLUS[code] || []).forEach(function (t) { droits.push(t); });
       return ACCES.filter(function (a) { return a.types.every(function (t) { return droits.indexOf(t) >= 0; }); }).map(function (a) { return a.code; });
@@ -174,7 +178,7 @@
     function membre(roles, config) {
       if ((roles || []).indexOf('ADMIN') >= 0) return true;
       var rc = rolesConfig(config);
-      return (roles || []).some(function (code) { var r = rc.filter(function (x) { return x.code === code && !x.admin; })[0]; return !!r && (APPARTENANCE !== 'acces' || r.acces.length > 0); });
+      return (roles || []).some(function (code) { var r = rc.filter(function (x) { return x.code === code && !x.admin; })[0]; return !!r && ((APPARTENANCE !== 'acces' && ACCES_SEULS.indexOf(code) < 0) || r.acces.length > 0); });
     }
 
     /** Vrai si l'un des rôles voit tous les services (administrateur, ou rôle réglé ainsi). */

@@ -683,6 +683,8 @@
    * Prochains événements de chaque patient (tableau de transmissions, 0.30.0) : { patientId: [{ debut, fin, titre, nature,
    * service }] } pour les occurrences non annulées qui commencent dans [debut, fin[, triées par date.
    */
+  /** Compte limité à ses propres activités dans l'agenda : intervenant extérieur seulement (0.31.0). */
+  function limiteAuxSiens(roles) { return !!roles && roles.length > 0 && roles.every(function (r) { return r === 'INTERVENANT'; }); }
   function evenementsPatients(st, debut, fin) {
     var res = {};
     Object.keys((st && st.rdv) || {}).forEach(function (k) {
@@ -745,6 +747,8 @@
     SECRETAIRE: ['RDV', 'OCCURRENCE', 'PATIENT_INSCRIT', 'TRANSPORT', 'VALIDATION', 'INSCRIPTION', 'TACHE_EQUIPE', 'TACHE_FAITE', 'CHECK'],
     // Médecin (0.28.1) : reçoit les alertes (et en envoie), s'inscrit aux événements, valide les permissions
     MEDECIN: ['INSCRIPTION', 'VALIDATION', 'ALERTE', 'ALERTE_VUE'],
+    // Intervenant extérieur (0.31.0) : consultation seulement, limitée par l'écran aux événements où il est inscrit ou invité
+    INTERVENANT: [],
     CADRE: TYPES.slice()
   };
 
@@ -1009,6 +1013,6 @@
     libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, suggestions: suggestions, tachesSuggerees: tachesSuggerees, SUGGESTIONS_DEFAUT: SUGGESTIONS_DEFAUT, EVENEMENTS_SUGGESTION: EVENEMENTS_SUGGESTION, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
     enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
-    alertesEquipe: alertesEquipe, alertePour: alertePour, occupationsSalles: occupationsSalles, evenementsPatients: evenementsPatients, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
+    alertesEquipe: alertesEquipe, alertePour: alertePour, occupationsSalles: occupationsSalles, evenementsPatients: evenementsPatients, limiteAuxSiens: limiteAuxSiens, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
     etatChecklist: etatChecklist, checklists: checklists, alertesChecklists: alertesChecklists, optionsTaches: optionsTaches, AJUSTABLES: AJUSTABLES, affectation: affectation, controler: controler, tachePour: tachePour, tachesDues: tachesDues, absences: absences, prevusAbsents: prevusAbsents, jourISO: jourISO, depuisISO: depuisISO };
 });
