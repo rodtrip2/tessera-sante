@@ -64,8 +64,14 @@
     // Suivi des modifications (0.37.0) : texte ajouté (ins) ou supprimé (del) par un agent, à accepter ou refuser
     var m = marque(r.ins); if (m) x.ins = m;
     var d = marque(r.del); if (d) x.del = d;
+    // Mise en forme changée (0.38.0) : mise en forme d'avant, pour refuser
+    if (r.fmt && marque(r.fmt)) { var av = {}, a0 = r.fmt.avant || {}; ['g', 'i', 's', 'b'].forEach(function (k) { if (a0[k] === true) av[k] = true; }); if (POLICES[a0.p] && a0.p) av.p = a0.p; if (TAILLES.indexOf(+a0.z) >= 0) av.z = +a0.z; if (COULEURS[a0.c] && a0.c) av.c = a0.c; if (FONDS[a0.f] && a0.f) av.f = a0.f;
+      x.fmt = Object.assign(marque(r.fmt), { id: texte(r.fmt.id, 30) || 'f' + Math.random().toString(36).slice(2, 10), avant: av }); }
     return x;
   }
+  var OPS_BLOC = { ins: 'Nouveau paragraphe', ajout: 'Élément ajouté', del: 'Élément supprimé', fusion: 'Paragraphes fusionnés' };
+  function marqueBloc(m) { var x = marque(m); return x && OPS_BLOC[m.op] ? Object.assign(x, { op: m.op, id: texte(m.id, 30) || 'b' + Math.random().toString(36).slice(2, 10) }) : null; }
+  function avecSuivi(x, b) { var m = marqueBloc(b && b.suivi); if (m) x.suivi = m; return x; }
   function marque(m) { return m && typeof m === 'object' && texte(m.p, 60) ? { p: texte(m.p, 60), n: texte(m.n, 80), le: texte(m.le, 30) } : null; }
   function memeMarque(a, b) { return (!a && !b) || (a && b && a.p === b.p && a.le.slice(0, 16) === b.le.slice(0, 16)); }
   /** Fusionne les morceaux contigus de même mise en forme. */
@@ -73,27 +79,27 @@
     var res = [];
     (runs || []).map(run).filter(Boolean).forEach(function (r) {
       var p = res[res.length - 1];
-      if (p && ['g', 'i', 's', 'b', 'p', 'z', 'c', 'f'].every(function (k) { return p[k] === r[k]; }) && memeMarque(p.ins, r.ins) && memeMarque(p.del, r.del)) p.x += r.x; else res.push(r);
+      if (p && ['g', 'i', 's', 'b', 'p', 'z', 'c', 'f'].every(function (k) { return p[k] === r[k]; }) && memeMarque(p.ins, r.ins) && memeMarque(p.del, r.del) && ((!p.fmt && !r.fmt) || (p.fmt && r.fmt && p.fmt.id === r.fmt.id))) p.x += r.x; else res.push(r);
     });
     return res;
   }
   function cellule(c) { return { runs: fusionner(c && c.runs), al: ALIGNEMENTS[c && c.al] ? c.al : 'g' }; }
   function bloc(b) {
     if (!b || typeof b !== 'object') return null;
-    if (b.t === 'saut') return { t: 'saut' };
+    if (b.t === 'saut') return avecSuivi({ t: 'saut' }, b);
     if (b.t === 'table') {
       var lignes = (Array.isArray(b.lignes) ? b.lignes : []).slice(0, 200).map(function (l) { return (Array.isArray(l) ? l : []).slice(0, 20).map(cellule); }).filter(function (l) { return l.length; });
       if (!lignes.length) return null;
       var n = Math.max.apply(null, lignes.map(function (l) { return l.length; }));
       lignes.forEach(function (l) { while (l.length < n) l.push(cellule({})); });
       var larg = Array.isArray(b.largeurs) && b.largeurs.length === n ? b.largeurs.map(function (x) { return Math.max(5, Math.min(95, +x || 0)); }) : null;
-      return { t: 'table', lignes: lignes, entete: b.entete === true, largeurs: larg };
+      return avecSuivi({ t: 'table', lignes: lignes, entete: b.entete === true, largeurs: larg }, b);
     }
     var t = BLOCS[b.t] ? b.t : b.t === 'li' ? 'li' : 'p';
     var x = { t: t, runs: fusionner(b.runs), al: ALIGNEMENTS[b.al] ? b.al : 'g' };
     var r = Math.round(+b.r); if (r > 0 && r <= 8) x.r = r;
     if (t === 'li') { x.liste = b.liste === 'ol' ? 'ol' : 'ul'; var n2 = Math.round(+b.n); x.n = n2 > 0 && n2 <= 6 ? n2 : 0; }
-    return x;
+    return avecSuivi(x, b);
   }
   function zones(z) { z = z || {}; return { gauche: texte(z.gauche, 160), centre: texte(z.centre, 160), droite: texte(z.droite, 160) }; }
   function marge(v, d) { var n = Math.round(+v); return n >= 5 && n <= 50 ? n : d; }
@@ -154,18 +160,56 @@
   }
 
   // ------------------------------------------------------------ Suivi des modifications (0.37.0)
-  /** Modifications suivies d'un document texte : [{ bloc, genre: 'ins' | 'del', texte, p, n, le }]. */
+  /**
+   * Modifications suivies d'un document texte : [{ bloc, genre: 'ins' | 'del' | 'fmt' | 'bloc', texte, op, id, p, n, le }]
+   * (texte ajouté ou supprimé, mise en forme changée, paragraphe ou élément ajouté, supprimé, fusionné).
+   */
   function modificationsSuivies(c) {
     var res = [];
-    function runs(rs, i) { (rs || []).forEach(function (r) { ['ins', 'del'].forEach(function (g) { if (r[g]) { var d = res[res.length - 1]; if (d && d.bloc === i && d.genre === g && d.p === r[g].p && d.le === r[g].le) d.texte += r.x; else res.push({ bloc: i, genre: g, texte: r.x, p: r[g].p, n: r[g].n, le: r[g].le }); } }); }); }
-    (contenu(c).blocs || []).forEach(function (b, i) { if (b.t === 'table') b.lignes.forEach(function (l) { l.forEach(function (x) { runs(x.runs, i); }); }); else runs(b.runs, i); });
+    function runs(rs, i) {
+      (rs || []).forEach(function (r) {
+        ['ins', 'del'].forEach(function (g) { if (r[g]) { var d = res[res.length - 1]; if (d && d.bloc === i && d.genre === g && d.p === r[g].p && d.le === r[g].le) d.texte += r.x; else res.push({ bloc: i, genre: g, texte: r.x, p: r[g].p, n: r[g].n, le: r[g].le }); } });
+        if (r.fmt) { var e = res.filter(function (x) { return x.genre === 'fmt' && x.id === r.fmt.id; })[0]; if (e) e.texte += r.x; else res.push({ bloc: i, genre: 'fmt', id: r.fmt.id, texte: r.x, p: r.fmt.p, n: r.fmt.n, le: r.fmt.le }); }
+      });
+    }
+    (contenu(c).blocs || []).forEach(function (b, i) {
+      if (b.suivi) res.push({ bloc: i, genre: 'bloc', op: b.suivi.op, id: b.suivi.id, texte: OPS_BLOC[b.suivi.op] + (b.t === 'table' ? ' (tableau)' : b.t === 'saut' ? ' (saut de page)' : ' : ' + texteBloc(b).slice(0, 80)), p: b.suivi.p, n: b.suivi.n, le: b.suivi.le });
+      if (b.t === 'table') b.lignes.forEach(function (l) { l.forEach(function (x) { runs(x.runs, i); }); }); else runs(b.runs, i);
+    });
     return res;
   }
-  /** Tout accepter (texte ajouté gardé, texte supprimé retiré) ou tout refuser (l'inverse). */
-  function resoudreSuivi(c, accepter) {
+  function textuel(b) { return b && b.runs && b.t !== 'table' && b.t !== 'saut'; }
+  /**
+   * Tout accepter ou tout refuser, ou une seule mise en forme ou un seul paragraphe (`id`). Accepter : texte ajouté gardé,
+   * texte supprimé retiré (un paragraphe dont tout le texte est supprimé disparaît), mise en forme gardée, élément ajouté
+   * gardé, élément supprimé retiré, paragraphes fusionnés. Refuser : l'inverse.
+   */
+  function resoudreSuivi(c, accepter, id) {
     var x = JSON.parse(JSON.stringify(contenu(c)));
-    function runs(rs) { return fusionner((rs || []).filter(function (r) { return accepter ? !r.del : !r.ins; }).map(function (r) { var y = Object.assign({}, r); delete y.ins; delete y.del; return y; })); }
-    x.blocs = x.blocs.map(function (b) { if (b.t === 'table') { b.lignes.forEach(function (l) { l.forEach(function (y) { y.runs = runs(y.runs); }); }); return b; } if (b.runs) b.runs = runs(b.runs); return b; });
+    function runs(rs) {
+      return fusionner((rs || []).filter(function (r) { return id ? true : accepter ? !r.del : !r.ins; }).map(function (r) {
+        var y = Object.assign({}, r);
+        if (!id) { delete y.ins; delete y.del; }
+        if (y.fmt && (!id || y.fmt.id === id)) { if (!accepter) { ['g', 'i', 's', 'b', 'p', 'z', 'c', 'f'].forEach(function (k) { delete y[k]; }); Object.assign(y, r.fmt.avant); } delete y.fmt; }
+        return y;
+      }));
+    }
+    var res = [];
+    x.blocs.forEach(function (b) {
+      var avant = textuel(b) ? (b.runs || []).length : 0;
+      if (b.t === 'table') b.lignes.forEach(function (l) { l.forEach(function (y) { y.runs = runs(y.runs); }); }); else if (b.runs) b.runs = runs(b.runs);
+      var m = b.suivi, vise = m && (!id || m.id === id);
+      if (vise) delete b.suivi;
+      if (!id && accepter && textuel(b) && avant && !b.runs.length) return;   // tout le texte supprimé : paragraphe retiré
+      if (vise) {
+        var retirer = (m.op === 'ajout' && !accepter) || (m.op === 'del' && accepter), joindre = (m.op === 'ins' && !accepter) || (m.op === 'fusion' && accepter);
+        if (retirer) return;
+        var prec = res[res.length - 1];
+        if (joindre && textuel(prec) && textuel(b)) { prec.runs = fusionner(prec.runs.concat(b.runs)); return; }
+      }
+      res.push(b);
+    });
+    x.blocs = res;
     return contenu(x);
   }
 
@@ -546,7 +590,7 @@
 
   registre.declarer(contrat);
 
-  return { GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
+  return { OPS_BLOC: OPS_BLOC, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
     POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
     run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
     entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,

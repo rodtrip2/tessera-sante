@@ -147,18 +147,52 @@ test('Filtre : lignes masquées selon les valeurs affichées, valeurs de la colo
   assert.equal(g.feuilles[0].conditions.length, 0);   // plage supprimée entièrement : règle retirée
 });
 
-test('Suivi des modifications d’une case : valeur d’avant gardée, accepter, refuser', () => {
+test('Suivi des modifications d’une case : contenu et mise en forme d’avant gardés, accepter, refuser', () => {
   const ag = { id: 'a1', nom: 'Agent A (fictif)' };
   let x = T.suivre({ v: 5, s: { g: true } }, { v: 8, s: { g: true } }, ag);
-  assert.deepEqual(x.suivi.avant, { v: 5 }); assert.equal(x.v, 8);
+  assert.deepEqual(x.suivi.avant, { v: 5, s: { g: true } }); assert.equal(x.v, 8);
   x = T.suivre(x, { v: 9, s: { g: true } }, ag);
-  assert.deepEqual(x.suivi.avant, { v: 5 });                       // première valeur gardée
-  assert.equal(T.suivre(x, { v: 5, s: { g: true } }, ag).suivi, undefined);   // retour à la valeur d'avant : plus de marque
-  assert.equal(T.suivre({ v: 5 }, { v: 5, s: { g: true } }, ag).suivi, undefined);   // mise en forme seule
-  const c = T.contenu({ feuilles: [{ cellules: { A1: x, B1: T.suivre(null, { f: '=A1*2' }, ag) } }] });
-  assert.deepEqual(T.modificationsSuivies(c).map((m) => m.nom + ' ' + m.avant + ' → ' + m.apres), ['A1 5 → 9', 'B1  → =A1*2']);
+  assert.deepEqual(x.suivi.avant, { v: 5, s: { g: true } });                 // premier état gardé
+  assert.equal(T.suivre(x, { v: 5, s: { g: true } }, ag).suivi, undefined);   // retour à l'état d'avant : plus de marque
+  const forme = T.suivre({ v: 5 }, { v: 5, s: { g: true } }, ag);
+  assert.deepEqual(forme.suivi.avant, { v: 5 });                              // mise en forme seule : suivie (0.38.0)
+  const c = T.contenu({ feuilles: [{ cellules: { A1: x, B1: T.suivre(null, { f: '=A1*2' }, ag), C1: forme } }] });
+  assert.deepEqual(T.modificationsSuivies(c).map((m) => m.libelle), ['A1 : 5 → 9', 'B1 : (vide) → =A1*2', 'C1 : mise en forme modifiée']);
   const r = T.resoudreSuivi(c, false);
-  assert.deepEqual(r.feuilles[0].cellules, { A1: { v: 5, s: { g: true } } });
-  const a = T.resoudreSuivi(c, true, 0, 'A1');
+  assert.deepEqual(r.feuilles[0].cellules, { A1: { v: 5, s: { g: true } }, C1: { v: 5 } });
+  const a = T.resoudreSuivi(c, true, { fi: 0, cle: 'kA1' });
   assert.deepEqual(a.feuilles[0].cellules.A1, { v: 9, s: { g: true } }); assert.ok(a.feuilles[0].cellules.B1.suivi);
+});
+
+test('Suivi de la structure : lignes, colonnes, tri, feuilles ; accepter et refuser', () => {
+  const ag = { id: 'a1', nom: 'Agent A (fictif)' }, autre = { id: 'b1', nom: 'Agent B (fictif)' };
+  const base = T.contenu({ feuilles: [{ nom: 'S', cellules: { A1: { v: 'c' }, A2: { v: 'a' }, A3: { v: 'b' }, B1: { f: '=A3' } } }, { nom: 'Autre' }] });
+  // Insertion de lignes : marquées, refus = retirées
+  let c = T.insererSuivi(base, 0, 'l', 1, 2, ag);
+  assert.deepEqual(Object.keys(c.feuilles[0].lignesSuivies), ['1', '2']); assert.equal(c.feuilles[0].cellules.A4.v, 'a'); assert.equal(c.feuilles[0].cellules.B1.f, '=A5');
+  let r = T.resoudreSuivi(c, false);
+  assert.deepEqual(r.feuilles[0].cellules, base.feuilles[0].cellules); assert.deepEqual(r.feuilles[0].lignesSuivies, {});
+  assert.equal(T.resoudreSuivi(c, true).feuilles[0].cellules.A4.v, 'a');
+  // Sa propre insertion supprimée : disparaît vraiment ; ligne d'un autre : marquée supprimée
+  assert.deepEqual(T.supprimerSuivi(c, 0, 'l', 1, 1, ag).feuilles[0].lignesSuivies, { 1: c.feuilles[0].lignesSuivies[2] });
+  let d = T.supprimerSuivi(base, 0, 'l', 1, 1, autre);
+  assert.equal(d.feuilles[0].lignesSuivies[1].op, 'del'); assert.equal(d.feuilles[0].cellules.A2.v, 'a');   // pas encore supprimée
+  assert.equal(T.resoudreSuivi(d, true, { fi: 0, cle: 'l1' }).feuilles[0].cellules.A2.v, 'b');               // acceptée : supprimée
+  assert.equal(T.resoudreSuivi(d, false).feuilles[0].cellules.A2.v, 'a');
+  // Colonne
+  const e = T.insererSuivi(base, 0, 'c', 0, 1, ag);
+  assert.equal(T.modificationsSuivies(e)[0].libelle, 'Colonne insérée : A');
+  assert.equal(T.resoudreSuivi(e, false).feuilles[0].cellules.A1.v, 'c');
+  // Tri : refus = cases remises comme avant
+  const t = T.trierSuivi(base, 0, { l1: 0, l2: 2, c1: 0, c2: 0 }, 0, false, ag);
+  assert.deepEqual(['A1', 'A2', 'A3'].map((k) => t.feuilles[0].cellules[k].v), ['a', 'b', 'c']);
+  assert.match(T.modificationsSuivies(t)[0].libelle, /^Tri croissant de A1:A3/);
+  assert.deepEqual(['A1', 'A2', 'A3'].map((k) => T.resoudreSuivi(t, false).feuilles[0].cellules[k].v), ['c', 'a', 'b']);
+  assert.equal(T.resoudreSuivi(t, true).feuilles[0].tris.length, 0);
+  // Feuilles
+  const f = T.supprimerFeuilleSuivi(base, 1, ag);
+  assert.equal(f.feuilles.length, 2); assert.equal(f.feuilles[1].suivi.op, 'del');
+  assert.equal(T.resoudreSuivi(f, true).feuilles.length, 1); assert.equal(T.resoudreSuivi(f, false).feuilles[1].suivi, null);
+  const g = T.contenu({ feuilles: base.feuilles.concat([{ nom: 'Nouvelle', suivi: { op: 'ins', p: 'a1', n: 'A', le: '2026-11-12' } }]) });
+  assert.equal(T.resoudreSuivi(g, false).feuilles.length, 2); assert.equal(T.supprimerFeuilleSuivi(g, 2, ag).feuilles.length, 2);
 });
