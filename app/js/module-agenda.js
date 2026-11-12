@@ -679,6 +679,24 @@
     });
     return res;
   }
+  /**
+   * Prochains événements de chaque patient (tableau de transmissions, 0.30.0) : { patientId: [{ debut, fin, titre, nature,
+   * service }] } pour les occurrences non annulées qui commencent dans [debut, fin[, triées par date.
+   */
+  function evenementsPatients(st, debut, fin) {
+    var res = {};
+    Object.keys((st && st.rdv) || {}).forEach(function (k) {
+      var base = st.rdv[k];
+      if (base.supprime) return;
+      occurrences(base, debut, fin).forEach(function (o) {
+        if (o.annulee || o.debut < debut) return;
+        var r = rdvOccurrence(base, o.occurrence);
+        (r.patients || []).forEach(function (pid) { (res[pid] = res[pid] || []).push({ debut: o.debut, fin: o.fin, titre: r.titre || NATURES[r.nature] || 'Événement', nature: r.nature, service: r.service }); });
+      });
+    });
+    Object.keys(res).forEach(function (pid) { res[pid].sort(function (a, b) { return a.debut - b.debut; }); });
+    return res;
+  }
   function elements(st, fiches, services, debut, fin, avecAnnulees) {
     var res = [], absPeriode = null;
     function absDe() { return absPeriode || (absPeriode = absences(st, debut - 15 * 864e5, fin + 15 * 864e5)); }   // marge : éléments de 14 jours au plus
@@ -991,6 +1009,6 @@
     libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, suggestions: suggestions, tachesSuggerees: tachesSuggerees, SUGGESTIONS_DEFAUT: SUGGESTIONS_DEFAUT, EVENEMENTS_SUGGESTION: EVENEMENTS_SUGGESTION, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
     enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
-    alertesEquipe: alertesEquipe, alertePour: alertePour, occupationsSalles: occupationsSalles, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
+    alertesEquipe: alertesEquipe, alertePour: alertePour, occupationsSalles: occupationsSalles, evenementsPatients: evenementsPatients, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
     etatChecklist: etatChecklist, checklists: checklists, alertesChecklists: alertesChecklists, optionsTaches: optionsTaches, AJUSTABLES: AJUSTABLES, affectation: affectation, controler: controler, tachePour: tachePour, tachesDues: tachesDues, absences: absences, prevusAbsents: prevusAbsents, jourISO: jourISO, depuisISO: depuisISO };
 });

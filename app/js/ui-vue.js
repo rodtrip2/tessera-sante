@@ -29,7 +29,7 @@
   } });
 
   // ------------------------------------------------------------ Contexte de lecture
-  function contexte() {
+  function contexte(o) {
     var s = session(), etat = s.etat || {}, st = s.etatModule('suivi'), ag = s.etatModule('agenda');
     var fiches = etat.patients || {}, maintenant = Date.now();
     var isocont = s.detientCle && s.detientCle('isocont') && SIC.model && SIC.model.listeMesures;
@@ -38,6 +38,15 @@
       valeurs: s.valeurs(), chambresTravaux: U.chambresTravaux ? U.chambresTravaux(U.services().map(function (v) { return v.code; })) : [], lisible: U.champs.lisible, comptes: s.comptes || [], libService: U.libService, services: servicesAffiches(), hospitalises: hosp,
       libRole: function (r) { return SIC.modules.obtenir('isocont').droits.libRole(cfg(), r); },
       joursRecents: SIC.listePatients ? SIC.listePatients.options(cfg()).joursRecents : 7,
+      // Prochains événements du patient (Agenda, 0.30.0) : horizon de la vue, 3 jours sinon
+      evenements: ag && SIC.agenda && SIC.agenda.evenementsPatients ? (function () {
+        var parP = null, jours = (o && o.jours) || 3;
+        var fmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        return function (pid) {
+          if (!parP) parP = SIC.agenda.evenementsPatients(ag, maintenant, maintenant + jours * 864e5);
+          return (parP[pid] || []).map(function (e) { return Object.assign({ quand: fmt.format(new Date(e.debut)).replace(/\s+/g, ' ') }, e); });
+        };
+      })() : null,
       mesuresEnCours: isocont ? function (pid) {
         return SIC.model.listeMesures(U.st()).filter(function (m) { return m.patientId === pid && typeof m.fin !== 'number'; }).map(function (m) { return m.type + ' depuis ' + U.duree((maintenant - m.debut) / 36e5); }).join(', ');
       } : null };
@@ -497,10 +506,11 @@
         h('label', {}, 'Vue ouverte aux rôles', U.champs.multi(v.roles, rs, 'Tous', 'Rôles')),
         h('label', {}, 'Clôture des instantanés par', U.champs.multi(v.instantane.roles, rs, 'Administrateur seul', 'Clôture'))),
       h('div', { class: 'actions gauche' }, h('span', { text: 'Trier par' }), selTri, sensTri),
-      h('h3', { text: 'Colonnes' }), zoneCols,
+      // Tableau de transmissions : colonnes et synthèse réglées par sa mise en page
+      v.type === 'transmissions' ? h('p', { class: 'muted', text: 'Les colonnes du tableau de transmissions se règlent par « Mise en page ».' }) : h('h3', { text: 'Colonnes' }), v.type === 'transmissions' ? null : zoneCols,
       h('h3', { text: 'Groupes de lignes' }), h('small', { class: 'muted', text: 'Une ligne va dans le premier groupe dont les conditions sont vraies ; le tri est gardé dans chaque groupe. Ex. « Entrés depuis le… » (date et heure), « Présents depuis plus de 90 jours ».' }), zoneGroupes,
       h('div', { class: 'actions gauche' }, h('span', { text: 'Lignes hors groupes :' }), autresTitre, h('label', { class: 'case' }, autresMasque, h('span', { text: 'masquer' }))),
-      lignes.value === 'patients' ? h('div', {}, h('h3', { text: 'Bandeau de synthèse' }), h('div', { class: 'actions gauche' }, synth.map(function (s) { return h('label', { class: 'case' }, s.cb, h('span', { text: V.SYNTHESE[s.k] })); })),
+      lignes.value === 'patients' && v.type !== 'transmissions' ? h('div', {}, h('h3', { text: 'Bandeau de synthèse' }), h('div', { class: 'actions gauche' }, synth.map(function (s) { return h('label', { class: 'case' }, s.cb, h('span', { text: V.SYNTHESE[s.k] })); })),
         h('button', { class: 'btn petit', type: 'button', onclick: function () { U.modale('Capacité d’accueil', U.champs.panneauCapacites(), [{ texte: 'Fermer' }], { large: true }); } }, 'Capacité d’accueil…')) : null);
     var boutons = [{ texte: 'Annuler' }];
     if (!nouveau) boutons.push({ texte: 'Supprimer la vue', classe: 'danger', action: async function () {
@@ -631,10 +641,16 @@
   var vuesProxy = new Proxy({}, { get: function (t, code) {
     if (code === 'instantanes') return vueInstantanes;
     if (code === 'plan') return U.chambres.vuePlan;
-    if (typeof code === 'string' && code.indexOf('v:') === 0) return function () { return vueTableau(code.slice(2)); };
+    if (typeof code === 'string' && code.indexOf('v:') === 0) return function () {
+      // Tableau de transmissions (0.30.0) : écran et impression propres (ui-transmissions.js)
+      var vt = V.vueDe(cfg(), code.slice(2));
+      if (vt && vt.type === 'transmissions' && U.transmissions && mesVues().some(function (x) { return x.id === vt.id; })) return U.transmissions.vue(vt);
+      return vueTableau(code.slice(2));
+    };
     if (code === 'vues') return function () { var l = mesVues(); return l.length ? vueTableau(l[0].id) : h('div', { class: 'panneau vide', text: 'Aucune vue ne vous est ouverte.' }); };
     return undefined;
   } });
+  U.vueEnsemble = { contexte: contexte, colonnesVisibles: colonnesVisibles, modaleVue: modaleVue, vuesBrutes: vuesBrutes, caseCouleur: caseCouleur, mesVues: mesVues, legende: legendeVue };
   SIC.modules.completerInterface('vue', {
     vues: vuesProxy,
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'L’instantané n’apparaît plus dans la liste.'; } }
