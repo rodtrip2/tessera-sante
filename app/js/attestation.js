@@ -100,7 +100,7 @@
         empreintes[nom][g] = await empreinteGeneration(nom, g, o);
         // Clés de la messagerie (0.24.0) : partie publique de chaque génération, signée avec l'état, pour écrire aux
         // destinataires sans détenir leur clé
-        if (/^(m-|e-|d-|t-a\.)/.test(nom)) (publiques[nom] = publiques[nom] || {})[g] = (await C.paireDepuisOctets(o, nom + ':' + g)).publique;
+        if (/^(m-|e-|d-|k-|t-a\.)/.test(nom)) (publiques[nom] = publiques[nom] || {})[g] = (await C.paireDepuisOctets(o, nom + ':' + g)).publique;
       }
       maitresses[nom] = await empreinteGeneration(nom, 'm', jeu.maitresse);
     }
