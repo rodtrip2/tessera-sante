@@ -455,7 +455,7 @@
       if (tab) tab.detruire();
       dlg.close(); dlg.remove(); U.rendreContenu();
     }
-    dlg.addEventListener('cancel', function (ev) { ev.preventDefault(); fermer(); });
+    dlg.addEventListener('cancel', function (ev) { ev.preventDefault(); if (tab && tab.occupe()) { tab.annulerEdition(); return; } fermer(); });
     dlg.appendChild(h('div', { class: 'doc-cadre' + (tab ? ' doc-tableur' : '') }, barre, tab ? tab.outils : outils, tab ? tab.zone : h('div', { class: 'doc-fond' }, feuille),
       h('p', { class: 'muted doc-rappel' }, h('small', { text: 'Document chiffré, partagé seulement avec les personnes choisies ; enregistré automatiquement, chaque enregistrement est une version. Aucune donnée clinique (le dossier du patient reste dans le DPI).' }))));
     document.body.appendChild(dlg);
