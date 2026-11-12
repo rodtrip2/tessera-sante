@@ -684,6 +684,8 @@
       ajouter(t(-24 * 90), 'PERIODE_CONGES', { id: 'PC-VAC', service: '*', libelle: 'Vacances scolaires (zone fictive)', debut: lundi(3), fin: plus(lundi(3), 15), effet: 'info', couleur: '#e4eefb' });
       ajouter(t(-24 * 20), 'PERIODE_CONGES', { id: 'PC-BLQ', service: U1, libelle: 'Visite de certification (fictif)', debut: lundi(1), fin: plus(lundi(1), 4), effet: 'bloquee' }, moiC.id);
       ajouter(t(-24 * 20), 'PERIODE_CONGES', { id: 'PC-EVI', service: U1, libelle: 'Formation d’équipe (fictif)', debut: plus(lundi(5), 1), fin: plus(lundi(5), 3), effet: 'eviter' }, moiC.id);
+      // Date limite de dépôt (0.44.1) : congés d'été de l'année suivante à poser avant une date passée depuis un mois
+      ajouter(t(-24 * 90), 'PERIODE_CONGES', { id: 'PC-ETE', service: U1, libelle: 'Congés d’été ' + (Y + 1) + ' (fictif)', debut: (Y + 1) + '-07-01', fin: (Y + 1) + '-08-31', effet: 'limite', limite: iso(-30), roles: [] }, moiC.id);
       ajouter(t(-24 * 100), 'QUOTITE', { agent: 'demo-b', depuis: Y + '-01-01', quotite: 80, nonTravailles: [3], service: U1 }, moiC.id);
       ajouter(t(-24 * 100), 'QUOTITE', { agent: 'demo-d', depuis: Y + '-01-01', quotite: 100, nonTravailles: [], service: U1 }, moiC.id);
       ajouter(t(-24 * 50), 'QUOTITE', { agent: 'demo-d', depuis: Y + '-07-01', quotite: 50, nonTravailles: [3, 4, 5], service: U1 }, moiC.id);
@@ -706,7 +708,8 @@
       cg(-24 * 15, 'demo-d', 'Agent D (fictif)', ['IDE'], 'CA', L6, plus(L6, 4), 'annule');
       cg(-24 * 10, 'demo-d', 'Agent D (fictif)', ['IDE'], 'FR', plus(L6, 7), plus(L6, 8), 'demande');
       cg(-24 * 18, 'demo-c', 'Agent C (fictif)', ['IDE'], 'JF', iso(-20), iso(-20), 'valide');
-      cg(-24 * 6, 'demo-a', 'Agent A (fictif)', ['IDE'], 'CA', (Y + 1) + '-07-05', (Y + 1) + '-07-16', 'demande');
+      cg(-24 * 40, 'demo-a', 'Agent A (fictif)', ['IDE'], 'CA', (Y + 1) + '-07-05', (Y + 1) + '-07-16', 'demande');
+      cg(-24 * 2, 'demo-e', 'Agent E (fictif)', ['IDE'], 'CA', (Y + 1) + '-08-02', (Y + 1) + '-08-13', 'demande');   // déposée après la date limite : non prioritaire
       cg(-24 * 4, 'demo-b', 'Agent B (fictif)', ['IDE'], 'CA', (Y + 1) + '-07-12', (Y + 1) + '-07-23', 'souhait');
       if (moiC.id) { cg(-24 * 35, moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE'], 'CA', plus(L6, 14), plus(L6, 18), 'demande'); cg(-24 * 3, moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE'], 'RTT', plus(L4, 4), plus(L4, 4), 'souhait'); }
     })();

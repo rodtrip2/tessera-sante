@@ -26,7 +26,7 @@
   var JOUR = /^\d{4}-\d{2}-\d{2}$/;
   var J = 864e5;
   var STATUTS = { souhait: 'Souhait', demande: 'Demandé, à valider', valide: 'Validé', refuse: 'Refusé', annule: 'Annulé' };
-  var EFFETS = { info: 'Information', eviter: 'À éviter (signalé à la demande)', bloquee: 'Bloquée (aucune demande possible)' };
+  var EFFETS = { info: 'Information', eviter: 'À éviter (signalé à la demande)', bloquee: 'Bloquée (aucune demande possible)', limite: 'Dépôt avant une date limite (après : demande non prioritaire)' };
   var MODES_FERIES = { office: 'Posé d’office', recuperer: 'Travaillé → à récupérer', planning: 'Selon le planning (droits saisis par le cadre)' };
   var UNITES = { ouvres: 'jours ouvrés (lundi au vendredi)', ouvrables: 'jours ouvrables (lundi au samedi)', calendaires: 'jours calendaires' };
   var TYPES_DEFAUT = [
@@ -98,6 +98,8 @@
       types: types, validateurs: val,
       delaiMois: nombre(v.delaiMois, 0, 12, 1),
       souhaits: v.souhaits !== false,
+      // Quotité et repos du temps partiel dans les tableaux (décision du porteur du 12 novembre 2026 : masqués par défaut)
+      afficherTempsPartiel: v.afficherTempsPartiel === true,
       arrondi: [0.5, 1].indexOf(+v.arrondi) >= 0 ? +v.arrondi : 0.5,
       feries: { afficher: f.afficher !== false, locaux: (Array.isArray(f.locaux) ? f.locaux : []).filter(function (x) { return x && (/^\d{2}-\d{2}$/.test(x.date || '') || JOUR.test(x.date || '')); }).slice(0, 30).map(function (x) { return { date: x.date, libelle: texte(x.libelle, 60) }; }) },
       regleFeries: rf,
@@ -134,7 +136,7 @@
         c = st.conges[d.id];
         if (!c) c = st.conges[d.id] = { id: d.id, cree: e.at, par: e.by, statut: 'souhait', historique: [] };
         ['agent', 'nom', 'roles', 'service', 'type', 'debut', 'fin', 'demiDebut', 'demiFin', 'commentaire'].forEach(function (k) { if (d[k] !== undefined) c[k] = d[k]; });
-        if (d.statut === 'demande' && c.statut !== 'demande') { c.demandeLe = e.at; c.historique.push({ quoi: 'demande', par: e.by, le: e.at }); }
+        if (d.statut === 'demande' && c.statut !== 'demande') { c.demandeLe = e.at; c.historique.push({ quoi: 'demande', par: e.by, le: e.at }); var lt = limiteDepassee(st, c, e.at); c.tardive = lt ? { periode: lt.id, libelle: lt.libelle, limite: lt.limite } : null; }
         else c.historique.push({ quoi: c.statut === 'souhait' && d.statut !== 'demande' ? 'souhait' : 'modification', par: e.by, le: e.at });
         if (d.statut === 'demande' || d.statut === 'souhait') c.statut = d.statut;
         c.modifie = e.at;
@@ -163,7 +165,7 @@
       case 'PERIODE_CONGES':
         if (!d.id) break;
         c = st.periodes[d.id] || (st.periodes[d.id] = { id: d.id, cree: e.at, par: e.by });
-        ['service', 'libelle', 'debut', 'fin', 'effet', 'couleur', 'roles', 'supprime'].forEach(function (k) { if (d[k] !== undefined) c[k] = d[k]; });
+        ['service', 'libelle', 'debut', 'fin', 'effet', 'couleur', 'roles', 'limite', 'supprime'].forEach(function (k) { if (d[k] !== undefined) c[k] = d[k]; });
         c.modifie = e.at;
         break;
       case 'DROITS_CONGES':
@@ -178,6 +180,14 @@
         q.sort(function (a, b) { return a.depuis.localeCompare(b.depuis); });
         break;
     }
+  }
+  /**
+   * Période de dépôt (« congés d'été à poser avant le 31 mars ») dont la date limite est passée au jour `quand` pour ce
+   * congé (même service ou établissement, dates qui se chevauchent) : la demande est alors non prioritaire.
+   */
+  function limiteDepassee(st, c, quand) {
+    var j = String(quand || '').slice(0, 10);
+    return periodes(st, c.service, c.debut, c.fin).filter(function (p) { return p.effet === 'limite' && JOUR.test(p.limite || '') && j > p.limite; })[0] || null;
   }
   function reduire(evts) { return N.reduire(evts, { cle: 'conges', etat: function () { return { conges: {}, tableaux: {}, periodes: {}, droits: {}, quotites: {}, avis: [] }; }, appliquer: appliquer }); }
 
@@ -314,7 +324,7 @@
   function grille(st, config, t, comptes, debut, fin, aujourdhui) {
     var js = jours(debut, fin), fc = {}, ags = agentsDuTableau(t, comptes), pers = periodes(st, t.service, debut, fin);
     var cg = Object.keys((st && st.conges) || {}).map(function (k) { return st.conges[k]; }).filter(function (c) { return c.statut !== 'annule' && c.debut <= fin && c.fin >= debut; });
-    var o = options(config), cpt = { '*': [], souhaits: [] }, rs = regles(t);
+    var o = options(config), cpt = { '*': [], souhaits: [], tardives: [] }, rs = regles(t);
     rs.forEach(function (r) { if (r.pour !== '*') cpt[r.pour] = []; });
     js.forEach(function () { Object.keys(cpt).forEach(function (k) { cpt[k].push(0); }); });
     var lignes = ags.map(function (a) {
@@ -323,8 +333,10 @@
         var nt = !jourCompte(st, a.id, iso, 'calendaires'), fe = estFerie(iso, config, fc);
         var c = sesConges.filter(function (x) { return x.debut <= iso && x.fin >= iso; }).sort(function (x, y) { return (x.statut === 'refuse') - (y.statut === 'refuse'); })[0] || null;
         var cell = { conge: c, statut: c ? c.statut : null, ferie: fe, ferieOffice: !!fe && mode === 'office' && jourCompte(st, a.id, iso, 'ouvres'), nonTravaille: nt };
-        var absent = (c && (c.statut === 'demande' || c.statut === 'valide') && !nt) || cell.ferieOffice;
-        if (absent) { cpt['*'][i]++; (a.roles || []).forEach(function (r) { if (cpt[r] && r !== '*' && r !== 'souhaits') cpt[r][i]++; }); }
+        var tard = c && c.statut === 'demande' && c.tardive;
+        var absent = (c && (c.statut === 'valide' || (c.statut === 'demande' && !tard)) && !nt) || cell.ferieOffice;
+        if (tard && !nt) cpt.tardives[i]++;
+        if (absent) { cpt['*'][i]++; (a.roles || []).forEach(function (r) { if (cpt[r] && r !== '*' && r !== 'souhaits' && r !== 'tardives') cpt[r][i]++; }); }
         if (c && c.statut === 'souhait' && !nt && !fe) cpt.souhaits[i]++;
         cell.absent = !!absent;
         return cell;
@@ -362,6 +374,10 @@
       periodesDuJour(pers, iso, a.roles).forEach(function (p) { var l = p.effet === 'bloquee' ? res.bloquees : p.effet === 'eviter' ? res.eviter : null; if (l && l.indexOf(p) < 0) l.push(p); });
     });
     res.horsDelai = !!(js[0] && horsDelai(config, js[0], ctx.aujourdhui));
+    // Date limite de dépôt passée (demande non prioritaire), ou à venir (rappel)
+    var lim = limiteDepassee(st, c, ctx.aujourdhui || ''), avant = pers.filter(function (p) { return p.effet === 'limite' && JOUR.test(p.limite || '') && !(lim && lim.id === p.id); });
+    res.tardive = lim ? { id: lim.id, libelle: lim.libelle, limite: lim.limite } : null;
+    res.limites = avant.map(function (p) { return { id: p.id, libelle: p.libelle, limite: p.limite }; });
     var an = String(c.debut || '').slice(0, 4), so = an ? soldes(st, config, c.agent, +an, ctx.info || { service: c.service, roles: a.roles, aujourdhui: ctx.aujourdhui }) : {};
     var deja = st.conges && st.conges[c.id] && st.conges[c.id].statut !== 'annule' && st.conges[c.id].statut !== 'refuse' ? decompte(st, config, st.conges[c.id]) : 0;
     if (so[c.type]) res.soldeApres = Math.round((so[c.type].reste + (st.conges && st.conges[c.id] && st.conges[c.id].statut !== 'souhait' ? deja : 0) - res.jours) * 10) / 10;
@@ -434,6 +450,7 @@
       if (!JOUR.test(y.debut || '') || !JOUR.test(y.fin || '') || y.fin < y.debut) throw new Error('Dates invalides.');
       if (type0 === 'TABLEAU_CONGES' && versJour(y.fin) - versJour(y.debut) > 400) throw new Error('Un tableau couvre au plus une année (un peu plus de 12 mois).');
       if (type0 === 'PERIODE_CONGES' && !EFFETS[y.effet]) throw new Error('Effet inconnu.');
+      if (type0 === 'PERIODE_CONGES' && y.effet === 'limite' && (!JOUR.test(y.limite || '') || y.limite > y.debut)) throw new Error('Indiquez la date limite de dépôt, avant le début de la période.');
       if (type0 === 'TABLEAU_CONGES' && (y.regles || []).some(function (r) { return !(r.max >= 0 && r.max <= 200); })) throw new Error('Règle : maximum entre 0 et 200.');
       return;
     }
@@ -466,7 +483,7 @@
       if (c.statut !== 'demande') return false;
       var a = (comptes || []).filter(function (x) { return x.id === c.agent; })[0] || { id: c.agent, roles: [], services: [c.service] };
       return valide(config, v, a);
-    }).sort(function (a, b) { return String(a.debut).localeCompare(String(b.debut)); });
+    }).sort(function (a, b) { return (a.tardive ? 1 : 0) - (b.tardive ? 1 : 0) || String(a.debut).localeCompare(String(b.debut)); });
   }
   /** Absences lues par l'Agenda (lecture à la volée) : congés validés qui touchent [debut, fin[ (millisecondes, heure locale). */
   function absences(st, debut, fin) {
@@ -526,5 +543,5 @@
     quotiteLe: quotiteLe, quotiteMoyenne: quotiteMoyenne, historiqueQuotite: historiqueQuotite, jourCompte: jourCompte, decompte: decompte, droitsAnnee: droits, soldes: soldes, congesDe: congesDe,
     periodes: periodes, periodesDuJour: periodesDuJour, horsDelai: horsDelai, regles: regles, agentsDuTableau: agentsDuTableau, grille: grille,
     roleValidateur: roleValidateur, valide: valide, validateurs: validateurs, verifier: verifier, controler: controler, permisPourSoi: permisPourSoi,
-    avisPour: avisPour, aValider: aValider, absences: absences, jours: jours, plusJours: plusJours, jourSemaine: jourSemaine, jourLocal: jourLocal, versJour: versJour, versISO: versISO };
+    avisPour: avisPour, aValider: aValider, limiteDepassee: limiteDepassee, absences: absences, jours: jours, plusJours: plusJours, jourSemaine: jourSemaine, jourLocal: jourLocal, versJour: versJour, versISO: versISO };
 });
