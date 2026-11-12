@@ -115,6 +115,19 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.36.0 (branche `tableur-2`, 12 novembre 2026) : tableur, mise en forme conditionnelle, validation des saisies, filtres
+
+| Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Mise en forme conditionnelle | Règles par feuille : cases concernées, condition (supérieure, inférieure, égale, différente, comprise entre, contient le texte, vide, non vide, date passée, date dans les N prochains jours, erreur), fond, couleur, gras ; la première qui s'applique l'emporte (ordre réglable) ; appliquée à l'écran et à l'impression | `feuille.conditions` ; `T.condition`, `styleConditionnel`, `regleVraie` ; bouton « ◐ » |
+| Validation des saisies | Par plage : liste de choix (valeurs proposées pendant la saisie), nombre, date, longueur du texte, minimum et maximum, message ; refus (par défaut) ou simple avertissement ; un collage n'est pas refusé, les cases non conformes portent un repère rouge (et la barre d'état l'explique) | `feuille.validations` ; `T.validation`, `validationDe`, `controlerSaisie`, `conforme` ; bouton « ☑ » |
+| Filtres | Filtre posé sur une ligne de titres (sélection, ou toute la largeur utilisée) : bouton ▾ par colonne, valeurs cochées ou décochées, tri croissant ou décroissant des lignes sous les titres ; lignes masquées à l'écran et à l'impression, jamais supprimées ; un lecteur peut filtrer pour sa lecture | `feuille.filtre` (`l`, `c1`, `c2`, `masques`) ; `T.lignesMasquees`, `valeursColonne` ; bouton « ▽ » |
+| Insertion, suppression | Règles, validations et filtre suivent les lignes et colonnes insérées ou supprimées (retirés si toutes leurs cases le sont) | `T.inserer` |
+| Échap | Pendant la saisie d'une case, Échap annule la saisie sans fermer le document | `ui-documents.js` (`cancel`), surface `occupe`, `annulerEdition` |
+| Graphiques | Mis de côté, à développer plus tard | `docs/evolutions-futures.md` |
+| Démonstration | Suivi des formations obligatoires (fictif) : échéances passées en rouge, proches (60 jours) en orange, statut « À jour » en vert, liste de choix du statut, date obligatoire, filtre sur la ligne de titres | `demo.js` |
+| Tests | Conditions, validations, filtre et déplacement des plages | `tests/tableur.test.js` ; parcours des écrans complété |
+
 ## Version 0.35.0 (branche `tableur`, 12 novembre 2026) : Documents, étape 2 (tableur)
 
 | Sujet | Décisions et demandes du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
@@ -131,7 +144,7 @@ Démonstration : chiffrement « au choix, coché au départ » ; message chiffr�
 | Démonstration | Budget des activités (fictif) : deux feuilles, formules (somme, part du budget, référence à la feuille « Réglages », NB.SI), formats, titre fusionné, partagé en modification avec les IDE ; modèle « Inventaire du matériel » | `demo.js` |
 | Tests | Adresses, saisie, formules et fonctions, références circulaires et autres feuilles, formats, insertion et suppression, recopie, renommage, tri, modèle validé, collage, comparaison | `tests/tableur.test.js` ; parcours des écrans complété |
 
-**Reste pour les étapes suivantes** : édition simultanée et suivi des modifications (étape 3) ; import et export Office, `.docx` et `.xlsx` (étape 4) ; graphiques, mise en forme conditionnelle, filtres, validation des saisies (listes déroulantes) : à proposer au porteur.
+**Reste pour les étapes suivantes** : édition simultanée et suivi des modifications (étape 3) ; import et export Office, `.docx` et `.xlsx` (étape 4) ; mise en forme conditionnelle, filtres, validation des saisies : faits en 0.36.0 ; graphiques : plus tard (`docs/evolutions-futures.md`).
 
 ## Version 0.34.2 (12 novembre 2026) : transfert des documents privés en option
 

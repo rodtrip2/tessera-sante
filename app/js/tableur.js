@@ -66,7 +66,117 @@
     // Fusions qui se chevauchent : la première est gardée
     var gardees = []; fusions.forEach(function (u) { if (!gardees.some(function (g) { return chevauche(g, u); })) gardees.push(u); });
     return { nom: nomFeuille(f.nom, i), cellules: cs, largeurs: tailles(f.largeurs, 24, 800), hauteurs: tailles(f.hauteurs, 16, 400), fusions: gardees.slice(0, 500),
-      figer: { l: f.figer && f.figer.l ? 1 : 0, c: f.figer && f.figer.c ? 1 : 0 } };
+      figer: { l: f.figer && f.figer.l ? 1 : 0, c: f.figer && f.figer.c ? 1 : 0 },
+      conditions: (Array.isArray(f.conditions) ? f.conditions : []).map(condition).filter(Boolean).slice(0, 100),
+      validations: (Array.isArray(f.validations) ? f.validations : []).map(validation).filter(Boolean).slice(0, 100),
+      filtre: filtre(f.filtre) };
+  }
+  // ------------------------------------------------------------ Mise en forme conditionnelle, validation, filtre (0.36.0)
+  function plageValide(p) {
+    if (!p) return null;
+    var x = { l1: Math.round(+p.l1), c1: Math.round(+p.c1), l2: Math.round(+p.l2), c2: Math.round(+p.c2) };
+    if (!(x.l1 >= 0 && x.c1 >= 0 && x.l2 >= x.l1 && x.c2 >= x.c1 && x.l2 < MAX_LIGNES && x.c2 < MAX_COLONNES)) return null;
+    return x;
+  }
+  function dans(p, l, c) { return l >= p.l1 && l <= p.l2 && c >= p.c1 && c <= p.c2; }
+  function libPlage(p) { return p.l1 === p.l2 && p.c1 === p.c2 ? nom(p.l1, p.c1) : nom(p.l1, p.c1) + ':' + nom(p.l2, p.c2); }
+  /**
+   * Règle de mise en forme conditionnelle : { plage, op, v1, v2, style: { f, c, g } }. Opérateurs : comparaisons, entre,
+   * contient, vide, non vide, date passée, date dans les N jours (v1), erreur. La première règle qui s'applique l'emporte.
+   */
+  var OPS_CONDITION = { '>': 'supérieure à', '>=': 'supérieure ou égale à', '<': 'inférieure à', '<=': 'inférieure ou égale à', '=': 'égale à', '<>': 'différente de', entre: 'comprise entre',
+    contient: 'contient le texte', vide: 'est vide', nonvide: 'n’est pas vide', passe: 'date passée', proche: 'date dans les … prochains jours', erreur: 'est une erreur' };
+  function valeurRegle(v) { if (v === undefined || v === null) return ''; return typeof v === 'number' && isFinite(v) ? v : texte(v, 200); }
+  function condition(r) {
+    if (!r || !OPS_CONDITION[r.op]) return null;
+    var p = plageValide(r.plage), s = style(r.style) || {};
+    var st = {}; if (s.f) st.f = s.f; if (s.c) st.c = s.c; if (s.g) st.g = true; if (s.i) st.i = true;
+    if (!p || !Object.keys(st).length) return null;
+    return { plage: p, op: r.op, v1: valeurRegle(r.v1), v2: valeurRegle(r.v2), style: st };
+  }
+  function valeurComparee(v) { if (typeof v === 'number' || v === '') return v; var s = saisir(String(v)); return typeof s.v === 'number' ? s.v : String(v); }
+  function regleVraie(r, v, maintenant) {
+    var vide = v === null || v === undefined || v === '';
+    if (r.op === 'vide') return vide;
+    if (r.op === 'nonvide') return !vide;
+    if (r.op === 'erreur') return estErr(v);
+    if (vide || estErr(v)) return false;
+    if (r.op === 'contient') return String(chaine(v)).toLowerCase().indexOf(String(r.v1).toLowerCase()) >= 0;
+    if (r.op === 'passe') return typeof v === 'number' && Math.floor(v) < aujourdhui(maintenant);
+    if (r.op === 'proche') { var j = aujourdhui(maintenant), n = +valeurComparee(r.v1) || 0; return typeof v === 'number' && Math.floor(v) >= j && Math.floor(v) <= j + n; }
+    var a = valeurComparee(r.v1);
+    if (r.op === 'entre') { var b = valeurComparee(r.v2); return comparer(v, a) >= 0 && comparer(v, b) <= 0; }
+    var x = comparer(v, a);
+    return r.op === '>' ? x > 0 : r.op === '>=' ? x >= 0 : r.op === '<' ? x < 0 : r.op === '<=' ? x <= 0 : r.op === '=' ? x === 0 : x !== 0;
+  }
+  /** Style apporté par la mise en forme conditionnelle à une case (null si aucune règle ne s'applique). */
+  function styleConditionnel(f, l, c, v, maintenant) {
+    var r = (f.conditions || []).filter(function (x) { return dans(x.plage, l, c) && regleVraie(x, v, maintenant); })[0];
+    return r ? r.style : null;
+  }
+  /**
+   * Validation des saisies : { plage, genre: 'liste' | 'nombre' | 'date' | 'texte', valeurs (liste), min, max,
+   * bloquant (refus) ou avertissement, message }.
+   */
+  var GENRES_VALIDATION = { liste: 'Liste de choix', nombre: 'Nombre', date: 'Date', texte: 'Longueur du texte' };
+  function validation(r) {
+    if (!r || !GENRES_VALIDATION[r.genre]) return null;
+    var p = plageValide(r.plage); if (!p) return null;
+    var x = { plage: p, genre: r.genre, bloquant: r.bloquant !== false, message: texte(r.message, 200) };
+    if (r.genre === 'liste') { x.valeurs = (Array.isArray(r.valeurs) ? r.valeurs : []).map(function (v) { return texte(v, 120).trim(); }).filter(Boolean).slice(0, 200); if (!x.valeurs.length) return null; }
+    else { if (r.min !== undefined && r.min !== '' && isFinite(+r.min)) x.min = +r.min; if (r.max !== undefined && r.max !== '' && isFinite(+r.max)) x.max = +r.max; }
+    return x;
+  }
+  function validationDe(f, l, c) { return (f.validations || []).filter(function (x) { return dans(x.plage, l, c); })[0] || null; }
+  /** Une saisie respecte-t-elle la validation ? null, ou le message à afficher. Une case vidée est toujours permise. */
+  function controlerSaisie(val, r) {
+    if (!val || !r || r.vide) return null;
+    if (r.f) return null;   // formule : contrôlée sur sa valeur à l'affichage
+    var v = r.v, msg = val.message;
+    if (val.genre === 'liste') return val.valeurs.some(function (x) { return x.toLowerCase() === String(chaine(v)).toLowerCase(); }) ? null : msg || 'Choisissez une valeur de la liste : ' + val.valeurs.join(', ') + '.';
+    if (val.genre === 'texte') { var n = String(chaine(v)).length; return (val.min !== undefined && n < val.min) || (val.max !== undefined && n > val.max) ? msg || 'Longueur du texte : ' + bornes(val) + ' caractères.' : null; }
+    if (typeof v !== 'number' || (val.genre === 'date' && r.fmt !== 'date' && !(r.fmt === undefined && v > 0 && v < 2958466))) return msg || (val.genre === 'date' ? 'Une date est attendue (JJ/MM/AAAA).' : 'Un nombre est attendu.');
+    if ((val.min !== undefined && v < val.min) || (val.max !== undefined && v > val.max)) return msg || 'Valeur attendue : ' + bornes(val, val.genre === 'date') + '.';
+    return null;
+  }
+  function bornes(val, date) {
+    var f = function (n) { return date ? afficher(n, { fmt: 'date' }) : afficher(n, {}); };
+    return val.min !== undefined && val.max !== undefined ? 'entre ' + f(val.min) + ' et ' + f(val.max) : val.min !== undefined ? 'au moins ' + f(val.min) : val.max !== undefined ? 'au plus ' + f(val.max) : 'libre';
+  }
+  /** La valeur affichée d'une case respecte-t-elle sa validation (repère « valeur non conforme ») ? */
+  function conforme(val, v) {
+    if (!val || v === null || v === undefined || v === '') return true;
+    if (estErr(v)) return false;
+    return !controlerSaisie(val, typeof v === 'number' ? { v: v, fmt: val.genre === 'date' ? 'date' : undefined } : { v: v });
+  }
+  /** Filtre d'une feuille : ligne de titres `l`, colonnes c1..c2, valeurs masquées par colonne (texte affiché). */
+  function filtre(x) {
+    if (!x) return null;
+    var l = Math.round(+x.l), c1 = Math.round(+x.c1), c2 = Math.round(+x.c2);
+    if (!(l >= 0 && l < MAX_LIGNES - 1 && c1 >= 0 && c2 >= c1 && c2 < MAX_COLONNES)) return null;
+    var m = {};
+    Object.keys(x.masques || {}).forEach(function (k) { var c = +k; if (c >= c1 && c <= c2 && Array.isArray(x.masques[k]) && x.masques[k].length) m[c] = x.masques[k].map(function (v) { return texte(v, 200); }).slice(0, 500); });
+    return { l: l, c1: c1, c2: c2, masques: m };
+  }
+  /** Lignes masquées par le filtre d'une feuille : { index: true }. `calc` : résultat de calculer(). */
+  function lignesMasquees(classeur, fi, calc) {
+    var f = classeur.feuilles[fi], x = f.filtre, res = {};
+    if (!x || !Object.keys(x.masques).length) return res;
+    var e = etendue(f);
+    for (var l = x.l + 1; l < e.l; l++) {
+      Object.keys(x.masques).some(function (k) {
+        var c = +k, cel = f.cellules[nom(l, c)], v = calc.valeur(fi, l, c), t = afficher(v, cel && cel.s);
+        if (x.masques[k].indexOf(t) >= 0) { res[l] = true; return true; }
+        return false;
+      });
+    }
+    return res;
+  }
+  /** Valeurs distinctes affichées d'une colonne sous la ligne de titres du filtre (« » pour les cases vides). */
+  function valeursColonne(classeur, fi, c, calc) {
+    var f = classeur.feuilles[fi], x = f.filtre, e = etendue(f), vus = {}, res = [];
+    for (var l = (x ? x.l : 0) + 1; l < e.l; l++) { var cel = f.cellules[nom(l, c)], t = afficher(calc.valeur(fi, l, c), cel && cel.s); if (!vus[t]) { vus[t] = 1; res.push(t); } }
+    return res.sort(function (a, b) { if (a === '') return 1; if (b === '') return -1; var na = saisir(a).v, nb = saisir(b).v; if (typeof na === 'number' && typeof nb === 'number') return na - nb; return a.localeCompare(b, 'fr'); });
   }
   function chevauche(a, b) { return a.l < b.l + b.nl && b.l < a.l + a.nl && a.c < b.c + b.nc && b.c < a.c + a.nc; }
   function zones(z) { z = z || {}; return { gauche: texte(z.gauche, 160), centre: texte(z.centre, 160), droite: texte(z.droite, 160) }; }
@@ -513,6 +623,25 @@
       if (e < d) return null;
       var v = Object.assign({}, u); v[nl] = d; v[nn] = e - d + 1; return v.nl > 1 || v.nc > 1 ? v : null;
     }).filter(Boolean);
+    // Mise en forme conditionnelle, validations, filtre (0.36.0) : plages déplacées ou réduites
+    var a1 = axe === 'l' ? 'l1' : 'c1', a2 = axe === 'l' ? 'l2' : 'c2';
+    function deplacerPlage(p) {
+      var d = p[a1], e = p[a2];
+      if (!suppr) { if (d >= a) d += k; if (e >= a) e += k; if (e >= lim) e = lim - 1; if (d >= lim) return null; }
+      else { if (d >= a && e < a + k) return null; d = d >= a + k ? d - k : d >= a ? a : d; e = e >= a + k ? e - k : e >= a ? a - 1 : e; }
+      var q = Object.assign({}, p); q[a1] = d; q[a2] = e; return q;
+    }
+    f.conditions = (f.conditions || []).map(function (r) { var p = deplacerPlage(r.plage); return p ? Object.assign({}, r, { plage: p }) : null; }).filter(Boolean);
+    f.validations = (f.validations || []).map(function (r) { var p = deplacerPlage(r.plage); return p ? Object.assign({}, r, { plage: p }) : null; }).filter(Boolean);
+    if (f.filtre) {
+      var x = f.filtre;
+      if (axe === 'l') { var nl0 = deplace(x.l); f.filtre = nl0 === null ? null : Object.assign({}, x, { l: nl0 }); }
+      else {
+        var p0 = deplacerPlage({ l1: 0, l2: 0, c1: x.c1, c2: x.c2 });
+        if (!p0) f.filtre = null;
+        else { var m = {}; Object.keys(x.masques).forEach(function (kk) { var i2 = deplace(+kk); if (i2 !== null) m[i2] = x.masques[kk]; }); f.filtre = { l: x.l, c1: p0.c1, c2: p0.c2, masques: m }; }
+      }
+    }
     // Références
     c.feuilles.forEach(function (g, gi) {
       Object.keys(g.cellules).forEach(function (key) {
@@ -611,7 +740,9 @@
   }
   function ecrireTSV(lignes) { return lignes.map(function (l) { return l.map(function (x) { x = String(x == null ? '' : x); return /[\t\n"]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join('\t'); }).join('\n'); }
 
-  return { MAX_LIGNES: MAX_LIGNES, MAX_COLONNES: MAX_COLONNES, MAX_FEUILLES: MAX_FEUILLES, FORMATS: FORMATS, TAILLES: TAILLES, FONCTIONS: LIBELLES_FONCTIONS,
+  return { OPS_CONDITION: OPS_CONDITION, GENRES_VALIDATION: GENRES_VALIDATION, condition: condition, validation: validation, styleConditionnel: styleConditionnel, regleVraie: regleVraie,
+    validationDe: validationDe, controlerSaisie: controlerSaisie, conforme: conforme, lignesMasquees: lignesMasquees, valeursColonne: valeursColonne, libPlage: libPlage, plageValide: plageValide, dans: dans,
+    MAX_LIGNES: MAX_LIGNES, MAX_COLONNES: MAX_COLONNES, MAX_FEUILLES: MAX_FEUILLES, FORMATS: FORMATS, TAILLES: TAILLES, FONCTIONS: LIBELLES_FONCTIONS,
     lettres: lettres, indexColonne: indexColonne, nom: nom, lire: lire, style: style, caseValide: caseValide, feuille: feuille, contenu: contenu, page: page, etendue: etendue, chevauche: chevauche,
     serieDepuis: serieDepuis, dateDe: dateDe, saisir: saisir, texteSaisie: texteSaisie, analyser: analyser, verifier: verifier, calculer: calculer, afficher: afficher, alignement: alignement, estErr: estErr,
     reecrire: reecrire, decaler: decaler, inserer: inserer, renommerFeuille: renommerFeuille, supprimerFeuille: supprimerFeuille, trier: trier,

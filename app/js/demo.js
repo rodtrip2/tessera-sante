@@ -806,6 +806,18 @@
           await docD({ titre: 'Budget des activités (fictif)', genre: 'tableur', h: -24 * 5, partage: [{ genre: 'role', code: 'IDE', service: SVd, droit: 'modifier' }],
             versions: [{ h: -24 * 5, contenu: { genre: 'tableur', feuilles: [{ nom: 'Activités', cellules: cases, largeurs: { 0: 170, 1: 95, 2: 95, 3: 105, 4: 95, 5: 115 }, fusions: [{ l: 0, c: 0, nl: 1, nc: 6 }], figer: { l: 0 } },
               { nom: 'Réglages', cellules: { A1: { v: 'Budget mensuel' }, B1: { v: 150, s: eur }, A2: { v: 'Mis à jour le' }, B2: { v: sd(an, mo, 1), s: dt } }, largeurs: { 0: 140 } }], page: { entete: { gauche: '{service}', centre: '{titre}', droite: '{date}' } } } }] });
+          // Suivi des formations (0.36.0) : échéances en couleur (date passée, dans les 60 jours), liste de choix, filtre
+          var jd = TBd.serieDepuis(an, mo, aujd.getDate()), cf = { A1: { v: 'Agent', s: gT }, B1: { v: 'Formation', s: gT }, C1: { v: 'Échéance', s: gT }, D1: { v: 'Statut', s: gT } };
+          [['Agent A (fictif)', 'AFGSU', 200, 'À jour'], ['Agent B (fictif)', 'AFGSU', -10, 'À planifier'], ['Agent C (fictif)', 'Incendie', 25, 'Inscrit'], ['Agent D (fictif)', 'Incendie', 400, 'À jour'],
+            ['Agent A (fictif)', 'Gestes et postures', 45, 'À planifier'], ['Agent C (fictif)', 'AFGSU', -40, 'Inscrit']].forEach(function (x, i) {
+            var l = i + 2; cf['A' + l] = { v: x[0] }; cf['B' + l] = { v: x[1] }; cf['C' + l] = { v: jd + x[2], s: dt }; cf['D' + l] = { v: x[3] };
+          });
+          await docD({ titre: 'Suivi des formations obligatoires (fictif)', genre: 'tableur', h: -24 * 7, partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
+            versions: [{ h: -24 * 7, contenu: { genre: 'tableur', feuilles: [{ nom: 'Formations', cellules: cf, largeurs: { 0: 160, 1: 160, 2: 110, 3: 120 }, figer: { l: 1 },
+              conditions: [{ plage: { l1: 1, c1: 2, l2: 200, c2: 2 }, op: 'passe', style: { f: 'rose', c: 'rouge', g: true } }, { plage: { l1: 1, c1: 2, l2: 200, c2: 2 }, op: 'proche', v1: 60, style: { f: 'orange' } },
+                { plage: { l1: 1, c1: 3, l2: 200, c2: 3 }, op: '=', v1: 'À jour', style: { c: 'vert' } }],
+              validations: [{ plage: { l1: 1, c1: 3, l2: 200, c2: 3 }, genre: 'liste', valeurs: ['À jour', 'À planifier', 'Inscrit'] }, { plage: { l1: 1, c1: 2, l2: 200, c2: 2 }, genre: 'date', bloquant: true }],
+              filtre: { l: 0, c1: 0, c2: 3, masques: {} } }] } }] });
           await docD({ titre: 'Inventaire du matériel (modèle fictif)', genre: 'tableur', h: -24 * 50, modele: true, services: [SVd], partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
             versions: [{ h: -24 * 50, contenu: { genre: 'tableur', feuilles: [{ nom: 'Inventaire', cellules: { A1: { v: 'Matériel', s: gT }, B1: { v: 'Quantité', s: gT }, C1: { v: 'Seuil', s: gT }, D1: { v: 'À commander', s: gT },
               D2: { f: '=SI(B2<C2;"oui";"")' }, D3: { f: '=SI(B3<C3;"oui";"")' }, D4: { f: '=SI(B4<C4;"oui";"")' } }, largeurs: { 0: 200 }, figer: { l: 1 } }] } }] });
