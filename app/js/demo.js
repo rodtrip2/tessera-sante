@@ -750,7 +750,7 @@
           var docD = async function (o) {
             var id = 'DC' + SIC.crypto.hex(SIC.crypto.aleatoire(8)), auteur = o.auteur || moiT.id, part = DMd.partage(o.partage || []);
             await session.creerCleDocument(id, DMd.clesDocument(auteur, part).filter(function (n) { return !session.clesDocumentManquantes([n]).length; }));
-            var lotD = [{ at: at(o.h), by: auteur, type: 'DOC', data: { id: id, nom: o.nom || moiT.nom, modele: !!o.modele, partage: part, services: o.services || [], depuis: '' } }];
+            var lotD = [{ at: at(o.h), by: auteur, type: 'DOC', data: { id: id, nom: o.nom || moiT.nom, genre: o.genre || 'texte', modele: !!o.modele, partage: part, services: o.services || [], depuis: '' } }];
             for (var i = 0; i < o.versions.length; i++) {
               var vv = o.versions[i], c = await session.chiffrerDocument(id, { meta: DMd.meta({ titre: o.titre, rattaches: o.rattaches || [] }), contenu: DMd.contenu(vv.contenu) });
               lotD.push({ at: at(vv.h), by: vv.par || auteur, type: 'DOC_VERSION', data: { doc: id, g: c.g, ct: c.ct, nom: vv.par === 'demo-a' ? 'Agent A (fictif)' : (o.nom || moiT.nom) } });
@@ -791,6 +791,24 @@
           await docD({ titre: 'Fiches réflexes de l’équipe de nuit (fictif)', h: -24 * 120, auteur: 'demo-ancien', nom: 'Ancien agent (fictif)', partage: [{ genre: 'agent', code: moiT.id, droit: 'gerer' }],
             versions: [{ h: -24 * 120, contenu: { blocs: [ti(1, 'Fiches réflexes — nuit (fictif)'), p('Appel du médecin de garde : numéro affiché au bureau infirmier.')] } }],
             suite: [{ h: -24 * 30, par: 'demo', type: 'DOC_TRANSFERT', data: { vers: [moiT.id] } }] });
+          // Tableur (0.35.0) : budget des activités avec formules, formats, titre fusionné, 1re ligne figée, deux feuilles
+          var TBd = SIC.tableur, sd = TBd.serieDepuis, aujd = new Date(now), an = aujd.getFullYear(), mo = aujd.getMonth() + 1;
+          var gT = { g: true, f: 'vert', bd: true, al: 'c' }, eur = { fmt: 'eur' }, dt = { fmt: 'date' };
+          var cases = { A1: { v: 'Budget des activités du service (fictif)', s: { g: true, z: 14 } },
+            A2: { v: 'Activité', s: gT }, B2: { v: 'Date', s: gT }, C2: { v: 'Participants', s: gT }, D2: { v: 'Coût unitaire', s: gT }, E2: { v: 'Total', s: gT }, F2: { v: 'Part du budget', s: gT } };
+          [['Sortie au marché', 3, 6, 4.5], ['Atelier cuisine', 8, 5, 7.2], ['Médiathèque', 12, 8, 0], ['Piscine', 17, 4, 3.8], ['Cinéma', 23, 6, 6.5]].forEach(function (x, i) {
+            var l = i + 3; cases['A' + l] = { v: x[0] }; cases['B' + l] = { v: sd(an, mo, Math.min(28, x[1])), s: dt }; cases['C' + l] = { v: x[2] }; cases['D' + l] = { v: x[3], s: eur };
+            cases['E' + l] = { f: '=C' + l + '*D' + l, s: eur }; cases['F' + l] = { f: '=SIERREUR(E' + l + '/$E$9;0)', s: { fmt: 'pct', dec: 1 } };
+          });
+          Object.assign(cases, { A9: { v: 'Total', s: { g: true, bd: true } }, C9: { f: '=SOMME(C3:C7)', s: { g: true, bd: true } }, E9: { f: '=SOMME(E3:E7)', s: { g: true, bd: true, fmt: 'eur' } },
+            A10: { v: 'Budget mensuel' }, E10: { f: '=Réglages!B1', s: eur }, A11: { v: 'Reste' }, E11: { f: '=E10-E9', s: { g: true, fmt: 'eur', c: 'vert' } },
+            A12: { v: 'Activités sans coût' }, E12: { f: '=NB.SI(D3:D7;0)' } });
+          await docD({ titre: 'Budget des activités (fictif)', genre: 'tableur', h: -24 * 5, partage: [{ genre: 'role', code: 'IDE', service: SVd, droit: 'modifier' }],
+            versions: [{ h: -24 * 5, contenu: { genre: 'tableur', feuilles: [{ nom: 'Activités', cellules: cases, largeurs: { 0: 170, 1: 95, 2: 95, 3: 105, 4: 95, 5: 115 }, fusions: [{ l: 0, c: 0, nl: 1, nc: 6 }], figer: { l: 0 } },
+              { nom: 'Réglages', cellules: { A1: { v: 'Budget mensuel' }, B1: { v: 150, s: eur }, A2: { v: 'Mis à jour le' }, B2: { v: sd(an, mo, 1), s: dt } }, largeurs: { 0: 140 } }], page: { entete: { gauche: '{service}', centre: '{titre}', droite: '{date}' } } } }] });
+          await docD({ titre: 'Inventaire du matériel (modèle fictif)', genre: 'tableur', h: -24 * 50, modele: true, services: [SVd], partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
+            versions: [{ h: -24 * 50, contenu: { genre: 'tableur', feuilles: [{ nom: 'Inventaire', cellules: { A1: { v: 'Matériel', s: gT }, B1: { v: 'Quantité', s: gT }, C1: { v: 'Seuil', s: gT }, D1: { v: 'À commander', s: gT },
+              D2: { f: '=SI(B2<C2;"oui";"")' }, D3: { f: '=SI(B3<C3;"oui";"")' }, D4: { f: '=SI(B4<C4;"oui";"")' } }, largeurs: { 0: 200 }, figer: { l: 1 } }] } }] });
           await docD({ titre: 'Ancienne note sur les visites (fictif)', h: -24 * 90,
             versions: [{ h: -24 * 90, contenu: { blocs: [p('Note remplacée par le règlement intérieur. (fictif)')] } }],
             suite: [{ h: -24 * 25, type: 'DOC_CORBEILLE', data: { corbeille: true } }] });

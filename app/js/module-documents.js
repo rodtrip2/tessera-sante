@@ -17,9 +17,9 @@
  * pour ses services, par l'administrateur pour l'établissement. Aucune donnée clinique. Journal `modules\documents\`.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./droits.js'), require('./model.js'), require('./modules.js'), require('./groupes.js'));
-  else (root.SIC = root.SIC || {}).documents = factory(root.SIC.noyauJournal, root.SIC.droits, root.SIC.model, root.SIC.modules, root.SIC.groupes);
-})(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, G) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./droits.js'), require('./model.js'), require('./modules.js'), require('./groupes.js'), require('./tableur.js'));
+  else (root.SIC = root.SIC || {}).documents = factory(root.SIC.noyauJournal, root.SIC.droits, root.SIC.model, root.SIC.modules, root.SIC.groupes, root.SIC.tableur);
+})(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, G, T) {
   'use strict';
 
   var TYPES = ['DOC', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_STATUT', 'DOC_VALIDATION', 'DOC_CORBEILLE', 'DOC_EFFACE', 'DOC_TRANSFERT'];
@@ -39,7 +39,7 @@
   }
   function joursCorbeille(config) { return options(config).corbeilleJours; }
   var ID = /^DC[0-9a-f]{8,32}$/, JOUR = /^\d{4}-\d{2}-\d{2}$/;
-  var MAX_VERSION = 600000;   // caractères du contenu chiffré d'une version (≈ 400 Ko de texte)
+  var MAX_VERSION = 2500000;  // caractères du contenu chiffré d'une version (≈ 1,8 Mo : texte long ou grand classeur)
 
   function texte(v, n) { return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ').trim().slice(0, n || 120); }
   function jourISO(t) { var d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
@@ -100,9 +100,11 @@
       police: POLICES[p.police] && p.police ? p.police : 'calibri', taille: TAILLES.indexOf(+p.taille) >= 0 ? +p.taille : 11,
       entete: zones(p.entete), pied: p.pied ? zones(p.pied) : { gauche: '{titre}', centre: '', droite: 'Page {page}' }, interligne: [1, 1.15, 1.5, 2].indexOf(+p.interligne) >= 0 ? +p.interligne : 1.15 };
   }
-  /** Contenu d'un document texte, validé à la lecture (blocs, page). */
+  var GENRES = { texte: 'Document texte', tableur: 'Tableur' };
+  /** Contenu d'un document, validé à la lecture : texte (blocs, page) ou tableur (feuilles, page, 0.35.0). */
   function contenu(c) {
     c = c && typeof c === 'object' ? c : {};
+    if (c.genre === 'tableur' && T) return T.contenu(c);
     var blocs = (Array.isArray(c.blocs) ? c.blocs : []).slice(0, 5000).map(bloc).filter(Boolean);
     if (!blocs.length) blocs = [{ t: 'p', runs: [], al: 'g' }];
     return { v: 1, blocs: blocs, page: page(c.page) };
@@ -114,9 +116,9 @@
     if (b.t === 'table') return b.lignes.map(function (l) { return l.map(function (c) { return c.runs.map(function (r) { return r.x; }).join(''); }).join(' | '); }).join('\n');
     return (b.runs || []).map(function (r) { return r.x; }).join('');
   }
-  function texteContenu(c) { return contenu(c).blocs.map(texteBloc).join('\n'); }
+  function texteContenu(c) { var x = contenu(c); if (x.genre === 'tableur') return T.textesCases(x).map(function (y) { return y.valeur; }).join('\n'); return x.blocs.map(texteBloc).join('\n'); }
   /** Titres du document (sommaire). */
-  function sommaire(c) { return contenu(c).blocs.map(function (b, i) { return /^h[123]$/.test(b.t) ? { niveau: +b.t.slice(1), texte: texteBloc(b), index: i } : null; }).filter(function (x) { return x && x.texte; }); }
+  function sommaire(c) { var x = contenu(c); if (!x.blocs) return []; return x.blocs.map(function (b, i) { return /^h[123]$/.test(b.t) ? { niveau: +b.t.slice(1), texte: texteBloc(b), index: i } : null; }).filter(function (x) { return x && x.texte; }); }
   /** Métadonnées chiffrées avec le contenu : titre, rattachements. */
   function meta(m) {
     m = m && typeof m === 'object' ? m : {};
@@ -130,6 +132,7 @@
    * [{ etat: 'egal' | 'ajout' | 'retrait', texte }].
    */
   function comparer(a, b) {
+    if ((a && a.genre === 'tableur') || (b && b.genre === 'tableur')) return T.comparer(contenu(Object.assign({ genre: 'tableur' }, a)), contenu(Object.assign({ genre: 'tableur' }, b)));
     var x = contenu(a).blocs.map(texteBloc), y = contenu(b).blocs.map(texteBloc), n = x.length, m = y.length;
     if (n * m > 4e6) return [{ etat: 'retrait', texte: x.join('\n') }, { etat: 'ajout', texte: y.join('\n') }];
     var L = []; for (var i = 0; i <= n; i++) { L.push(new Array(m + 1).fill(0)); }
@@ -215,7 +218,7 @@
     switch (e.type) {
       case 'DOC':
         if (!ID.test(d.id || '') || st.docs[d.id]) break;
-        st.docs[d.id] = { id: d.id, genre: 'texte', modele: d.modele === true, auteur: e.by, cree: e.at, partage: partage(d.partage), services: Array.isArray(d.services) ? d.services.slice(0, 30) : [],
+        st.docs[d.id] = { id: d.id, genre: GENRES[d.genre] ? d.genre : 'texte', modele: d.modele === true, auteur: e.by, cree: e.at, partage: partage(d.partage), services: Array.isArray(d.services) ? d.services.slice(0, 30) : [],
           depuis: texte(d.depuis, 40), versions: [], statut: { statut: 'brouillon' }, validations: [], corbeille: null, efface: null, modifie: e.at, noms: {} };
         if (d.nom) st.docs[d.id].noms[e.by] = texte(d.nom, 80);
         break;
@@ -442,7 +445,7 @@
 
   registre.declarer(contrat);
 
-  return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
+  return { GENRES: GENRES, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
     POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
     run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
     entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,
