@@ -115,6 +115,14 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.30.1 (branche `transmissions-2`, 12 novembre 2026) : tableau de transmissions, suite
+
+| Sujet | Demandes du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Modification sur place | Les consignes (et toute donnée que l'agent a le droit de modifier : mode, médecins, entretien, contrat…) se modifient d'un clic dans le tableau, avec les règles de la Vue d'ensemble ; une donnée vide modifiable reste visible, estompée, à l'écran seulement | `U.vueEnsemble.editer`, `modifiable` repris de la Vue d'ensemble ; saisies habituelles du module de la donnée |
+| Fiche du patient | Le nom du patient ouvre sa fiche par-dessus le tableau, sans quitter la Vue d'ensemble | `U.fichePatient.modale` |
+| Format des dates | Choisi pour chaque date du tableau : celui de la donnée, 03/10/2026, 03/10/26, 03/10, jours écoulés (« 40 j », « J60 » pour l'entrée), 03/10 (40 j), 3 oct. 2026 ; modèle proposé : entrée en « 13/09 (J60) » | `format` de chaque donnée ; `T.FORMATS_DATE`, `T.formaterDate` |
+
 ## Version 0.30.0 (branche `transmissions`, 12 novembre 2026) : tableau de transmissions
 
 | Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
