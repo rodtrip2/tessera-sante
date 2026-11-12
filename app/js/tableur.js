@@ -50,7 +50,13 @@
     else if (typeof x.v === 'number' && isFinite(x.v)) r.v = x.v;
     else if (typeof x.v === 'string' && x.v !== '') r.v = texte(x.v, MAX_TEXTE);
     var s = style(x.s); if (s) r.s = s;
-    return r.f !== undefined || r.v !== undefined || r.s ? r : null;
+    // Suivi des modifications (0.37.0) : qui a changé la case, quand, et ce qu'elle contenait avant
+    if (x.suivi && typeof x.suivi === 'object' && texte(x.suivi.p, 60)) {
+      var a = x.suivi.avant || {}, av = {};
+      if (typeof a.f === 'string' && a.f.charAt(0) === '=') av.f = texte(a.f, MAX_TEXTE); else if (typeof a.v === 'number' && isFinite(a.v)) av.v = a.v; else if (typeof a.v === 'string' && a.v !== '') av.v = texte(a.v, MAX_TEXTE);
+      r.suivi = { p: texte(x.suivi.p, 60), n: texte(x.suivi.n, 80), le: texte(x.suivi.le, 30), avant: av };
+    }
+    return r.f !== undefined || r.v !== undefined || r.s || r.suivi ? r : null;
   }
   function nomFeuille(n, i) { var x = texte(n, 31).replace(/[\[\]:*?\/\\!']/g, '').trim(); return x || 'Feuille' + (i + 1); }
   function feuille(f, i) {
@@ -695,6 +701,80 @@
     return c;
   }
 
+  // ------------------------------------------------------------ Suivi des modifications (0.37.0)
+  function contenuCase(x) { return x ? (x.f !== undefined ? { f: x.f } : x.v !== undefined ? { v: x.v } : {}) : {}; }
+  function memeContenu(a, b) { return JSON.stringify(contenuCase(a)) === JSON.stringify(contenuCase(b)); }
+  /**
+   * Nouvelle case quand le suivi est actif : la valeur d'avant est gardée (la première, si la case était déjà suivie) ;
+   * revenir à la valeur d'avant retire la marque.
+   */
+  function suivre(ancienne, nouvelle, agent, maintenant) {
+    var avant = ancienne && ancienne.suivi ? ancienne.suivi.avant : contenuCase(ancienne);
+    var n = nouvelle ? JSON.parse(JSON.stringify(nouvelle)) : {};
+    delete n.suivi;
+    if (JSON.stringify(contenuCase(n)) === JSON.stringify(avant)) return caseValide(n);
+    if (memeContenu(ancienne, n) && !(ancienne && ancienne.suivi)) return caseValide(n);   // mise en forme seule : non suivie
+    n.suivi = { p: agent.id, n: agent.nom || '', le: new Date(maintenant || Date.now()).toISOString(), avant: avant };
+    return caseValide(n);
+  }
+  /** Cases modifiées suivies : [{ feuille, fi, nom, avant, apres, p, n, le }]. */
+  function modificationsSuivies(classeur) {
+    var res = [];
+    classeur.feuilles.forEach(function (f, fi) {
+      Object.keys(f.cellules).forEach(function (k) { var x = f.cellules[k]; if (x.suivi) res.push({ feuille: f.nom, fi: fi, nom: k, avant: texteSaisie(x.suivi.avant), apres: texteSaisie(x), p: x.suivi.p, n: x.suivi.n, le: x.suivi.le }); });
+    });
+    return res.sort(function (a, b) { return a.fi - b.fi || lire(a.nom).l - lire(b.nom).l || lire(a.nom).c - lire(b.nom).c; });
+  }
+  /** Accepter (garder la valeur) ou refuser (revenir à la valeur d'avant) une case, ou toutes si `k` est absent. */
+  function resoudreSuivi(classeur, accepter, fi, k) {
+    var c = JSON.parse(JSON.stringify(classeur));
+    c.feuilles.forEach(function (f, i) {
+      if (fi !== undefined && fi !== null && i !== fi) return;
+      Object.keys(f.cellules).forEach(function (key) {
+        if (k && key !== k) return;
+        var x = f.cellules[key]; if (!x.suivi) return;
+        var y = accepter ? Object.assign({}, x) : Object.assign({}, x.suivi.avant, x.s ? { s: x.s } : {});
+        delete y.suivi; if (!accepter) { delete y.f; delete y.v; Object.assign(y, x.suivi.avant); }
+        var z = caseValide(y); if (z) f.cellules[key] = z; else delete f.cellules[key];
+      });
+    });
+    return c;
+  }
+
+  // ------------------------------------------------------------ Fusion à trois (édition simultanée, 0.37.0)
+  function fusionValeur(b, m, a) { var jb = JSON.stringify(b), jm = JSON.stringify(m), ja = JSON.stringify(a); if (jm === jb) return { v: a, c: false }; return { v: m, c: ja !== jb && ja !== jm }; }
+  function fusionTable(b, m, a) {
+    var res = {}, conflits = 0;
+    Object.keys(Object.assign({}, b, m, a)).forEach(function (k) { var r = fusionValeur(b[k], m[k], a[k]); if (r.c) conflits++; if (r.v !== undefined) res[k] = r.v; });
+    return { table: res, conflits: conflits };
+  }
+  /**
+   * Fusion de deux classeurs modifiés en même temps depuis une base commune : case par case (et largeurs, hauteurs) ; les
+   * autres réglages d'une feuille (fusions, volets, règles, validations, filtre) et la page : ceux du côté qui les a changés,
+   * les siens si les deux l'ont fait. Feuilles ajoutées d'un côté : gardées ; supprimées d'un côté sans changement de
+   * l'autre : supprimées. { contenu, conflits } (une case changée des deux côtés : la sienne, comptée en conflit).
+   */
+  function fusionner(base, mien, autre) {
+    var B = contenu(base), M = contenu(mien), A = contenu(autre), conflits = 0;
+    function par(c) { var r = {}; c.feuilles.forEach(function (f) { r[f.nom.toLowerCase()] = f; }); return r; }
+    var pb = par(B), pa = par(A), noms = [];
+    M.feuilles.forEach(function (f) { noms.push(f.nom.toLowerCase()); });
+    A.feuilles.forEach(function (f) { var k = f.nom.toLowerCase(); if (noms.indexOf(k) < 0 && !pb[k]) noms.push(k); });
+    var pm = par(M), feuilles = [];
+    noms.forEach(function (k) {
+      var b = pb[k], m = pm[k], a = pa[k];
+      if (!m) { feuilles.push(a); return; }                         // ajoutée par l'autre
+      if (!a && b) { if (JSON.stringify(m) === JSON.stringify(b)) return; feuilles.push(m); conflits++; return; }   // supprimée par l'autre
+      if (!a) { feuilles.push(m); return; }                          // ajoutée par soi
+      var bb = b || feuille({ nom: m.nom }, 0), x = { nom: m.nom };
+      ['cellules', 'largeurs', 'hauteurs'].forEach(function (t2) { var r = fusionTable(bb[t2], m[t2], a[t2]); x[t2] = r.table; conflits += r.conflits; });
+      ['fusions', 'figer', 'conditions', 'validations', 'filtre'].forEach(function (t2) { var r = fusionValeur(bb[t2], m[t2], a[t2]); x[t2] = r.v; if (r.c) conflits++; });
+      feuilles.push(x);
+    });
+    var p = fusionValeur(B.page, M.page, A.page); if (p.c) conflits++;
+    return { contenu: contenu({ feuilles: feuilles, page: p.v }), conflits: conflits };
+  }
+
   // ------------------------------------------------------------ Texte, comparaison, collage
   /** Texte d'une feuille (cases non vides, valeurs calculées) : recherche, comparaison des versions. */
   function textesCases(classeur, options) {
@@ -740,7 +820,8 @@
   }
   function ecrireTSV(lignes) { return lignes.map(function (l) { return l.map(function (x) { x = String(x == null ? '' : x); return /[\t\n"]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join('\t'); }).join('\n'); }
 
-  return { OPS_CONDITION: OPS_CONDITION, GENRES_VALIDATION: GENRES_VALIDATION, condition: condition, validation: validation, styleConditionnel: styleConditionnel, regleVraie: regleVraie,
+  return { suivre: suivre, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusionner: fusionner, contenuCase: contenuCase,
+    OPS_CONDITION: OPS_CONDITION, GENRES_VALIDATION: GENRES_VALIDATION, condition: condition, validation: validation, styleConditionnel: styleConditionnel, regleVraie: regleVraie,
     validationDe: validationDe, controlerSaisie: controlerSaisie, conforme: conforme, lignesMasquees: lignesMasquees, valeursColonne: valeursColonne, libPlage: libPlage, plageValide: plageValide, dans: dans,
     MAX_LIGNES: MAX_LIGNES, MAX_COLONNES: MAX_COLONNES, MAX_FEUILLES: MAX_FEUILLES, FORMATS: FORMATS, TAILLES: TAILLES, FONCTIONS: LIBELLES_FONCTIONS,
     lettres: lettres, indexColonne: indexColonne, nom: nom, lire: lire, style: style, caseValide: caseValide, feuille: feuille, contenu: contenu, page: page, etendue: etendue, chevauche: chevauche,
