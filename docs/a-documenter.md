@@ -115,6 +115,21 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.30.0 (branche `transmissions`, 12 novembre 2026) : tableau de transmissions
+
+| Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Tableau de transmissions | Tableau à imprimer pour les transmissions orales : un nouveau type de vue de la Vue d'ensemble, un onglet par tableau ; tableau proposé « Transmissions » (établissement) ; « + Tableau » pour le cadre | `transmissions.js` (`SIC.transmissions`), `ui-transmissions.js` ; vue `type: 'transmissions'` avec `transmissions` (mise en page) dans le réglage `vuesEnsemble` ; colonnes de la vue déduites des données citées (droits de lecture inchangés) |
+| Cases et données | Une case réunit une ou plusieurs données, chacune avec sa taille, gras, italique, souligné, majuscules, à la ligne, libellé (court, modifiable) ; titres modifiables ; case vide pour les notes ; cases ajoutées ; largeur à la souris. Modèle proposé : chambre, patient, entrée, mode, médecins de 1re et 2e ligne, psychologue, référents, contrat et entretien (couleurs des dates trop anciennes : réglages des données) ; consignes ; prochains événements ; notes | `cases` [{ id, titre, largeur, notes, elements [{ code, taille, gras, italique, souligne, majuscules, ligne, etiquette, libelle }] }] |
+| Consignes | Données ajoutées par le cadre (ex. choix multiple « Repas en chambre, Temps en chambre de 17 h à 18 h… », précisions en texte), cochées par les IDE dans la fiche | Mécanisme des données ajoutées, sans nouvelle saisie ; démonstration : `consignes`, `consignes-precisions` |
+| Prochains événements | Événements de l'Agenda du patient, sur un horizon réglable (3 jours par défaut) ; nouvelle donnée « Prochains événements » disponible aussi dans les autres vues | `SIC.agenda.evenementsPatients` ; colonne `evenements` du catalogue (lue par qui détient la clé de l'Agenda) ; `evenementsJours` |
+| Lignes | Hauteur commune (mm) ou selon le contenu ; ligne de titre réglée à part ; texte réduit pour tenir dans la case | `police`, `hauteurLigne`, `hauteurTitre`, `ajuster` |
+| Impression | Décisions du porteur : 4 faces par défaut (deux feuilles recto verso), portrait par défaut ; marges étroites (6 mm) ; tableau réduit pour tenir sur le nombre de faces ; ligne de titre, en-tête et pied de page répétés sur chaque page ; numéro de page « page X sur Y » ; poste et jour choisis à l'impression | `impression` { faces, orientation, numero, taches, entete, pied } ; `T.echelle`, `T.paginer` ; pages nommées `tr-portrait`, `tr-paysage` (avec ou sans numéro) dans `app.css` |
+| En-tête et pied de page | Modifiables, trois zones chacun, champs à insérer : date, heure, service, poste, imprimé par, établissement, titre | `T.remplir` |
+| Tâches du poste | Décision du porteur : tâches de l'Agenda du service sur le poste choisi (matin, après-midi, nuit jusqu'au lendemain ; tâches sans heure le jour), avec cases à cocher, à la suite du tableau ou sur une page à part | `T.tachesDuPoste`, `T.posteDe` ; postes : périodes du service (`periodes`, `periodesService`) |
+| Modèle et copie | Décision du porteur : le cadre règle le modèle du service ; chaque agent peut en faire une copie personnelle (« Faire ma copie », « Reprendre le modèle ») ; un agent qui ne règle pas le modèle et modifie la mise en page crée sa copie | Préférence de l'agent `transmissionsPerso` { <vue> : mise en page } |
+| Démonstration | « Transmissions Unité 1 » (modèle du cadre), consignes de trois patients, événements de l'Agenda | `demo.js` |
+
 ## Version 0.29.1 (branche `plan-chambres`, 12 novembre 2026) : plan du service
 
 | Sujet | Décisions du porteur (11 novembre 2026) | Fichiers, saisies, réglages |
@@ -345,6 +360,8 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 - **Messagerie** : avis du délégué à la protection des données (DPO, référent RGPD) et du responsable de la sécurité informatique (RSSI) sur les pièces jointes (désactivées par défaut ; aucun contrôle antivirus par l'application), sur la durée de conservation (12 mois proposés) et sur l'inscription au registre des traitements.
 
 - **Chambres et lits** : la liste des chambres et l'historique des lits rejoignent la fiche commune ; pas de nouvelle donnée personnelle hors séjour (à confirmer au registre des traitements). Plan du service : présence d'un patient dans une pièce (placements temporaires) gardée dans l'historique du séjour, à mentionner au registre ; affichage des mesures en cours sur le plan, réservé aux agents qui ont accès à Isocont.
+
+- **Tableau de transmissions** : consignes (temps en chambre, sorties…) traitées comme des données organisationnelles, comme les sorties libres : à faire confirmer par le délégué à la protection des données (DPO, référent RGPD) ; document imprimé confidentiel (mention dans le pied de page proposé), à détruire après usage.
 
 ## Restes connus
 

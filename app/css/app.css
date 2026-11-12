@@ -1003,3 +1003,46 @@ html.taille-tres-grande body { zoom: 1.3; }
 .ch-outils { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
 .ch-legende span { margin-right: 10px; }
 .ch-barre-outils { min-height: 2.2rem; display: flex; align-items: center; }
+/* Tableau de transmissions (0.30.0) */
+.tr-cadre { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; }
+table.tr-tableau { table-layout: fixed; border-collapse: collapse; line-height: 1.25; }
+table.tr-tableau th, table.tr-tableau td { border: 1px solid var(--ink-2); padding: .25em .35em; vertical-align: top; text-align: left; overflow: hidden; }
+table.tr-tableau th { position: relative; background: var(--surface-2); font-weight: 700; vertical-align: middle; }
+table.tr-tableau .tr-entete td, table.tr-tableau .tr-pied td { border: none; padding: 0 0 .4em; background: none; }
+table.tr-tableau .tr-pied td { padding: .4em 0 0; font-size: .85em; }
+.tr-zones { display: grid; grid-template-columns: 1fr auto 1fr; gap: 1em; }
+.tr-zone-centre { text-align: center; font-weight: 700; }
+.tr-zone-droite { text-align: right; }
+.tr-entete .tr-zones { font-size: 1.05em; border-bottom: 1.5px solid var(--ink); padding-bottom: .2em; }
+.tr-contenu { overflow-wrap: anywhere; }
+.tr-contenu.fixe { overflow: hidden; }
+.tr-ligne:nth-child(even) td { background: var(--muted-soft); }
+.tr-groupe td { background: var(--accent-soft); font-weight: 700; }
+.tr-el.tr-alaligne { display: block; }
+.tr-gras { font-weight: 700; } .tr-italique { font-style: italic; } .tr-souligne { text-decoration: underline; } .tr-maj { text-transform: uppercase; }
+.tr-etiquette { color: var(--ink-2); font-weight: 400; font-style: normal; text-decoration: none; text-transform: none; }
+.tr-evt { display: block; }
+.tr-cliquable { cursor: pointer; }
+.tr-cliquable:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tr-reglage-case { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; }
+.tr-reglage-elements td.centre { text-align: center; }
+.tr-taches { margin-top: 1em; }
+.tr-taches h2 { font-size: 1.2em; margin: 0 0 .3em; }
+.tr-taches table { border-collapse: collapse; width: 100%; }
+.tr-taches td { border-bottom: 1px solid #999; padding: .2em .4em; }
+.tr-coche { width: 1.6em; font-size: 1.2em; }
+.tr-mesure { position: absolute; left: -20000px; top: 0; visibility: hidden; background: #fff; color: #000; }
+.tr-mesure table.tr-tableau, .tr-doc table.tr-tableau { width: 100%; }
+@page tr-portrait { size: A4 portrait; margin: 6mm; }
+@page tr-paysage { size: A4 landscape; margin: 6mm; }
+@page tr-portrait-num { size: A4 portrait; margin: 6mm 6mm 9mm; @bottom-right { content: "Page " counter(page) " sur " counter(pages); font-size: 7pt; font-family: sans-serif; } }
+@page tr-paysage-num { size: A4 landscape; margin: 6mm 6mm 9mm; @bottom-right { content: "Page " counter(page) " sur " counter(pages); font-size: 7pt; font-family: sans-serif; } }
+.tr-doc.page-tr-portrait { page: tr-portrait; } .tr-doc.page-tr-paysage { page: tr-paysage; }
+.tr-doc.page-tr-portrait-num { page: tr-portrait-num; } .tr-doc.page-tr-paysage-num { page: tr-paysage-num; }
+.tr-doc { color: #000; font-family: var(--font); }
+.tr-doc table.tr-tableau th, .tr-doc table.tr-tableau td { border-color: #444; }
+@media print {
+  .tr-doc table.tr-tableau tr.tr-ligne { break-inside: avoid; }
+  .tr-doc .tr-taches.nouvelle-page { break-before: page; }
+  .tr-doc table.tr-tableau td, .tr-doc table.tr-tableau th, .tr-doc .tr-el { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
