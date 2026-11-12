@@ -37,6 +37,7 @@
     var sel = { l1: 0, c1: 0, l2: 0, c2: 0, l: 0, c: 0 }, ancre = { l: 0, c: 0 }, bout = null, edition = null, glisse = null, presse = null;
     var annuler = [], retablir = [], calc = null, vue = { l: 0, c: 0 }, interne = null;
     function F() { return C.feuilles[fi]; }
+    function suivi() { return !!(o.suivi && o.suivi()); }
     function recalculer() { calc = T.calculer(C, { maintenant: Date.now() }); }
     recalculer();
     function memoriser() { annuler.push(JSON.stringify({ C: C, fi: fi })); if (annuler.length > 100) annuler.shift(); retablir = []; }
@@ -67,18 +68,19 @@
       var c0 = h('col', { class: 'tb-col-num' }); cols.appendChild(c0);
       for (var c = 0; c < dim.c; c++) { var col = h('col'); col.style.width = (f.largeurs[c] || LARGEUR) + 'px'; cols.appendChild(col); }
       var tr = h('tr', {}, h('th', { class: 'tb-coin', title: 'Tout sélectionner', onmousedown: function (ev) { ev.preventDefault(); choisir(0, 0, dim.l - 1, dim.c - 1); } }));
-      for (c = 0; c < dim.c; c++) tr.appendChild(enteteColonne(c));
+      for (c = 0; c < dim.c; c++) tr.appendChild(enteteColonne(c, f.colonnesSuivies[c]));
       thead.appendChild(tr);
       var couverts = {}, masquees = T.lignesMasquees(C, fi, calc), maintenant = Date.now(), fl = f.filtre;
       f.fusions.forEach(function (u) { for (var i = u.l; i < u.l + u.nl; i++) for (var j = u.c; j < u.c + u.nc; j++) if (i !== u.l || j !== u.c) couverts[i + ':' + j] = 1; });
       for (var l = 0; l < dim.l; l++) {
-        var ligne = h('tr', { class: masquees[l] ? 'tb-masquee' : null }, enteteLigne(l));
+        var ml = f.lignesSuivies[l], ligne = h('tr', { class: (masquees[l] ? 'tb-masquee' : '') + (ml ? ' tb-tr-' + ml.op : '') || null }, enteteLigne(l, ml));
         if (f.hauteurs[l]) ligne.style.height = f.hauteurs[l] + 'px';
         for (c = 0; c < dim.c; c++) {
           if (couverts[l + ':' + c]) continue;
           var x = f.cellules[T.nom(l, c)], v = calc.valeur(fi, l, c), u = fusionDe(f, l, c), val = T.validationDe(f, l, c), ok = T.conforme(val, v);
           var st = Object.assign({}, x && x.s, T.styleConditionnel(f, l, c, v, maintenant));
-          var td = h('td', { class: classesCase(st, v) + (ok ? '' : ' tb-nonconforme') + (x && x.suivi ? ' tb-suivi' : ''), 'data-l': l, 'data-c': c, rowspan: u ? u.nl : null, colspan: u ? u.nc : null,
+          var mc = f.colonnesSuivies[c];
+          var td = h('td', { class: classesCase(st, v) + (ok ? '' : ' tb-nonconforme') + (x && x.suivi ? ' tb-suivi' : '') + (mc ? ' tb-td-' + mc.op : ''), 'data-l': l, 'data-c': c, rowspan: u ? u.nl : null, colspan: u ? u.nc : null,
             title: x && x.suivi ? 'Modifié par ' + (x.suivi.n || (o.nomAgent ? o.nomAgent(x.suivi.p) : x.suivi.p)) + ' le ' + new Date(Date.parse(x.suivi.le)).toLocaleDateString('fr-FR') + ' ; avant : ' + (T.texteSaisie(x.suivi.avant) || '(vide)') : T.estErr(v) ? messageErreur(v, l, c) : !ok ? 'Valeur non conforme : ' + (T.controlerSaisie(val, typeof v === 'number' ? { v: v, fmt: val.genre === 'date' ? 'date' : undefined } : { v: v }) || '') : null }, T.afficher(v, x && x.s));
           // Filtre : bouton dans chaque titre de colonne filtrée
           if (fl && l === fl.l && c >= fl.c1 && c <= fl.c2) td.appendChild(boutonFiltre(c, !!fl.masques[c]));
@@ -126,7 +128,7 @@
       if (e.l <= fl.l + 1) return;
       var p = { l1: fl.l + 1, l2: e.l - 1, c1: fl.c1, c2: fl.c2 };
       if (F().fusions.some(function (u) { return T.chevauche(u, { l: p.l1, c: p.c1, nl: p.l2 - p.l1 + 1, nc: p.c2 - p.c1 + 1 }); })) return U.toast('Tri impossible sur des cases fusionnées.');
-      memoriser(); C = T.trier(C, fi, p, c, dec, { maintenant: Date.now() }); modifie();
+      memoriser(); C = suivi() ? T.trierSuivi(C, fi, p, c, dec, o.agent, { maintenant: Date.now() }) : T.trier(C, fi, p, c, dec, { maintenant: Date.now() }); modifie();
     }
     function basculerFiltre() {
       if (!modifiable) return;
@@ -214,17 +216,18 @@
             memoriser(); if (existante) f.validations.splice(f.validations.indexOf(existante), 1); f.validations.unshift(r); modifie();
           } }]);
     }
-    function enteteColonne(c) {
+    function titreMarque(m, quoi) { return m ? (quoi + (m.op === 'ins' ? ' insérée' : ' supprimée (à accepter)') + ' par ' + (m.n || m.p) + ' le ' + new Date(Date.parse(m.le)).toLocaleDateString('fr-FR')) : null; }
+    function enteteColonne(c, m) {
       var poignee = h('span', { class: 'tb-poignee-c', title: 'Glisser pour changer la largeur ; double clic : largeur par défaut' });
       poignee.addEventListener('mousedown', function (ev) { if (!modifiable) return; ev.preventDefault(); ev.stopPropagation(); redimensionner('c', c, ev); });
       poignee.addEventListener('dblclick', function (ev) { if (!modifiable) return; ev.stopPropagation(); memoriser(); delete F().largeurs[c]; modifie(); });
-      return h('th', { class: 'tb-entete-c', onmousedown: function (ev) { if (ev.target === poignee) return; ev.preventDefault(); if (ev.shiftKey) choisir(sel.l1, Math.min(ancre.c, c), dim.l - 1, Math.max(ancre.c, c), true); else { ancre = { l: 0, c: c }; choisir(0, c, dim.l - 1, c); } } }, T.lettres(c), poignee);
+      return h('th', { class: 'tb-entete-c' + (m ? ' tb-marque-' + m.op : ''), title: titreMarque(m, 'Colonne'), onmousedown: function (ev) { if (ev.target === poignee) return; ev.preventDefault(); if (ev.shiftKey) choisir(sel.l1, Math.min(ancre.c, c), dim.l - 1, Math.max(ancre.c, c), true); else { ancre = { l: 0, c: c }; choisir(0, c, dim.l - 1, c); } } }, T.lettres(c), poignee);
     }
-    function enteteLigne(l) {
+    function enteteLigne(l, m) {
       var poignee = h('span', { class: 'tb-poignee-l', title: 'Glisser pour changer la hauteur ; double clic : hauteur par défaut' });
       poignee.addEventListener('mousedown', function (ev) { if (!modifiable) return; ev.preventDefault(); ev.stopPropagation(); redimensionner('l', l, ev); });
       poignee.addEventListener('dblclick', function (ev) { if (!modifiable) return; ev.stopPropagation(); memoriser(); delete F().hauteurs[l]; modifie(); });
-      return h('th', { class: 'tb-entete-l', onmousedown: function (ev) { if (ev.target === poignee) return; ev.preventDefault(); if (ev.shiftKey) choisir(Math.min(ancre.l, l), 0, Math.max(ancre.l, l), dim.c - 1, true); else { ancre = { l: l, c: 0 }; choisir(l, 0, l, dim.c - 1); } } }, String(l + 1), poignee);
+      return h('th', { class: 'tb-entete-l' + (m ? ' tb-marque-' + m.op : ''), title: titreMarque(m, 'Ligne'), onmousedown: function (ev) { if (ev.target === poignee) return; ev.preventDefault(); if (ev.shiftKey) choisir(Math.min(ancre.l, l), 0, Math.max(ancre.l, l), dim.c - 1, true); else { ancre = { l: l, c: 0 }; choisir(l, 0, l, dim.c - 1); } } }, String(l + 1), poignee);
     }
     function redimensionner(axe, i, ev) {
       var depart = axe === 'c' ? ev.clientX : ev.clientY, f = F(), init = axe === 'c' ? (f.largeurs[i] || LARGEUR) : (f.hauteurs[i] || HAUTEUR), valeur = init;
@@ -245,7 +248,7 @@
     function dessinerOnglets() {
       U.vider(onglets);
       C.feuilles.forEach(function (f, i) {
-        onglets.appendChild(h('button', { type: 'button', class: 'tb-onglet' + (i === fi ? ' actif' : ''), role: 'tab', 'aria-selected': i === fi ? 'true' : 'false',
+        onglets.appendChild(h('button', { type: 'button', class: 'tb-onglet' + (i === fi ? ' actif' : '') + (f.suivi ? ' tb-marque-' + f.suivi.op : ''), title: titreMarque(f.suivi, 'Feuille'), role: 'tab', 'aria-selected': i === fi ? 'true' : 'false',
           onclick: function () { if (i !== fi) { finirEdition(true); fi = i; sel = { l1: 0, c1: 0, l2: 0, c2: 0, l: 0, c: 0 }; ancre = { l: 0, c: 0 }; vue = { l: 0, c: 0 }; dessiner(); grille.focus(); } },
           ondblclick: function () { if (modifiable) renommer(i); } }, f.nom));
       });
@@ -259,7 +262,8 @@
     function ajouterFeuille() {
       if (C.feuilles.length >= T.MAX_FEUILLES) return U.toast('Au plus ' + T.MAX_FEUILLES + ' feuilles.');
       memoriser(); var n = 1; while (C.feuilles.some(function (f) { return f.nom.toLowerCase() === ('feuille' + n); })) n++;
-      C.feuilles.push(T.feuille({ nom: 'Feuille' + n }, C.feuilles.length)); fi = C.feuilles.length - 1; sel = { l1: 0, c1: 0, l2: 0, c2: 0, l: 0, c: 0 }; modifie();
+      var nf = T.feuille({ nom: 'Feuille' + n }, C.feuilles.length); if (suivi()) nf.suivi = { op: 'ins', p: o.agent.id, n: o.agent.nom, le: new Date().toISOString() };
+      C.feuilles.push(nf); fi = C.feuilles.length - 1; sel = { l1: 0, c1: 0, l2: 0, c2: 0, l: 0, c: 0 }; modifie();
     }
     function renommer(i) {
       var champ = h('input', { type: 'text', maxlength: 31, value: C.feuilles[i].nom, 'aria-label': 'Nom de la feuille' });
@@ -268,13 +272,13 @@
     }
     function actionFeuille(v) {
       if (v === 'renommer') return renommer(fi);
-      if (v === 'dupliquer') { if (C.feuilles.length >= T.MAX_FEUILLES) return U.toast('Au plus ' + T.MAX_FEUILLES + ' feuilles.'); memoriser(); var copie = JSON.parse(JSON.stringify(F())); copie.nom = F().nom.slice(0, 24) + ' (copie)'; C.feuilles.splice(fi + 1, 0, copie); C = T.contenu(C); fi++; return modifie(); }
+      if (v === 'dupliquer') { if (C.feuilles.length >= T.MAX_FEUILLES) return U.toast('Au plus ' + T.MAX_FEUILLES + ' feuilles.'); memoriser(); var copie = JSON.parse(JSON.stringify(F())); copie.nom = F().nom.slice(0, 24) + ' (copie)'; copie.suivi = suivi() ? { op: 'ins', p: o.agent.id, n: o.agent.nom, le: new Date().toISOString() } : null; C.feuilles.splice(fi + 1, 0, copie); C = T.contenu(C); fi++; return modifie(); }
       if (v === 'gauche' && fi > 0) { memoriser(); C.feuilles.splice(fi - 1, 0, C.feuilles.splice(fi, 1)[0]); fi--; return modifie(); }
       if (v === 'droite' && fi < C.feuilles.length - 1) { memoriser(); C.feuilles.splice(fi + 1, 0, C.feuilles.splice(fi, 1)[0]); fi++; return modifie(); }
       if (v === 'supprimer') {
         if (C.feuilles.length <= 1) return U.toast('Un classeur garde au moins une feuille.');
         if (!confirm('Supprimer la feuille « ' + F().nom + ' » ? Les formules des autres feuilles qui la citent afficheront #REF!.')) return;
-        memoriser(); C = T.supprimerFeuille(C, fi); fi = Math.max(0, fi - 1); modifie();
+        memoriser(); var avant = C.feuilles.length; C = suivi() ? T.supprimerFeuilleSuivi(C, fi, o.agent) : T.supprimerFeuille(C, fi); if (C.feuilles.length < avant) fi = Math.max(0, fi - 1); modifie();
       }
     }
 
@@ -543,13 +547,17 @@
     function lignesColonnes(op) {
       if (!modifiable) return;
       finirEdition(true);
-      var nL = sel.l2 - sel.l1 + 1, nC = sel.c2 - sel.c1 + 1, c2;
-      if (op === 'l-avant') c2 = T.inserer(C, fi, 'l', sel.l1, nL);
-      if (op === 'l-apres') c2 = T.inserer(C, fi, 'l', sel.l2 + 1, nL);
-      if (op === 'l-suppr') { if (!confirm('Supprimer ' + (nL > 1 ? 'les lignes ' + (sel.l1 + 1) + ' à ' + (sel.l2 + 1) : 'la ligne ' + (sel.l1 + 1)) + ' ?')) return; c2 = T.inserer(C, fi, 'l', sel.l1, -nL); }
-      if (op === 'c-avant') c2 = T.inserer(C, fi, 'c', sel.c1, nC);
-      if (op === 'c-apres') c2 = T.inserer(C, fi, 'c', sel.c2 + 1, nC);
-      if (op === 'c-suppr') { if (!confirm('Supprimer ' + (nC > 1 ? 'les colonnes ' + T.lettres(sel.c1) + ' à ' + T.lettres(sel.c2) : 'la colonne ' + T.lettres(sel.c1)) + ' ?')) return; c2 = T.inserer(C, fi, 'c', sel.c1, -nC); }
+      var nL = sel.l2 - sel.l1 + 1, nC = sel.c2 - sel.c1 + 1, c2, sv = suivi();
+      // Suivi des modifications (0.38.0) : insertions marquées, suppressions marquées (faites quand elles sont acceptées)
+      function ins(axe, a, n) { return sv ? T.insererSuivi(C, fi, axe, a, n, o.agent) : T.inserer(C, fi, axe, a, n); }
+      function sup(axe, a, n) { return sv ? T.supprimerSuivi(C, fi, axe, a, n, o.agent) : T.inserer(C, fi, axe, a, -n); }
+      var precis = sv ? ' (suivi des modifications : marquée(s) supprimée(s) jusqu’à leur acceptation)' : '';
+      if (op === 'l-avant') c2 = ins('l', sel.l1, nL);
+      if (op === 'l-apres') c2 = ins('l', sel.l2 + 1, nL);
+      if (op === 'l-suppr') { if (!confirm('Supprimer ' + (nL > 1 ? 'les lignes ' + (sel.l1 + 1) + ' à ' + (sel.l2 + 1) : 'la ligne ' + (sel.l1 + 1)) + ' ?' + precis)) return; c2 = sup('l', sel.l1, nL); }
+      if (op === 'c-avant') c2 = ins('c', sel.c1, nC);
+      if (op === 'c-apres') c2 = ins('c', sel.c2 + 1, nC);
+      if (op === 'c-suppr') { if (!confirm('Supprimer ' + (nC > 1 ? 'les colonnes ' + T.lettres(sel.c1) + ' à ' + T.lettres(sel.c2) : 'la colonne ' + T.lettres(sel.c1)) + ' ?' + precis)) return; c2 = sup('c', sel.c1, nC); }
       if (!c2) return;
       memoriser(); C = c2; modifie();
     }
@@ -560,7 +568,7 @@
       if (F().fusions.some(function (u) { return T.chevauche(u, { l: p.l1, c: p.c1, nl: p.l2 - p.l1 + 1, nc: p.c2 - p.c1 + 1 }); })) return U.toast('Tri impossible sur des cases fusionnées.');
       var entete = p.l1 === 0 && sel.l1 === sel.l2 && confirm('La première ligne est-elle une ligne de titres (gardée en haut) ?');
       if (entete) p.l1 = 1;
-      memoriser(); C = T.trier(C, fi, p, Math.max(p.c1, Math.min(sel.c, p.c2)), dec, { maintenant: Date.now() }); modifie();
+      memoriser(); C = suivi() ? T.trierSuivi(C, fi, p, Math.max(p.c1, Math.min(sel.c, p.c2)), dec, o.agent, { maintenant: Date.now() }) : T.trier(C, fi, p, Math.max(p.c1, Math.min(sel.c, p.c2)), dec, { maintenant: Date.now() }); modifie();
     }
     function sommeAuto() {
       if (!modifiable) return;
@@ -619,7 +627,7 @@
       occupe: function () { return !!edition; },
       remplacer: function (x) { finirEdition(false); C = T.contenu(x); fi = Math.min(fi, C.feuilles.length - 1); this.page = C.page; recalculer(); dessiner(); },
       modifsSuivies: function () { return T.modificationsSuivies(C); },
-      resoudre: function (accepter, f2, k) { memoriser(); C = T.resoudreSuivi(C, accepter, f2, k); modifie(); },
+      resoudre: function (accepter, cible) { memoriser(); C = T.resoudreSuivi(C, accepter, cible); fi = Math.min(fi, C.feuilles.length - 1); modifie(); },
       marques: function (oui) { grille.classList.toggle('tb-sans-marques', !oui); },
       annulerEdition: function () { finirEdition(false); grille.focus(); },
       focus: function () { grille.focus(); },
