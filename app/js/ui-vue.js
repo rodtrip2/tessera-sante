@@ -650,7 +650,7 @@
     if (code === 'vues') return function () { var l = mesVues(); return l.length ? vueTableau(l[0].id) : h('div', { class: 'panneau vide', text: 'Aucune vue ne vous est ouverte.' }); };
     return undefined;
   } });
-  U.vueEnsemble = { contexte: contexte, colonnesVisibles: colonnesVisibles, modaleVue: modaleVue, vuesBrutes: vuesBrutes, caseCouleur: caseCouleur, mesVues: mesVues, legende: legendeVue };
+  U.vueEnsemble = { editer: editer, modifiable: modifiable, contexte: contexte, colonnesVisibles: colonnesVisibles, modaleVue: modaleVue, vuesBrutes: vuesBrutes, caseCouleur: caseCouleur, mesVues: mesVues, legende: legendeVue };
   SIC.modules.completerInterface('vue', {
     vues: vuesProxy,
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'L’instantané n’apparaît plus dans la liste.'; } }

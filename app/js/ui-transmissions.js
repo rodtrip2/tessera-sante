@@ -43,21 +43,42 @@
     var cat = V.catalogue('patients', ctx), vis = VE().colonnesVisibles(v, cat);
     return { cat: cat, cols: vis, col: function (code) { var x = vis.filter(function (y) { return y.col.code === code; })[0]; return x || null; } };
   }
-  function element(e, c, police) {
+  /**
+   * Une donnée de la case. o : { l (ligne), col, ecran, maintenant } — à l'écran, le nom du patient ouvre sa fiche (fenêtre
+   * par-dessus, sans quitter la Vue d'ensemble) et une donnée modifiable (consignes…) se modifie d'un clic.
+   */
+  function element(e, c, police, o) {
+    o = o || {};
     var vide = !c || c.lib === '—' || c.lib === '' || c.lib === null;
-    if (vide && e.masquerVide) return null;
+    if (vide && e.masquerVide && !(o.ecran && o.editable)) return null;
     var cls = 'tr-el' + (e.gras ? ' tr-gras' : '') + (e.italique ? ' tr-italique' : '') + (e.souligne ? ' tr-souligne' : '') + (e.majuscules ? ' tr-maj' : '') + (e.ligne ? ' tr-alaligne' : '');
     var coul = c && c.couleur ? U.champs.classeCouleur(c.couleur) : '';
     var el = h(e.ligne ? 'div' : 'span', { class: cls + (coul ? ' ' + coul : '') });
     if (e.taille) el.style.fontSize = (e.taille / police) + 'em';
     if (c && c.couleur && c.couleur.libelle) el.title = c.couleur.libelle;
     if (e.etiquette && c) el.appendChild(h('span', { class: 'tr-etiquette', text: (e.libelle || c.libelleCol) + ' : ' }));
-    if (c && c.liste && c.liste.length) c.liste.forEach(function (x, i) { el.appendChild(h('div', { class: 'tr-evt', text: x.quand + ' ' + x.titre + (i === c.liste.length - 1 ? '' : '') })); });
-    else el.appendChild(h('span', { text: vide ? '—' : c.lib }));
+    var lib = vide ? '—' : c.lib;
+    // Format de date choisi (12 novembre 2026) : date d'entrée en « J60 », autres dates en « 40 j »
+    if (!vide && e.format && o.col && (o.col.type === 'date')) lib = T.formaterDate(c.brute, e.format, { j: o.col.code === 'entree', maintenant: o.maintenant }) || lib;
+    if (c && c.liste && c.liste.length) c.liste.forEach(function (x) { el.appendChild(h('div', { class: 'tr-evt', text: x.quand + ' ' + x.titre })); });
+    else if (o.ecran && o.col && o.col.code === 'patient' && U.fichePatient) {
+      el.appendChild(h('button', { class: 'btn lien tr-lien', type: 'button', title: 'Ouvrir la fiche du patient', text: lib, onclick: function (ev) { ev.stopPropagation(); U.fichePatient.modale(((U.st() && U.st().patients) || {})[o.l.p.id] || o.l.p); } }));
+    } else el.appendChild(h('span', { text: vide && o.editable ? (e.etiquette ? '—' : (e.libelle || c.libelleCol) + ' : —') : lib }));
+    if (vide && o.ecran && o.editable && e.masquerVide) el.classList.add('tr-vide');   // à l'écran seulement, pour la remplir
+    if (o.ecran && o.editable) {
+      el.classList.add('tr-modifiable'); el.tabIndex = 0; el.title = 'Modifier : ' + c.libelleCol;
+      var ouvrir = function (ev) {
+        ev.stopPropagation();
+        var cont = el.closest('.tr-contenu'); if (cont) { cont.classList.remove('fixe'); cont.style.height = ''; cont.style.fontSize = ''; }
+        VE().editer(el, o.col, o.l, c);
+      };
+      el.addEventListener('click', function (ev) { if (!el.querySelector('.edition-case')) ouvrir(ev); });
+      el.addEventListener('keydown', function (ev) { if ((ev.key === 'Enter' || ev.key === ' ') && !el.querySelector('.edition-case')) { ev.preventDefault(); ouvrir(ev); } });
+    }
     if (!e.ligne) el.insertBefore(document.createTextNode(' '), el.firstChild);
     return el;
   }
-  function contenuCase(k, l, ctx, cv, police) {
+  function contenuCase(k, l, ctx, cv, police, ecran) {
     if (k.notes) return [];
     var colsTous = cv.cols.map(function (x) { return x.col; });
     return k.elements.map(function (e) {
@@ -66,7 +87,8 @@
       var c = V.cellule(x.col, l, ctx, x.vcol, colsTous);
       c.libelleCol = x.col.libelle;
       if (x.col.code === 'evenements') { var r = x.col.lire(l); c.liste = r.liste; }
-      return element(e, c, police);
+      var editable = !!ecran && x.col.code !== 'patient' && VE().modifiable(x.col, l);
+      return element(e, c, police, { l: l, col: x.col, ecran: ecran, editable: editable, maintenant: ctx.maintenant });
     }).filter(Boolean);
   }
 
@@ -104,13 +126,9 @@
       g.lignes.forEach(function (l) {
         var tr = h('tr', { class: 'tr-ligne' });
         t.cases.forEach(function (c) {
-          var div = h('div', { class: 'tr-contenu' + (t.hauteurLigne ? ' fixe' : '') + (c.notes ? ' tr-notes' : '') }, contenuCase(c, l, ctx, cv, t.police));
+          var div = h('div', { class: 'tr-contenu' + (t.hauteurLigne ? ' fixe' : '') + (c.notes ? ' tr-notes' : '') }, contenuCase(c, l, ctx, cv, t.police, !o.impression));
           if (t.hauteurLigne) div.style.height = (t.hauteurLigne * k) + 'mm';
           var td = h('td', {}, div);
-          if (!o.impression && l.p && U.fichePatient && c.elements.some(function (e) { return e.code === 'patient'; })) {
-            td.classList.add('tr-cliquable'); td.title = 'Ouvrir la fiche du patient';
-            td.addEventListener('click', function () { U.fichePatient.modale(((U.st() && U.st().patients) || {})[l.p.id] || l.p); });
-          }
           tr.appendChild(td);
         });
         tbody.appendChild(tr);
@@ -161,7 +179,7 @@
     var cadre = h('div', { class: 'tr-cadre' }, r.table);
     setTimeout(r.ajuster, 0);
     return h('div', { class: 'pile vue-ensemble' }, barre, cadre,
-      h('small', { class: 'muted', text: 'Le tableau tel qu’il sera imprimé. Glissez le bord d’un titre pour régler une colonne ; « Mise en page » pour les données de chaque case, leur mise en forme, la hauteur des lignes, l’en-tête et le pied de page. Clic sur un patient : sa fiche.' }));
+      h('small', { class: 'muted', text: 'Le tableau tel qu’il sera imprimé. Clic sur le nom d’un patient : sa fiche, par-dessus le tableau. Clic sur une donnée soulignée en pointillés (consignes…) : la modifier sur place, Entrée pour enregistrer. Glissez le bord d’un titre pour régler une colonne ; « Mise en page » pour les données, leur mise en forme et le format des dates.' }));
   }
   async function nouveau() {
     var admin = session().roles().indexOf('ADMIN') >= 0, mes = compte().services || [];
@@ -190,12 +208,15 @@
         (c.elements || []).forEach(function (e, j) {
           var sel = h('select', { 'aria-label': 'Donnée ' + (j + 1) + ' (case ' + (i + 1) + ')' }, cat.map(function (x) { return h('option', { value: x.code, text: x.libelle, selected: x.code === e.code }); }));
           if (!cat.some(function (x) { return x.code === e.code; })) sel.insertBefore(h('option', { value: e.code, text: e.code + ' (non disponible)', selected: true }), sel.firstChild);
-          sel.addEventListener('change', function () { e.code = sel.value; });
+          sel.addEventListener('change', function () { e.code = sel.value; dessiner(); });
+          var colE = cat.filter(function (x) { return x.code === e.code; })[0];
+          var format = colE && colE.type === 'date' ? h('select', { 'aria-label': 'Format de date (donnée ' + (j + 1) + ', case ' + (i + 1) + ')' }, Object.keys(T.FORMATS_DATE).map(function (k) { return h('option', { value: k, text: T.FORMATS_DATE[k], selected: (e.format || '') === k }); })) : h('span', { class: 'muted', text: '—' });
+          if (format.tagName === 'SELECT') format.addEventListener('change', function () { e.format = format.value; });
           var taille = h('select', { 'aria-label': 'Taille (donnée ' + (j + 1) + ', case ' + (i + 1) + ')' }, TAILLES.map(function (n) { return h('option', { value: n, text: n ? n + ' pt' : 'Normale', selected: (e.taille || 0) === n }); }));
           taille.addEventListener('change', function () { e.taille = +taille.value; });
           function cb(k, lib) { var x = h('input', { type: 'checkbox', checked: !!e[k], 'aria-label': lib + ' (donnée ' + (j + 1) + ', case ' + (i + 1) + ')' }); x.addEventListener('change', function () { e[k] = x.checked; }); return h('td', { class: 'centre' }, x); }
           var libE = h('input', { type: 'text', maxlength: 40, value: e.libelle || '', placeholder: 'par défaut', class: 'champ-court', 'aria-label': 'Libellé (donnée ' + (j + 1) + ', case ' + (i + 1) + ')' }); libE.addEventListener('input', function () { e.libelle = libE.value; });
-          tb.appendChild(h('tr', {}, h('td', {}, sel), h('td', {}, taille), cb('gras', 'Gras'), cb('italique', 'Italique'), cb('souligne', 'Souligné'), cb('majuscules', 'Majuscules'), cb('ligne', 'À la ligne'), cb('etiquette', 'Afficher le libellé'), h('td', {}, libE),
+          tb.appendChild(h('tr', {}, h('td', {}, sel), h('td', {}, format), h('td', {}, taille), cb('gras', 'Gras'), cb('italique', 'Italique'), cb('souligne', 'Souligné'), cb('majuscules', 'Majuscules'), cb('ligne', 'À la ligne'), cb('etiquette', 'Afficher le libellé'), h('td', {}, libE),
             h('td', { class: 'actions-ligne' },
               h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Monter la donnée ' + (j + 1), disabled: j === 0, onclick: function () { c.elements.splice(j - 1, 0, c.elements.splice(j, 1)[0]); dessiner(); } }, '↑'),
               h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Retirer la donnée ' + (j + 1) + ' (case ' + (i + 1) + ')', onclick: function () { c.elements.splice(j, 1); dessiner(); } }, '✕'))));
@@ -207,7 +228,7 @@
             h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Case ' + (i + 1) + ' vers la droite', disabled: i === t.cases.length - 1, onclick: function () { t.cases.splice(i + 1, 0, t.cases.splice(i, 1)[0]); dessiner(); } }, '→'),
             h('button', { class: 'btn petit danger', type: 'button', 'aria-label': 'Retirer la case ' + (i + 1), disabled: t.cases.length < 2, onclick: function () { t.cases.splice(i, 1); dessiner(); } }, 'Retirer')),
           c.notes ? h('p', { class: 'muted', text: 'Case laissée vide pour prendre des notes.' }) : h('div', { class: 'table-wrap' }, h('table', { class: 'sans-tri tr-reglage-elements' },
-            h('thead', {}, h('tr', {}, ['Donnée', 'Taille', 'Gras', 'Italique', 'Souligné', 'Majuscules', 'À la ligne', 'Libellé', 'Libellé affiché', ''].map(function (x) { return h('th', { text: x }); }))), tb)),
+            h('thead', {}, h('tr', {}, ['Donnée', 'Format de date', 'Taille', 'Gras', 'Italique', 'Souligné', 'Majuscules', 'À la ligne', 'Libellé', 'Libellé affiché', ''].map(function (x) { return h('th', { text: x }); }))), tb)),
           c.notes ? null : h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { c.elements.push({ code: cat[0].code, ligne: c.elements.length > 0 }); dessiner(); } }, '+ Donnée'))));
       });
       zone.appendChild(h('div', { class: 'actions gauche' },
