@@ -115,6 +115,12 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.34.2 (12 novembre 2026) : transfert des documents privés en option
+
+| Sujet | Décision du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Documents privés d'un compte retiré | Transfert au cadre **désactivé par défaut**, activable par l'administrateur ; sans l'option, seuls les documents partagés (avec au moins une personne) sont transférés, les documents privés restent illisibles | `documents.transfertPrives` (réglage commun) ; `DM.options`, `aTransferer` ; case dans *Administration → Documents* |
+
 ## Version 0.34.1 (branche `documents-2`, 12 novembre 2026) : Documents, réponses du porteur
 
 | Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
