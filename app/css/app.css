@@ -1230,3 +1230,9 @@ span.suivi-fmt { box-shadow: inset 0 -2px 0 #7e57c2; }
 .doc-corps.suivi-masque span.suivi-fmt { box-shadow: none; }
 .doc-corps.suivi-masque [data-suivi] { border-left: 0; padding-left: 0; outline: 0; opacity: 1; }
 .doc-corps.suivi-masque [data-suivi="del"] { display: none; }
+/* Documents : onglets du texte (0.39.0) */
+.doc-onglets { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; max-width: 297mm; margin: 0 auto .6rem; }
+.doc-onglet { border: 1px solid var(--line); background: var(--surface); border-radius: 6px 6px 0 0; padding: 4px 14px; font-size: .9rem; cursor: pointer; color: var(--ink); }
+.doc-onglet.actif { background: #fff; color: var(--accent); font-weight: 600; border-bottom: 2px solid var(--accent); }
+.doc-titre-onglet { font-size: 9pt; text-transform: uppercase; letter-spacing: .05em; color: #666; border-bottom: 1px solid #ccc; margin: 0 0 .6em; padding-bottom: .2em; }
+.doc-saut.doc-saut-onglet::after { content: "Onglet suivant"; }

@@ -115,6 +115,17 @@ Démonstration : sondage de dates à remplir (groupe qualité), choix unique pub
 
 Démonstration : chiffrement « au choix, coché au départ » ; message chiffré au service avec une réponse chiffrée ; message chiffré à l'équipe de nuit, dont l'agent connecté n'est pas membre (onglet *Consultation*). Tests : `tests/messagerie-chiffrement.test.js` (désactivé par défaut, remise des clés, écriture par un non-membre, lecture par les seuls destinataires, refus pour un autre service et pour l'administrateur, consultation après saisie seulement, chiffrement imposé, réinitialisation du mot de passe, « Tout renouveler ») ; parcours des écrans complété. Points restants : relecture de sécurité par un tiers (responsable de la sécurité informatique) ; nouveaux membres de groupe : clés remises à la prochaine connexion d'un administrateur ; « Transférer » un message chiffré crée un nouveau message (chiffré si la case est cochée).
 
+## Version 0.39.0 (branche `onglets`, 12 novembre 2026) : onglets dans les documents texte
+
+| Sujet | Décision du porteur (12 novembre 2026) | Fichiers, saisies, réglages |
+| --- | --- | --- |
+| Onglets | Un document texte peut être découpé en onglets (au plus 30) : « + Onglet » au-dessus de la page, renommer (double clic ou menu), déplacer, supprimer (le contenu reste dans l'historique) ; un seul onglet restant : document sans onglets ; mise en page commune à tous les onglets | Contenu `{ onglets: [{ id, titre, blocs }], page }` (sans onglets : `blocs`) ; `DM.ongletsDe`, `avecOnglets`, `MAX_ONGLETS` ; `ui-documents.js` (`dessinerOnglets`, `montrerOnglet`) |
+| Versions et travail à plusieurs | Comparaison onglet par onglet (onglet ajouté, retiré, renommé) ; fusion des enregistrements simultanés onglet par onglet (repérés par leur identifiant ; ajouté d'un côté : gardé) ; suivi des modifications dans chaque onglet, « Tout accepter » et « Tout refuser » pour tous les onglets | `DM.comparer`, `fusionnerVersions`, `modificationsSuivies` (`onglet`), `resoudreSuivi` |
+| Lecture et impression | Tous les onglets, chacun précédé de son titre et commençant sur une nouvelle page | `rendreContenuTexte` |
+| Non suivis | Ajout, suppression, renommage et déplacement d'un onglet (visibles dans la comparaison des versions) | — |
+| Démonstration | Livret d'accueil du service (fictif) en trois onglets | `demo.js` |
+| Tests | Modèle, texte, comparaison, fusion, suivi par onglet | `tests/documents.test.js` ; parcours des écrans complété |
+
 ## Version 0.38.0 (branche `suivi-etendu`, 12 novembre 2026) : suivi des modifications étendu
 
 | Sujet | Décisions du porteur (12 novembre 2026) | Fichiers, saisies, réglages |

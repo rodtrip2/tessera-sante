@@ -69,6 +69,18 @@
     return a;
   }
   function suiviDe(el) { return el && el.getAttribute && el.getAttribute('data-suivi') ? { op: el.getAttribute('data-suivi'), p: el.getAttribute('data-p') || '', n: el.getAttribute('data-n') || '', le: el.getAttribute('data-le') || '', id: el.getAttribute('data-id') || '' } : undefined; }
+  /** Rendu d'un contenu texte : avec onglets, chacun précédé de son titre et séparé par un saut de page (lecture, impression). */
+  function rendreContenuTexte(c, impression) {
+    var os = DM.ongletsDe(c);
+    if (os.length === 1 && !os[0].id) return rendreBlocs(os[0].blocs);
+    var res = [];
+    os.forEach(function (o, i) {
+      if (i) res.push(h('div', { class: 'doc-saut' + (impression ? '' : ' doc-saut-onglet') }));
+      res.push(h('div', { class: 'doc-titre-onglet', text: o.titre }));
+      res = res.concat(rendreBlocs(o.blocs));
+    });
+    return res;
+  }
   function rendreBlocs(blocs) {
     var res = [], pile = [];
     function fermer(n) { while (pile.length > n) pile.pop(); }
@@ -247,12 +259,64 @@
     var titre = h('input', { type: 'text', class: 'doc-titre', maxlength: 160, value: meta.titre === 'Sans titre' && !base ? '' : meta.titre, placeholder: 'Titre du document', 'aria-label': 'Titre du document', readonly: !modifiable });
     var etat = h('span', { class: 'doc-etat muted', 'aria-live': 'polite' });
     var corps = h('div', { class: 'doc-corps', contenteditable: modifiable ? 'true' : 'false', spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Texte du document' });
-    rendreBlocs(lu.contenu.blocs || []).forEach(function (n) { corps.appendChild(n); });
+    // Onglets (0.39.0) : un seul contenu affiché à la fois, les autres gardés ici
+    var onglets = lu.contenu.genre === 'tableur' ? [] : JSON.parse(JSON.stringify(DM.ongletsDe(lu.contenu))), actif = 0;
+    if (onglets.length) rendreBlocs(onglets[0].blocs || []).forEach(function (n) { corps.appendChild(n); });
+    var barreOnglets = h('div', { class: 'doc-onglets', role: 'tablist', 'aria-label': 'Onglets du document' });
     var entete = h('div'), pied = h('div'), feuille = h('div', { class: 'doc-feuille' }, entete, corps, pied);
     // Tableur (0.35.0) : surface du classeur à la place de la page de texte ; la fenêtre, l'enregistrement et le reste sont communs
     var tab = lu.contenu.genre === 'tableur' ? U.tableur.surface(lu.contenu, { modifiable: modifiable, changer: function () { marquer(); }, suivi: suiviActif, agent: { id: moi().id, nom: moi().nom }, nomAgent: function (x) { return nomAgent(x, doc(id) || d0); } }) : null;
     if (tab) page = tab.page;
-    function lireContenu() { return tab ? DM.contenu(tab.lire()) : DM.contenu({ blocs: lireBlocs(corps), page: page }); }
+    function garderOnglet() { if (onglets[actif]) onglets[actif].blocs = lireBlocs(corps); }
+    function lireContenu() { if (tab) return DM.contenu(tab.lire()); garderOnglet(); return DM.avecOnglets(JSON.parse(JSON.stringify(onglets)), page); }
+    function montrerOnglet(i) {
+      if (i === actif || !onglets[i]) return;
+      normaliserPage(); garderOnglet(); actif = i;
+      U.vider(corps); rendreBlocs(onglets[i].blocs).forEach(function (n) { corps.appendChild(n); });
+      dessinerOnglets(); dessinerBarre(); corps.focus();
+    }
+    function dessinerOnglets() {
+      U.vider(barreOnglets);
+      var avec = onglets.length > 1 || (onglets[0] && onglets[0].id);
+      if (avec) onglets.forEach(function (o, i) {
+        barreOnglets.appendChild(h('button', { type: 'button', class: 'doc-onglet' + (i === actif ? ' actif' : ''), role: 'tab', 'aria-selected': i === actif ? 'true' : 'false', onclick: function () { montrerOnglet(i); }, ondblclick: function () { if (modifiable) renommerOnglet(i); } }, o.titre));
+      });
+      if (modifiable) {
+        barreOnglets.appendChild(h('button', { type: 'button', class: 'btn petit', title: 'Ajouter un onglet', 'aria-label': 'Ajouter un onglet', onclick: ajouterOnglet }, avec ? '+' : '+ Onglet'));
+        if (avec) {
+          var menu = h('select', { class: 'doc-choix', 'aria-label': 'Onglet' }, [['', 'Onglet…'], ['renommer', 'Renommer'], ['gauche', 'Déplacer à gauche'], ['droite', 'Déplacer à droite'], ['supprimer', 'Supprimer']].map(function (x) { return h('option', { value: x[0], text: x[1] }); }));
+          menu.addEventListener('change', function () { var v = menu.value; menu.value = ''; actionOnglet(v); });
+          barreOnglets.appendChild(menu);
+        }
+      }
+      barreOnglets.hidden = !avec && !modifiable;
+    }
+    function nouvelId() { return 'o' + hex(5); }
+    function ajouterOnglet() {
+      if (onglets.length >= DM.MAX_ONGLETS) return U.toast('Au plus ' + DM.MAX_ONGLETS + ' onglets.');
+      normaliserPage(); garderOnglet();
+      if (!onglets[0].id) { onglets[0].id = nouvelId(); onglets[0].titre = 'Onglet 1'; }
+      onglets.push({ id: nouvelId(), titre: 'Onglet ' + (onglets.length + 1), blocs: [{ t: 'p', runs: [], al: 'g' }] });
+      marquer(); actif = -1; montrerOnglet(onglets.length - 1); renommerOnglet(onglets.length - 1);
+    }
+    function renommerOnglet(i) {
+      var champ = h('input', { type: 'text', maxlength: 60, value: onglets[i].titre, 'aria-label': 'Nom de l’onglet' });
+      U.modale('Renommer l’onglet', h('label', {}, 'Nom', champ), [{ texte: 'Annuler' }, { texte: 'Renommer', classe: 'primaire', action: function () { onglets[i].titre = champ.value.trim().slice(0, 60) || onglets[i].titre; marquer(); dessinerOnglets(); } }]);
+      setTimeout(function () { champ.select(); }, 50);
+    }
+    function actionOnglet(v) {
+      if (v === 'renommer') return renommerOnglet(actif);
+      garderOnglet();
+      if (v === 'gauche' && actif > 0) { onglets.splice(actif - 1, 0, onglets.splice(actif, 1)[0]); actif--; }
+      else if (v === 'droite' && actif < onglets.length - 1) { onglets.splice(actif + 1, 0, onglets.splice(actif, 1)[0]); actif++; }
+      else if (v === 'supprimer') {
+        if (!confirm('Supprimer l’onglet « ' + onglets[actif].titre + ' » et son contenu ? (Il reste dans l’historique des versions.)')) return;
+        onglets.splice(actif, 1); actif = Math.max(0, actif - 1);
+        if (onglets.length === 1) { onglets[0].id = ''; onglets[0].titre = ''; }   // plus qu'un : document sans onglets
+        U.vider(corps); rendreBlocs(onglets[actif].blocs).forEach(function (n) { corps.appendChild(n); });
+      } else return;
+      marquer(); dessinerOnglets(); dessinerBarre();
+    }
     function dessinerZones() {
       var v = valeursPage(doc(id) || d0, { titre: titre.value || 'Sans titre' });
       U.vider(entete).appendChild(zonesPage(page.entete, v, 'doc-entete'));
@@ -269,9 +333,11 @@
       if (document.activeElement !== titre && x.meta.titre !== (titre.value.trim() || 'Sans titre')) titre.value = x.meta.titre;
       meta.rattaches = x.meta.rattaches;
       if (tab) { tab.remplacer(x.contenu); return; }
-      var pos = positionCurseur();
-      U.vider(corps); rendreBlocs(x.contenu.blocs || []).forEach(function (n) { corps.appendChild(n); });
-      Object.assign(page, x.contenu.page); dessinerZones(); remettreCurseur(pos);
+      var pos = positionCurseur(), courant = onglets[actif] && onglets[actif].id;
+      onglets = JSON.parse(JSON.stringify(DM.ongletsDe(x.contenu)));
+      actif = Math.max(0, onglets.map(function (o) { return o.id; }).indexOf(courant));
+      U.vider(corps); rendreBlocs(onglets[actif].blocs || []).forEach(function (n) { corps.appendChild(n); });
+      Object.assign(page, x.contenu.page); dessinerZones(); remettreCurseur(pos); dessinerOnglets();
     }
     function positionCurseur() {
       var sel = window.getSelection(); if (!sel.rangeCount || !corps.contains(sel.anchorNode)) return null;
@@ -650,7 +716,7 @@
     // ---- Travail à plusieurs (0.37.0) : présence, édition simultanée, suivi des modifications
     var zonePresence = h('span', { class: 'doc-presence', 'aria-live': 'polite' });
     var MARQUES = 'ins.suivi-ins, del.suivi-del, span.suivi-fmt, [data-suivi]';
-    function nombreMarques() { if (tab) return tab.modifsSuivies().length; var ids = {}; Array.prototype.forEach.call(corps.querySelectorAll(MARQUES), function (el, i) { ids[el.getAttribute('data-id') || 'n' + i] = 1; }); return Object.keys(ids).length; }
+    function nombreMarques() { if (tab) return tab.modifsSuivies().length; if (onglets.length > 1) return DM.modificationsSuivies(lireContenu()).length; var ids = {}; Array.prototype.forEach.call(corps.querySelectorAll(MARQUES), function (el, i) { ids[el.getAttribute('data-id') || 'n' + i] = 1; }); return Object.keys(ids).length; }
     function ligneTravail(dd) {
       var o = opts(), n = nombreMarques();
       function option(k, v) { return async function () { try { await s().enregistrer('DOC_OPTIONS', Object.assign({ doc: id, simultane: o.simultane, suivi: o.suivi, nom: moi().nom }, (function () { var x = {}; x[k] = v; return x; })())); dessinerBarre(); U.toast(k === 'suivi' ? (v ? 'Suivi des modifications activé : vos ajouts et suppressions sont marqués.' : 'Suivi des modifications désactivé.') : (v ? 'Édition simultanée activée : les modifications des autres s’affichent en direct.' : 'Édition simultanée désactivée.')); } catch (e) { U.toast(e.message); } }; }
@@ -685,7 +751,8 @@
           return;
         }
         var vus = {}, els = Array.prototype.slice.call(corps.querySelectorAll(MARQUES)).filter(function (el) { var k = el.getAttribute('data-id'); if (!k) return true; if (vus[k]) return false; vus[k] = 1; return true; });
-        if (!els.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune modification suivie.' }));
+        if (!els.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune modification suivie' + (onglets.length > 1 ? ' dans cet onglet.' : '.') }));
+        if (onglets.length > 1) { var ailleurs = DM.modificationsSuivies(lireContenu()).filter(function (m) { return m.onglet !== onglets[actif].id; }).length; if (ailleurs) zone.appendChild(h('p', { class: 'info', text: 'Onglet « ' + onglets[actif].titre + ' » affiché ; ' + ailleurs + ' autre(s) modification(s) dans les autres onglets (« Tout accepter » et « Tout refuser » valent pour tous les onglets).' })); }
         els.forEach(function (el) {
           var ajout = el.tagName === 'INS', op = el.getAttribute('data-suivi'), fmt = el.classList.contains('suivi-fmt');
           var texteFmt = fmt ? Array.prototype.map.call(corps.querySelectorAll('span.suivi-fmt[data-id="' + el.getAttribute('data-id') + '"]'), function (x) { return x.textContent; }).join('').slice(0, 120) : '';
@@ -751,8 +818,9 @@
       dlg.close(); dlg.remove(); U.rendreContenu();
     }
     dlg.addEventListener('cancel', function (ev) { ev.preventDefault(); if (tab && tab.occupe()) { tab.annulerEdition(); return; } fermer(); });
-    dlg.appendChild(h('div', { class: 'doc-cadre' + (tab ? ' doc-tableur' : '') }, barre, tab ? tab.outils : outils, tab ? tab.zone : h('div', { class: 'doc-fond' }, feuille),
+    dlg.appendChild(h('div', { class: 'doc-cadre' + (tab ? ' doc-tableur' : '') }, barre, tab ? tab.outils : outils, tab ? tab.zone : h('div', { class: 'doc-fond' }, barreOnglets, feuille),
       h('p', { class: 'muted doc-rappel' }, h('small', { text: 'Document chiffré, partagé seulement avec les personnes choisies ; enregistré automatiquement, chaque enregistrement est une version. Aucune donnée clinique (le dossier du patient reste dans le DPI).' }))));
+    if (!tab) dessinerOnglets();
     document.body.appendChild(dlg);
     dlg.showModal();
     if (modifiable) setTimeout(function () { if (!titre.value) titre.focus(); else if (tab) tab.focus(); else corps.focus(); }, 50);
@@ -889,7 +957,7 @@
   }
   async function voir(d, v, zone) {
     var lu = await lireVersion(d, v);
-    U.vider(zone).appendChild(lu ? h('div', { class: 'doc-apercu' }, h('h3', { text: lu.meta.titre + ' — version du ' + dateCourte(v.le) }), lu.contenu.genre === 'tableur' ? U.tableur.apercu(lu.contenu) : h('div', { class: 'doc-corps fp-' + lu.contenu.page.police + ' ft-' + lu.contenu.page.taille }, rendreBlocs(lu.contenu.blocs))) : h('p', { class: 'alerte', text: 'Version illisible (clé retirée ou effacée).' }));
+    U.vider(zone).appendChild(lu ? h('div', { class: 'doc-apercu' }, h('h3', { text: lu.meta.titre + ' — version du ' + dateCourte(v.le) }), lu.contenu.genre === 'tableur' ? U.tableur.apercu(lu.contenu) : h('div', { class: 'doc-corps fp-' + lu.contenu.page.police + ' ft-' + lu.contenu.page.taille }, rendreContenuTexte(lu.contenu))) : h('p', { class: 'alerte', text: 'Version illisible (clé retirée ou effacée).' }));
   }
   async function comparerVersions(d, a, b, zone) {
     var la = await lireVersion(d, a), lb = await lireVersion(d, b);
@@ -986,7 +1054,7 @@
     var v = valeursPage(d, lu.meta, '');
     // La zone qui porte « {page} » est remplacée par le numéro « Page n sur N » de la marge du bas
     var pied = { gauche: p.pied.gauche, centre: p.pied.centre, droite: p.pied.droite }; if (zonePage) pied[zonePage] = '';
-    var corps = h('div', { class: 'doc-corps fp-' + p.police + ' ft-' + p.taille + ' lh-' + String(p.interligne).replace('.', '') }, rendreBlocs(lu.contenu.blocs));
+    var corps = h('div', { class: 'doc-corps fp-' + p.police + ' ft-' + p.taille + ' lh-' + String(p.interligne).replace('.', '') }, rendreContenuTexte(lu.contenu, true));
     var t = h('table', { class: 'doc-imprime-table' },
       h('thead', {}, h('tr', {}, h('td', {}, zonesPage(p.entete, v, 'doc-entete')))),
       h('tfoot', {}, h('tr', {}, h('td', {}, zonesPage(pied, v, 'doc-pied')))),
