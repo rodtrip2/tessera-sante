@@ -33,7 +33,9 @@
    */
   function options(config) {
     var o = (config && config.documents) || {}, j = Math.round(+o.corbeilleJours);
-    return { corbeilleJours: j >= 7 && j <= 365 ? j : CORBEILLE_JOURS };
+    // transfertPrives (0.34.2, désactivé par défaut) : les documents privés (partagés avec personne) d'un compte retiré
+    // sont aussi transférés au cadre ; sinon ils restent illisibles (seul leur auteur les ouvrait)
+    return { corbeilleJours: j >= 7 && j <= 365 ? j : CORBEILLE_JOURS, transfertPrives: o.transfertPrives === true };
   }
   function joursCorbeille(config) { return options(config).corbeilleJours; }
   var ID = /^DC[0-9a-f]{8,32}$/, JOUR = /^\d{4}-\d{2}-\d{2}$/;
@@ -315,10 +317,11 @@
    * d'un des services de l'auteur. [{ doc, vers: [ids] }] ; un document sans cadre trouvé attend.
    */
   function aTransferer(st, comptes, config) {
-    var cs = comptes || [], res = [];
+    var cs = comptes || [], res = [], prives = options(config).transfertPrives;
     Object.keys((st && st.docs) || {}).forEach(function (k) {
       var d = st.docs[k], a = cs.filter(function (c) { return c.id === d.auteur; })[0];
       if (d.efface || d.transfert || !a || a.actif !== false) return;
+      if (!prives && !(d.partage || []).length) return;   // document privé : transfert désactivé par défaut
       var vers = cs.filter(function (c) { return c.actif !== false && c.id !== a.id && (c.roles || []).indexOf('CADRE') >= 0 && (c.services || []).some(function (x) { return (a.services || []).indexOf(x) >= 0; }); }).map(function (c) { return c.id; });
       if (vers.length) res.push({ doc: d.id, vers: vers });
     });

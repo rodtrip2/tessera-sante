@@ -792,12 +792,14 @@
   function panneauReglages() {
     var o = DM.options(cfg()), adm = s().roles().indexOf('ADMIN') >= 0 && !s().apercu;
     var j = h('input', { type: 'number', min: 7, max: 365, value: o.corbeilleJours, class: 'champ-court', 'aria-label': 'Durée de la corbeille (jours)', disabled: !adm });
+    var tp = h('input', { type: 'checkbox', checked: o.transfertPrives, disabled: !adm, 'aria-label': 'Transférer aussi les documents privés' });
     return h('section', { class: 'panneau' }, h('h2', { text: 'Documents' }),
       h('label', {}, 'Durée de la corbeille, en jours (7 à 365 ; 30 par défaut)', j),
       h('p', { class: 'muted', text: 'Passé ce délai, un document de la corbeille est effacé définitivement à la connexion d’un agent du module : sa clé est détruite. Les sauvegardes faites avant gardent la clé jusqu’à leur propre expiration.' }),
-      h('p', { class: 'muted', text: 'Validation : rôle avec l’accès « Valider les documents » (cadre par défaut, Rôles et accès) ; il peut demander une validation supplémentaire à un agent nommé. Compte d’un auteur retiré : la gestion de ses documents passe au cadre de ses services, à la connexion de l’administrateur.' }),
+      h('label', { class: 'case' }, tp, h('span', { text: 'Compte d’un auteur retiré : transférer aussi au cadre ses documents privés, partagés avec personne (désactivé par défaut ; sinon ils restent illisibles, seul leur auteur les ouvrait)' })),
+      h('p', { class: 'muted', text: 'Validation : rôle avec l’accès « Valider les documents » (cadre par défaut, Rôles et accès) ; il peut demander une validation supplémentaire à un agent nommé. Compte d’un auteur retiré : la gestion de ses documents partagés passe au cadre de ses services, à la connexion de l’administrateur.' }),
       adm ? h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
-        try { var v = Math.round(+j.value); if (!(v >= 7 && v <= 365)) throw new Error('De 7 à 365 jours.'); await U.enregistrerConfig([['documents', v === 30 ? {} : { corbeilleJours: v }]]); U.toast('Réglages enregistrés.'); } catch (e) { alert(e.message); }
+        try { var v = Math.round(+j.value); if (!(v >= 7 && v <= 365)) throw new Error('De 7 à 365 jours.'); var val = {}; if (v !== 30) val.corbeilleJours = v; if (tp.checked) val.transfertPrives = true; await U.enregistrerConfig([['documents', val]]); U.toast('Réglages enregistrés.'); } catch (e) { alert(e.message); }
       } }, 'Enregistrer')) : null);
   }
   var LIB = { DOC: 'Documents : création', DOC_VERSION: 'Documents : version', DOC_PARTAGE: 'Documents : partage', DOC_STATUT: 'Documents : demande de validation ou retour en brouillon', DOC_VALIDATION: 'Documents : validation',
