@@ -32,8 +32,16 @@
   var TYPES_DEFAUT = [
     { code: 'CA', libelle: 'Congés annuels', abrev: 'CA', unite: 'ouvres', droit: 25, actif: true },
     { code: 'RTT', libelle: 'RTT', abrev: 'RTT', unite: 'ouvres', droit: 15, actif: true },
-    { code: 'JF', libelle: 'Jours fériés', abrev: 'JF', unite: 'ouvres', droit: null, actif: true, ferie: true }
+    { code: 'JF', libelle: 'Jours fériés', abrev: 'JF', unite: 'ouvres', droit: null, actif: true, ferie: true },
+    // Récupérations de temps partiel (décision du porteur du 12 novembre 2026) : droit calculé selon la quotité
+    { code: 'RTP', libelle: 'Récupérations de temps partiel', abrev: 'RTP', unite: 'ouvres', droit: null, actif: true, rtp: true }
   ];
+  /**
+   * Calcul des RTP proposé (à valider par l'établissement) : jours par an = (100 − quotité) % × base, la base étant le
+   * nombre de jours travaillés par an à temps plein ; une table « quotité → jours par an » remplace le calcul pour les
+   * quotités qu'elle donne (règle propre à l'établissement).
+   */
+  var RTP_DEFAUT = { base: 228, table: {} };
   // Validateur selon le rôle de l'agent (proposition, réglable par l'administrateur)
   var VALIDATEURS_DEFAUT = { IDE: 'CADRE', AS: 'CADRE', SECRETAIRE: 'CADRE', CADRE: 'CADRE_SUP', CADRE_SUP: 'DIRECTEUR_SOINS', MEDECIN: 'MEDECIN_CHEF_SERVICE', MEDECIN_CHEF_SERVICE: 'MEDECIN_CHEF_POLE', '*': 'CADRE' };
   // Ordre de préséance des rôles : le rôle « principal » d'un agent qui en cumule plusieurs (validateur, fériés)
@@ -86,9 +94,12 @@
     var types = (Array.isArray(v.types) && v.types.length ? v.types : TYPES_DEFAUT).filter(function (t) { return t && /^[A-Z0-9_]{1,12}$/.test(t.code || '') && !vus[t.code] && (vus[t.code] = 1); }).map(function (t) {
       var def = TYPES_DEFAUT.filter(function (x) { return x.code === t.code; })[0] || {};
       return { code: t.code, libelle: texte(t.libelle, 60) || def.libelle || t.code, abrev: texte(t.abrev, 6) || t.code, unite: UNITES[t.unite] ? t.unite : 'ouvres',
-        droit: t.ferie || def.ferie ? null : nombre(t.droit, 0, 400, null), actif: t.actif !== false, ferie: !!(t.ferie || def.ferie) };
+        droit: t.ferie || def.ferie || t.rtp || def.rtp ? null : nombre(t.droit, 0, 400, null), actif: t.actif !== false, ferie: !!(t.ferie || def.ferie), rtp: !!(t.rtp || def.rtp) && !(t.ferie || def.ferie) };
     });
     if (!types.some(function (t) { return t.ferie; })) types.push(Object.assign({}, TYPES_DEFAUT[2]));
+    if (!types.some(function (t) { return t.rtp; })) types.push(Object.assign({}, TYPES_DEFAUT[3]));
+    var r0 = v.rtp || {}, rtab = {};
+    Object.keys(r0.table || {}).forEach(function (k) { var q = +k, n = nombre(r0.table[k], 0, 200, null); if (q >= 10 && q < 100 && Math.round(q) === q && n !== null) rtab[q] = n; });
     var val = Object.assign({}, VALIDATEURS_DEFAUT);
     Object.keys(v.validateurs || {}).forEach(function (k) { if (/^[A-Z0-9_*]{1,30}$/.test(k) && /^[A-Z0-9_]{1,30}$/.test(v.validateurs[k] || '')) val[k] = v.validateurs[k]; });
     var f = v.feries || {}, rf = {};
@@ -100,6 +111,7 @@
       souhaits: v.souhaits !== false,
       // Quotité et repos du temps partiel dans les tableaux (décision du porteur du 12 novembre 2026 : masqués par défaut)
       afficherTempsPartiel: v.afficherTempsPartiel === true,
+      rtp: { base: nombre(r0.base, 0, 366, RTP_DEFAUT.base), table: rtab },
       arrondi: [0.5, 1].indexOf(+v.arrondi) >= 0 ? +v.arrondi : 0.5,
       feries: { afficher: f.afficher !== false, locaux: (Array.isArray(f.locaux) ? f.locaux : []).filter(function (x) { return x && (/^\d{2}-\d{2}$/.test(x.date || '') || JOUR.test(x.date || '')); }).slice(0, 30).map(function (x) { return { date: x.date, libelle: texte(x.libelle, 60) }; }) },
       regleFeries: rf,
@@ -234,7 +246,23 @@
   }
 
   // ------------------------------------------------------------ Droits et soldes (décompte simple)
-  function arrondir(x, pas) { return Math.ceil(x / pas - 1e-9) * pas; }
+  /** Jours de RTP par an pour une quotité (table de l'établissement, sinon (100 − quotité) % × base). */
+  function rtpPourQuotite(config, q) {
+    var r = options(config).rtp;
+    if (q >= 100) return 0;
+    if (typeof r.table[q] === 'number') return r.table[q];
+    return Math.round((100 - q) * r.base) / 100;
+  }
+  /**
+   * RTP de l'année : chaque jour pèse 1/365 (ou 1/366) du droit de la quotité de ce jour-là, pour suivre un changement
+   * de quotité en cours d'année ; arrondi comme les autres droits. Le cadre corrige si le calcul ne convient pas.
+   */
+  function rtpAnnee(st, config, agent, an) {
+    var js = jours(an + '-01-01', an + '-12-31'), s = 0, memo = {};
+    js.forEach(function (j) { var q = quotiteLe(st, agent, j).quotite; if (memo[q] === undefined) memo[q] = rtpPourQuotite(config, q); s += memo[q]; });
+    return js.length ? arrondir(s / js.length, options(config).arrondi) : 0;
+  }
+  function arrondir(x, pas) { return Math.ceil(x / pas - 1e-9) * pas + 0; }
   /**
    * Fériés de l'année pour un agent : selon le mode (service, rôle). Posé d'office : les fériés qui tombent un jour où
    * il aurait travaillé sont posés d'office (droit = pris). À récupérer : chaque férié sur un jour de travail ouvre un
@@ -255,6 +283,7 @@
     o.types.filter(function (t) { return t.actif; }).forEach(function (t) {
       var calc;
       if (t.ferie) { var f = feriesAgent(st, config, agent, an, info && info.service, info && info.roles, info && info.aujourdhui); calc = f.mode === 'planning' ? 0 : f.nombre; }
+      else if (t.rtp) calc = rtpAnnee(st, config, agent, an);
       else calc = t.droit === null ? 0 : arrondir(t.droit * q / 100, o.arrondi);
       var s = typeof saisis[t.code] === 'number' ? saisis[t.code] : null;
       res[t.code] = { droit: s !== null ? s : calc, calcule: calc, saisi: s, base: t.droit, quotite: Math.round(q * 10) / 10 };
@@ -543,7 +572,7 @@
 
   registre.declarer(contrat);
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, STATUTS: STATUTS, EFFETS: EFFETS, MODES_FERIES: MODES_FERIES, UNITES: UNITES,
-    TYPES_DEFAUT: TYPES_DEFAUT, VALIDATEURS_DEFAUT: VALIDATEURS_DEFAUT, COULEURS_DEFAUT: COULEURS_DEFAUT, ALERTE_DEFAUT: ALERTE_DEFAUT, PRESEANCE: PRESEANCE,
+    TYPES_DEFAUT: TYPES_DEFAUT, RTP_DEFAUT: RTP_DEFAUT, rtpPourQuotite: rtpPourQuotite, rtpAnnee: rtpAnnee, VALIDATEURS_DEFAUT: VALIDATEURS_DEFAUT, COULEURS_DEFAUT: COULEURS_DEFAUT, ALERTE_DEFAUT: ALERTE_DEFAUT, PRESEANCE: PRESEANCE,
     options: options, type: type, feries: feries, estFerie: estFerie, paques: paques, modeFeries: modeFeries, rolePrincipal: rolePrincipal, controlerCadre: controlerCadre,
     quotiteLe: quotiteLe, quotiteMoyenne: quotiteMoyenne, historiqueQuotite: historiqueQuotite, jourCompte: jourCompte, rtpHabituel: rtpHabituel, decompte: decompte, droitsAnnee: droits, soldes: soldes, congesDe: congesDe,
     periodes: periodes, periodesDuJour: periodesDuJour, horsDelai: horsDelai, regles: regles, agentsDuTableau: agentsDuTableau, grille: grille,

@@ -153,7 +153,7 @@ test('Contrôles : dates, type, souhaits désactivés, période bloquée, règle
 
 test('Réglages : types ajoutés, validateurs, couleurs, message d’avertissement ; le cadre règle les fériés de ses services', () => {
   const o = C.options({ conges: { types: [{ code: 'CA', libelle: 'Congés annuels', droit: 27 }, { code: 'CET', libelle: 'Compte épargne-temps', droit: null }], alerte: { active: true } } });
-  assert.deepEqual(o.types.map((t) => t.code), ['CA', 'CET', 'JF']); assert.equal(o.types[0].droit, 27);
+  assert.deepEqual(o.types.map((t) => t.code), ['CA', 'CET', 'JF', 'RTP']); assert.equal(o.types[0].droit, 27);
   assert.equal(o.alerte.active, true); assert.match(o.alerte.texte, /seul le logiciel de gestion du temps/);
   assert.equal(C.options({}).alerte.active, false); assert.equal(C.options({}).souhaits, true);
   const a = { regleFeries: { U1: { IDE: 'recuperer' } } };
@@ -183,4 +183,22 @@ test('Date limite de dépôt (0.44.1) : demande tardive non prioritaire, non com
   assert.throws(() => C.controler('PERIODE_CONGES', { id: 'q', service: 'U1', libelle: 'Été (fictif)', debut: '2027-07-01', fin: '2027-08-31', effet: 'limite', limite: '2027-07-15' }, ctx), /date limite/);
   assert.doesNotThrow(() => C.controler('PERIODE_CONGES', { id: 'q', service: 'U1', libelle: 'Été (fictif)', debut: '2027-07-01', fin: '2027-08-31', effet: 'limite', limite: '2027-03-31' }, ctx));
   assert.equal(C.options({}).afficherTempsPartiel, false); assert.equal(C.options({ conges: { afficherTempsPartiel: true } }).afficherTempsPartiel, true);
+});
+
+test('RTP (0.45.0) : droit selon la quotité, table de l’établissement, changement de quotité en cours d’année, correction du cadre', () => {
+  let st = C.reduire([]);
+  assert.equal(C.droitsAnnee(st, {}, 'ide', 2027, ide).RTP.droit, 0, 'temps plein : aucune RTP');
+  st = C.reduire([ev('QUOTITE', { agent: 'ide', depuis: '2027-01-01', quotite: 80, nonTravailles: [] })]);
+  assert.equal(C.rtpPourQuotite({}, 80), 45.6); assert.equal(C.droitsAnnee(st, {}, 'ide', 2027, ide).RTP.droit, 46, '20 % × 228, au demi-jour supérieur');
+  assert.equal(C.droitsAnnee(st, { conges: { rtp: { base: 210 } } }, 'ide', 2027, ide).RTP.droit, 42, 'base de l’établissement');
+  assert.equal(C.droitsAnnee(st, { conges: { rtp: { table: { 80: 40 } } } }, 'ide', 2027, ide).RTP.droit, 40, 'table de l’établissement');
+  // 100 % jusqu'au 30 juin (181 jours), 50 % ensuite (184 jours) : 114 × 184 / 365 = 57,5
+  st = C.reduire([ev('QUOTITE', { agent: 'ide', depuis: '2027-07-01', quotite: 50, nonTravailles: [] })]);
+  const d = C.droitsAnnee(st, {}, 'ide', 2027, ide).RTP;
+  assert.equal(d.calcule, 57.5);
+  st = C.reduire([ev('QUOTITE', { agent: 'ide', depuis: '2027-07-01', quotite: 50, nonTravailles: [] }), ev('DROITS_CONGES', { agent: 'ide', annee: 2027, droits: { RTP: 55 } })]);
+  const d2 = C.droitsAnnee(st, {}, 'ide', 2027, ide).RTP;
+  assert.deepEqual([d2.droit, d2.saisi, d2.calcule], [55, 55, 57.5], 'saisie du cadre, calcul proposé gardé pour référence');
+  assert.equal(C.options({ conges: { rtp: { table: { 80: 'x', 150: 3, 75: 30 } } } }).rtp.table[75], 30); assert.equal(C.options({ conges: { rtp: { table: { 80: 'x' } } } }).rtp.table[80], undefined);
+  assert.equal(C.options({ conges: { types: [{ code: 'CA', libelle: 'CA', droit: 25 }] } }).types.some((t) => t.rtp), true, 'type RTP toujours présent');
 });
