@@ -112,6 +112,14 @@
    * Journal qui reçoit une saisie : celui de la saisie visée pour une annulation, le socle pour ses saisies, sinon le
    * module qui déclare le type de saisie (fiche patient → module Patients), à défaut le module affiché.
    */
+  /** Périmètre (pôle) du patient d'une valeur réservée au pôle : service du séjour en cours, sinon de la fiche (0.32.0). */
+  function perimetrePatient(s, def, data) {
+    if (!def || def.perimetre !== 'pole') return '';
+    if (data && typeof data.perimetre === 'string' && data.perimetre) return data.perimetre;   // lot (démonstration, import)
+    var p = s.etat && s.etat.patients && data && s.etat.patients[data.id], sv = null;
+    ((p && p.sejours) || []).forEach(function (x) { if (!x.sortie && x.service) sv = x.service; });
+    return CH().perimetreDe(config(s), sv || (p && p.service) || '');
+  }
   function journalPour(s, js, type, data) {
     if (js.length === 1 && js[0].nom !== SOCLE) return js[0];   // jeu de formation : un seul journal
     if (type === 'ANNULATION' && data && data.cible) {
@@ -122,9 +130,9 @@
     // Valeur d'une donnée ajoutée (0.18.0) : journal de sa clé propre, sinon du module de rattachement
     if (type === 'VALEUR' && CH()) {
       // Définition connue, sinon journal indiqué dans la saisie (lot qui crée la donnée et ses valeurs : démonstration, import)
-      var def = CH().definition(config(s), data && data.champ), nomJ = def ? CH().journalDe(def) : (data && typeof data.journal === 'string' ? data.journal : null);
+      var def = CH().definition(config(s), data && data.champ), nomJ = def ? CH().journalDe(def, perimetrePatient(s, def, data)) : (data && typeof data.journal === 'string' ? data.journal : null);
       var jv = nomJ && js.filter(function (x) { return x.nom === nomJ; })[0];
-      if (!jv) throw new Error(def && CH().cleDe(def) && !(s.coffre && s.coffre.cles && s.coffre.cles[nomJ]) ? 'La clé propre de « ' + def.libelle + ' » n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.' : 'Vous n’avez pas la clé de « ' + (def ? def.libelle : 'cette donnée') + ' » : saisie impossible.');
+      if (!jv) throw new Error(def && def.protection === 'cle' && nomJ && !(s.coffre && s.coffre.cles && s.coffre.cles[nomJ]) ? 'La clé propre de « ' + def.libelle + ' » n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.' : 'Vous n’avez pas la clé de « ' + (def ? def.libelle : 'cette donnée') + ' »' + (def && def.perimetre === 'pole' ? ' pour le pôle de ce patient' : '') + ' : saisie impossible.');
       return jv;
     }
     // Part d'un instantané de la Vue d'ensemble (0.19.5) : rangée dans le journal des colonnes qu'elle porte (Patients,
@@ -341,7 +349,7 @@
     });
     oublierJournaux(s);
     await s.synchroniser();
-    await s.tracer('CLE_MODULE', { cles: manquantes, libelle: 'clé créée pour ' + manquantes.map(function (n) { var m = SIC.modules && SIC.modules.obtenir(n), d = /^d-/.test(n) && CH() ? CH().definition(config(s), n.slice(2)) : null; return m ? m.libelle : d ? 'la donnée « ' + d.libelle + ' »' : n; }).join(', ') });
+    await s.tracer('CLE_MODULE', { cles: manquantes, libelle: 'clé créée pour ' + manquantes.map(function (n) { var m = SIC.modules && SIC.modules.obtenir(n), lk = /^d-/.test(n) && CH() ? CH().lireCle(n) : null, d = lk ? CH().definition(config(s), lk.id) : null; return m ? m.libelle : d ? 'la donnée « ' + d.libelle + ' »' + (lk.perimetre ? ' (' + lk.perimetre.replace(/^sv-/, '') + ')' : '') : n; }).join(', ') });
   }
   /**
    * Demandes de comptes d'intervenants extérieurs (0.31.0) : la session d'un administrateur crée les comptes préparés par
@@ -468,7 +476,13 @@
       if (nom === T.PLATEFORME || (compte.roles || []).indexOf('ADMIN') >= 0) return true;
       if (regles[nom]) return regles[nom](compte);
       // Clé propre d'une donnée (0.18.0) : remise aux seuls rôles qui la voient ou la saisissent (administrateur toujours)
-      if (/^d-/.test(nom)) { var dc = CH() && CH().definition(cfg, nom.slice(2)); return !!(dc && dc.protection === 'cle' && dc.actif && CH().aDroitCle(dc, compte.roles)); }
+      if (/^d-/.test(nom)) {
+        var lc = CH() ? CH().lireCle(nom) : { id: nom.slice(2) }, dc = CH() && CH().definition(cfg, lc.id);
+        if (!(dc && dc.protection === 'cle' && dc.actif && CH().aDroitCle(dc, compte.roles))) return false;
+        // Donnée réservée au pôle (0.32.0) : agents affectés à un service du périmètre seulement (pas les rôles « tous services »)
+        if (dc.perimetre === 'pole') { var svp = CH().servicesDuPerimetre(cfg, lc.perimetre); return !!lc.perimetre && (compte.services || []).some(function (x) { return svp.indexOf(x) >= 0; }); }
+        return true;
+      }
       // Équipe (0.27.0) : coordonnées personnelles d'un service, remises au cadre du service (et aux rôles d'encadrement à venir)
       if (/^e-[pm]\./.test(nom)) {
         var sve = nom.slice(4), rse = compte.roles || [], de = SIC.modules.obtenir('equipe') && SIC.modules.obtenir('equipe').droits;
@@ -1295,8 +1309,8 @@
     if (roles.indexOf('ADMIN') >= 0 || roles.indexOf('CADRE') >= 0) return;
     var v = type === 'COMPLEMENT' ? (((s.etat && s.etat.patients && s.etat.patients[data.patientId]) || {}).complements || {})[data.champ]
       : (((s.valeurs()[data.entite] || {})[data.id]) || {})[data.champ];
-    var l = Array.isArray(v) ? v : (v && v.elements) || [], x = l.filter(function (e) { return e.id === data.op.retrait; })[0];
-    if (x && x.par && x.par !== s.utilisateur.id) throw new Error('Seuls son auteur et le cadre retirent cet élément.');
+    var cible = data.op.retrait || (data.op.tiers && data.op.tiers.element), l = Array.isArray(v) ? v : (v && v.elements) || [], x = l.filter(function (e) { return e.id === cible; })[0];
+    if (x && x.par && x.par !== s.utilisateur.id) throw new Error(data.op.tiers ? 'Seuls son auteur et le cadre marquent cette note.' : 'Seuls son auteur et le cadre retirent cet élément.');
   }
   /** Valeurs des données ajoutées portées par les saisies `VALEUR` (champs.js, reduireValeurs), recalculées au besoin. */
   Session.prototype.valeurs = function () {
@@ -1326,7 +1340,7 @@
     }
     // Aperçu d'un rôle : rien n'est enregistré (seules les traces techniques des opérations réellement faites passent)
     if (this.apercu && type !== 'COMPTE') throw new Error('Aperçu de l’affichage du rôle « ' + this.apercu.libelle + ' » : aucune saisie n’est enregistrée. Revenez à votre affichage (liste « Affichage » en haut de l’écran) pour saisir.');
-    if ((type === 'VALEUR' || type === 'COMPLEMENT') && data && data.op && data.op.retrait && !(options && options.sansControle)) controlerRetrait(this, type, data);
+    if ((type === 'VALEUR' || type === 'COMPLEMENT') && data && data.op && (data.op.retrait || data.op.tiers) && !(options && options.sansControle)) controlerRetrait(this, type, data);
     if (type === 'VALEUR') { if (!(options && options.sansControle)) controlerValeur(this, data); }
     else {
       if (!(options && options.sansControle) && !this.peut(type) && !permisPourSoi(this, type, data)) throw new Error("Votre rôle ne permet pas cette action.");

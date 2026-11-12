@@ -333,7 +333,7 @@
   async function clore(v) {
     var ctx = contexte(), cat = V.catalogue(v.lignes, ctx), cols = colonnesVisibles(v, cat), ls = V.lignes(v, ctx), groupes = V.ranger(v, ls, cat, ctx, cols.map(function (x) { return x.col; }));
     var id = 'I' + C.hex(C.aleatoire(6)), prep = V.preparerInstantane(v, groupes, cols, ctx, id);
-    var detenus = prep.parts.filter(function (p) { return p.journal === 'vue' || p.journal === 'patients' || (session().detientCle && session().detientCle(p.journal)) || p.journal.indexOf('d-') === 0; });
+    var detenus = prep.parts.filter(function (p) { return p.journal === 'vue' || p.journal === 'patients' || (session().detientCle && session().detientCle(p.journal)) || (p.journal.indexOf('d-') === 0 && (p.journal.indexOf('.') < 0 || (session().detientCle && session().detientCle(p.journal)))); });
     if (!confirm('Clore la feuille « ' + v.nom + ' » du ' + U.date(Date.now()) + ' ?\n\nL’instantané garde les ' + ls.length + ' ligne(s) et les ' + cols.length + ' colonne(s) telles qu’elles sont maintenant. Il ne sera plus modifiable (des annotations datées restent possibles).')) return;
     try {
       for (var i = 0; i < detenus.length; i++) await session().enregistrer('INSTANTANE_PART', detenus[i].data);

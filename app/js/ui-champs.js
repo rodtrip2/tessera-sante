@@ -27,10 +27,12 @@
   /** Peut-on lire la donnée (rôles réglés, clé propre détenue) ? */
   function lisible(champ) {
     if (!CH.peutVoir(champ, roles())) return false;
-    var cle = CH.cleDe(champ) || champ.module, t = session().trousseau;
+    var t = session().trousseau;
     if (!t) return true;
-    var j = t[cle];
-    return !!j && (j.v1 || !!j.maitresse || Object.keys(j.octets || {}).length > 0);
+    function tient(cle) { var j = t[cle]; return !!j && (j.v1 || !!j.maitresse || Object.keys(j.octets || {}).length > 0); }
+    // Réservée au pôle (0.32.0) : lisible dès qu'une clé d'un périmètre est détenue (les valeurs des autres pôles restent illisibles)
+    if (champ.perimetre === 'pole') return CH.clesDe(champ, U.config()).some(tient);
+    return tient(CH.cleDe(champ) || champ.module);
   }
   /**
    * Raison pour laquelle une donnée n'est pas proposée à l'agent ('' si elle l'est) : masquée, rôle qui ne la voit pas,
@@ -39,8 +41,9 @@
   function raisonIndisponible(champ) {
     if (!champ.actif) return 'masquée';
     if (!CH.peutVoir(champ, roles())) return 'votre rôle ne la voit pas';
-    var cle = CH.cleDe(champ), s = session();
-    if (cle && !(s.coffre && s.coffre.cles && s.coffre.cles[cle])) return 'clé propre pas encore créée : elle le sera à la prochaine connexion d’un administrateur';
+    var cles = CH.clesDe(champ, U.config()), cle = cles[0] || null, s = session();
+    if (cles.length && !cles.some(function (k) { return s.coffre && s.coffre.cles && s.coffre.cles[k]; })) return 'clé propre pas encore créée : elle le sera à la prochaine connexion d’un administrateur';
+    if (champ.perimetre === 'pole' && !lisible(champ)) return 'réservée aux agents du pôle du patient';
     if (!lisible(champ)) return cle ? 'vous n’avez pas sa clé propre' : 'vous n’avez pas la clé du module « ' + (((SIC.modules.obtenir(champ.module) || {}).libelle) || champ.module) + ' »';
     return '';
   }
@@ -108,6 +111,10 @@
       return h('li', { class: 'note imp-' + n.importance },
         h('span', { class: 'note-texte', text: n.texte }),
         h('small', { class: 'muted', text: ' — ' + session().nomAuteur(n.par) + ', ' + U.court(Date.parse(n.le)) + (n.importance !== 'info' ? ' — ' + CH.IMPORTANCES[n.importance] : '') }),
+        n.tiers ? h('span', { class: 'badge', title: 'Information d’un tiers : exclue du droit d’accès du patient', text: 'tiers' }) : null,
+        o.peut && (n.par === moi || cadre) ? h('button', { class: 'btn petit', type: 'button', 'aria-label': n.tiers ? 'Ne plus marquer comme information d’un tiers' : 'Marquer comme information d’un tiers', title: n.tiers ? 'Ne plus marquer « information d’un tiers »' : 'Marquer « information d’un tiers » (exclue du droit d’accès du patient)', onclick: async function () {
+          try { await o.enregistrerOp({ tiers: { element: n.id, tiers: !n.tiers } }); if (o.apres) o.apres(); } catch (e) { alert(e.message); }
+        } }, n.tiers ? 'Pas un tiers' : 'Tiers') : null,
         peutRetirer ? h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Retirer la note', title: 'Retirer (la note reste dans l’historique)', onclick: async function () {
           if (!confirm('Retirer cette note ? Elle reste dans l’historique.')) return;
           try { await o.enregistrerOp({ retrait: n.id }); if (o.apres) o.apres(); } catch (e) { alert(e.message); }
@@ -116,12 +123,13 @@
     if (!o.peut) return h('div', { class: 'notes' }, liste);
     var t = h('input', { type: 'text', maxlength: 300, placeholder: 'Note courte et organisationnelle', 'aria-label': 'Nouvelle note' });
     var imp = h('select', { 'aria-label': 'Importance' }, Object.keys(CH.IMPORTANCES).map(function (k) { return h('option', { value: k, text: CH.IMPORTANCES[k] }); }));
+    var tiersN = h('input', { type: 'checkbox', 'aria-label': 'Information d’un tiers' });
     var ajouter = async function () {
       if (!t.value.trim()) return t.focus();
-      try { await o.enregistrerOp({ ajout: { id: idCourt('n'), texte: t.value, importance: imp.value } }); t.value = ''; if (o.apres) o.apres(); } catch (e) { alert(e.message); }
+      try { await o.enregistrerOp({ ajout: { id: idCourt('n'), texte: t.value, importance: imp.value, tiers: tiersN.checked } }); t.value = ''; tiersN.checked = false; if (o.apres) o.apres(); } catch (e) { alert(e.message); }
     };
     t.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); ajouter(); } });
-    return h('div', { class: 'notes' }, liste, h('div', { class: 'actions gauche' }, t, imp, h('button', { class: 'btn petit', type: 'button', onclick: ajouter }, 'Ajouter')),
+    return h('div', { class: 'notes' }, liste, h('div', { class: 'actions gauche' }, t, imp, h('label', { class: 'case', title: 'Information qui concerne un tiers ou vient d’un tiers : exclue du droit d’accès du patient' }, tiersN, h('span', { text: 'Information d’un tiers' })), h('button', { class: 'btn petit', type: 'button', onclick: ajouter }, 'Ajouter')),
       h('small', { class: 'muted', text: 'Aucune donnée clinique : les notes relèvent de l’organisation (démarches, rendez-vous, points à voir).' }));
   }
   /** Check-list : éléments du modèle et éléments libres (si la donnée le permet), cochés aussitôt et datés. */
@@ -205,6 +213,7 @@
         var ag = ent.value === 'agent';
         avertAgent.hidden = !ag; mod.disabled = !!existant || ag; if (typeof ligneSoi !== 'undefined') ligneSoi.hidden = !ag;
         if (ligneTiers) ligneTiers.hidden = ag;
+        if (typeof lignePole !== 'undefined' && lignePole) lignePole.hidden = ag;
         if (ligneClin) ligneClin.hidden = ag;
         if (ag) { prot.value = 'cle'; prot.disabled = true; if (!x.lecture.length) x.lecture.push('CADRE'); if (!x.saisie.length) x.saisie.push('CADRE'); }
         else if (!existant && !clin.checked) prot.disabled = false;
@@ -220,6 +229,10 @@
         if (clin.checked) { prot.value = 'cle'; prot.disabled = true; } else if (!existant) prot.disabled = false;
       });
       var ligneTiers = h('label', { class: 'case' }, tiers, h('span', { text: 'Information concernant un tiers : exclue des exports remis au patient (droit d’accès)' }));
+      // Réservée au pôle du patient (0.32.0) : informations très sensibles, une clé par pôle
+      var pole = h('input', { type: 'checkbox', checked: x.perimetre === 'pole', disabled: !!existant });
+      pole.addEventListener('change', function () { if (pole.checked) { prot.value = 'cle'; prot.disabled = true; } else if (!existant && !clin.checked) prot.disabled = false; });
+      var lignePole = h('label', { class: 'case' }, pole, h('span', { text: 'Réservée au pôle du patient (informations très sensibles) : seuls les agents des services du pôle, avec les rôles cochés, reçoivent la clé ; ne change plus une fois la donnée enregistrée' }));
       var ligneClin = admin ? h('label', { class: 'case' }, clin, h('span', { text: 'Donnée clinique (option réservée à l’administrateur, après avertissement)' })) : null;
       selonEntite();
       var zoneType = h('div', { class: 'pile' });
@@ -253,7 +266,7 @@
           h('label', {}, 'Visible par', multi(x.lecture, rs.map(function (r) { return { code: r.code, libelle: r.libelle }; }), 'Tous', 'Visible par'))),
         h('label', {}, 'Protection', prot), ligneSoi,
         h('small', { class: 'muted', text: 'Clé propre : seuls les rôles cochés (« Visible par », « Modifiée par ») reçoivent la clé qui déchiffre la donnée ; indiquez-les. La protection ne change plus une fois la donnée enregistrée.' }),
-        ligneTiers, ligneClin,
+        ligneTiers, lignePole, ligneClin,
         h('div', { class: 'alerte', text: 'Aucune donnée clinique par défaut : ni traitement, ni diagnostic, ni symptôme, ni antécédent. Chaque donnée ajoutée est à inscrire au registre des traitements (délégué à la protection des données).' }));
       U.modale(existant ? 'Modifier la donnée' : 'Nouvelle donnée', corps, [{ texte: 'Annuler' }, { texte: 'Valider', classe: 'primaire', action: async function () {
         var n = lib.value.trim();
@@ -276,6 +289,7 @@
         if (prot.value === 'cle' || clin.checked) o.protection = 'cle';
         if (o.protection === 'cle' && !o.lecture.length && !o.saisie.length) throw new Error('Donnée à clé propre : cochez les rôles qui la voient ou la modifient.');
         if (tiers.checked) o.tiers = true;
+        if (pole.checked && ent.value === 'patient') { o.perimetre = 'pole'; o.protection = 'cle'; }
         if (clin.checked) o.clinique = true;
         if (x.actif === false) o.actif = false;
         o.par = x.par || { role: cadre ? 'CADRE' : 'ADMIN', services: cadre ? x.services.slice() : [] };
@@ -318,7 +332,7 @@
         try { await enregistrerListe(l); U.rendreContenu(); } catch (e) { alert(e.message); actif.checked = !actif.checked; }
       } });
       corps.appendChild(h('tr', { class: c.actif === false ? 'ancienne' : '' },
-        h('td', {}, h('b', { text: c.libelle }), n.clinique ? h('span', { class: 'badge bad', text: 'clinique' }) : null, n.tiers ? h('span', { class: 'badge', text: 'tiers' }) : null),
+        h('td', {}, h('b', { text: c.libelle }), n.clinique ? h('span', { class: 'badge bad', text: 'clinique' }) : null, n.tiers ? h('span', { class: 'badge', text: 'tiers' }) : null, n.perimetre === 'pole' ? h('span', { class: 'badge', text: 'pôle du patient' }) : null),
         h('td', { text: CH.TYPES[c.type] || c.type }), h('td', { text: CH.ENTITES[n.entite] || '' }),
         h('td', { text: ((SIC.modules.obtenir(n.module) || {}).libelle) || n.module }),
         h('td', { text: (n.services || []).length ? n.services.map(U.libService).join(', ') : 'Tous' }),
