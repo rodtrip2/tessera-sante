@@ -77,6 +77,9 @@
         { id: 'activite-preferee', libelle: 'Activité préférée', type: 'texte', entite: 'patient', module: 'patients', services: [], saisie: [], lecture: [], actif: false },
         { id: 'tel-proche', libelle: 'Téléphone de la personne à prévenir', type: 'telephone', entite: 'patient', module: 'patients', services: [], saisie: ['IDE', 'CADRE', 'SECRETAIRE'], lecture: ['IDE', 'CADRE', 'SECRETAIRE'], tiers: true },
         { id: 'activites', libelle: 'Activités thérapeutiques', type: 'choixMultiple', choix: ['Piscine', 'Jardin', 'Musique', 'Cuisine', 'Sport adapté'], entite: 'patient', module: 'patients', services: [], saisie: ['IDE', 'AS', 'CADRE'], lecture: [] },
+        // Consignes du tableau de transmissions (0.30.0) : choix réglés par le cadre, précisions en texte libre (fictifs)
+        { id: 'consignes', libelle: 'Consignes', type: 'choixMultiple', choix: ['Repas en chambre', 'Temps en chambre de 17 h à 18 h', 'Sorties accompagnées', 'Visites en salle des familles', 'Téléphone à la demande'], entite: 'patient', module: 'patients', services: [], saisie: ['IDE', 'CADRE'], lecture: [] },
+        { id: 'consignes-precisions', libelle: 'Précisions sur les consignes', type: 'texte', entite: 'patient', module: 'patients', services: [], saisie: ['IDE', 'CADRE'], lecture: [] },
         { id: 'demarches', libelle: 'Démarches et rendez-vous', type: 'notes', entite: 'patient', module: 'patients', services: [], saisie: ['IDE', 'AS', 'CADRE', 'SECRETAIRE'], lecture: [], tri: 'desc' },
         { id: 'accueil', libelle: 'Check-list d’entrée', type: 'checklist', entite: 'patient', module: 'patients', services: ['U1'], saisie: ['IDE', 'AS', 'CADRE'], lecture: [], libre: true, par: { role: 'CADRE', services: ['U1'] },
           modele: [{ id: 'inventaire', libelle: 'Inventaire des effets personnels' }, { id: 'livret', libelle: 'Livret d’accueil remis' }, { id: 'droits', libelle: 'Information sur les droits' }, { id: 'personne-confiance', libelle: 'Personne de confiance recueillie' }] },
@@ -123,6 +126,9 @@
             { id: 'tres-longs', titre: 'Présents depuis plus de 90 jours', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'depuisPlusDe', n: 90 }] },
             { id: 'longs', titre: 'Présents depuis plus de 30 jours', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'depuisPlusDe', n: 30 }] }],
           autres: { titre: 'Autres patients' }, synthese: ['effectif', 'places', 'sorties', 'parMode', 'parMedecin', 'ageMoyen'], instantane: { roles: ['CADRE'] } },
+        // Tableau de transmissions de l'Unité 1 (0.30.0) : modèle du cadre, plusieurs données par case, consignes, événements, notes
+        { id: 'transmissions-u1', nom: 'Transmissions Unité 1', type: 'transmissions', lignes: 'patients', services: ['U1'], roles: [], perimetre: 'hospitalises', tri: { colonne: 'chambre', sens: 1 }, par: { role: 'CADRE', services: ['U1'] },
+          transmissions: (SIC.transmissions || (typeof require === 'function' ? require('./transmissions.js') : null)).modele({ consignes: ['c:sorties-libres', 'c:consignes', 'c:consignes-precisions'] }), groupes: [], synthese: [] },
         { id: 'medecins', nom: 'Médecins', lignes: 'medecins', services: [], roles: [], colonnes: [{ code: 'nom' }, { code: 'initiales' }, { code: 'fonction' }, { code: 'statut' }, { code: 'presence' }, { code: 'c:tel-pro' }, { code: 'c:jours-presence' }, { code: 'patients1' }, { code: 'patients2' }, { code: 'retards' }], groupes: [], synthese: [] },
         { id: 'equipe', nom: 'Équipe', lignes: 'agents', services: [], roles: ['CADRE'], colonnes: [{ code: 'nom' }, { code: 'roles' }, { code: 'groupes' }, { code: 'referent' }, { code: 'absence' }, { code: 'taches' }, { code: 'c:afgsu' }, { code: 'c:habilitations' }], groupes: [], synthese: [] }] });
       // Véhicules : deux données ajoutées par l'administrateur (fictives)
@@ -218,6 +224,10 @@
     if (!reel) {
       ajouter(t(-24 * 5), 'COMPLEMENT', { patientId: 'P01', champ: 'tel-proche', valeur: '06 00 00 00 01' });
       ajouter(t(-24 * 5), 'COMPLEMENT', { patientId: 'P01', champ: 'activites', valeur: ['Piscine', 'Musique'] });
+      ajouter(t(-24 * 3), 'COMPLEMENT', { patientId: 'P01', champ: 'consignes', valeur: ['Repas en chambre', 'Temps en chambre de 17 h à 18 h'] });
+      ajouter(t(-24 * 3), 'COMPLEMENT', { patientId: 'P03', champ: 'consignes', valeur: ['Sorties accompagnées', 'Téléphone à la demande'] });
+      ajouter(t(-24 * 2), 'COMPLEMENT', { patientId: 'P03', champ: 'consignes-precisions', valeur: 'Appel à la famille le soir après 19 h (fictif)' });
+      ajouter(t(-24 * 1), 'COMPLEMENT', { patientId: 'P05', champ: 'consignes', valeur: ['Visites en salle des familles'] });
       ajouter(t(-24 * 5), 'COMPLEMENT', { patientId: 'P03', champ: 'activites', valeur: ['Jardin'] });
       ajouter(t(-24 * 4), 'COMPLEMENT', { patientId: 'P01', champ: 'demarches', op: { ajout: { id: 'nd1', texte: 'Dossier MDPH à compléter (fictif)', importance: 'important' } } });
       ajouter(t(-24 * 2), 'COMPLEMENT', { patientId: 'P01', champ: 'demarches', op: { ajout: { id: 'nd2', texte: 'Rendez-vous banque jeudi (fictif)', importance: 'info' } } });

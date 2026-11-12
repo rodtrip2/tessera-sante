@@ -24,6 +24,7 @@
   else (root.SIC = root.SIC || {}).vue = factory(root.SIC.noyauJournal, root.SIC.droits, root.SIC.model, root.SIC.modules, root.SIC.champs, root.SIC.couleurs, root.SIC.formules, root.SIC.medecins, root.SIC.listePatients, root.SIC.capacites, root.SIC.sorties);
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, CH, CO, F, MED, L, K, SO) {
   SO = SO || require('./sorties.js');
+  var T = (typeof self !== 'undefined' && self.SIC && self.SIC.transmissions) || require('./transmissions.js');
   'use strict';
 
   var TYPES = ['INSTANTANE', 'INSTANTANE_PART', 'INSTANTANE_NOTE'];
@@ -50,6 +51,8 @@
         groupes: [{ id: 'entrants', titre: 'Entrés depuis 7 jours', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'depuisMoinsDe', n: 7 }] },
           { id: 'longs', titre: 'Présents depuis plus de 90 jours', combinaison: 'toutes', conditions: [{ colonne: 'entree', op: 'depuisPlusDe', n: 90 }] }],
         autres: { titre: 'Autres patients' }, synthese: ['effectif', 'places', 'sorties', 'parMode', 'parMedecin', 'ageMoyen'], instantane: { roles: ['CADRE'] } },
+      // Tableau de transmissions (0.30.0), à imprimer pour les transmissions orales
+      { id: 'transmissions', nom: 'Transmissions', type: 'transmissions', lignes: 'patients', services: [], roles: [], perimetre: 'hospitalises', tri: { colonne: 'chambre', sens: 1 }, transmissions: T.modele(), groupes: [], synthese: [] },
       { id: 'medecins', nom: 'Médecins', lignes: 'medecins', services: [], roles: [], colonnes: ['nom', 'initiales', 'fonction', 'statut', 'presence', 'patients1', 'patients2', 'retards'].map(function (c) { return { code: c }; }), groupes: [], synthese: [] },
       { id: 'equipe', nom: 'Équipe', lignes: 'agents', services: [], roles: ['CADRE'], colonnes: ['nom', 'roles', 'groupes', 'referent', 'absence', 'taches'].map(function (c) { return { code: c }; }), groupes: [], synthese: [] }
     ];
@@ -69,8 +72,11 @@
     var lignes = LIGNES[v.lignes] ? v.lignes : 'patients';
     var cols = (Array.isArray(v.colonnes) ? v.colonnes : []).map(function (c) { return typeof c === 'string' ? { code: c } : c; }).filter(function (c) { return c && texte(c.code); })
       .map(function (c) { return { code: texte(c.code, 60), roles: liste(c.roles), affichage: c.affichage === 'initiales' ? 'initiales' : 'nom', regles: CO.regles(c.regles), libelle: texte(c.libelle, 60), largeur: largeur(c.largeur) }; });
+    // Tableau de transmissions (0.30.0) : colonnes déduites des données citées par les cases ; mise en page validée
+    var trans = v.type === 'transmissions' && lignes === 'patients' ? T.normaliser(v.transmissions) : null;
+    if (trans) cols = T.codes(trans).map(function (c) { var x = cols.filter(function (y) { return y.code === c; })[0]; return x || { code: c, roles: [], affichage: 'nom', regles: [], libelle: '', largeur: 0 }; });
     if (!cols.length) cols = [{ code: lignes === 'patients' ? 'patient' : 'nom', roles: [], affichage: 'nom', regles: [], libelle: '', largeur: 0 }];
-    return {
+    var res = {
       id: v.id, nom: texte(v.nom, 60), lignes: lignes, services: liste(v.services), roles: liste(v.roles),
       perimetre: PERIMETRES[v.perimetre] ? v.perimetre : 'hospitalises',
       tri: { colonne: texte(v.tri && v.tri.colonne, 60) || cols[0].code, sens: v.tri && v.tri.sens === -1 ? -1 : 1 },
@@ -83,6 +89,8 @@
       instantane: { roles: v.instantane && Array.isArray(v.instantane.roles) ? liste(v.instantane.roles) : ['CADRE'] },
       par: v.par && typeof v.par === 'object' ? { role: v.par.role === 'CADRE' ? 'CADRE' : 'ADMIN', services: liste(v.par.services) } : null
     };
+    if (trans) { res.type = 'transmissions'; res.transmissions = trans; }
+    return res;
   }
   function vues(config) {
     var x = (config && config.vuesEnsemble) || {}, src = Array.isArray(x.vues) ? x.vues : vuesProposees(), vus = {};
@@ -193,6 +201,12 @@
         col({ code: 'dernierEntretien', libelle: 'Dernier entretien médical', type: 'date', journal: 'suivi', reglage: 'suivi.entretien', defaut: { regles: CO.reglesEcheance() }, delaiSuivi: true, edition: { type: 'suivi', quoi: 'entretien' }, lire: function (l) { return suiviDe(ctx, l.p, 'entretien') || { v: null, lib: '—', brute: null }; } });
         col({ code: 'contrat', libelle: 'Contrat de soins réévalué le', type: 'date', journal: 'suivi', reglage: 'suivi.contrat', defaut: { regles: CO.reglesEcheance() }, delaiSuivi: true, edition: { type: 'suivi', quoi: 'contrat' }, lire: function (l) { return suiviDe(ctx, l.p, 'contrat') || { v: null, lib: '—', brute: null }; } });
       }
+      // Prochains événements du patient dans l'Agenda (0.30.0) : horizon de la vue (jours), lus par qui détient la clé de l'Agenda
+      if (ctx.evenements) col({ code: 'evenements', libelle: 'Prochains événements', type: 'texte', journal: 'agenda', lire: function (l) {
+        var ev = ctx.evenements(l.p.id) || [];
+        var t = ev.map(function (e) { return e.quand + ' ' + e.titre; }).join(' ; ');
+        return { v: t || null, lib: t || '—', brute: ev.length ? ev[0].debut : null, liste: ev };
+      } });
       if (ctx.mesuresEnCours) col({ code: 'mesuresEnCours', libelle: 'Isolement / contention en cours', type: 'texte', journal: 'isocont', lire: function (l) { var t = ctx.mesuresEnCours(l.p.id) || ''; return { v: t || null, lib: t || '—', brute: t || null }; } });
     }
     if (entite === 'medecins') {
@@ -469,5 +483,5 @@
   registre.declarer(contrat);
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, LIGNES: LIGNES, PERIMETRES: PERIMETRES, SYNTHESE: SYNTHESE, vuesProposees: vuesProposees, normaliser: normaliser, vues: vues, vuesPour: vuesPour, vueDe: vueDe,
     peutRegler: peutRegler, peutClore: peutClore, controlerCadre: controlerCadre, catalogue: catalogue, colonneDe: colonneDe, lignes: lignes, cellule: cellule, ranger: ranger, synthese: synthese,
-    preparerInstantane: preparerInstantane, instantanes: instantanes, largeur: largeur, conservationMois: conservationMois, auDelaConservation: auDelaConservation, jourISO: jourISO };
+    preparerInstantane: preparerInstantane, instantanes: instantanes, largeur: largeur, T: T, conservationMois: conservationMois, auDelaConservation: auDelaConservation, jourISO: jourISO };
 });
