@@ -92,7 +92,7 @@
   function badgeTardive(c) { return h('span', { class: 'badge cg-badge-tardive', title: 'Déposée après la date limite de « ' + c.tardive.libelle + ' » : non prioritaire, visible de l’agent et du validateur seulement jusqu’à la validation.', text: 'Non prioritaire (déposée après le ' + jourFr(c.tardive.limite) + ')' }); }
   function badgeQuotite(a) {
     var q = C.quotiteLe(st(), a.id, auj());
-    return q.quotite < 100 || q.nonTravailles.length ? h('span', { class: 'badge', text: 'Temps partiel ' + q.quotite + ' %' + (q.nonTravailles.length ? ' — ' + q.nonTravailles.map(function (d) { return JS[d].replace('.', ''); }).join(', ') + ' non travaillé' + (q.nonTravailles.length > 1 ? 's' : '') : '') }) : null;
+    return q.quotite < 100 || q.nonTravailles.length ? h('span', { class: 'badge', text: 'Temps partiel ' + q.quotite + ' %' + (q.nonTravailles.length ? ' — ' + q.nonTravailles.map(function (d) { return JS[d].replace('.', ''); }).join(', ') + ' : RTP habituel' : '') }) : null;
   }
   function ligneConge(c, avecAgent) {
     var lui = c.agent === moi().id, a = agent(c.agent), v = validateurDe(a);
@@ -149,7 +149,7 @@
       if (!fin.value) fin.value = deb.value;
       if (y.fin < y.debut) { zone.appendChild(h('p', { class: 'alerte', text: 'La date de fin est avant la date de début.' })); return; }
       var v = C.verifier(st(), cfg(), y, { comptes: comptes(), aujourdhui: auj() });
-      zone.appendChild(h('p', { class: 'info', text: nb(v.jours) + ' jour(s) décompté(s)' + (v.soldeApres !== undefined ? ' ; solde de « ' + libType(y.type) + ' » après la demande : ' + nb(v.soldeApres) + ' jour(s)' : '') + '.' + (C.quotiteLe(st(), a.id, y.debut).nonTravailles.length ? ' Jours non travaillés (temps partiel) et fériés non décomptés.' : ' Jours fériés non décomptés.') }));
+      zone.appendChild(h('p', { class: 'info', text: nb(v.jours) + ' jour(s) décompté(s)' + (v.soldeApres !== undefined ? ' ; solde de « ' + libType(y.type) + ' » après la demande : ' + nb(v.soldeApres) + ' jour(s)' : '') + '.' + ' Jours fériés non décomptés' + (C.quotiteLe(st(), a.id, y.debut).quotite < 100 ? ' ; pendant un congé, aucune RTP n’est posée : tous les jours ouvrés sont décomptés.' : '.') }));
       if (v.soldeApres < 0) zone.appendChild(h('p', { class: 'alerte', text: 'Le solde deviendrait négatif.' }));
       var pts = [];
       v.bloquees.forEach(function (p) { pts.push(h('li', { class: 'cg-bloque', text: 'Période bloquée par le validateur : ' + p.libelle + ' (du ' + jourFr(p.debut) + ' au ' + jourFr(p.fin) + ')' + (validateurDe(a) ? ' — vous pouvez la saisir en tant que validateur.' : ' : demande impossible sur ces dates.') })); });
@@ -237,7 +237,7 @@
     var ps = C.periodes(st(), t.service, t.debut, t.fin);
     return h('div', { class: 'cg-legende' }, h('b', { text: 'Statut :' }), stt.map(function (k) { return h('span', {}, teinte(h('span', { class: 'cg-pastille cg-' + k }), k), C.STATUTS[k]); }),
       o().feries.afficher ? h('span', {}, teinte(h('span', { class: 'cg-pastille cg-ferie' }), 'ferie'), 'Férié posé d’office') : null,
-      o().afficherTempsPartiel ? h('span', {}, h('span', { class: 'cg-pastille cg-nt' }), 'Jour non travaillé (temps partiel)') : null,
+      o().afficherTempsPartiel ? h('span', {}, h('span', { class: 'cg-pastille cg-nt' }), 'RTP habituel (temps partiel, hors congé)') : null,
       peut('CONGE_DECISION') || s().roles().indexOf('ADMIN') >= 0 || ps.some(function (p) { return p.effet === 'limite'; }) ? h('span', {}, h('span', { class: 'cg-pastille cg-pastille-tardive' }), 'Demande non prioritaire (déposée après la date limite)') : null,
       ps.length ? h('b', { text: 'Périodes :' }) : null, ps.map(function (p) { return h('span', {}, couleurPeriode(h('span', { class: 'cg-pastille cg-p-' + p.effet }), { periodes: [p] }), p.libelle + (p.effet === 'bloquee' ? ' (bloquée)' : p.effet === 'eviter' ? ' (à éviter)' : p.effet === 'limite' ? ' (dépôt avant le ' + jourFr(p.limite) + ')' : '')); }),
       o().delaiMois ? h('span', {}, h('span', { class: 'cg-pastille cg-p-delai' }), 'Hors délai de demande (' + o().delaiMois + ' mois)') : null,
@@ -286,9 +286,9 @@
     var nt = cel.nonTravaille && o().afficherTempsPartiel;
     var el = h('div', { class: 'cg-case ' + classePeriode(j) + (j.semaine === 0 || j.semaine === 6 ? ' cg-we' : '') });
     couleurPeriode(el, j);
-    if (nt && !(c && c.statut !== 'refuse')) { el.className = 'cg-case cg-nt'; el.title = 'Jour non travaillé (temps partiel)'; }
+    if (nt && !(c && c.statut !== 'refuse')) { el.className = 'cg-case cg-nt'; el.title = 'RTP habituel (temps partiel)'; }
     else if (c && (c.statut !== 'souhait' || montreSouhait) && (c.statut !== 'refuse' || voit)) {
-      el.className = 'cg-case cg-' + c.statut + (nt ? ' cg-nt-dans' : '') + (c.statut === 'demande' && c.tardive ? ' cg-tardive' : ''); teinte(el, c.statut);
+      el.className = 'cg-case cg-' + c.statut + (c.statut === 'demande' && c.tardive ? ' cg-tardive' : ''); teinte(el, c.statut);
       el.title = a.compte.nom + ' — ' + (voit ? libType(c.type) + ' — ' : '') + C.STATUTS[c.statut] + (c.statut === 'demande' && c.tardive ? ' — non prioritaire (déposée après le ' + jourFr(c.tardive.limite) + ')' : '');
       if (j.iso === c.debut || premier) el.appendChild(h('span', { text: voit ? abrevType(c.type) : '' }));
       el.addEventListener('click', function () { modaleConge(c); }); el.tabIndex = 0; el.setAttribute('role', 'button');
@@ -297,6 +297,12 @@
     else if (v && peut('CONGE') && !lui) { el.classList.add('cg-libre'); el.title = 'Saisir un congé pour ' + a.compte.nom; el.addEventListener('click', function () { modaleDemande(null, { agent: a.compte.id, debut: j.iso, fin: j.iso }); }); }
     if (j.ferie && !el.classList.contains('cg-ferie') && o().feries.afficher) el.classList.add('cg-col-ferie');
     return el;
+  }
+  /** Case de total : nombre en congé (règle non respectée en rouge), et « (+n) » des demandes non prioritaires pour le validateur. */
+  function caseTotal(v, max, k) {
+    var e = h('div', { class: 'cg-case ' + (max !== null && v > max ? 'cg-total-depasse' : v || k ? '' : 'cg-zero') }, h('span', { text: v ? String(v) : k ? '0' : '·' }));
+    if (k) { e.classList.add('cg-avec-np'); e.appendChild(h('small', { class: 'cg-total-np', text: '(+' + k + ')' })); e.title = k + ' demande(s) non prioritaire(s) en plus, non comptée(s) dans les règles'; }
+    return e;
   }
   function grilleJours(t, g) {
     var n = g.jours.length, colonnes = 'minmax(170px, 210px) repeat(' + n + ', minmax(26px, 1fr))';
@@ -325,10 +331,11 @@
       var rt = g.regles.filter(function (x) { return x.pour === '*'; })[0];
       lignesT.push(['*', 'Total en congé', rt ? rt.max : null]);
       if (o().souhaits && t.souhaits !== false && (peut('CONGE_DECISION') || s().roles().indexOf('ADMIN') >= 0)) lignesT.push(['souhaits', 'dont souhaits (non comptés)', null]);
-      if ((peut('CONGE_DECISION') || s().roles().indexOf('ADMIN') >= 0) && (g.comptes.tardives || []).some(function (v) { return v; })) lignesT.push(['tardives', 'Non prioritaires (non comptées)', null]);
+      // Demandes non prioritaires (déposées après la date limite) : comptées à part, entre parenthèses, pour le validateur seulement
+      var voitNP = peut('CONGE_DECISION') || s().roles().indexOf('ADMIN') >= 0, np = (g.comptes.nonPrioritaires) || {};
       lignesT.forEach(function (x) {
         var r = ligne('cg-total'); r.appendChild(h('div', { class: 'cg-nom', text: x[1] }));
-        (g.comptes[x[0]] || []).forEach(function (v) { r.appendChild(h('div', { class: 'cg-case ' + (x[2] !== null && v > x[2] ? 'cg-total-depasse' : v ? '' : 'cg-zero'), text: v ? String(v) : '·' })); });
+        (g.comptes[x[0]] || []).forEach(function (v, i) { r.appendChild(caseTotal(v, x[2], voitNP && np[x[0]] ? np[x[0]][i] : 0)); });
         bloc.appendChild(r);
       });
     }
@@ -353,9 +360,10 @@
       var r = ligne(), lui = a.compte.id === moi().id, v = validateurDe(a.compte);
       r.appendChild(h('div', { class: 'cg-nom' }, h('b', { text: a.compte.nom })));
       sem.forEach(function (x) {
-        var cels = x.idx.map(function (i) { return a.cases[i]; }), vus = cels.filter(function (c) { return c.conge && !c.nonTravaille && (c.statut === 'valide' || (c.statut === 'demande' && (!c.conge.tardive || lui || v)) || (c.statut === 'souhait' && (lui || v))); });
+        var cels = x.idx.map(function (i) { return a.cases[i]; }), vus = cels.filter(function (c) { return c.conge && (c.statut === 'valide' || (c.statut === 'demande' && (!c.conge.tardive || lui || v)) || (c.statut === 'souhait' && (lui || v))); });
         var pire = ['demande', 'valide', 'souhait'].filter(function (k) { return vus.some(function (c) { return c.statut === k; }); })[0];
         var e = h('div', { class: 'cg-case' + (pire ? ' cg-' + pire : '') }, vus.length ? String(vus.length) : '');
+        if (vus.some(function (c) { return c.statut === 'demande' && c.conge.tardive; })) e.classList.add('cg-tardive');
         if (pire) { teinte(e, pire); e.title = a.compte.nom + ' : ' + vus.length + ' jour(s) de congé dans la semaine'; e.tabIndex = 0; e.setAttribute('role', 'button'); e.addEventListener('click', function () { vue.mode = 'jour'; vue.ref = x.lundi; U.rendreContenu(); }); }
         if (g.depassements.some(function (d) { return (d.regle.pour === '*' || (a.compte.roles || []).indexOf(d.regle.pour) >= 0) && x.idx.some(function (i) { return d.jours.indexOf(g.jours[i].iso) >= 0; }); })) e.classList.add('cg-depasse');
         r.appendChild(e);
@@ -363,12 +371,13 @@
       bloc.appendChild(r);
     });
     if (t.totaux !== false) {
+      var voitNP = peut('CONGE_DECISION') || s().roles().indexOf('ADMIN') >= 0, np = (g.comptes.nonPrioritaires) || {};
       var lignesT = g.regles.filter(function (x) { return x.pour !== '*'; }).map(function (x) { return [x.pour, libRole(x.pour) + ' (max. simultanés)', x.max]; });
       var rt = g.regles.filter(function (x) { return x.pour === '*'; })[0];
       lignesT.push(['*', 'Tous (max. simultanés)', rt ? rt.max : null]);
       lignesT.forEach(function (x) {
         var r = ligne('cg-total'); r.appendChild(h('div', { class: 'cg-nom', text: x[1] }));
-        sem.forEach(function (w) { var v = Math.max.apply(null, w.idx.map(function (i) { return (g.comptes[x[0]] || [])[i] || 0; })); r.appendChild(h('div', { class: 'cg-case ' + (x[2] !== null && v > x[2] ? 'cg-total-depasse' : v ? '' : 'cg-zero'), text: v ? String(v) : '·' })); });
+        sem.forEach(function (w) { var v = Math.max.apply(null, w.idx.map(function (i) { return (g.comptes[x[0]] || [])[i] || 0; })), k = voitNP && np[x[0]] ? Math.max.apply(null, w.idx.map(function (i) { return np[x[0]][i] || 0; })) : 0; r.appendChild(caseTotal(v, x[2], k)); });
         bloc.appendChild(r);
       });
     }
@@ -521,14 +530,14 @@
     var dep = h('input', { type: 'date', value: auj(), 'aria-label': 'À partir du' }), qt = h('input', { type: 'number', min: 10, max: 100, step: 5, value: q.quotite, class: 'champ-court', 'aria-label': 'Quotité (%)' });
     var cases = [1, 2, 3, 4, 5, 6, 0].map(function (d) { return { d: d, cb: h('input', { type: 'checkbox', checked: q.nonTravailles.indexOf(d) >= 0 }) }; });
     U.modale('Quotité de travail — ' + a.nom, h('div', { class: 'pile' },
-      hist.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Depuis', 'Quotité', 'Jours non travaillés', ''].map(function (x) { return h('th', { text: x }); }))), h('tbody', {}, hist.map(function (x) {
+      hist.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Depuis', 'Quotité', 'RTP habituel', ''].map(function (x) { return h('th', { text: x }); }))), h('tbody', {}, hist.map(function (x) {
         return h('tr', {}, h('td', { text: jourFr(x.depuis) }), h('td', { text: x.quotite + ' %' }), h('td', { text: (x.nonTravailles || []).map(function (d) { return JS[d]; }).join(', ') || '—' }),
           h('td', {}, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (confirm('Retirer ce changement de quotité ?')) s().enregistrer('QUOTITE', { agent: a.id, depuis: x.depuis, supprime: true, service: info(a).service }).then(function () { U.toast('Retiré.'); }, function (e) { alert(e.message); }); } }, 'Retirer')));
       }))) : h('p', { class: 'muted', text: 'Temps plein (aucune quotité enregistrée).' }),
       h('h3', { text: 'Nouveau changement' }),
       h('div', { class: 'grille-2' }, h('label', {}, 'À partir du', dep), h('label', {}, 'Quotité (%)', qt)),
-      h('fieldset', {}, h('legend', { text: 'Jours non travaillés chaque semaine' }), h('div', { class: 'actions gauche' }, cases.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: JS[c.d] })); }))),
-      h('small', { class: 'muted', text: 'Les droits de l’année sont recalculés au prorata des jours passés à chaque quotité ; les jours non travaillés ne sont jamais décomptés d’une demande. Quotité pour un temps partiel régulier ; un planning irrégulier se règle par les droits saisis.' })),
+      h('fieldset', {}, h('legend', { text: 'Jour(s) de RTP habituel(s), facultatif (affichage seulement)' }), h('div', { class: 'actions gauche' }, cases.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: JS[c.d] })); }))),
+      h('small', { class: 'muted', text: 'Les droits de l’année sont recalculés au prorata des jours passés à chaque quotité ; les RTP (récupérations de temps partiel) sont annualisées : pendant un congé, aucune RTP n’est posée et tous les jours ouvrés sont décomptés. Le jour de RTP habituel est facultatif et sert seulement à l’affichage dans les tableaux (si l’option est activée).' })),
     [{ texte: 'Fermer' }, { texte: 'Enregistrer le changement', classe: 'primaire', action: async function () {
       await s().enregistrer('QUOTITE', { agent: a.id, depuis: dep.value, quotite: +qt.value, nonTravailles: cases.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.d; }), service: info(a).service });
       U.toast('Quotité enregistrée.');
@@ -546,7 +555,7 @@
     var an = new Date().getFullYear(), q = C.quotiteLe(st(), a.id, auj()), hist = C.historiqueQuotite(st(), a.id);
     var prochains = C.congesDe(st(), a.id, { actifs: true }).filter(function (c) { return c.fin >= auj(); }).slice(0, 8);
     return h('div', { class: 'pile cg-fiche' }, alerte(),
-      h('div', { class: 'barre' }, h('b', { text: 'Quotité de travail : ' + q.quotite + ' %' + (q.nonTravailles.length ? ' — ' + q.nonTravailles.map(function (d) { return JS[d]; }).join(', ') + ' non travaillé' + (q.nonTravailles.length > 1 ? 's' : '') : '') }),
+      h('div', { class: 'barre' }, h('b', { text: 'Quotité de travail : ' + q.quotite + ' %' + (q.nonTravailles.length ? ' — RTP habituel : ' + q.nonTravailles.map(function (d) { return JS[d]; }).join(', ') : '') }),
         hist.length > 1 ? h('small', { class: 'muted', text: ' (' + hist.length + ' changements : ' + hist.map(function (x) { return x.quotite + ' % au ' + jourFr(x.depuis); }).join(', ') + ')' }) : null, h('span', { class: 'espace' }),
         gereDroits(a) ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleQuotite(a); } }, 'Changer la quotité…') : null),
       h('h3', { text: 'Droits et soldes ' + an }), cartesSoldes(a, an),
@@ -619,7 +628,7 @@
     var pOptions = h('section', { class: 'panneau' }, h('h2', { text: 'Options et couleurs' }),
       h('label', { class: 'en-ligne' }, 'Délai préalable de demande', delai, h('span', { text: 'mois (hors délai : signalé, non bloquant ; 0 : aucun)' })),
       h('label', { class: 'case' }, sou, h('span', { text: 'Souhaits activés (brouillons visibles de l’agent et du validateur)' })),
-      h('label', { class: 'case' }, tpa, h('span', { text: 'Afficher la quotité et les jours non travaillés du temps partiel dans les tableaux, la liste « À valider » et « Mes congés » (sinon : seulement dans la fiche de l’agent et « Droits et quotités »)' })),
+      h('label', { class: 'case' }, tpa, h('span', { text: 'Afficher la quotité et les RTP habituels du temps partiel dans les tableaux, la liste « À valider » et « Mes congés » (sinon : seulement dans la fiche de l’agent et « Droits et quotités »)' })),
       h('label', { class: 'en-ligne' }, 'Arrondi des droits proratisés', arr),
       h('div', { class: 'actions gauche' }, couls.map(function (c) { return h('label', { class: 'en-ligne' }, c.inp, h('span', { text: C.STATUTS[c.k] || 'Férié posé d’office' })); })),
       U.boutonEnregistrer(enregistrer(function (n) { n.delaiMois = +delai.value; n.souhaits = sou.checked; n.afficherTempsPartiel = tpa.checked; n.arrondi = +arr.value; n.couleurs = {}; couls.forEach(function (c) { n.couleurs[c.k] = c.inp.value; }); })));

@@ -9,7 +9,7 @@
  * par le validateur, hors délai de demande, règles « agents en congé en même temps » (non bloquantes par défaut) qui
  * mettent en évidence les jours où elles ne sont pas respectées, totaux en bas du tableau, couleurs par statut.
  * Décompte simple : types de congés réglés par l'établissement (ajoutables), droits de l'année proratisés selon la
- * quotité de travail (qui peut changer en cours d'année) et ses jours non travaillés, corrigés à la main par le cadre ;
+ * quotité de travail (qui peut changer en cours d'année) et son RTP habituel (affichage), corrigés à la main par le cadre ;
  * jours fériés comptés dans les droits : posés d'office (service fermé ou rôle qui ne travaille pas ces jours-là) ou
  * travaillés et à récupérer, selon le service et le rôle ; fériés locaux ajoutables. Un congé validé est une absence
  * lue par l'Agenda (lecture à la volée). Le logiciel de gestion du temps de l'établissement reste la référence : message
@@ -205,16 +205,20 @@
     js.forEach(function (j) { s += quotiteLe(st, agent, j).quotite; });
     return js.length ? s / js.length : 100;
   }
-  /** Jour de travail de l'agent selon l'unité du type (sans les fériés) : ni repos de la semaine, ni jour non travaillé. */
+  /** Jour de travail de l'agent selon l'unité du type (sans les fériés) : hors repos de la semaine ; un jour de RTP habituel compte. */
   function jourCompte(st, agent, iso, unite) {
     var dj = jourSemaine(iso);
     if (unite !== 'calendaires' && dj === 0) return false;
     if (unite === 'ouvres' && dj === 6) return false;
-    return quotiteLe(st, agent, iso).nonTravailles.indexOf(dj) < 0;
+    // Récupérations de temps partiel (RTP) annualisées, pas forcément un jour fixe : pendant un congé, aucune RTP n'est posée,
+    // même un jour de RTP habituel (décision du porteur du 12 novembre 2026) ; le jour est décompté comme les autres.
+    return true;
   }
+  /** Jour de RTP habituel de l'agent (temps partiel à jour fixe, renseignement facultatif) : affichage seulement. */
+  function rtpHabituel(st, agent, iso) { return quotiteLe(st, agent, iso).nonTravailles.indexOf(jourSemaine(iso)) >= 0; }
   /**
    * Jours décomptés d'un congé : jours de travail de l'agent entre les deux dates, sans les jours fériés (ils suivent
-   * leur propre règle) ni les jours non travaillés du temps partiel ; demi-journée au début (après-midi) ou à la fin (matin).
+   * leur propre règle) ; un jour de RTP habituel compris dans le congé est décompté (pas de RTP pendant un congé) ; demi-journée au début (après-midi) ou à la fin (matin).
    */
   function decompte(st, config, c, cache) {
     var t = type(config, c.type) || { unite: 'ouvres' }, l = jours(c.debut, c.fin), n = 0, fc = cache || {};
@@ -324,20 +328,21 @@
   function grille(st, config, t, comptes, debut, fin, aujourdhui) {
     var js = jours(debut, fin), fc = {}, ags = agentsDuTableau(t, comptes), pers = periodes(st, t.service, debut, fin);
     var cg = Object.keys((st && st.conges) || {}).map(function (k) { return st.conges[k]; }).filter(function (c) { return c.statut !== 'annule' && c.debut <= fin && c.fin >= debut; });
-    var o = options(config), cpt = { '*': [], souhaits: [], tardives: [] }, rs = regles(t);
-    rs.forEach(function (r) { if (r.pour !== '*') cpt[r.pour] = []; });
-    js.forEach(function () { Object.keys(cpt).forEach(function (k) { cpt[k].push(0); }); });
+    var o = options(config), cpt = { '*': [], souhaits: [], tardives: [] }, rs = regles(t), nonPrio = { '*': cpt.tardives };
+    rs.forEach(function (r) { if (r.pour !== '*') { cpt[r.pour] = []; nonPrio[r.pour] = []; } });
+    js.forEach(function () { Object.keys(cpt).forEach(function (k) { cpt[k].push(0); }); Object.keys(nonPrio).forEach(function (k) { if (k !== '*') nonPrio[k].push(0); }); });
+    cpt.nonPrioritaires = nonPrio;
     var lignes = ags.map(function (a) {
       var mode = modeFeries(config, t.service, a.roles), sesConges = cg.filter(function (c) { return c.agent === a.id; });
       return { compte: a, role: rolePrincipal(a.roles), cases: js.map(function (iso, i) {
-        var nt = !jourCompte(st, a.id, iso, 'calendaires'), fe = estFerie(iso, config, fc);
+        var nt = rtpHabituel(st, a.id, iso), fe = estFerie(iso, config, fc);
         var c = sesConges.filter(function (x) { return x.debut <= iso && x.fin >= iso; }).sort(function (x, y) { return (x.statut === 'refuse') - (y.statut === 'refuse'); })[0] || null;
         var cell = { conge: c, statut: c ? c.statut : null, ferie: fe, ferieOffice: !!fe && mode === 'office' && jourCompte(st, a.id, iso, 'ouvres'), nonTravaille: nt };
         var tard = c && c.statut === 'demande' && c.tardive;
-        var absent = (c && (c.statut === 'valide' || (c.statut === 'demande' && !tard)) && !nt) || cell.ferieOffice;
-        if (tard && !nt) cpt.tardives[i]++;
-        if (absent) { cpt['*'][i]++; (a.roles || []).forEach(function (r) { if (cpt[r] && r !== '*' && r !== 'souhaits' && r !== 'tardives') cpt[r][i]++; }); }
-        if (c && c.statut === 'souhait' && !nt && !fe) cpt.souhaits[i]++;
+        var absent = (c && (c.statut === 'valide' || (c.statut === 'demande' && !tard))) || cell.ferieOffice;
+        if (tard) { cpt.tardives[i]++; (a.roles || []).forEach(function (r) { if (r !== '*' && nonPrio[r]) nonPrio[r][i]++; }); }
+        if (absent) { cpt['*'][i]++; (a.roles || []).forEach(function (r) { if (cpt[r] && r !== '*' && r !== 'souhaits' && r !== 'tardives' && r !== 'nonPrioritaires') cpt[r][i]++; }); }
+        if (c && c.statut === 'souhait' && !fe) cpt.souhaits[i]++;
         cell.absent = !!absent;
         return cell;
       }) };
@@ -415,7 +420,7 @@
       if (x.commentaire && String(x.commentaire).length > 300) throw new Error('Commentaire trop long (300 caractères au plus).');
       var soi = cpt && x.agent === cpt.id;
       if (!soi && !validateurDe(a || { id: x.agent, roles: [], services: [x.service] })) throw new Error('Vous ne validez pas les congés de cet agent : il saisit lui-même sa demande.');
-      if (decompte(st, cfg, x) <= 0) throw new Error('Aucun jour décompté sur ces dates (repos, jours non travaillés ou fériés).');
+      if (decompte(st, cfg, x) <= 0) throw new Error('Aucun jour décompté sur ces dates (repos ou fériés).');
       var v = verifier(st, cfg, x, { comptes: comptes.length ? comptes : (a ? [a] : []), aujourdhui: auj });
       if (v.bloquees.length && soi && !validateurDe(a)) throw new Error('Période bloquée par le validateur : ' + v.bloquees.map(function (p) { return p.libelle + ' (du ' + p.debut.split('-').reverse().join('/') + ' au ' + p.fin.split('-').reverse().join('/') + ')'; }).join(', ') + '.');
       var bl = v.regles.filter(function (r) { return r.regle.bloquante; });
@@ -461,7 +466,7 @@
       if (type0 === 'QUOTITE' && !d.supprime) {
         if (!JOUR.test(d.depuis || '')) throw new Error('Indiquez la date du changement.');
         if (!(+d.quotite >= 10 && +d.quotite <= 100)) throw new Error('Quotité entre 10 et 100 %.');
-        if ((d.nonTravailles || []).some(function (n) { return !(n >= 0 && n <= 6); })) throw new Error('Jours non travaillés invalides.');
+        if ((d.nonTravailles || []).some(function (n) { return !(n >= 0 && n <= 6); })) throw new Error('Jours de RTP habituels invalides.');
       }
       if (type0 === 'DROITS_CONGES') {
         if (!/^\d{4}$/.test(String(d.annee))) throw new Error('Année invalide.');
@@ -540,7 +545,7 @@
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, STATUTS: STATUTS, EFFETS: EFFETS, MODES_FERIES: MODES_FERIES, UNITES: UNITES,
     TYPES_DEFAUT: TYPES_DEFAUT, VALIDATEURS_DEFAUT: VALIDATEURS_DEFAUT, COULEURS_DEFAUT: COULEURS_DEFAUT, ALERTE_DEFAUT: ALERTE_DEFAUT, PRESEANCE: PRESEANCE,
     options: options, type: type, feries: feries, estFerie: estFerie, paques: paques, modeFeries: modeFeries, rolePrincipal: rolePrincipal, controlerCadre: controlerCadre,
-    quotiteLe: quotiteLe, quotiteMoyenne: quotiteMoyenne, historiqueQuotite: historiqueQuotite, jourCompte: jourCompte, decompte: decompte, droitsAnnee: droits, soldes: soldes, congesDe: congesDe,
+    quotiteLe: quotiteLe, quotiteMoyenne: quotiteMoyenne, historiqueQuotite: historiqueQuotite, jourCompte: jourCompte, rtpHabituel: rtpHabituel, decompte: decompte, droitsAnnee: droits, soldes: soldes, congesDe: congesDe,
     periodes: periodes, periodesDuJour: periodesDuJour, horsDelai: horsDelai, regles: regles, agentsDuTableau: agentsDuTableau, grille: grille,
     roleValidateur: roleValidateur, valide: valide, validateurs: validateurs, verifier: verifier, controler: controler, permisPourSoi: permisPourSoi,
     avisPour: avisPour, aValider: aValider, limiteDepassee: limiteDepassee, absences: absences, jours: jours, plusJours: plusJours, jourSemaine: jourSemaine, jourLocal: jourLocal, versJour: versJour, versISO: versISO };
