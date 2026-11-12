@@ -69,3 +69,12 @@ test('Agenda : prochains événements par patient', () => {
   assert.deepEqual(ev.P1.map((e) => e.titre), ['Entretien (fictif)', 'Activité thérapeutique']);
   assert.equal(ev.P2.length, 1);
 });
+
+test('Formats de date (12 novembre 2026)', () => {
+  const n = new Date(2026, 10, 12).getTime();
+  assert.deepEqual(['date', 'courte', 'jourMois', 'jours', 'jourMoisJours', 'longue'].map((f) => T.formaterDate('2026-10-03', f, { maintenant: n })), ['03/10/2026', '03/10/26', '03/10', '40 j', '03/10 (40 j)', '3 oct. 2026']);
+  assert.equal(T.formaterDate('2026-09-13', 'jours', { maintenant: n, j: true }), 'J60');
+  assert.equal(T.formaterDate('à faire', 'date'), null);
+  assert.equal(T.formaterDate('2026-10-03', ''), null);
+  assert.equal(T.element({ code: 'entree', format: 'bizarre' }, 0).format, '');
+});
