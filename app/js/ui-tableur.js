@@ -66,15 +66,19 @@
       var tr = h('tr', {}, h('th', { class: 'tb-coin', title: 'Tout sélectionner', onmousedown: function (ev) { ev.preventDefault(); choisir(0, 0, dim.l - 1, dim.c - 1); } }));
       for (c = 0; c < dim.c; c++) tr.appendChild(enteteColonne(c));
       thead.appendChild(tr);
-      var couverts = {};
+      var couverts = {}, masquees = T.lignesMasquees(C, fi, calc), maintenant = Date.now(), fl = f.filtre;
       f.fusions.forEach(function (u) { for (var i = u.l; i < u.l + u.nl; i++) for (var j = u.c; j < u.c + u.nc; j++) if (i !== u.l || j !== u.c) couverts[i + ':' + j] = 1; });
       for (var l = 0; l < dim.l; l++) {
-        var ligne = h('tr', {}, enteteLigne(l));
+        var ligne = h('tr', { class: masquees[l] ? 'tb-masquee' : null }, enteteLigne(l));
         if (f.hauteurs[l]) ligne.style.height = f.hauteurs[l] + 'px';
         for (c = 0; c < dim.c; c++) {
           if (couverts[l + ':' + c]) continue;
-          var x = f.cellules[T.nom(l, c)], v = calc.valeur(fi, l, c), u = fusionDe(f, l, c);
-          var td = h('td', { class: classesCase(x && x.s, v), 'data-l': l, 'data-c': c, rowspan: u ? u.nl : null, colspan: u ? u.nc : null, title: T.estErr(v) ? messageErreur(v, l, c) : null }, T.afficher(v, x && x.s));
+          var x = f.cellules[T.nom(l, c)], v = calc.valeur(fi, l, c), u = fusionDe(f, l, c), val = T.validationDe(f, l, c), ok = T.conforme(val, v);
+          var st = Object.assign({}, x && x.s, T.styleConditionnel(f, l, c, v, maintenant));
+          var td = h('td', { class: classesCase(st, v) + (ok ? '' : ' tb-nonconforme'), 'data-l': l, 'data-c': c, rowspan: u ? u.nl : null, colspan: u ? u.nc : null,
+            title: T.estErr(v) ? messageErreur(v, l, c) : !ok ? 'Valeur non conforme : ' + (T.controlerSaisie(val, typeof v === 'number' ? { v: v, fmt: val.genre === 'date' ? 'date' : undefined } : { v: v }) || '') : null }, T.afficher(v, x && x.s));
+          // Filtre : bouton dans chaque titre de colonne filtrée
+          if (fl && l === fl.l && c >= fl.c1 && c <= fl.c2) td.appendChild(boutonFiltre(c, !!fl.masques[c]));
           if (l === 0 && f.figer.l) td.classList.add('tb-fixe-l');
           if (c === 0 && f.figer.c) td.classList.add('tb-fixe-c');
           ligne.appendChild(td);
@@ -86,6 +90,126 @@
     function messageErreur(v, l, c) {
       var p = calc.probleme(fi, T.nom(l, c));
       return p || { '#DIV/0!': 'Division par zéro', '#REF!': 'Référence à une case, une ligne ou une feuille supprimée', '#NOM?': 'Fonction ou nom inconnu', '#VALEUR!': 'Valeur du mauvais type (texte au lieu d’un nombre…)', '#CYCLE!': 'Référence circulaire : la formule dépend d’elle-même', '#N/A': 'Valeur non trouvée' }[v.err] || v.err;
+    }
+    function boutonFiltre(c, actif) {
+      var b = h('button', { type: 'button', class: 'tb-filtre-btn' + (actif ? ' actif' : ''), title: 'Filtrer ou trier la colonne ' + T.lettres(c), 'aria-label': 'Filtre de la colonne ' + T.lettres(c), tabindex: '-1' }, actif ? '▼' : '▾');
+      b.addEventListener('mousedown', function (ev) { ev.preventDefault(); ev.stopPropagation(); });
+      b.addEventListener('click', function (ev) { ev.stopPropagation(); modaleFiltre(c); });
+      return b;
+    }
+    function modaleFiltre(c) {
+      var fl = F().filtre; if (!fl) return;
+      var vals = T.valeursColonne(C, fi, c, calc), masques = (fl.masques[c] || []).slice(), cases = [];
+      var liste = h('div', { class: 'tb-filtre-liste' }, vals.map(function (v) {
+        var cb = h('input', { type: 'checkbox', checked: masques.indexOf(v) < 0 }); cases.push({ v: v, cb: cb });
+        return h('label', { class: 'case' }, cb, h('span', { text: v === '' ? '(vides)' : v }));
+      }));
+      function tout(o) { cases.forEach(function (x) { x.cb.checked = o; }); }
+      U.modale('Filtre — colonne ' + T.lettres(c), h('div', { class: 'pile' },
+        modifiable ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { trierFiltre(c, false); fermerModale(); } }, 'Trier de A à Z'), h('button', { class: 'btn petit', type: 'button', onclick: function () { trierFiltre(c, true); fermerModale(); } }, 'Trier de Z à A')) : null,
+        h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { tout(true); } }, 'Tout cocher'), h('button', { class: 'btn petit', type: 'button', onclick: function () { tout(false); } }, 'Tout décocher')),
+        vals.length ? liste : h('p', { class: 'muted', text: 'Colonne vide.' }),
+        h('small', { class: 'muted', text: 'Les lignes décochées sont masquées (à l’écran et à l’impression), pas supprimées.' })),
+        [{ texte: 'Annuler' }, { texte: 'Appliquer', classe: 'primaire', action: function () {
+          var m = cases.filter(function (x) { return !x.cb.checked; }).map(function (x) { return x.v; });
+          if (modifiable) memoriser();
+          if (m.length) fl.masques[c] = m; else delete fl.masques[c];
+          modifie();
+        } }]);
+    }
+    function fermerModale() { var d = document.querySelectorAll('dialog[open]'); var x = d[d.length - 1]; if (x && !x.classList.contains('doc-editeur')) { x.close(); x.remove(); } }
+    function trierFiltre(c, dec) {
+      var fl = F().filtre, e = T.etendue(F());
+      if (e.l <= fl.l + 1) return;
+      var p = { l1: fl.l + 1, l2: e.l - 1, c1: fl.c1, c2: fl.c2 };
+      if (F().fusions.some(function (u) { return T.chevauche(u, { l: p.l1, c: p.c1, nl: p.l2 - p.l1 + 1, nc: p.c2 - p.c1 + 1 }); })) return U.toast('Tri impossible sur des cases fusionnées.');
+      memoriser(); C = T.trier(C, fi, p, c, dec, { maintenant: Date.now() }); modifie();
+    }
+    function basculerFiltre() {
+      if (!modifiable) return;
+      var f = F();
+      memoriser();
+      if (f.filtre) { f.filtre = null; return modifie(); }
+      var e = T.etendue(f), multi = sel.l1 !== sel.l2 || sel.c1 !== sel.c2;
+      f.filtre = multi ? { l: sel.l1, c1: sel.c1, c2: sel.c2, masques: {} } : { l: sel.l, c1: 0, c2: Math.max(0, e.c - 1), masques: {} };
+      modifie();
+      U.toast('Filtre posé sur la ligne ' + (f.filtre.l + 1) + ' : cliquez sur ▾ dans un titre de colonne.');
+    }
+    function lirePlage(t) {
+      var p = String(t || '').toUpperCase().replace(/\$/g, '').split(':'), a = T.lire(p[0].trim()), b = p[1] ? T.lire(p[1].trim()) : a;
+      return a && b ? { l1: Math.min(a.l, b.l), c1: Math.min(a.c, b.c), l2: Math.max(a.l, b.l), c2: Math.max(a.c, b.c) } : null;
+    }
+    function valeurSaisie(t) { var r = T.saisir(t); return r.vide ? '' : r.v !== undefined ? r.v : t; }
+    function libRegle(r) {
+      var f = function (v) { return typeof v === 'number' ? T.afficher(v, {}) + (v > 30000 && v < 80000 ? ' (' + T.afficher(v, { fmt: 'date' }) + ')' : '') : '« ' + v + ' »'; };
+      var o = T.OPS_CONDITION[r.op];
+      if (r.op === 'entre') return 'comprise entre ' + f(r.v1) + ' et ' + f(r.v2);
+      if (r.op === 'proche') return 'date dans les ' + r.v1 + ' prochains jours';
+      if (/^(vide|nonvide|passe|erreur)$/.test(r.op)) return o;
+      return o + ' ' + f(r.v1);
+    }
+    var D0 = SIC.documents;
+    var FONDS_T = { '': 'Aucun fond', jaune: 'Fond jaune', vert: 'Fond vert', bleu: 'Fond bleu', rose: 'Fond rose', gris: 'Fond gris', orange: 'Fond orange', violet: 'Fond violet' };
+    /** Mise en forme conditionnelle de la feuille : liste des règles, ajout pour la sélection. */
+    function modaleConditions() {
+      var zone = h('div', { class: 'pile' });
+      function dessinerRegles() {
+        U.vider(zone);
+        var rs = F().conditions;
+        if (!rs.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune règle sur cette feuille.' }));
+        rs.forEach(function (r, i) {
+          zone.appendChild(h('div', { class: 'actions gauche' }, h('span', { class: 'tb-apercu-regle ' + classesCase(r.style, 'Abc'), text: 'Abc' }), h('span', { text: T.libPlage(r.plage) + ' : valeur ' + libRegle(r) }),
+            modifiable && i ? h('button', { class: 'btn petit', type: 'button', title: 'Priorité plus haute', onclick: function () { memoriser(); rs.splice(i - 1, 0, rs.splice(i, 1)[0]); modifie(); dessinerRegles(); } }, '↑') : null,
+            modifiable ? h('button', { class: 'btn petit danger', type: 'button', onclick: function () { memoriser(); rs.splice(i, 1); modifie(); dessinerRegles(); } }, 'Retirer') : null));
+        });
+      }
+      dessinerRegles();
+      var plage = h('input', { type: 'text', value: T.libPlage(sel), class: 'champ-court', 'aria-label': 'Cases concernées' });
+      var op = h('select', { 'aria-label': 'Condition' }, Object.keys(T.OPS_CONDITION).map(function (k) { return h('option', { value: k, text: T.OPS_CONDITION[k] }); }));
+      var v1 = h('input', { type: 'text', 'aria-label': 'Valeur', class: 'champ-court' }), v2 = h('input', { type: 'text', 'aria-label': 'Seconde valeur', class: 'champ-court' }), et = h('span', { text: 'et' });
+      var fond = h('select', { 'aria-label': 'Fond' }, Object.keys(FONDS_T).map(function (k) { return h('option', { value: k, text: FONDS_T[k], selected: k === 'rose' }); }));
+      var coul = h('select', { 'aria-label': 'Couleur du texte' }, Object.keys(D0.COULEURS).map(function (k) { return h('option', { value: k, text: k ? D0.COULEURS[k] : 'Couleur automatique' }); }));
+      var gras = h('input', { type: 'checkbox', 'aria-label': 'Gras' });
+      function formes() { var o = op.value; v1.hidden = /^(vide|nonvide|passe|erreur)$/.test(o); v2.hidden = et.hidden = o !== 'entre'; v1.placeholder = o === 'proche' ? 'jours' : o === 'contient' ? 'texte' : 'valeur ou date'; }
+      op.addEventListener('change', formes); formes();
+      U.modale('Mise en forme conditionnelle — ' + F().nom, h('div', { class: 'pile' }, zone,
+        modifiable ? h('fieldset', {}, h('legend', { text: 'Nouvelle règle' }),
+          h('div', { class: 'actions gauche' }, h('label', {}, 'Cases', plage), h('span', { text: 'si la valeur' }), op, v1, et, v2),
+          h('div', { class: 'actions gauche' }, h('span', { text: 'alors' }), fond, coul, h('label', { class: 'case' }, gras, h('span', { text: 'Gras' })),
+            h('button', { class: 'btn', type: 'button', onclick: function () {
+              var p = lirePlage(plage.value), r = T.condition({ plage: p, op: op.value, v1: op.value === 'proche' ? +v1.value : valeurSaisie(v1.value), v2: valeurSaisie(v2.value), style: { f: fond.value, c: coul.value, g: gras.checked } });
+              if (!p) return U.toast('Cases : écrivez par exemple B2:B50.');
+              if (!r) return U.toast('Choisissez au moins un fond, une couleur ou le gras.');
+              memoriser(); F().conditions.push(r); modifie(); dessinerRegles();
+            } }, 'Ajouter la règle')),
+          h('small', { class: 'muted', text: 'La première règle qui s’applique l’emporte (↑ pour la remonter). Exemples : date passée en rouge, échéance dans les 30 jours en orange, valeur supérieure à un seuil.' })) : null),
+        [{ texte: 'Fermer', classe: 'primaire' }], { large: true });
+    }
+    /** Validation des saisies de la sélection : liste de choix, nombre, date, longueur du texte. */
+    function modaleValidation() {
+      var f = F(), existante = T.validationDe(f, sel.l, sel.c);
+      var plage = h('input', { type: 'text', value: existante ? T.libPlage(existante.plage) : T.libPlage(sel), class: 'champ-court', 'aria-label': 'Cases concernées' });
+      var genre = h('select', { 'aria-label': 'Type de saisie' }, Object.keys(T.GENRES_VALIDATION).map(function (k) { return h('option', { value: k, text: T.GENRES_VALIDATION[k], selected: existante && existante.genre === k }); }));
+      var valeurs = h('textarea', { rows: 4, 'aria-label': 'Valeurs de la liste (une par ligne)' }); valeurs.value = existante && existante.valeurs ? existante.valeurs.join('\n') : '';
+      var dt = function (n) { return n === undefined ? '' : existante && existante.genre === 'date' ? T.afficher(n, { fmt: 'date' }) : String(n).replace('.', ','); };
+      var min = h('input', { type: 'text', class: 'champ-court', 'aria-label': 'Minimum', value: existante ? dt(existante.min) : '' }), max = h('input', { type: 'text', class: 'champ-court', 'aria-label': 'Maximum', value: existante ? dt(existante.max) : '' });
+      var bloq = h('input', { type: 'checkbox', checked: !existante || existante.bloquant, 'aria-label': 'Refuser une saisie non conforme' });
+      var msg = h('input', { type: 'text', maxlength: 200, value: existante ? existante.message : '', 'aria-label': 'Message affiché' });
+      var zl = h('label', {}, 'Valeurs de la liste (une par ligne)', valeurs), zb = h('div', { class: 'actions gauche' }, h('label', {}, 'Minimum', min), h('label', {}, 'Maximum', max));
+      function formes() { zl.hidden = genre.value !== 'liste'; zb.hidden = genre.value === 'liste'; min.placeholder = max.placeholder = genre.value === 'date' ? 'JJ/MM/AAAA' : genre.value === 'texte' ? 'caractères' : ''; }
+      genre.addEventListener('change', formes); formes();
+      function borne(x) { if (!x.value.trim()) return undefined; var r = T.saisir(x.value); return typeof r.v === 'number' ? r.v : NaN; }
+      U.modale('Validation des saisies', h('div', { class: 'pile' }, h('div', { class: 'actions gauche' }, h('label', {}, 'Cases', plage), h('label', {}, 'Type de saisie', genre)), zl, zb,
+        h('label', { class: 'case' }, bloq, h('span', { text: 'Refuser une saisie non conforme (sinon : avertissement, et la case est signalée)' })), h('label', {}, 'Message (facultatif)', msg),
+        h('small', { class: 'muted', text: 'Liste de choix : la case propose ses valeurs pendant la saisie. Un collage n’est pas refusé : les cases non conformes sont signalées d’un repère rouge.' })),
+        [{ texte: 'Annuler' }, existante ? { texte: 'Retirer la validation', classe: 'danger', action: function () { memoriser(); f.validations.splice(f.validations.indexOf(existante), 1); modifie(); } } : null,
+          { texte: 'Enregistrer', classe: 'primaire', action: function () {
+            var p = lirePlage(plage.value); if (!p) throw new Error('Cases : écrivez par exemple B2:B50.');
+            var a = borne(min), b = borne(max); if (a !== a || b !== b) throw new Error('Minimum ou maximum : nombre ou date attendu.');
+            var r = T.validation({ plage: p, genre: genre.value, valeurs: valeurs.value.split(/\n|;/), min: a, max: b, bloquant: bloq.checked, message: msg.value });
+            if (!r) throw new Error('Liste de choix : au moins une valeur.');
+            memoriser(); if (existante) f.validations.splice(f.validations.indexOf(existante), 1); f.validations.unshift(r); modifie();
+          } }]);
     }
     function enteteColonne(c) {
       var poignee = h('span', { class: 'tb-poignee-c', title: 'Glisser pour changer la largeur ; double clic : largeur par défaut' });
@@ -181,7 +305,11 @@
       totaux(); signalerOutils();
     }
     function totaux() {
-      if (sel.l1 === sel.l2 && sel.c1 === sel.c2) { var v = calc.valeur(fi, sel.l, sel.c); U.vider(etat).appendChild(document.createTextNode(T.estErr(v) ? messageErreur(v, sel.l, sel.c) : '')); return; }
+      if (sel.l1 === sel.l2 && sel.c1 === sel.c2) {
+        var v = calc.valeur(fi, sel.l, sel.c), val = T.validationDe(F(), sel.l, sel.c);
+        etat.textContent = T.estErr(v) ? messageErreur(v, sel.l, sel.c) : !T.conforme(val, v) ? 'Valeur non conforme à la validation de la case.' : val && val.genre === 'liste' ? 'Liste de choix : ' + val.valeurs.join(', ') : '';
+        return;
+      }
       var n = 0, s = 0, nb = 0;
       for (var l = sel.l1; l <= sel.l2; l++) for (var c = sel.c1; c <= sel.c2; c++) { var x = calc.valeur(fi, l, c); if (x !== null && x !== '') nb++; if (typeof x === 'number') { n++; s += x; } }
       etat.textContent = 'Cases non vides : ' + nb + (n ? ' — Somme : ' + T.afficher(s, {}) + ' — Moyenne : ' + T.afficher(+(s / n).toPrecision(12), {}) : '');
@@ -211,8 +339,16 @@
       var td = tdDe(sel.l, sel.c); if (!td) return;
       var x = caseDe(sel.l, sel.c), entree = h('input', { type: 'text', class: 'tb-saisie', spellcheck: 'false', 'aria-label': 'Saisie de la case ' + T.nom(sel.l, sel.c) });
       entree.value = initial !== undefined ? initial : T.texteSaisie(x);
-      edition = { l: sel.l, c: sel.c, input: entree, td: td, ancien: td.textContent };
-      td.textContent = ''; td.appendChild(entree); td.classList.add('tb-en-saisie');
+      edition = { l: sel.l, c: sel.c, input: entree, td: td, ancien: Array.prototype.slice.call(td.childNodes) };
+      U.vider(td); td.appendChild(entree); td.classList.add('tb-en-saisie');
+      // Liste de choix : valeurs proposées pendant la saisie
+      var val = T.validationDe(F(), sel.l, sel.c);
+      if (val && val.genre === 'liste') {
+        var idl = 'tb-liste-' + Math.random().toString(36).slice(2);
+        td.appendChild(h('datalist', { id: idl }, val.valeurs.map(function (v) { return h('option', { value: v }); })));
+        entree.setAttribute('list', idl);
+        if (initial === '') setTimeout(function () { try { entree.showPicker(); } catch (e) { /* liste au clavier */ } }, 0);
+      }
       entree.addEventListener('input', function () { fx.value = entree.value; aide(entree.value); });
       entree.addEventListener('keydown', toucheSaisie);
       fx.value = entree.value; aide(entree.value);
@@ -236,6 +372,11 @@
       if (valider && t !== T.texteSaisie(caseDe(e.l, e.c))) {
         var r = T.saisir(t);
         if (r.f) { var p = T.verifier(r.f); if (p) { U.toast('Formule : ' + p); e.input.focus(); return false; } }
+        // Validation des saisies (0.36.0) : refus ou avertissement
+        var val = T.validationDe(F(), e.l, e.c), pb = T.controlerSaisie(val, r);
+        if (pb && val.bloquant) { U.toast(pb); e.input.focus(); return false; }
+        if (pb) U.toast('Avertissement : ' + pb);
+        if (val && val.genre === 'liste' && r.v !== undefined && !pb) r.v = val.valeurs.filter(function (x) { return x.toLowerCase() === String(r.v).toLowerCase(); })[0] || r.v;
         memoriser();
         var x = caseDe(e.l, e.c), s = x && x.s ? JSON.parse(JSON.stringify(x.s)) : {};
         if (r.fmt && (!s.fmt || s.fmt === 'texte')) s.fmt = r.fmt;
@@ -245,7 +386,7 @@
         return true;
       }
       edition = null;
-      e.td.classList.remove('tb-en-saisie'); e.td.textContent = e.ancien;
+      e.td.classList.remove('tb-en-saisie'); U.vider(e.td); e.ancien.forEach(function (n) { e.td.appendChild(n); });
       fx.value = T.texteSaisie(caseDe(e.l, e.c)); aideFx.textContent = '';
       return true;
     }
@@ -456,6 +597,7 @@
       bouton('A→Z', 'Trier par ordre croissant (colonne de la case active)', function () { trier(false); }), bouton('Z→A', 'Trier par ordre décroissant', function () { trier(true); }),
       choix('Figer', { l: 'Figer la 1re ligne (oui / non)', c: 'Figer la 1re colonne (oui / non)', aucun: 'Libérer les volets' }, figer),
       bouton('Σ', 'Somme automatique', sommeAuto),
+      bouton('▽', 'Filtre (poser ou retirer)', basculerFiltre), bouton('◐', 'Mise en forme conditionnelle…', modaleConditions), bouton('☑', 'Validation des saisies (liste de choix…)', modaleValidation),
       choix('Fonction', Object.keys(FONCTIONS_AIDE).reduce(function (x, k) { x[k] = FONCTIONS_AIDE[k]; return x; }, {}), function (v) { if (!edition) commencerEdition('=' + v + '('); else { edition.input.value += v + '('; fx.value = edition.input.value; edition.input.focus(); } aide('=' + v + '('); }),
       bouton('⌫', 'Effacer la mise en forme', function () { changerStyle(function (s) { Object.keys(s).forEach(function (k) { delete s[k]; }); }); }),
       bouton('↶', 'Annuler (Ctrl+Z)', defaire), bouton('↷', 'Rétablir (Ctrl+Y)', refaire)) : null;
@@ -471,6 +613,8 @@
       appliquerPage: function (p) { C.page = T.page(p); this.page = C.page; },
       redessiner: dessiner,
       feuille: function () { return fi; },
+      occupe: function () { return !!edition; },
+      annulerEdition: function () { finirEdition(false); grille.focus(); },
       focus: function () { grille.focus(); },
       detruire: function () { document.removeEventListener('copy', surCopie); document.removeEventListener('cut', surCoupe); document.removeEventListener('paste', surColle); document.removeEventListener('mouseup', finPresse); }
     };
@@ -485,13 +629,14 @@
     for (var c = 0; c < e.c; c++) { var col = h('col'); col.style.width = (f.largeurs[c] || LARGEUR) + 'px'; total += f.largeurs[c] || LARGEUR; cg.appendChild(col); }
     t.appendChild(cg);
     var couverts = {}; f.fusions.forEach(function (u) { for (var i = u.l; i < u.l + u.nl; i++) for (var j = u.c; j < u.c + u.nc; j++) if (i !== u.l || j !== u.c) couverts[i + ':' + j] = 1; });
-    var thead = o.repeter ? h('thead') : null, tbody = h('tbody');
+    var thead = o.repeter ? h('thead') : null, tbody = h('tbody'), masquees = T.lignesMasquees(C, fi, calc), maintenant = Date.now();
     for (var l = 0; l < e.l; l++) {
+      if (masquees[l]) continue;
       var tr = h('tr'); if (f.hauteurs[l]) tr.style.height = f.hauteurs[l] + 'px';
       for (c = 0; c < e.c; c++) {
         if (couverts[l + ':' + c]) continue;
         var x = f.cellules[T.nom(l, c)], v = calc.valeur(fi, l, c), u = fusionDe(f, l, c);
-        tr.appendChild(h('td', { class: classesCase(x && x.s, v), rowspan: u ? u.nl : null, colspan: u ? u.nc : null }, T.afficher(v, x && x.s)));
+        tr.appendChild(h('td', { class: classesCase(Object.assign({}, x && x.s, T.styleConditionnel(f, l, c, v, maintenant)), v), rowspan: u ? u.nl : null, colspan: u ? u.nc : null }, T.afficher(v, x && x.s)));
       }
       (l === 0 && thead ? thead : tbody).appendChild(tr);
     }
