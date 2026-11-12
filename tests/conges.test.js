@@ -31,16 +31,17 @@ test('Jours fériés : 11 fériés nationaux (Pâques, Ascension, Pentecôte), f
   assert.equal(l.length, 12); assert.ok(l.some((x) => x.date === '2027-12-26'));
 });
 
-test('Décompte : jours ouvrés, fériés exclus, demi-journées, temps partiel (jours non travaillés)', () => {
+test('Décompte : jours ouvrés, fériés exclus, demi-journées, temps partiel (pas de RTP pendant un congé)', () => {
   let st = C.reduire([]);
   const c = { agent: 'ide', type: 'CA', debut: '2026-12-21', fin: '2026-12-27' };   // lun. → dim., 25 déc. férié
   assert.equal(C.decompte(st, {}, c), 4);
   assert.equal(C.decompte(st, {}, Object.assign({}, c, { demiDebut: true })), 3.5);
   assert.equal(C.decompte(st, {}, { agent: 'ide', type: 'CA', debut: '2026-12-21', fin: '2026-12-21', demiDebut: true, demiFin: true }), 0.5);
-  // 80 %, mercredi non travaillé
+  // 80 %, RTP habituel le mercredi : pendant un congé, aucune RTP n'est posée, le mercredi est décompté (12 novembre 2026)
   st = C.reduire([ev('QUOTITE', { agent: 'ide', depuis: '2026-01-01', quotite: 80, nonTravailles: [3], service: 'U1' })]);
-  assert.equal(C.decompte(st, {}, c), 3);
-  assert.equal(C.decompte(st, {}, { agent: 'ide', type: 'CA', debut: '2026-12-23', fin: '2026-12-23' }), 0);
+  assert.equal(C.decompte(st, {}, c), 4);
+  assert.equal(C.decompte(st, {}, { agent: 'ide', type: 'CA', debut: '2026-12-23', fin: '2026-12-23' }), 1);
+  assert.equal(C.rtpHabituel(st, 'ide', '2026-12-23'), true); assert.equal(C.rtpHabituel(st, 'ide', '2026-12-22'), false);
 });
 
 test('Droits : proratisés selon la quotité, qui change en cours d’année ; saisie du cadre ; arrondi au demi-jour', () => {
@@ -82,16 +83,16 @@ test('Soldes : validés, demandés, souhaits ; annulés et refusés non comptés
   assert.equal(C.absences(st, new Date(2027, 6, 1).getTime(), new Date(2027, 7, 1).getTime()).length, 1);
 });
 
-test('Tableau : grille, comptes par rôle, règles non respectées, fériés posés d’office, jours non travaillés', () => {
+test('Tableau : grille, comptes par rôle, règles non respectées, fériés posés d’office, RTP habituels', () => {
   const evts = [ev('TABLEAU_CONGES', { id: 't1', service: 'U1', nom: 'Fêtes (fictif)', debut: '2026-12-21', fin: '2027-01-03', regles: [{ pour: 'IDE', max: 2 }, { pour: '*', max: 4 }] }),
     ev('QUOTITE', { agent: 'ide3', depuis: '2026-01-01', quotite: 80, nonTravailles: [3] })];
   [['ide', 'valide'], ['ide2', 'demande'], ['ide3', 'demande'], ['as', 'souhait']].forEach((x, i) => evts.push(ev('CONGE', { id: 'g' + i, agent: x[0], service: 'U1', type: 'CA', debut: '2026-12-28', fin: '2026-12-31', statut: x[1] === 'souhait' ? 'souhait' : 'demande' }, x[0])));
   evts.push(ev('CONGE_DECISION', { conge: 'g0', decision: 'valide' }));
   const st = C.reduire(evts), t = st.tableaux.t1, g = C.grille(st, config, t, comptes, t.debut, t.fin, '2026-11-12');
   const i28 = g.jours.findIndex((j) => j.iso === '2026-12-28'), i30 = g.jours.findIndex((j) => j.iso === '2026-12-30'), i25 = g.jours.findIndex((j) => j.iso === '2026-12-25');
-  assert.equal(g.comptes.IDE[i28], 3); assert.equal(g.comptes.IDE[i30], 2, 'mercredi non travaillé de l’IDE à 80 % : pas absente');
+  assert.equal(g.comptes.IDE[i28], 3); assert.equal(g.comptes.IDE[i30], 3, 'RTP habituel du mercredi compris dans le congé : l’IDE à 80 % est en congé');
   assert.equal(g.comptes.souhaits[i28], 1);
-  assert.ok(g.depassements.some((d) => d.regle.pour === 'IDE' && d.jours.indexOf('2026-12-28') >= 0 && d.jours.indexOf('2026-12-30') < 0));
+  assert.ok(g.depassements.some((d) => d.regle.pour === 'IDE' && d.jours.indexOf('2026-12-28') >= 0 && d.jours.indexOf('2026-12-30') >= 0));
   assert.equal(g.jours[i25].ferie, 'Noël');
   const ls = g.agents.find((a) => a.compte.id === 'sec');
   assert.equal(ls.cases[i25].ferieOffice, true); assert.equal(g.agents.find((a) => a.compte.id === 'ide').cases[i25].ferieOffice, false);
@@ -171,7 +172,7 @@ test('Date limite de dépôt (0.44.1) : demande tardive non prioritaire, non com
   assert.equal(st.conges.a.tardive, null); assert.equal(st.conges.b.tardive.limite, '2027-03-31'); assert.equal(st.conges.c.tardive, null, 'hors de la période');
   assert.equal(C.limiteDepassee(st, st.conges.a, '2027-03-31'), null, 'la date limite est incluse');
   const g = C.grille(st, config, st.tableaux.t1, comptes, '2027-07-01', '2027-08-31', '2027-04-02'), i = g.jours.findIndex((j) => j.iso === '2027-07-12');
-  assert.equal(g.comptes.IDE[i], 1, 'la demande tardive n’est pas comptée'); assert.equal(g.comptes.tardives[i], 1); assert.equal(g.depassements.length, 0);
+  assert.equal(g.comptes.IDE[i], 1, 'la demande tardive n’est pas comptée'); assert.equal(g.comptes.tardives[i], 1); assert.equal(g.comptes.nonPrioritaires.IDE[i], 1, 'non prioritaires comptées à part, par rôle'); assert.equal(g.depassements.length, 0);
   const l = C.aValider(st, {}, comptes, cadre); assert.deepEqual(l.map((c) => c.id).slice(-1), ['b'], 'non prioritaire en dernier');
   const v = C.verifier(st, {}, { id: 'n', agent: 'as', service: 'U1', type: 'CA', debut: '2027-08-02', fin: '2027-08-03' }, { comptes, aujourdhui: '2027-04-10' });
   assert.equal(v.tardive.id, 'pe');
