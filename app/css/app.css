@@ -1372,3 +1372,5 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
   .cg-impression .cg-case, .cg-impression .cg-jour, .cg-impression .cg-pastille { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 .cg-annee { width: auto !important; min-width: 0; flex: none; }
+.cg-total-np { font-weight: 600; font-size: .58rem; color: #12a594; }
+.cg-avec-np { flex-direction: column; line-height: 1.05; }
