@@ -647,3 +647,7 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 ## Seconde série de pistes inscrites (13 novembre 2026)
 
 `docs/evolutions-futures.md` : lot K complété (tabac et argent de poche gérés par le service), lot L complété (questionnaire de sortie anonyme), nouveaux lots M (formulaires et demandes sur mesure, renforts entre services, indicateur d'activité du poste) et N (recherche partout, écran du poste de soins, accessibilité, modèles partagés entre établissements), inscrits à la demande du porteur, qui fera le tri plus tard.
+
+## Troisième série de pistes inscrites (13 novembre 2026)
+
+`docs/evolutions-futures.md` : nouveaux lots O (réussir le pilote : retours des agents, mesure d'usage anonyme, import automatique de la liste des patients depuis un dossier de dépôt), P (plans d'action et audits, formalités d'admission et de sortie) et Q (commandes et stocks, matériel remis par poste, budget des activités), inscrits à la demande du porteur. Point de principe à trancher pour l'import automatique : fichier en clair déposé sur le partage par le service informatique (règle actuelle : fichiers importés jamais copiés sur le partage). Le porteur priorise l'ensemble des lots A à Q à part (liste à cocher et à noter).

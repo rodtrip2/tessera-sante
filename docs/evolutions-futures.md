@@ -22,8 +22,11 @@ Un lot « sans avis préalable » peut être développé tout de suite (données
 | **L. Encadrement, réunions et pilotage** | Stages des étudiants et parcours d'intégration des nouveaux arrivants ; réunions (ordre du jour, présents, décisions, actions envoyées dans « Mes tâches ») ; tableau de bord du cadre et rapport d'activité annuel ; questionnaire de sortie anonyme | Réunions : aucun ; questionnaire anonyme : aucun s'il reste sans identité ; étudiants et nouveaux arrivants : délégué à la protection des données ; tableau de bord : aucun s'il ne montre que des chiffres agrégés | Petite (réunions) à moyenne |
 | **M. Formulaires, renforts et activité** | Formulaires et demandes créés par le cadre, avec leur circuit de validation ; renforts donnés et reçus entre services ; indicateur d'activité du poste calculé à partir des données de Tessera | Formulaires, renforts, activité : aucun (rappel « aucune donnée clinique » à la création d'un formulaire) | Moyenne |
 | **N. Recherche, affichage, accessibilité et partage** | Recherche partout (selon les droits) ; écran du poste de soins en lecture seule ; accessibilité (clavier, lecteur d'écran, contrastes) ; modèles partagés entre établissements (check-lists, vues, formules, formulaires) | Recherche, accessibilité, modèles : aucun ; écran du poste : responsable de la sécurité informatique et délégué à la protection des données | Petite (recherche) à moyenne |
+| **O. Réussir le pilote** | Retours des agents (signaler un défaut, proposer une amélioration) ; mesure d'usage anonyme par module ; import automatique de la liste des patients depuis un dossier de dépôt | Retours, usage : aucun ; import automatique : service informatique et délégué à la protection des données, et décision du porteur sur la règle des fichiers importés | Petite (retours, usage) à moyenne |
+| **P. Qualité et formalités** | Plans d'action et audits internes à grille ; formalités d'admission et de sortie (check-list administrative par séjour) | Plans d'action et audits : aucun ; formalités : délégué à la protection des données (donnée liée au patient, non clinique) | Petite à moyenne |
+| **Q. Logistique du service** | Commandes et stocks (listes types, seuils, péremptions) ; matériel remis par poste (clés, téléphones, dispositifs d'alarme) ; budget des activités (petite caisse) | Aucun ; budget : règles de la régie de l'établissement | Petite à moyenne |
 
-Dépendances : le lot C reprend les tableaux et les règles du module Congés ; les rôles selon le service (E) précèdent utilement le « bris de glace » (G) ; la connexion avec la session Windows et Zimbra en connexion directe (H) supposent un hébergement sur le serveur interne, après la phase pilote sur GitHub. Le lot I s'appuie sur les tâches de l'Agenda (« Mes tâches ») et peut suivre le lot A. Le lot J s'appuie sur le module Congés et sur le lot C ; le contrôle des CSI libres (lot B) peut être construit directement sur le mécanisme commun du lot K ; les actions des réunions (lot L) reprennent « Mes tâches », comme le lot I. Les formulaires (lot M) reprennent les champs ajoutés communs ; l'indicateur d'activité (lot M) nourrit l'effectif minimum (lot J) et le tableau de bord (lot L) ; les modèles partagés (lot N) reprennent l'export des réglages. Écartée pour l'instant : échéances des certificats légaux dans l'agenda (fin du document).
+Dépendances : le lot C reprend les tableaux et les règles du module Congés ; les rôles selon le service (E) précèdent utilement le « bris de glace » (G) ; la connexion avec la session Windows et Zimbra en connexion directe (H) supposent un hébergement sur le serveur interne, après la phase pilote sur GitHub. Le lot I s'appuie sur les tâches de l'Agenda (« Mes tâches ») et peut suivre le lot A. Le lot J s'appuie sur le module Congés et sur le lot C ; le contrôle des CSI libres (lot B) peut être construit directement sur le mécanisme commun du lot K ; les actions des réunions (lot L) reprennent « Mes tâches », comme le lot I. Les formulaires (lot M) reprennent les champs ajoutés communs ; l'indicateur d'activité (lot M) nourrit l'effectif minimum (lot J) et le tableau de bord (lot L) ; les modèles partagés (lot N) reprennent l'export des réglages. Les audits (lot P) reprennent le mécanisme des contrôles (lot K) ; les formalités (lot P) reprennent les check-lists des champs ajoutés ; le lot O peut précéder le pilote. Écartée pour l'instant : échéances des certificats légaux dans l'agenda (fin du document).
 
 ## A. Liens entre modules et confort
 
@@ -447,6 +450,63 @@ Pistes proposées le 13 novembre 2026 lors d'un tour d'horizon des besoins non c
 - **Besoin** : dans l'esprit open source du projet, permettre à un établissement de reprendre ce qu'un autre a déjà construit.
 - **Fonctionnement envisagé** : export en fichier d'un **modèle** (check-list de contrôle, vue de la Vue d'ensemble, formules, formulaire, rubriques des informations du service, données ajoutées, couleurs), sans aucune donnée de patient ni d'agent et sans nom d'établissement ; import avec aperçu et choix des éléments, comme l'import des réglages existant ; bibliothèque de modèles fictifs dans le dépôt, alimentée par les établissements qui le souhaitent.
 - **À trancher** : format et version des modèles (compatibilité entre versions de Tessera) ; relecture des modèles proposés avant leur ajout au dépôt public.
+
+## O. Réussir le pilote
+
+Pistes proposées le 13 novembre 2026, inscrites à la demande du porteur. Elles ne sont pas de nouveaux modules : elles servent à conduire et à évaluer la phase pilote.
+
+### Retours des agents (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : pendant le pilote, recueillir les défauts et les idées des agents là où ils apparaissent, sans passer par un courriel ou un cahier.
+- **Fonctionnement envisagé** : bouton « Signaler un défaut ou proposer une amélioration » accessible depuis chaque fenêtre ; le retour reprend d'office le module, l'écran, la version de Tessera, le navigateur et le rôle de l'agent ; texte libre avec rappel « aucune donnée de patient » ; reçu par le cadre et l'administrateur (liste à traiter, états : nouveau, retenu, écarté, fait ; réponse à l'auteur) ; **export** de la liste pour le porteur (aucune connexion sortante : le fichier est transmis à la main).
+- **À trancher** : retour signé ou anonyme (proposé : signé, anonyme possible) ; module d'accueil (Messagerie ou rubrique de l'administration).
+
+### Mesure d'usage anonyme (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : savoir ce qui est réellement utilisé, pour évaluer le pilote, orienter les développements et présenter des chiffres à la direction des soins.
+- **Fonctionnement envisagé** : nombre de saisies par module, par service et par semaine, calculé à partir du journal existant (aucune donnée nouvelle) ; en option, compteurs d'ouverture des fenêtres et des onglets, **agrégés par semaine et par rôle, jamais par agent** ; tableau et courbes pour l'administrateur et le cadre ; export.
+- **Garanties** : aucun suivi individuel de l'activité des agents ; pas de chiffre affiché sous un seuil d'agents (pour qu'on ne reconnaisse personne) ; option désactivée par défaut ; information des agents.
+- **À trancher** : compteurs d'ouverture ou seulement les saisies ; information des représentants du personnel.
+
+### Import automatique de la liste des patients (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : éviter l'import à la main de l'export du dossier patient informatisé (DPI), pour que la liste des patients soit à jour à chaque prise de poste.
+- **Fonctionnement envisagé** : le service informatique dépose à heure fixe l'export du DPI dans un **dossier de dépôt** du partage, distinct du dossier de données ; à la connexion d'un agent qui a le droit d'importer, Tessera lit le fichier (modèle d'import mémorisé), montre les changements (entrées, sorties, changements de chambre) et les applique après confirmation, ou d'office si le réglage le permet ; aucune connexion sortante.
+- **Point de principe** : la règle actuelle veut que les fichiers importés soient lus dans le navigateur et jamais copiés sur le partage. Ici le fichier, **en clair**, est déposé sur le partage par le service informatique (pas par Tessera) : à décider par le porteur, avec des garanties (dossier aux droits restreints, fichier remplacé à chaque dépôt, suppression après lecture si possible, contenu limité aux colonnes utiles).
+- **À trancher** : fréquence du dépôt ; application d'office ou après confirmation ; avis du service informatique et du délégué à la protection des données.
+
+## P. Qualité et formalités
+
+### Plans d'action et audits (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Plans d'action** : actions d'amélioration du service (suite d'un audit, d'une visite de certification, d'un retour d'expérience, d'un projet de service), avec origine, responsable, échéance, avancement et preuve jointe (document) ; chaque action peut devenir une tâche de « Mes tâches » ; vue d'ensemble pour le cadre et le cadre supérieur ; export. Aucun contenu d'événement indésirable (il reste dans l'outil de déclaration de l'établissement) : seulement le numéro et l'action décidée.
+- **Audits internes** : grilles réglables par le cadre ou l'établissement (critères, conforme / non conforme / non concerné, commentaire), sur le mécanisme des contrôles périodiques (lot K) ; taux de conformité par période ; un écart peut créer une action.
+- **À trancher** : grilles fournies par défaut ; audits portant sur des dossiers de patients (hors périmètre tant que la règle « aucune donnée clinique » s'applique).
+
+### Formalités d'admission et de sortie (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : s'assurer que les formalités administratives d'un séjour sont faites et pouvoir le montrer (visites de la commission départementale des soins psychiatriques, CDSP, ou du Contrôleur général des lieux de privation de liberté, CGLPL).
+- **Fonctionnement envisagé** : check-list administrative par séjour, réglable par le cadre et selon le mode d'hospitalisation (par exemple : livret d'accueil remis, information sur les droits et les voies de recours donnée, inventaire des effets fait, personne à prévenir et personne de confiance renseignées ; à la sortie : effets restitués, documents de sortie remis) ; éléments cochés datés et signés ; **alerte** quand une formalité reste à faire après un délai réglable ; colonne possible dans la Vue d'ensemble. S'appuie sur les check-lists des champs ajoutés communs.
+- **Aucune donnée clinique** : uniquement « fait / non fait », la date et l'agent.
+- **À trancher** : formalités par défaut ; délais d'alerte ; lien avec l'inventaire des effets personnels (lot K).
+
+## Q. Logistique du service
+
+### Commandes et stocks (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Fonctionnement envisagé** : listes types par circuit (magasin, dotation de pharmacie, linge, fournitures de bureau), avec quantité habituelle et seuil ; inventaire rapide (quantités restantes), commande proposée et **prête à imprimer ou à exporter** (aucun envoi automatique) ; jour de commande rappelé dans l'agenda ; suivi des livraisons et des manquants ; **péremptions** signalées (lien avec les contrôles périodiques du lot K).
+- **Aucune donnée clinique** : dotation de service seulement, aucun traitement nominatif.
+- **À trancher** : circuits retenus ; qui commande (rôle) ; articulation avec le logiciel de commande de l'établissement.
+
+### Matériel remis par poste (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Fonctionnement envisagé** : liste du matériel du service remis aux agents à la prise de poste (trousseaux de clés, téléphones, dispositifs d'alarme du travailleur isolé, badges) ; remise et restitution d'un geste, par l'agent ; matériel non restitué signalé en fin de poste ; matériel en panne signalé, avec lien possible vers une demande de travaux ; historique.
+- **À trancher** : remise nominative ou par poste ; durée de conservation de l'historique.
+
+### Budget des activités (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Fonctionnement envisagé** : enveloppe annuelle des activités et sorties thérapeutiques ; dépenses par activité (date, objet, montant, justificatif joint quand les fichiers joints existeront, lot D) ; solde et consommation par période ; avances et retours de monnaie validés à deux agents ; export pour la régie.
+- **À trancher** : règles de la régie de l'établissement ; lien avec les activités de l'agenda.
 
 ## Écartée pour l'instant
 
