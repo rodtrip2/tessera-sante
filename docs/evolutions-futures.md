@@ -17,8 +17,11 @@ Un lot « sans avis préalable » peut être développé tout de suite (données
 | **G. Données cliniques** | Accès réglable par rôle et service, limité aux patients présents, « bris de glace » ; feuille de staff (CIM, motif, projet thérapeutique, dépendance) ; notes cliniques | Levée de la règle « aucune donnée clinique », délégué à la protection des données (analyse d'impact), responsable de la sécurité informatique, direction des soins, commission médicale d'établissement | Grande |
 | **H. Socle, déploiement et liens avec le système d'information** | Versions stable, bêta et développement ; connexion rapide sans mot de passe (clé de sécurité physique, badge FIDO2, code PIN, carte CPS) ; protection du dossier de données contre les modifications et suppressions accidentelles ; connexion avec la session Windows ; stockage sur un partage autre que SMB ; messageries Zimbra avec connexion directe | Service informatique (DSI ou direction du numérique, selon l'établissement), responsable de la sécurité informatique (RSSI) ; Zimbra : délégué à la protection des données | Moyenne à grande |
 | **I. Classement dans la Messagerie et les Documents** | Dossiers, étiquettes en couleur, favoris et liens avec une tâche, dans les deux modules | Aucun (aucune donnée clinique ; classement personnel chiffré par la clé de l'agent) | Moyenne |
+| **J. Planning du personnel et remplacements** | Trame et roulement des agents par cycle, effectif minimum par poste et alerte de sous-effectif, nourris par les Congés (puis les formations et heures supplémentaires du lot C) ; postes à pourvoir après une absence, appel aux volontaires, suivi des remplacements | Données du personnel : délégué à la protection des données (registre des traitements) ; direction des ressources humaines (règles du temps de travail) | Grande |
+| **K. Contrôles périodiques et effets personnels** | Mécanisme commun de contrôles à check-list et périodicité (chariot d'urgence, défibrillateur, réfrigérateur à médicaments, extincteurs, CSI libres du lot B), registre imprimable ; inventaire des effets personnels des patients (dépôt, retrait, restitution, à deux agents) | Contrôles : aucun ; effets personnels : délégué à la protection des données (donnée liée au patient, non clinique) | Moyenne |
+| **L. Encadrement, réunions et pilotage** | Stages des étudiants et parcours d'intégration des nouveaux arrivants ; réunions (ordre du jour, présents, décisions, actions envoyées dans « Mes tâches ») ; tableau de bord du cadre et rapport d'activité annuel | Réunions : aucun ; étudiants et nouveaux arrivants : délégué à la protection des données ; tableau de bord : aucun s'il ne montre que des chiffres agrégés | Petite (réunions) à moyenne |
 
-Dépendances : le lot C reprend les tableaux et les règles du module Congés ; les rôles selon le service (E) précèdent utilement le « bris de glace » (G) ; la connexion avec la session Windows et Zimbra en connexion directe (H) supposent un hébergement sur le serveur interne, après la phase pilote sur GitHub. Le lot I s'appuie sur les tâches de l'Agenda (« Mes tâches ») et peut suivre le lot A. Écartée pour l'instant : échéances des certificats légaux dans l'agenda (fin du document).
+Dépendances : le lot C reprend les tableaux et les règles du module Congés ; les rôles selon le service (E) précèdent utilement le « bris de glace » (G) ; la connexion avec la session Windows et Zimbra en connexion directe (H) supposent un hébergement sur le serveur interne, après la phase pilote sur GitHub. Le lot I s'appuie sur les tâches de l'Agenda (« Mes tâches ») et peut suivre le lot A. Le lot J s'appuie sur le module Congés et sur le lot C ; le contrôle des CSI libres (lot B) peut être construit directement sur le mécanisme commun du lot K ; les actions des réunions (lot L) reprennent « Mes tâches », comme le lot I. Écartée pour l'instant : échéances des certificats légaux dans l'agenda (fin du document).
 
 ## A. Liens entre modules et confort
 
@@ -299,6 +302,66 @@ Demande : pouvoir enregistrer les données (ou le dossier de secours) ailleurs q
   - tâche terminée : rappel discret sur l'élément (« tâche faite »), sans le déplacer.
 - **Confidentialité** : le classement personnel (dossiers, étiquettes, favoris) est chiffré avec la clé personnelle de l'agent et invisible des autres ; les dossiers et étiquettes partagés sont chiffrés avec la clé de l'espace ou du service ; un nom de dossier ou d'étiquette ne doit pas contenir de donnée clinique (rappel à la saisie). Aucune règle du socle ne change.
 - **À trancher** : dossiers partagés dans la Messagerie (boîte du service) ou seulement personnels ; nombre maximal d'étiquettes ; qui crée les étiquettes communes (cadre, administrateur) ; tâche liée visible de l'expéditeur du message.
+
+## J. Planning du personnel et remplacements
+
+Pistes proposées le 13 novembre 2026 lors d'un tour d'horizon des besoins non couverts, inscrites à la demande du porteur, qui choisira plus tard lesquelles développer.
+
+### Trame et roulement du personnel (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : construire et tenir le planning des agents du service, aujourd'hui souvent fait dans un tableur à part, avec les absences connues de Tessera sous les yeux.
+- **Fonctionnement envisagé** :
+  - **trame** par cycle (une à plusieurs semaines), réglable par le cadre : postes (matin, après-midi, nuit, journée, horaires réglables), roulement des agents ou des équipes, jours de repos ;
+  - **effectif minimum** par poste et par jour (par rôle : IDE, AS…), réglé par le cadre ; **alerte de sous-effectif** quand les absences (Congés, et plus tard formations et récupérations du lot C) font passer un poste sous le minimum ;
+  - planning prévisionnel généré à partir de la trame, puis ajusté à la main (échanges de postes, demandes de l'agent, validation du cadre) ; chaque changement est une saisie datée ;
+  - chaque agent voit son propre planning (« Mon agenda ») ; le cadre voit celui du service ; impression et export ;
+  - articulation réglable avec le logiciel de gestion du temps de travail de l'établissement, comme pour le lot C : Tessera sert à la **préparation** du planning, le logiciel de l'établissement reste la référence ; export pour la saisie.
+- **À trancher** : règles du temps de travail à contrôler (repos quotidien et hebdomadaire, durée maximale, temps partiel) ou simple affichage ; place des échanges de postes entre agents ; lien avec la trame prévisionnelle déjà préparée dans un tableur par certains cadres (import).
+
+### Remplacements (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : trouver vite un remplaçant après une absence imprévue et garder la trace de qui a dépanné.
+- **Fonctionnement envisagé** : un poste découvert (absence saisie, sous-effectif) devient un **poste à pourvoir** ; le cadre ou l'administrateur de garde l'envoie aux agents choisis (selon le rôle, sans dépasser les règles de repos si elles sont contrôlées) par la Messagerie ; premier volontaire retenu après confirmation du cadre ; planning mis à jour ; suivi des remplacements faits par agent (équité, lien avec les heures supplémentaires du lot C).
+- **À trancher** : appel ouvert à tous ou à une liste ; délai de réponse ; agents d'autres services du pôle ; ce qui est visible des autres agents (proposé : rien, sauf le poste pourvu).
+
+## K. Contrôles périodiques et effets personnels
+
+### Contrôles périodiques à check-list (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : tracer les vérifications régulières du service, souvent tenues sur des feuilles papier : chariot d'urgence, défibrillateur, température du réfrigérateur à médicaments, extincteurs, trousse d'urgence, CSI libres (lot B).
+- **Fonctionnement envisagé** :
+  - **mécanisme commun** : un contrôle = un objet (ou un lieu) + une **check-list** + une **périodicité** (par poste, par jour, par semaine, après chaque utilisation…) + les rôles qui le font ; contrôles réglés par le cadre pour ses services, modèles proposés par l'établissement ;
+  - tâche dans l'agenda à l'échéance ; contrôle fait par un ou **deux agents** (le second confirme avec son compte) ; valeurs saisies si besoin (température, date de péremption) avec seuils d'alerte ;
+  - **écart** signalé au cadre, avec lien possible vers une demande de travaux ; **retard** signalé ;
+  - **registre** consultable, imprimable et exportable par contrôle et par période (preuve pour la certification).
+- **Lien avec le lot B** : le contrôle de conformité des CSI libres devient un cas du mécanisme commun.
+- **À trancher** : modèles fournis par défaut ; module d'accueil (nouveau module ou Agenda) ; durée de conservation du registre.
+
+### Inventaire des effets personnels des patients (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : tracer les objets déposés par un patient à l'admission ou pendant le séjour (argent, papiers, téléphone, objets retirés pour sa sécurité), leur retrait et leur restitution, aujourd'hui souvent sur papier et source de litiges.
+- **Fonctionnement envisagé** : inventaire par séjour (fiche patient), une ligne par objet (description, lieu de rangement : coffre, vestiaire…) ; dépôt, retrait temporaire et restitution, chacun daté et validé par **deux agents** ; restitution à la sortie rappelée ; inventaire imprimable pour signature du patient ; aucun motif clinique (la raison d'un retrait d'objet reste dans le DPI).
+- **À trancher** : argent et valeurs (souvent gérés par la régie de l'établissement : simple mention ou inventaire détaillé) ; durée de conservation après la sortie ; accès du patient à cet inventaire par le droit d'accès.
+
+## L. Encadrement, réunions et pilotage
+
+### Étudiants et nouveaux arrivants (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Stages** : étudiants accueillis (dates, école, année, tuteur et maître de stage), échéances des bilans à rendre, rappel au tuteur ; aucun contenu d'évaluation dans un premier temps (le portfolio reste celui de l'école).
+- **Parcours d'intégration** : check-list réglable par le cadre pour un nouvel agent (visite du service, procédures lues, accès informatiques, formations obligatoires à suivre), cochée au fil des jours, avec un référent.
+- **Échéances des formations obligatoires** (AFGSU, incendie…) : les données ajoutées des agents en portent déjà une partie ; tableau des échéances et rappel.
+- **À trancher** : compte Tessera pour les étudiants (rôle « étudiant », droits limités) ou simple liste ; avis du délégué à la protection des données.
+
+### Réunions (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Fonctionnement envisagé** : réunion de l'agenda (staff, réunion d'équipe, réunion institutionnelle) avec **ordre du jour** préparé à plusieurs, **présents**, **décisions** et **actions** ; chaque action devient une tâche de « Mes tâches » avec un responsable et une échéance, suivie à la réunion suivante ; compte rendu dans les Documents, diffusé par la Messagerie.
+- **Confidentialité** : aucun contenu clinique ; rappel à la saisie quand la réunion concerne des patients.
+- **À trancher** : modèles d'ordre du jour ; qui rédige et valide le compte rendu.
+
+### Tableau de bord du cadre et rapport d'activité (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Fonctionnement envisagé** : indicateurs croisés lus à la volée dans les modules, selon les droits du cadre : occupation et places disponibles, durées de séjour, mesures d'isolement et de contention (statistiques d'Isocont), absences et remplacements, délais de traitement des demandes de travaux, contrôles en retard ; période réglable ; **rapport d'activité annuel** prêt à imprimer, complété par le cadre ; chiffres agrégés seulement, sans nom de patient.
+- **À trancher** : indicateurs par défaut ; vue pour le cadre supérieur de santé (pôle) et la direction des soins.
 
 ## Écartée pour l'instant
 

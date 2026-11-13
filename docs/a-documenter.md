@@ -639,3 +639,7 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 ## Évolutions futures réorganisées (13 novembre 2026)
 
 `docs/evolutions-futures.md` : réalisations retirées (demande du porteur du 13 novembre 2026), reste rassemblé en lots A à H. À reporter dans `docs/architecture.md` et `docs/fiche-projet.md` s'ils citent les anciens lots du 11 novembre (A à H n'ont plus le même contenu).
+
+## Nouvelles pistes inscrites (13 novembre 2026)
+
+`docs/evolutions-futures.md` : lots J (planning du personnel et remplacements), K (contrôles périodiques à check-list, effets personnels des patients) et L (étudiants et nouveaux arrivants, réunions, tableau de bord du cadre), proposés lors d'un tour d'horizon et inscrits à la demande du porteur, qui choisira plus tard. PDF de `evolutions-futures` à régénérer avec la documentation.
