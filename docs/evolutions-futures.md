@@ -400,3 +400,15 @@ Vérifier une fois par poste, à deux agents, qu'une chambre de soins intensifs 
 - **Besoin** : même principe que la planification des congés : chaque agent planifie ses demandes de formation ; validateur selon le type d'agent ; tableau annuel du service à la semaine ou à la journée, périodes colorées, règles (agents absents en même temps), totaux, couleurs selon le statut.
 - **Décision** : à développer plus tard, après le module Congés (12 novembre 2026), en reprenant ses tableaux et ses règles.
 - **Pistes** : lien avec le plan de formation de l'établissement et les formations obligatoires (AFGSU, incendie…) suivies dans l'Équipe ou un tableur ; départs en formation visibles dans l'Agenda comme les absences.
+
+## Versions stable, bêta et nightly (demande du porteur, 13 novembre 2026)
+
+- **Besoin** : garder une version stable à l'adresse actuelle, et publier en parallèle une version bêta et une version « nightly » (reconstruite chaque nuit) pour tester avant diffusion.
+- **Décision** : à développer plus tard (13 novembre 2026).
+- **Pistes** :
+  - trois canaux sur le même site GitHub Pages : la racine pour la version stable (étiquette de version figée), `/beta/` pour la version candidate, `/nightly/` pour l'état de `main` ; publication assemblée par une action GitHub (pas de dépendance ajoutée à l'application) ;
+  - circuit : développement sur `main` (nightly) → version candidate `0.x.y-beta.n` (bêta) → version stable après essai ; correctifs urgents sur la stable ;
+  - bandeau visible « Version bêta » ou « Version nightly — essais seulement », numéro de version et empreintes propres à chaque canal ;
+  - **protection des données du service** : une bêta ou une nightly peut introduire un format de saisie que la stable ne sait pas lire ; elles s'ouvrent en mode démonstration ou sur un dossier d'essai, et l'application refuse (ou avertit) d'ouvrir un dossier déjà écrit par une version plus récente ;
+  - application installée (mode application) et mémoire du navigateur séparées par canal (une adresse chacun) ;
+  - même schéma possible plus tard sur le serveur interne de l'établissement.
