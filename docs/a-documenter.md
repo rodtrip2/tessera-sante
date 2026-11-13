@@ -643,3 +643,7 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 ## Nouvelles pistes inscrites (13 novembre 2026)
 
 `docs/evolutions-futures.md` : lots J (planning du personnel et remplacements), K (contrôles périodiques à check-list, effets personnels des patients) et L (étudiants et nouveaux arrivants, réunions, tableau de bord du cadre), proposés lors d'un tour d'horizon et inscrits à la demande du porteur, qui choisira plus tard. Lot A complété le même jour : échanges d'agenda avec Outlook et les autres messageries par fichier .ics (export sans identité des patients, import en lecture seule ; synchronisation directe reportée à l'hébergement interne). PDF de `evolutions-futures` à régénérer avec la documentation.
+
+## Seconde série de pistes inscrites (13 novembre 2026)
+
+`docs/evolutions-futures.md` : lot K complété (tabac et argent de poche gérés par le service), lot L complété (questionnaire de sortie anonyme), nouveaux lots M (formulaires et demandes sur mesure, renforts entre services, indicateur d'activité du poste) et N (recherche partout, écran du poste de soins, accessibilité, modèles partagés entre établissements), inscrits à la demande du porteur, qui fera le tri plus tard.

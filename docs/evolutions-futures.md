@@ -18,10 +18,12 @@ Un lot « sans avis préalable » peut être développé tout de suite (données
 | **H. Socle, déploiement et liens avec le système d'information** | Versions stable, bêta et développement ; connexion rapide sans mot de passe (clé de sécurité physique, badge FIDO2, code PIN, carte CPS) ; protection du dossier de données contre les modifications et suppressions accidentelles ; connexion avec la session Windows ; stockage sur un partage autre que SMB ; messageries Zimbra avec connexion directe | Service informatique (DSI ou direction du numérique, selon l'établissement), responsable de la sécurité informatique (RSSI) ; Zimbra : délégué à la protection des données | Moyenne à grande |
 | **I. Classement dans la Messagerie et les Documents** | Dossiers, étiquettes en couleur, favoris et liens avec une tâche, dans les deux modules | Aucun (aucune donnée clinique ; classement personnel chiffré par la clé de l'agent) | Moyenne |
 | **J. Planning du personnel et remplacements** | Trame et roulement des agents par cycle, effectif minimum par poste et alerte de sous-effectif, nourris par les Congés (puis les formations et heures supplémentaires du lot C) ; postes à pourvoir après une absence, appel aux volontaires, suivi des remplacements | Données du personnel : délégué à la protection des données (registre des traitements) ; direction des ressources humaines (règles du temps de travail) | Grande |
-| **K. Contrôles périodiques et effets personnels** | Mécanisme commun de contrôles à check-list et périodicité (chariot d'urgence, défibrillateur, réfrigérateur à médicaments, extincteurs, CSI libres du lot B), registre imprimable ; inventaire des effets personnels des patients (dépôt, retrait, restitution, à deux agents) | Contrôles : aucun ; effets personnels : délégué à la protection des données (donnée liée au patient, non clinique) | Moyenne |
-| **L. Encadrement, réunions et pilotage** | Stages des étudiants et parcours d'intégration des nouveaux arrivants ; réunions (ordre du jour, présents, décisions, actions envoyées dans « Mes tâches ») ; tableau de bord du cadre et rapport d'activité annuel | Réunions : aucun ; étudiants et nouveaux arrivants : délégué à la protection des données ; tableau de bord : aucun s'il ne montre que des chiffres agrégés | Petite (réunions) à moyenne |
+| **K. Contrôles périodiques et effets personnels** | Mécanisme commun de contrôles à check-list et périodicité (chariot d'urgence, défibrillateur, réfrigérateur à médicaments, extincteurs, CSI libres du lot B), registre imprimable ; inventaire des effets personnels des patients (dépôt, retrait, restitution, à deux agents) ; tabac et argent de poche gérés par le service (distributions, solde) | Contrôles : aucun ; effets personnels, tabac et argent : délégué à la protection des données (données liées au patient, non cliniques) | Moyenne |
+| **L. Encadrement, réunions et pilotage** | Stages des étudiants et parcours d'intégration des nouveaux arrivants ; réunions (ordre du jour, présents, décisions, actions envoyées dans « Mes tâches ») ; tableau de bord du cadre et rapport d'activité annuel ; questionnaire de sortie anonyme | Réunions : aucun ; questionnaire anonyme : aucun s'il reste sans identité ; étudiants et nouveaux arrivants : délégué à la protection des données ; tableau de bord : aucun s'il ne montre que des chiffres agrégés | Petite (réunions) à moyenne |
+| **M. Formulaires, renforts et activité** | Formulaires et demandes créés par le cadre, avec leur circuit de validation ; renforts donnés et reçus entre services ; indicateur d'activité du poste calculé à partir des données de Tessera | Formulaires, renforts, activité : aucun (rappel « aucune donnée clinique » à la création d'un formulaire) | Moyenne |
+| **N. Recherche, affichage, accessibilité et partage** | Recherche partout (selon les droits) ; écran du poste de soins en lecture seule ; accessibilité (clavier, lecteur d'écran, contrastes) ; modèles partagés entre établissements (check-lists, vues, formules, formulaires) | Recherche, accessibilité, modèles : aucun ; écran du poste : responsable de la sécurité informatique et délégué à la protection des données | Petite (recherche) à moyenne |
 
-Dépendances : le lot C reprend les tableaux et les règles du module Congés ; les rôles selon le service (E) précèdent utilement le « bris de glace » (G) ; la connexion avec la session Windows et Zimbra en connexion directe (H) supposent un hébergement sur le serveur interne, après la phase pilote sur GitHub. Le lot I s'appuie sur les tâches de l'Agenda (« Mes tâches ») et peut suivre le lot A. Le lot J s'appuie sur le module Congés et sur le lot C ; le contrôle des CSI libres (lot B) peut être construit directement sur le mécanisme commun du lot K ; les actions des réunions (lot L) reprennent « Mes tâches », comme le lot I. Écartée pour l'instant : échéances des certificats légaux dans l'agenda (fin du document).
+Dépendances : le lot C reprend les tableaux et les règles du module Congés ; les rôles selon le service (E) précèdent utilement le « bris de glace » (G) ; la connexion avec la session Windows et Zimbra en connexion directe (H) supposent un hébergement sur le serveur interne, après la phase pilote sur GitHub. Le lot I s'appuie sur les tâches de l'Agenda (« Mes tâches ») et peut suivre le lot A. Le lot J s'appuie sur le module Congés et sur le lot C ; le contrôle des CSI libres (lot B) peut être construit directement sur le mécanisme commun du lot K ; les actions des réunions (lot L) reprennent « Mes tâches », comme le lot I. Les formulaires (lot M) reprennent les champs ajoutés communs ; l'indicateur d'activité (lot M) nourrit l'effectif minimum (lot J) et le tableau de bord (lot L) ; les modèles partagés (lot N) reprennent l'export des réglages. Écartée pour l'instant : échéances des certificats légaux dans l'agenda (fin du document).
 
 ## A. Liens entre modules et confort
 
@@ -360,6 +362,13 @@ Pistes proposées le 13 novembre 2026 lors d'un tour d'horizon des besoins non c
 - **Fonctionnement envisagé** : inventaire par séjour (fiche patient), une ligne par objet (description, lieu de rangement : coffre, vestiaire…) ; dépôt, retrait temporaire et restitution, chacun daté et validé par **deux agents** ; restitution à la sortie rappelée ; inventaire imprimable pour signature du patient ; aucun motif clinique (la raison d'un retrait d'objet reste dans le DPI).
 - **À trancher** : argent et valeurs (souvent gérés par la régie de l'établissement : simple mention ou inventaire détaillé) ; durée de conservation après la sortie ; accès du patient à cet inventaire par le droit d'accès.
 
+### Tabac et argent de poche gérés par le service (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : dans de nombreux services de psychiatrie, l'équipe garde et distribue le tabac ou l'argent de poche de certains patients, à leur demande ou selon le projet de soins ; le suivi est souvent tenu sur un cahier.
+- **Fonctionnement envisagé** : par patient et par séjour, dépôts (paquets, somme), distributions datées (agent, quantité), **solde** affiché ; distribution rythmée par un rappel facultatif dans l'agenda ; validation à deux agents réglable pour l'argent ; relevé imprimable pour le patient ou son représentant ; même mécanisme que l'inventaire des effets personnels.
+- **Aucune donnée clinique** : ni motif de la gestion par l'équipe, ni lien avec un traitement ; ces éléments restent dans le dossier patient informatisé (DPI).
+- **À trancher** : articulation avec la régie de l'établissement et les mesures de protection juridique (curatelle, tutelle) ; réglage du rythme et des quantités par patient ou simple trace ; avis du délégué à la protection des données.
+
 ## L. Encadrement, réunions et pilotage
 
 ### Étudiants et nouveaux arrivants (proposition retenue par le porteur, 13 novembre 2026)
@@ -379,6 +388,65 @@ Pistes proposées le 13 novembre 2026 lors d'un tour d'horizon des besoins non c
 
 - **Fonctionnement envisagé** : indicateurs croisés lus à la volée dans les modules, selon les droits du cadre : occupation et places disponibles, durées de séjour, mesures d'isolement et de contention (statistiques d'Isocont), absences et remplacements, délais de traitement des demandes de travaux, contrôles en retard ; période réglable ; **rapport d'activité annuel** prêt à imprimer, complété par le cadre ; chiffres agrégés seulement, sans nom de patient.
 - **À trancher** : indicateurs par défaut ; vue pour le cadre supérieur de santé (pôle) et la direction des soins.
+
+### Questionnaire de sortie anonyme (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : recueillir l'avis des patients sur leur séjour (accueil, information, respect de l'intimité, activités, repas), souvent sur papier et rarement exploité.
+- **Fonctionnement envisagé** : questionnaire réglable par l'établissement (modèle proposé), rempli par le patient sur une tablette ou un poste du service en **mode anonyme** (aucun compte, aucune identité, aucun lien avec la fiche patient, heure arrondie au jour), puis l'écran revient à l'accueil ; réponses chiffrées avec la clé du service ; résultats agrégés au tableau de bord du cadre, seulement au-delà d'un nombre minimal de réponses, pour qu'on ne puisse pas reconnaître un patient.
+- **À trancher** : articulation avec le questionnaire national de satisfaction ou celui de l'établissement (ne pas faire doublon) ; réponses libres (risque d'identification ou de contenu clinique) ; verrouillage du poste pendant la saisie.
+
+## M. Formulaires, renforts et activité
+
+### Formulaires et demandes sur mesure (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : beaucoup de petites demandes du service (matériel, changement de poste, proposition d'activité, demande de documentation…) n'appellent pas chacune un module. Le cadre les crée lui-même, ce qui adapte Tessera à tout établissement sans développement.
+- **Fonctionnement envisagé** :
+  - le cadre (ou l'administrateur pour l'établissement) crée un **formulaire** à partir des types des champs ajoutés communs (texte, date ou période, choix, choix multiple, case à cocher, nombre, liste d'agents ou de salles) ;
+  - **circuit de validation** réglable : une ou plusieurs étapes (cadre, cadre supérieur, secrétaire…), avec accord, refus motivé ou demande de précision ; l'auteur suit l'état de sa demande ;
+  - qui peut remplir et qui voit les demandes : par rôle et par service ; pastille pour les demandes à traiter ; tableau des demandes, filtres, export ;
+  - action possible à la validation : tâche dans « Mes tâches », rendez-vous dans l'agenda, message à l'auteur ;
+  - chaque demande et chaque décision est une saisie du journal du module, chiffrée avec sa clé.
+- **Aucune donnée clinique** : rappel à la création du formulaire et à la saisie ; pas de rattachement à un patient dans un premier temps.
+- **À trancher** : formulaires communs à l'établissement et propres à un service ; modèles proposés par défaut ; durée de conservation des demandes.
+
+### Renforts entre services (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : chiffrer les renforts donnés et reçus pour argumenter les effectifs auprès du pôle et de la direction des soins.
+- **Fonctionnement envisagé** : saisie d'un renfort (date, poste, durée, nombre d'agents par rôle, service donneur et receveur, motif choisi dans une liste : sous-effectif, accompagnement, situation de violence, surveillance renforcée…) ; aucun nom de patient ; nom des agents facultatif (réglage) ; totaux par période et par service, au tableau de bord.
+- **À trancher** : saisie par le service donneur, receveur ou les deux (avec rapprochement) ; liste des motifs par défaut ; lien avec les remplacements (lot J) et les heures supplémentaires (lot C).
+
+### Indicateur d'activité du poste (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : objectiver l'activité d'un poste à partir de ce que Tessera sait déjà, sans nouvelle saisie.
+- **Fonctionnement envisagé** : pour chaque poste et chaque jour, un relevé calculé à la volée : entrées et sorties, accompagnements et permissions, mesures d'isolement et de contention en cours, transferts, renforts reçus, contrôles faits ; pondérations réglables par le cadre pour un indicateur synthétique ; mis en regard de l'effectif présent (lot J) ; affiché au tableau de bord.
+- **Aucune donnée clinique** : l'indicateur ne mesure pas la charge en soins (qui relève du dossier de soins) mais l'activité d'organisation ; à présenter comme tel.
+- **À trancher** : éléments retenus par défaut ; pondérations ; affichage par agent (proposé : non).
+
+## N. Recherche, affichage, accessibilité et partage
+
+### Recherche partout (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Fonctionnement envisagé** : une barre de recherche (raccourci clavier) qui trouve dans tous les modules un patient, un agent, un médecin, un document, un message, une salle, un véhicule, une demande… ; résultats groupés par module, ouverture d'un clic dans la bonne fenêtre.
+- **Droits** : chaque module cherche lui-même dans ce qu'il affiche déjà à l'agent (lecture à la volée, contrat du module) ; rien n'est indexé ni copié sur le partage ; un résultat que l'agent n'a pas le droit de voir n'apparaît pas, même masqué.
+- **À trancher** : recherche dans le contenu des documents et des messages ou seulement dans leurs titres ; recherche dans les patients sortis.
+
+### Écran du poste de soins (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : afficher en continu, sur un écran du poste de soins, ce que l'équipe consulte sans cesse : tâches du poste, rendez-vous et accompagnements du jour, places disponibles, contrôles à faire.
+- **Fonctionnement envisagé** : mode « affichage » ouvert par un agent, en lecture seule, réglé par le cadre (vues et blocs affichés) ; **identités réduites** (initiales et chambre, ou rien) quel que soit le réglage de l'agenda ; actualisation automatique ; verrouillage d'un geste et fermeture automatique à heure fixe ou à la fin du poste ; aucun bouton de saisie.
+- **À trancher** : écran visible des patients et des visiteurs ou non (emplacement) ; compte dédié ou session d'un agent ; avis du responsable de la sécurité informatique et du délégué à la protection des données.
+
+### Accessibilité (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : rendre Tessera utilisable au clavier seul, avec un lecteur d'écran, et lisible pour les agents malvoyants ou daltoniens. Les établissements publics ont des obligations d'accessibilité numérique, applications internes comprises (portée exacte à confirmer avec le service informatique de l'établissement) ; c'est aussi un argument pour la validation.
+- **Fonctionnement envisagé** : audit des écrans selon le référentiel général d'amélioration de l'accessibilité (RGAA) ; navigation au clavier dans les fenêtres, onglets, tableaux et grilles ; libellés lus par les lecteurs d'écran ; contrastes vérifiés en thèmes clair et sombre ; couleurs jamais seules porteuses d'information (le noir et blanc avec symboles existe déjà pour l'impression) ; taille du texte réglable par l'agent ; tests automatiques ajoutés au parcours des écrans.
+- **À trancher** : niveau visé ; déclaration d'accessibilité à publier.
+
+### Modèles partagés entre établissements (proposition retenue par le porteur, 13 novembre 2026)
+
+- **Besoin** : dans l'esprit open source du projet, permettre à un établissement de reprendre ce qu'un autre a déjà construit.
+- **Fonctionnement envisagé** : export en fichier d'un **modèle** (check-list de contrôle, vue de la Vue d'ensemble, formules, formulaire, rubriques des informations du service, données ajoutées, couleurs), sans aucune donnée de patient ni d'agent et sans nom d'établissement ; import avec aperçu et choix des éléments, comme l'import des réglages existant ; bibliothèque de modèles fictifs dans le dépôt, alimentée par les établissements qui le souhaitent.
+- **À trancher** : format et version des modèles (compatibilité entre versions de Tessera) ; relecture des modèles proposés avant leur ajout au dépôt public.
 
 ## Écartée pour l'instant
 
