@@ -8,7 +8,7 @@ Un lot « sans avis préalable » peut être développé tout de suite (données
 
 | Lot | Contenu | Avis préalable | Ampleur |
 | --- | --- | --- | --- |
-| **A. Liens entre modules et confort** | Barre des modules avec favoris épinglés et menu des autres modules ; contact d'un clic dans l'agenda, les salles, la messagerie et la Vue d'ensemble ; salles des présences dans « Mon agenda », colonne « salle » de la Vue d'ensemble ; messageries Zimbra sans connexion (annuaire des boîtes, « Écrire à… », import d'un agenda .ics) | Aucun | Petite à moyenne |
+| **A. Liens entre modules et confort** | Barre des modules avec favoris épinglés et menu des autres modules ; contact d'un clic dans l'agenda, les salles, la messagerie et la Vue d'ensemble ; salles des présences dans « Mon agenda », colonne « salle » de la Vue d'ensemble ; messageries Zimbra sans connexion (annuaire des boîtes, « Écrire à… », import d'un agenda .ics) ; échanges d'agenda avec Outlook et les autres messageries par fichier .ics (export des rendez-vous sans identité des patients, import en lecture seule dans « Mon agenda ») | Aucun | Petite à moyenne |
 | **B. Chambres de soins intensifs (CSI)** | Tâche de surveillance de la CSI dans l'agenda (Isocont) ; contrôle de conformité des CSI libres par poste, à deux agents, avec check-list | Aucun (aucune donnée clinique) ; check-list à rédiger avec le porteur | Moyenne |
 | **C. Temps de travail : formations et heures supplémentaires** | Demandes de formation sur le modèle du module Congés (tableaux, périodes, règles, totaux, validation selon le rôle, départs visibles dans l'Agenda) ; déclaration des heures supplémentaires et des heures récupérées, validation du cadre (récupération ou paiement), puis confirmation de l'enregistrement dans le logiciel de gestion du temps de travail ; articulation réglable avec ce logiciel (Tessera recueille les demandes, ou sert à la planification seulement), lecture de ses exports et export pour la saisie | Données du personnel : délégué à la protection des données (registre des traitements) ; heures payées : direction des ressources humaines | Moyenne |
 | **D. Documents, suite** | Graphiques dans le tableur ; suivi des modifications du style de paragraphe, de l'alignement, du retrait et des listes ; modèles remplis automatiquement à partir des fiches ; fichiers joints (PDF, scans) avec ouverture sans téléchargement ; photos jointes aux demandes de travaux | Graphiques, suivi, modèles : aucun ; fichiers joints : responsable de la sécurité informatique (politique de sécurité de la page) ; photos : délégué à la protection des données | Moyenne à grande (peut être découpé : D1 sans avis, D2 fichiers et photos) |
@@ -41,6 +41,23 @@ Dépendances : le lot C reprend les tableaux et les règles du module Congés ; 
   - la pastille du bouton « Modules » totalise celles des modules non épinglés, pour ne rien manquer.
 - **Réglages** : choix personnel gardé pour l'agent ; l'établissement peut proposer des favoris par défaut selon le rôle (ex. IDE : Patients, Agenda, Isolement et contention ; secrétaire : Agenda, Suivi médical, Messagerie). Option désactivée par défaut au départ (la barre actuelle reste) si elle change trop les habitudes.
 - **À trancher** : nombre maximal de modules épinglés selon la largeur de l'écran ; place des modules arrêtés (masqués du menu, comme aujourd'hui).
+
+### Échanges d'agenda avec Outlook et les autres messageries, par fichier (demande du porteur, 13 novembre 2026)
+
+- **Besoin** : le cadre (et tout agent qui le souhaite) veut retrouver ses rendez-vous de Tessera dans son agenda Outlook, et voir son agenda Outlook dans Tessera. Une **synchronisation automatique n'est pas possible** pendant le pilote : Tessera ne fait aucune connexion sortante (CSP `connect-src 'none'`). Les échanges passent donc par un **fichier .ics** (format d'agenda standard, lu aussi par Zimbra, Thunderbird, Google Agenda…), à l'initiative de l'agent.
+- **Export vers Outlook** :
+  - bouton « Exporter vers mon agenda (.ics) » dans « Mon agenda » : rendez-vous de l'agent sur une période choisie (réunions, entretiens, astreintes, présences, réservations de salle ou de véhicule, congés validés), par `U.exporter` ;
+  - **aucune identité de patient** dans le fichier, quel que soit le réglage d'affichage de l'agenda : l'événement garde son type et son lieu (« Accompagnement », « Entretien »), sans nom, initiales ni chambre ; aucun contenu de note. Raison : l'agenda Outlook de l'établissement peut être hébergé hors de l'hôpital (Microsoft 365), et le fichier peut être transféré ;
+  - identifiant stable par événement, pour qu'un nouvel export **mette à jour** les rendez-vous déjà importés dans Outlook au lieu de les dupliquer ; événements supprimés dans Tessera marqués annulés ;
+  - copie à refaire à chaque changement (rappel affiché) ; choix des types d'événements exportés retenu pour l'agent.
+- **Import depuis Outlook** :
+  - l'agent exporte son agenda Outlook en .ics et le choisit dans « Mon agenda » ; le fichier est **lu dans le navigateur, jamais copié sur le partage** (comme les autres fichiers importés) ;
+  - affichage en **couche à part**, en lecture seule, d'une autre couleur, que l'agent masque ou affiche ; seuls l'horaire, l'objet et le lieu sont repris ; rien n'est inscrit au journal ni visible des autres agents ;
+  - option : garder la couche d'une connexion à l'autre, chiffrée avec la clé personnelle de l'agent (désactivée par défaut) ;
+  - c'est le même mécanisme que l'import d'un agenda Zimbra (lot H, option 1), à construire une seule fois.
+- **Réglages** : export et import activés ou non par l'établissement, puis par le cadre pour ses services ; types d'événements exportables réglables.
+- **Plus tard** : une vraie synchronisation avec le serveur de messagerie de l'établissement (Exchange ou Microsoft 365) suppose un hébergement de Tessera sur un serveur interne et l'ouverture de `connect-src` à ce seul serveur, comme la connexion directe à Zimbra (lot H, option 2) ; avis du service informatique, du responsable de la sécurité informatique et du délégué à la protection des données.
+- **À trancher** : rendez-vous partagés du service (réunions d'équipe) exportables par tous ou par le cadre seulement ; mention de la salle et des participants dans le fichier exporté.
 
 ## B. Chambres de soins intensifs (CSI)
 
