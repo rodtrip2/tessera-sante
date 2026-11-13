@@ -8,9 +8,9 @@ Un lot « sans avis préalable » peut être développé tout de suite (données
 
 | Lot | Contenu | Avis préalable | Ampleur |
 | --- | --- | --- | --- |
-| **A. Liens entre modules et confort** | Contact d'un clic dans l'agenda, les salles, la messagerie et la Vue d'ensemble ; salles des présences dans « Mon agenda », colonne « salle » de la Vue d'ensemble ; messageries Zimbra sans connexion (annuaire des boîtes, « Écrire à… », import d'un agenda .ics) | Aucun | Petite à moyenne |
+| **A. Liens entre modules et confort** | Barre des modules avec favoris épinglés et menu des autres modules ; contact d'un clic dans l'agenda, les salles, la messagerie et la Vue d'ensemble ; salles des présences dans « Mon agenda », colonne « salle » de la Vue d'ensemble ; messageries Zimbra sans connexion (annuaire des boîtes, « Écrire à… », import d'un agenda .ics) | Aucun | Petite à moyenne |
 | **B. Chambres de soins intensifs (CSI)** | Tâche de surveillance de la CSI dans l'agenda (Isocont) ; contrôle de conformité des CSI libres par poste, à deux agents, avec check-list | Aucun (aucune donnée clinique) ; check-list à rédiger avec le porteur | Moyenne |
-| **C. Planification des formations** | Demandes de formation sur le modèle du module Congés (tableaux, périodes, règles, totaux, validation selon le rôle, départs visibles dans l'Agenda) | Données du personnel : délégué à la protection des données (registre des traitements) | Moyenne |
+| **C. Temps de travail : formations et heures supplémentaires** | Demandes de formation sur le modèle du module Congés (tableaux, périodes, règles, totaux, validation selon le rôle, départs visibles dans l'Agenda) ; déclaration des heures supplémentaires et des heures récupérées, validation du cadre (récupération ou paiement), puis confirmation de l'enregistrement dans le logiciel de gestion du temps de travail | Données du personnel : délégué à la protection des données (registre des traitements) ; heures payées : direction des ressources humaines | Moyenne |
 | **D. Documents, suite** | Graphiques dans le tableur ; suivi des modifications du style de paragraphe, de l'alignement, du retrait et des listes ; modèles remplis automatiquement à partir des fiches ; fichiers joints (PDF, scans) avec ouverture sans téléchargement ; photos jointes aux demandes de travaux | Graphiques, suivi, modèles : aucun ; fichiers joints : responsable de la sécurité informatique (politique de sécurité de la page) ; photos : délégué à la protection des données | Moyenne à grande (peut être découpé : D1 sans avis, D2 fichiers et photos) |
 | **E. Rôles et droits, suite** | Rôles selon le service (écran) ; droits par domaine des référents ; périodes de garde de l'administrateur de garde ; cadre supérieur affecté à un pôle ; réglages du Suivi médical ouverts au cadre et aux médecins chefs | Responsable de la sécurité informatique pour ce qui change la remise des clés | Moyenne |
 | **F. Données du personnel et conformité** | Entretiens et notes de ressources humaines dans les fiches des agents ; module Signalement (lanceur d'alerte) ; données des modules arrêtés dans l'export du droit d'accès | Délégué à la protection des données ; direction des ressources humaines ; direction juridique (signalement) | Moyenne à grande |
@@ -27,6 +27,17 @@ Dépendances : le lot C reprend les tableaux et les règles du module Congés ; 
 - **Contact d'un clic** (fiche de contact de l'Équipe) à brancher là où un agent apparaît : agenda (accompagnateurs, participants), salles (auteur d'une réservation, si le réglage le permet), messagerie (destinataires), Vue d'ensemble (vue « Équipe »).
 - **Salles et bureaux** : salles des présences dans « Mon agenda » ; colonne « salle » dans la Vue d'ensemble.
 - **Messageries Zimbra, option 1** (sans connexion) : voir le lot H.
+
+### Barre des modules : favoris épinglés et menu des autres modules (demande du porteur, 13 novembre 2026)
+
+- **Besoin** : avec une quinzaine de modules, la barre du bas déborde (surtout sur téléphone). Chaque agent épingle ses modules favoris dans la barre ; les autres sont dans un menu qui s'ouvre par un bouton (sur le modèle de l'ancien menu « Démarrer » de Windows).
+- **Fonctionnement** :
+  - bouton « Modules » à gauche de la barre : liste de tous les modules auxquels l'agent a accès, avec icône, nom et pastille (nombre d'éléments à traiter), recherche par nom ; Patients et Administration y figurent aussi ;
+  - épingler ou désépingler depuis le menu (et par un appui long ou un clic droit sur une icône de la barre), réordonner les modules épinglés par glisser-déposer ;
+  - une fenêtre ouverte d'un module non épinglé apparaît dans la barre tant qu'elle est ouverte ;
+  - la pastille du bouton « Modules » totalise celles des modules non épinglés, pour ne rien manquer.
+- **Réglages** : choix personnel gardé pour l'agent ; l'établissement peut proposer des favoris par défaut selon le rôle (ex. IDE : Patients, Agenda, Isolement et contention ; secrétaire : Agenda, Suivi médical, Messagerie). Option désactivée par défaut au départ (la barre actuelle reste) si elle change trop les habitudes.
+- **À trancher** : nombre maximal de modules épinglés selon la largeur de l'écran ; place des modules arrêtés (masqués du menu, comme aujourd'hui).
 
 ## B. Chambres de soins intensifs (CSI)
 
@@ -46,13 +57,25 @@ Vérifier une fois par poste, à deux agents, qu'une chambre de soins intensifs 
 - **Traçabilité** : chaque contrôle est une saisie datée et signée ; historique consultable et exportable (preuve pour les visites de certification ou du Contrôleur général des lieux de privation de liberté, CGLPL).
 - **À trancher** : contenu de la check-list par défaut ; ce qui se passe si le contrôle n'est pas fait (alerte au cadre) ; module d'accueil (Isocont ou agenda) ; contrôle aussi à la libération de la CSI.
 
-## C. Planification des formations
+## C. Temps de travail : formations et heures supplémentaires
 
 ### Planification des demandes de formation (demande du porteur, 12 novembre 2026)
 
 - **Besoin** : même principe que la planification des congés : chaque agent planifie ses demandes de formation ; validateur selon le type d'agent ; tableau annuel du service à la semaine ou à la journée, périodes colorées, règles (agents absents en même temps), totaux, couleurs selon le statut.
 - **Décision** : à développer plus tard, après le module Congés (12 novembre 2026), en reprenant ses tableaux et ses règles.
 - **Pistes** : lien avec le plan de formation de l'établissement et les formations obligatoires (AFGSU, incendie…) suivies dans l'Équipe ou un tableur ; départs en formation visibles dans l'Agenda comme les absences.
+
+### Heures supplémentaires et heures récupérées (demande du porteur, 13 novembre 2026)
+
+- **Besoin** : l'agent déclare ses heures supplémentaires (dépassement d'horaire, rappel sur un repos) et les heures qu'il récupère ; le cadre valide, puis confirme qu'elles sont enregistrées dans le logiciel de gestion du temps de travail, qui reste la référence (même avertissement réglable que pour les congés).
+- **Circuit** :
+  1. **Déclaration par l'agent** : date, heures de début et de fin (ou durée), motif dans une liste réglable (dépassement, rappel, réunion, formation, remplacement…) et commentaire court, **sans donnée clinique** ni nom de patient ;
+  2. **Validation du cadre** (validateur selon le rôle, comme pour les congés) : accepter **en récupération** ou **en heures supplémentaires payées** (si l'établissement l'autorise et selon les plafonds réglables), accepter en partie, ou refuser avec un motif ;
+  3. **Confirmation de l'enregistrement** dans le logiciel de gestion du temps de travail, par le cadre ou le secrétariat chargé de la saisie (date et auteur gardés) ; la déclaration est alors close.
+- **Heures récupérées** : demandées comme un congé (dans le module Congés ou ici, à trancher), décomptées du solde d'heures à récupérer ; solde par agent et par année, avec correction possible du cadre (le calcul restant affiché pour référence, comme les droits à congés).
+- **Suivi** : liste « À valider » et « À enregistrer » pour le cadre, pastilles dans la barre des modules, totaux par agent, par mois et par motif ; export pour la saisie dans le logiciel de gestion du temps de travail.
+- **Avant le développement** : avis du délégué à la protection des données (données du personnel, registre des traitements, durée de conservation) ; règles de l'établissement sur le paiement des heures supplémentaires, les plafonds et les majorations, à voir avec la direction des ressources humaines (Tessera ne calcule pas la paie).
+- **À trancher** : module propre ou onglet du module Congés ; unité (heures et minutes, ou centièmes) ; qui confirme l'enregistrement dans le logiciel de gestion du temps de travail.
 
 ## D. Documents, suite
 
