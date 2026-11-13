@@ -412,3 +412,18 @@ Vérifier une fois par poste, à deux agents, qu'une chambre de soins intensifs 
   - **protection des données du service** : une bêta ou une version de développement peut introduire un format de saisie que la stable ne sait pas lire ; elles s'ouvrent en mode démonstration ou sur un dossier d'essai, et l'application refuse (ou avertit) d'ouvrir un dossier déjà écrit par une version plus récente ;
   - application installée (mode application) et mémoire du navigateur séparées par canal (une adresse chacun) ;
   - même schéma possible plus tard sur le serveur interne de l'établissement.
+
+## Messageries Zimbra du service (demande du porteur, 13 novembre 2026)
+
+- **Besoin** : relier Tessera aux messageries Zimbra du service. Cas de départ (cas particulier du CHHA) : une boîte pour les paramédicaux, une par médecin et par cadre, une pour les secrétaires. Usage précis à préciser avec le porteur (voir qu'un courriel est arrivé, écrire depuis la bonne boîte, relier un courriel à une demande ou à un rendez-vous…).
+- **Décision** : gardé pour plus tard avec deux options (13 novembre 2026) ; commencer de préférence par l'option 1.
+- **Option 1 — sans connexion** (compatible avec les principes actuels, aucune validation particulière) :
+  - annuaire des boîtes du service dans l'Équipe (quelle boîte pour qui, par rôle) ;
+  - boutons « Écrire à… » qui ouvrent la messagerie avec destinataire et objet préremplis (lien `mailto:`), depuis une demande de travaux, une permission, un congé, une réservation… sans contenu clinique ;
+  - raccourci vers la bonne boîte du webmail Zimbra ;
+  - import d'un agenda Zimbra exporté (.ics) dans l'Agenda, lu dans le navigateur et jamais copié sur le partage.
+- **Option 2 — connexion directe** (lire et envoyer depuis Tessera) :
+  - lève le principe « aucune connexion sortante » pour une seule adresse, celle du serveur Zimbra interne (CSP `connect-src` limitée à ce serveur) ; configuration de Zimbra par le service informatique pour accepter les requêtes de Tessera ;
+  - accès aux boîtes partagées : délégation Zimbra ou jeton d'accès plutôt que mots de passe gardés dans Tessera ; à trancher avec le responsable de la sécurité informatique (RSSI) ;
+  - courriels affichés à la volée, jamais enregistrés dans Tessera (ils contiennent souvent des informations sur les patients ; aucune donnée clinique dans Tessera) ;
+  - avis préalable du service informatique, du responsable de la sécurité informatique et du délégué à la protection des données (DPO, référent RGPD) ; mise à jour de la fiche technique.
