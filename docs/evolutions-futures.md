@@ -4,7 +4,21 @@
 
 ## Lots de développement (13 novembre 2026)
 
-Un lot « sans avis préalable » peut être développé tout de suite (données fictives, options désactivées par défaut) ; les autres attendent une décision ou un avis avant le développement, même si leur étude peut commencer.
+Depuis le 13 novembre 2026, un avis ne bloque plus le développement : une fonction soumise à avis est développée, livrée désactivée et rangée dans l'onglet « Validations » de l'administration, par interlocuteur (règles : `CLAUDE.md` § 2). La colonne « Avis préalable » dit donc quel avis l'établissement devra obtenir pour l'activer.
+
+### Priorités du porteur (tri du 13 novembre 2026)
+
+Tri fait partie par partie (plan d'action du porteur). Ordre de développement :
+
+1. **Phase 1, préparer le pilote** : onglet « Validations » de l'administration (socle des fonctions soumises à avis) ; versions stable, bêta et développement (H) ; retours des agents et mesure d'usage anonyme (O).
+2. **Phase 2, confort et liens entre modules** (A, I, N) : contact d'un clic, salles dans « Mon agenda » et la Vue d'ensemble, recherche partout, favoris, étiquettes, barre des modules, dossiers, liens avec une tâche, messageries Zimbra sans connexion avec l'import d'un agenda, échanges d'agenda par fichier .ics.
+3. **Phase 3, fonctions métier** : réglages du Suivi médical ouverts au cadre et aux médecins chefs, cadre supérieur affecté à un pôle, référents par domaine (E) ; surveillance de la CSI et contrôle des CSI libres (B, conçu pour devenir un cas des contrôles périodiques du lot K) ; modèles remplis automatiquement, suivi des modifications étendu, graphiques du tableur (D).
+4. **Phase 4, personnel, formalités et fichiers** : droit d'accès des modules arrêtés (F) ; formalités d'admission et de sortie (P) ; formations (catalogue et inscriptions) et heures supplémentaires (C) ; entretiens des agents (F) ; fichiers joints puis photos des demandes de travaux (D).
+5. **Phase 5, données cliniques** : rôles selon le service (E), puis accès réglable et « bris de glace », feuille de staff clinique, notes cliniques (G).
+
+**Plus tard** : lien avec le logiciel de gestion du temps (C) ; administrateur de garde limité à ses gardes (E, option désactivable, désactivée par défaut) ; module Signalement (F) ; versions et liens du lot H autres que les canaux ; contrôles périodiques, effets personnels, tabac et argent de poche (K) ; étudiants, intégration, tableau de bord (L) ; formulaires sur mesure, indicateur d'activité (M) ; écran du poste de soins, accessibilité, modèles partagés (N) ; import automatique de la liste des patients (O) ; plans d'action et audits (P).
+
+**Écartées pour le moment** : trame et roulement du personnel, remplacements (J) ; réunions, questionnaire de sortie (L) ; renforts entre services (M) ; commandes et stocks, matériel remis par poste, budget des activités (Q) ; échéances des certificats légaux (fin du document). Elles restent décrites ci-dessous.
 
 | Lot | Contenu | Avis préalable | Ampleur |
 | --- | --- | --- | --- |
@@ -34,7 +48,7 @@ Dépendances : le lot C reprend les tableaux et les règles du module Congés ; 
 
 - **Contact d'un clic** (fiche de contact de l'Équipe) à brancher là où un agent apparaît : agenda (accompagnateurs, participants), salles (auteur d'une réservation, si le réglage le permet), messagerie (destinataires), Vue d'ensemble (vue « Équipe »).
 - **Salles et bureaux** : salles des présences dans « Mon agenda » ; colonne « salle » dans la Vue d'ensemble.
-- **Messageries Zimbra, option 1** (sans connexion) : voir le lot H.
+- **Messageries Zimbra, option 1** (sans connexion) : voir le lot H ; l'import d'un agenda Zimbra est développé avec les échanges d'agenda par fichier .ics (ci-dessous), même mécanisme (décision du porteur du 13 novembre 2026).
 
 ### Barre des modules : favoris épinglés et menu des autres modules (demande du porteur, 13 novembre 2026)
 
@@ -84,7 +98,10 @@ Vérifier une fois par poste, à deux agents, qu'une chambre de soins intensifs 
 
 ## C. Temps de travail : formations et heures supplémentaires
 
-### Planification des demandes de formation (demande du porteur, 12 novembre 2026)
+### Demandes de formation (demande du porteur du 12 novembre 2026, précisée le 13 novembre 2026)
+
+- **Catalogue et inscriptions** (précision du 13 novembre 2026) : le cadre renseigne les **formations ouvertes à l'inscription** (intitulé, dates, lieu, nombre de places, public visé) ; les agents **s'inscrivent** ; le cadre **valide, refuse ou met sur liste d'attente** (rang dans la liste, place libérée proposée au suivant) ; l'agent suit l'état de sa demande.
+- **Tableau annuel des départs en formation** gardé (décision du 13 novembre 2026), sur le modèle des Congés, avec les départs visibles dans l'Agenda comme les absences.
 
 - **Besoin** : même principe que la planification des congés : chaque agent planifie ses demandes de formation ; validateur selon le type d'agent ; tableau annuel du service à la semaine ou à la journée, périodes colorées, règles (agents absents en même temps), totaux, couleurs selon le statut.
 - **Décision** : à développer plus tard, après le module Congés (12 novembre 2026), en reprenant ses tableaux et ses règles.
@@ -153,7 +170,7 @@ Joindre une photo à une demande de travaux (fuite, dégradation). Stockage chif
 
 - **Rôles selon le service** (écran) : prévus dans le modèle de données ; aujourd'hui un rôle vaut pour tous les services du compte, y compris un rôle prêté pour un seul service (limite signalée à la saisie du prêt).
 - **Référents : droits par domaine** (par exemple le référent pharmacie confirme les demandes de travaux de la pharmacie), à décider domaine par domaine ; aujourd'hui la mention seulement.
-- **Administrateur de garde : limitation aux périodes de garde** (planning des gardes), au lieu d'un rôle permanent.
+- **Administrateur de garde : limitation aux périodes de garde** (planning des gardes), au lieu d'un rôle permanent ; option **désactivable, désactivée par défaut** (décision du porteur du 13 novembre 2026).
 - **Cadre supérieur** : suivi automatique des changements de son pôle (affectation du compte à un pôle plutôt qu'aux services cochés), si le porteur le souhaite.
 - **Suivi médical** : réglages ouverts au cadre et aux médecins chefs (à vérifier au moment du lot).
 - Avis du responsable de la sécurité informatique pour tout ce qui change la remise des clés.
@@ -185,7 +202,7 @@ Permettre à un agent de signaler un fait (atteinte, manquement, danger) de faç
 
 ## G. Données cliniques
 
-**Règle « aucune donnée clinique ».** Deux demandes du 8 novembre 2026 (feuille de staff avec codes CIM et projet thérapeutique, notes par patient) portent sur des **données cliniques**, que Tessera exclut aujourd'hui (le dossier patient informatisé, DPI, reste la référence clinique). Avant tout développement, il faudra : une décision explicite du porteur de lever cette règle pour ces modules ; l'avis du délégué à la protection des données (DPO, référent RGPD), avec une analyse d'impact (AIPD) mise à jour ; l'avis du responsable de la sécurité informatique (RSSI) et du service informatique (DSI ou direction du numérique, selon l'établissement), y compris sur l'hébergement (partage du réseau de l'hôpital) et sur la sauvegarde ; l'accord de la direction des soins et de la commission médicale d'établissement (CME) sur le partage avec le DPI (risque de double saisie et de divergence). Le chiffrement par module et la clé remise aux seuls agents habilités s'appliqueraient comme ailleurs.
+**Décision du porteur du 13 novembre 2026** : la règle « aucune donnée clinique » est remplacée par une activation choisie par chaque établissement, fonction par fonction et service par service, désactivée par défaut (`CLAUDE.md` § 1 et § 2). Le lot est développé (phase 5, après les rôles selon le service), et les avis ci-dessous deviennent ceux que l'établissement obtient pour l'activer ; pendant le pilote, activation sur accord hiérarchique après information du délégué à la protection des données au minimum. Texte d'origine : deux demandes du 8 novembre 2026 (feuille de staff avec codes CIM et projet thérapeutique, notes par patient) portent sur des **données cliniques**, que Tessera exclut aujourd'hui (le dossier patient informatisé, DPI, reste la référence clinique). Avis à obtenir par l'établissement : l'avis du délégué à la protection des données (DPO, référent RGPD), avec une analyse d'impact (AIPD) mise à jour ; l'avis du responsable de la sécurité informatique (RSSI) et du service informatique (DSI ou direction du numérique, selon l'établissement), y compris sur l'hébergement (partage du réseau de l'hôpital) et sur la sauvegarde ; l'accord de la direction des soins et de la commission médicale d'établissement (CME) sur le partage avec le DPI (risque de double saisie et de divergence). Le chiffrement par module et la clé remise aux seuls agents habilités s'appliqueraient comme ailleurs.
 
 ### Accès aux données cliniques réglable, « bris de glace » (demande du porteur, 11 novembre 2026)
 

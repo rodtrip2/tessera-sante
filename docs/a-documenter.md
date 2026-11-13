@@ -651,3 +651,12 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 ## Troisième série de pistes inscrites (13 novembre 2026)
 
 `docs/evolutions-futures.md` : nouveaux lots O (réussir le pilote : retours des agents, mesure d'usage anonyme, import automatique de la liste des patients depuis un dossier de dépôt), P (plans d'action et audits, formalités d'admission et de sortie) et Q (commandes et stocks, matériel remis par poste, budget des activités), inscrits à la demande du porteur. Point de principe à trancher pour l'import automatique : fichier en clair déposé sur le partage par le service informatique (règle actuelle : fichiers importés jamais copiés sur le partage). Le porteur priorise l'ensemble des lots A à Q à part (liste à cocher et à noter).
+
+## Décisions du porteur sur le tri et les avis (13 novembre 2026)
+
+| Document | À écrire |
+| --- | --- |
+| `docs/architecture.md` | Remplacer la règle « aucune donnée clinique » par l'activation par établissement (fonction par fonction, service par service, désactivée par défaut) ; principe des fonctions soumises à avis (développées, livrées désactivées, désactivables) ; onglet « Validations » de l'administration (par interlocuteur, trois états, journal, rappel visible du cadre et de la direction seulement) ; données masquées et conservées après désactivation ; ordre des phases 1 à 5 |
+| `docs/fiche-projet.md`, `docs/fiche-technique.md` | Même remplacement de la règle ; mécanisme « Validations » (« à construire ») ; pilote sur accord hiérarchique, information du délégué à la protection des données au minimum pour les données cliniques et du personnel |
+| Kit | Un document par interlocuteur (délégué à la protection des données, responsable de la sécurité informatique, service informatique, ressources humaines, direction des soins et commission médicale, direction juridique, représentants du personnel), argumenté de son point de vue, avec PDF ; explication à l'établissement du choix d'activer ou non les données cliniques |
+| Interface | Rappels « aucune donnée clinique » à revoir quand le lot G sera développé (`ui-champs.js` option « donnée clinique », `champs.js`) ; les modules d'organisation gardent le leur |
