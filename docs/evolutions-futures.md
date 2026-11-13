@@ -16,8 +16,9 @@ Un lot « sans avis préalable » peut être développé tout de suite (données
 | **F. Données du personnel et conformité** | Entretiens et notes de ressources humaines dans les fiches des agents ; module Signalement (lanceur d'alerte) ; données des modules arrêtés dans l'export du droit d'accès | Délégué à la protection des données ; direction des ressources humaines ; direction juridique (signalement) | Moyenne à grande |
 | **G. Données cliniques** | Accès réglable par rôle et service, limité aux patients présents, « bris de glace » ; feuille de staff (CIM, motif, projet thérapeutique, dépendance) ; notes cliniques | Levée de la règle « aucune donnée clinique », délégué à la protection des données (analyse d'impact), responsable de la sécurité informatique, direction des soins, commission médicale d'établissement | Grande |
 | **H. Socle, déploiement et liens avec le système d'information** | Versions stable, bêta et développement ; connexion avec la session Windows ; stockage sur un partage autre que SMB ; messageries Zimbra avec connexion directe | Service informatique (DSI ou direction du numérique, selon l'établissement), responsable de la sécurité informatique (RSSI) ; Zimbra : délégué à la protection des données | Moyenne à grande |
+| **I. Classement dans la Messagerie et les Documents** | Dossiers, étiquettes en couleur, favoris et liens avec une tâche, dans les deux modules | Aucun (aucune donnée clinique ; classement personnel chiffré par la clé de l'agent) | Moyenne |
 
-Dépendances : le lot C reprend les tableaux et les règles du module Congés ; les rôles selon le service (E) précèdent utilement le « bris de glace » (G) ; la connexion avec la session Windows et Zimbra en connexion directe (H) supposent un hébergement sur le serveur interne, après la phase pilote sur GitHub. Écartée pour l'instant : échéances des certificats légaux dans l'agenda (fin du document).
+Dépendances : le lot C reprend les tableaux et les règles du module Congés ; les rôles selon le service (E) précèdent utilement le « bris de glace » (G) ; la connexion avec la session Windows et Zimbra en connexion directe (H) supposent un hébergement sur le serveur interne, après la phase pilote sur GitHub. Le lot I s'appuie sur les tâches de l'Agenda (« Mes tâches ») et peut suivre le lot A. Écartée pour l'instant : échéances des certificats légaux dans l'agenda (fin du document).
 
 ## A. Liens entre modules et confort
 
@@ -207,6 +208,26 @@ Demande : pouvoir enregistrer les données (ou le dossier de secours) ailleurs q
   - accès aux boîtes partagées : délégation Zimbra ou jeton d'accès plutôt que mots de passe gardés dans Tessera ; à trancher avec le responsable de la sécurité informatique (RSSI) ;
   - courriels affichés à la volée, jamais enregistrés dans Tessera (ils contiennent souvent des informations sur les patients ; aucune donnée clinique dans Tessera) ;
   - avis préalable du service informatique, du responsable de la sécurité informatique et du délégué à la protection des données (DPO, référent RGPD) ; mise à jour de la fiche technique.
+
+## I. Classement dans la Messagerie et les Documents
+
+### Dossiers, étiquettes, favoris et liens avec une tâche (demande du porteur, 13 novembre 2026)
+
+- **Besoin** : ranger les messages et les documents, les retrouver vite et les relier au travail à faire. Les deux modules ont aujourd'hui des boîtes (Messagerie) et des espaces de partage (Documents), avec rattachement à un patient, un agent, une salle…, mais ni dossiers, ni étiquettes, ni favoris.
+- **Dossiers** :
+  - Messagerie : dossiers et sous-dossiers personnels pour classer ses messages reçus et envoyés (un message rangé disparaît de la boîte de réception, sans être supprimé) ;
+  - Documents : dossiers dans un espace partagé (service, rôle, groupe), visibles de ceux qui ont accès à l'espace, et dossiers personnels ; déplacer un document ne change pas qui peut le lire (le partage reste celui du document) ;
+  - glisser-déposer et action « Déplacer vers… » ; dossier vide supprimable, dossier non vide : demande de confirmation, contenu remis à la racine (jamais supprimé).
+- **Étiquettes en couleur** :
+  - plusieurs étiquettes par message ou document, filtres et recherche par étiquette ;
+  - étiquettes personnelles, et étiquettes communes définies par le cadre pour un service (liste et couleurs dans les réglages), comme les couleurs déjà réglables des autres modules ; couleurs lisibles en thème clair et sombre.
+- **Favoris** : étoile sur un message ou un document, liste « Favoris » en tête ; personnelle.
+- **Liens avec une tâche** :
+  - « Créer une tâche » depuis un message ou un document (tâche de l'Agenda, « Mes tâches », avec échéance et personne chargée), l'élément étant rattaché à la tâche ;
+  - rattacher un message ou un document à une tâche existante ; la tâche affiche ses éléments liés (lus à la volée, selon les droits de chacun) et l'élément affiche ses tâches ;
+  - tâche terminée : rappel discret sur l'élément (« tâche faite »), sans le déplacer.
+- **Confidentialité** : le classement personnel (dossiers, étiquettes, favoris) est chiffré avec la clé personnelle de l'agent et invisible des autres ; les dossiers et étiquettes partagés sont chiffrés avec la clé de l'espace ou du service ; un nom de dossier ou d'étiquette ne doit pas contenir de donnée clinique (rappel à la saisie). Aucune règle du socle ne change.
+- **À trancher** : dossiers partagés dans la Messagerie (boîte du service) ou seulement personnels ; nombre maximal d'étiquettes ; qui crée les étiquettes communes (cadre, administrateur) ; tâche liée visible de l'expéditeur du message.
 
 ## Écartée pour l'instant
 
