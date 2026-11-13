@@ -635,3 +635,7 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 | --- | --- | --- |
 | Comptes : trousseau lisible | La rubrique Comptes affichait toutes les clés internes (destinataires de la Messagerie, partages des Documents…) par leur code technique, illisible surtout sur téléphone. Désormais : résumé (clés de plateforme et de modules, clés de cloisonnement par famille), détail des clés dans une rubrique repliée ; colonne « Clés » : modules seulement, « + N clés de cloisonnement » (détail au survol) | `ui.js` (onglet Comptes : `FAMILLES`, `celluleCles`, « Détail des clés ») |
 | Parcours des écrans indépendant du jour | Le parcours se déroule un mardi à 10 h de la semaine en cours (horloge du navigateur) ; sortie actée de la démonstration placée dans la semaine affichée | `tests/ecrans/parcours.py`, `demo.js` |
+
+## Évolutions futures réorganisées (13 novembre 2026)
+
+`docs/evolutions-futures.md` : réalisations retirées (demande du porteur du 13 novembre 2026), reste rassemblé en lots A à H. À reporter dans `docs/architecture.md` et `docs/fiche-projet.md` s'ils citent les anciens lots du 11 novembre (A à H n'ont plus le même contenu).
