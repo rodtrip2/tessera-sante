@@ -714,3 +714,12 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 | Vue d'ensemble | Lignes « Agents » : le nom ouvre la fiche de contact de l'Équipe (qui garde le bouton « Données ajoutées » pour le cadre) ; sans le module Équipe, fiche des données ajoutées comme avant | `ui-vue.js` |
 | Sans module Équipe | Nom en texte simple (comportement de `U.equipe.lien`) | — |
 | Parcours | Messagerie et Vue d'ensemble | `tests/ecrans/parcours.py` |
+
+## Version 0.50.0 (branche `salles-presences`, 14 novembre 2026) : salles des présences (phase 2, lot A)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Compte relié sur les occupations du Suivi médical | Présences médicales, présences des psychologues et entretiens prévus portent le compte relié au médecin ou au psychologue dans la liste commune (par identifiant, sinon par nom) ; gardé dans le relevé des salles pour les agents sans la clé du Suivi médical | `module-suivi.js` (`occupationsSalles`), `module-salles.js` (`contenuReflet`), `tests/suivi.test.js` |
+| « Mon agenda » | « Mes salles cette semaine » reprend les présences et entretiens prévus du médecin ou du psychologue relié au compte de l'agent (avec la salle) ; idem sur la page « Aujourd'hui » (« Mes salles aujourd'hui ») | `ui-salles.js` (`miennes`) |
+| Vue d'ensemble | Colonne native « Salle aujourd'hui » des lignes Médecins (salles notées sur les présences du jour), ajoutée à la vue proposée « Médecins » et à celle de la démonstration | `module-vue.js`, `ui-vue.js`, `demo.js` |
+| Parcours | Mon agenda du médecin relié, colonne de la vue Médecins | `tests/ecrans/parcours.py` |

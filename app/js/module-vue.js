@@ -53,7 +53,7 @@
         autres: { titre: 'Autres patients' }, synthese: ['effectif', 'places', 'sorties', 'parMode', 'parMedecin', 'ageMoyen'], instantane: { roles: ['CADRE'] } },
       // Tableau de transmissions (0.30.0), à imprimer pour les transmissions orales
       { id: 'transmissions', nom: 'Transmissions', type: 'transmissions', lignes: 'patients', services: [], roles: [], perimetre: 'hospitalises', tri: { colonne: 'chambre', sens: 1 }, transmissions: T.modele(), groupes: [], synthese: [] },
-      { id: 'medecins', nom: 'Médecins', lignes: 'medecins', services: [], roles: [], colonnes: ['nom', 'initiales', 'fonction', 'statut', 'presence', 'patients1', 'patients2', 'retards'].map(function (c) { return { code: c }; }), groupes: [], synthese: [] },
+      { id: 'medecins', nom: 'Médecins', lignes: 'medecins', services: [], roles: [], colonnes: ['nom', 'initiales', 'fonction', 'statut', 'presence', 'salle', 'patients1', 'patients2', 'retards'].map(function (c) { return { code: c }; }), groupes: [], synthese: [] },
       { id: 'equipe', nom: 'Équipe', lignes: 'agents', services: [], roles: ['CADRE'], colonnes: ['nom', 'roles', 'groupes', 'referent', 'absence', 'taches'].map(function (c) { return { code: c }; }), groupes: [], synthese: [] }
     ];
   }
@@ -240,6 +240,14 @@
           var lib = { present: 'présent', ponctuel: 'présent', absent: 'absent', garde: 'de garde', '': '—' };
           var t = etats[0] === etats[1] ? lib[etats[0]] + (etats[0] ? ' toute la journée' : '') : 'matin : ' + lib[etats[0]] + ', après-midi : ' + lib[etats[1]];
           return { v: t, lib: t, brute: etats.indexOf('absent') >= 0 ? 'absent' : etats.some(Boolean) ? 'present' : '', cle: etats.indexOf('absent') >= 0 ? 'absent' : etats.some(Boolean) ? 'present' : '' };
+        } });
+        // Salle des présences du jour (Salles et bureaux, 14 novembre 2026) : salles notées sur les présences du médecin
+        col({ code: 'salle', libelle: 'Salle aujourd’hui', type: 'texte', journal: 'suivi', lire: function (l) {
+          if (!ctx._sallesJour) { var d0 = new Date(ctx.maintenant); d0.setHours(0, 0, 0, 0); ctx._sallesJour = ctx.suiviModule.occupationsSalles ? ctx.suiviModule.occupationsSalles(ctx.suivi, ctx.config, d0.getTime(), d0.getTime() + 864e5) : []; }
+          var ids = [];
+          ctx._sallesJour.forEach(function (o) { if (o.genre === 'medical' && o.titre === l.m.nom && ids.indexOf(o.salle) < 0) ids.push(o.salle); });
+          var t = ids.map(function (id) { return ctx.nomSalle ? ctx.nomSalle(id) : id; }).join(', ');
+          return { v: t, lib: t || '—', brute: t };
         } });
         [['patients1', 'Patients en 1re ligne', 'medecin1'], ['patients2', 'Patients en 2e ligne', 'medecin2']].forEach(function (x) {
           col({ code: x[0], libelle: x[1], type: 'nombre', journal: 'patients', lire: function (l) { var n = (ctx.hospitalises || []).filter(function (p) { return nomMedecin(ctx, p[x[2]], p[x[2] + 'Id']) === l.m.nom; }).length; return { v: n, lib: String(n), brute: n }; } });

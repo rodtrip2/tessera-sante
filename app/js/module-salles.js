@@ -164,7 +164,7 @@
    */
   function contenuReflet(sources) {
     return (sources || []).filter(function (o) { return o && typeof o.ref === 'string' && /^[a-z]+\|/.test(o.ref) && o.salle && o.fin > o.debut; })
-      .map(function (o) { var y = { ref: o.ref, salle: String(o.salle), debut: +o.debut, fin: +o.fin, service: o.service || '', par: o.par || '' }; if (o.genre === 'ferme') y.genre = 'ferme'; return y; })
+      .map(function (o) { var y = { ref: o.ref, salle: String(o.salle), debut: +o.debut, fin: +o.fin, service: o.service || '', par: o.par || '' }; if (typeof o.compte === 'string' && o.compte) y.compte = o.compte; if (o.genre === 'ferme') y.genre = 'ferme'; return y; })
       .sort(function (a, b) { return a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : 0; });
   }
   /** Occupations du relevé d'un module sur [debut, fin[, à joindre aux sources quand l'agent n'a pas la clé du module. */

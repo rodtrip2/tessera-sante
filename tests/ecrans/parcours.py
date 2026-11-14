@@ -181,6 +181,9 @@ with sync_playwright() as p:
     a.locator('td.case-vue button.btn.lien').first.click(); time.sleep(1)
     verifier(a.locator('dialog[open]', has_text='Téléphone professionnel').count() == 1, 'Vue d’ensemble, vue Équipe : le nom ouvre la fiche de contact')
     a.keyboard.press('Escape'); time.sleep(0.3)
+    a.locator('nav.onglets button', has_text='Médecins').first.click(); time.sleep(1.2)
+    txt = a.locator('main').inner_text()
+    verifier('Salle aujourd’hui' in txt and 'Bureau' in txt, 'Vue d’ensemble, vue Médecins : colonne « Salle aujourd’hui »')
 
     print('Agenda : professionnels, patients, permissions, sorties')
     fenetre(a, 'Agenda du service')
@@ -956,6 +959,10 @@ with sync_playwright() as p:
     a.locator('nav.onglets button', has_text='Présences médicales').click(); time.sleep(1)
     verifier(a.get_by_role('button', name='+ Ma présence, absence, garde').count() == 1, 'médecin : saisit ses propres présences')
     capture(a, 'medecin-suivi')
+    l = a.evaluate("(() => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return SIC.ui.salles.miennes(d.getTime(), d.getTime() + 7 * 864e5).map(o => o.titre + '|' + SIC.ui.salles.nomSalle(o.salle)); })()")
+    verifier(any(x.startswith('Présence') for x in l), 'médecin : ses présences et leur salle dans « Mon agenda » (' + ', '.join(l[:2]) + ')')
+    fenetre(a, 'Agenda du service', False); a.locator('nav.onglets button', has_text='Mon agenda').first.click(); time.sleep(1.2)
+    verifier(a.locator('section.panneau', has_text='Mes salles cette semaine').locator('li', has_text='Présence').count() >= 1, 'Mon agenda : « Mes salles cette semaine » avec la présence du médecin')
 
     print('Accès particuliers : intervenants extérieurs, prêts de droits (0.31.0)')
     a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)

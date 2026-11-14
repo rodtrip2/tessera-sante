@@ -337,8 +337,14 @@
   /**
    * Occupations de salles venues du module (0.25.0), lues par Salles et bureaux : présences médicales (par demi-journée,
    * horaires réglés dans Salles), présences des psychologues, entretiens prévus, qui ont une salle.
-   * [{ ref, salle, debut, fin, titre, genre, service, par }] sur [debut, fin[ (instants).
+   * [{ ref, salle, debut, fin, titre, genre, service, par, compte }] sur [debut, fin[ (instants) ; `compte` : compte relié au
+   * médecin ou au psychologue dans la liste commune (14 novembre 2026 : ses présences figurent dans « Mon agenda »).
    */
+  function compteDe(L, config, id, nom) {
+    if (!L) return '';
+    var x = L.liste(config || {}).filter(function (m) { return (id && m.id === id) || (!id && nom && m.nom === nom); })[0];
+    return (x && x.compte) || '';
+  }
   function occupationsSalles(st, config, debut, fin, horaires) {
     var res = [], hr = horaires || { matin: ['08:30', '12:30'], apresmidi: ['13:30', '17:30'] };
     var a = jourISO(debut), b = jourISO(fin - 1);
@@ -346,18 +352,18 @@
     for (var j = a, n = 0; j <= b && n < 400; j = jourISO(plusJours(depuisISO(j), 1)), n++) {
       presencesActives(st).forEach(function (p) {
         if (!p.salle || p.nature !== 'presence' || !couvre(p, j)) return;
-        moments(p).forEach(function (mo) { var h = hr[mo]; res.push({ ref: 'suivi|' + p.id + '|' + j + '|' + mo, salle: p.salle, debut: t(j, h[0]), fin: t(j, h[1]), titre: medecinDe(config, p), genre: 'medical', service: p.service, par: p.par }); });
+        moments(p).forEach(function (mo) { var h = hr[mo]; res.push({ ref: 'suivi|' + p.id + '|' + j + '|' + mo, salle: p.salle, debut: t(j, h[0]), fin: t(j, h[1]), titre: medecinDe(config, p), genre: 'medical', service: p.service, par: p.par, compte: compteDe(MED, config, p.medecinId, medecinDe(config, p)) }); });
       });
       Object.keys(st.presencesPsy || {}).map(function (k) { return st.presencesPsy[k]; }).forEach(function (p) {
         if (p.supprime || !p.salle || p.nature !== 'presence' || !couvre(p, j)) return;
         var h = heuresPsy(p);
-        res.push({ ref: 'psy|' + p.id + '|' + j, salle: p.salle, debut: t(j, h.de), fin: t(j, h.a), titre: psyDe(config, p), genre: 'psy', service: p.service, par: p.par });
+        res.push({ ref: 'psy|' + p.id + '|' + j, salle: p.salle, debut: t(j, h.de), fin: t(j, h.a), titre: psyDe(config, p), genre: 'psy', service: p.service, par: p.par, compte: compteDe(PSY, config, p.psychologueId, psyDe(config, p)) });
       });
       Object.keys(st.entretiensPrevus || {}).map(function (k) { return st.entretiensPrevus[k]; }).forEach(function (x) {
         if (x.annule || x.jour !== j || !x.salle) return;
         var pr = x.presence && st.presencesPsy[x.presence];
         if (pr && pr.salle === x.salle && couvre(pr, j)) return;   // dans la présence et sa salle : déjà occupée
-        res.push({ ref: 'entretien|' + x.id + '|' + j, salle: x.salle, debut: t(j, heure(x.de, '09:00')), fin: t(j, heure(x.a, '10:00')), titre: 'Entretien prévu — ' + psyDe(config, x), genre: 'entretien', service: x.service, par: x.par });
+        res.push({ ref: 'entretien|' + x.id + '|' + j, salle: x.salle, debut: t(j, heure(x.de, '09:00')), fin: t(j, heure(x.a, '10:00')), titre: 'Entretien prévu — ' + psyDe(config, x), genre: 'entretien', service: x.service, par: x.par, compte: compteDe(PSY, config, x.psychologueId, psyDe(config, x)) });
       });
     }
     return res.filter(function (o) { return o.debut < fin && o.fin > debut; });

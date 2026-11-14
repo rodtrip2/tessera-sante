@@ -208,6 +208,24 @@ test('Planning des psychologues (0.25.0) : présences, entretiens prévus dans u
   assert.deepEqual([S.droits.peut(['SECRETAIRE'], 'PRESENCE_PSY', {}), S.droits.peut(['IDE'], 'PRESENCE_PSY', {})], [true, false]);
 });
 
+test('Salles des présences (14 novembre 2026) : compte relié au médecin ou au psychologue sur l’occupation', () => {
+  globalThis.self = globalThis; globalThis.SIC = globalThis.SIC || {}; SIC.medecins = require('../app/js/medecins.js');
+  const S2 = require('../app/js/module-suivi.js');
+  const config = { medecins: [{ id: 'm-a', nom: 'Dr A (fictif)', fonction: 'psychiatre', compte: 'u-a' }, { id: 'm-b', nom: 'Dr B (fictif)', fonction: 'psychiatre' }],
+    psychologues: { liste: [{ id: 'p-c', nom: 'Mme C (fictif)', fonction: 'clinicien', compte: 'u-c' }] } };
+  const ev2 = (type, data, i) => ({ v: 1, id: 'q' + i, at: '2026-11-10T08:0' + i + ':00.000Z', by: 'sec', type, data });
+  const st = S2.reduire([
+    ev2('PRESENCE', { id: 'PA', medecin: 'Dr A (fictif)', service: 'U1', nature: 'presence', jours: [1], moments: ['matin'], repetition: 'semaine', debut: '2026-11-02', salle: 'S1' }, 1),
+    ev2('PRESENCE', { id: 'PB', medecin: 'Dr B (fictif)', medecinId: 'm-b', service: 'U1', nature: 'presence', jours: [1], moments: ['matin'], repetition: 'semaine', debut: '2026-11-02', salle: 'S2' }, 2),
+    ev2('PRESENCE_PSY', { id: 'PC', psychologue: 'Mme C (fictif)', psychologueId: 'p-c', service: 'U1', nature: 'presence', jours: [1], repetition: 'semaine', debut: '2026-11-02', de: '14:00', a: '16:00', salle: 'S3' }, 3)]);
+  const occ = S2.occupationsSalles(st, config, new Date(2026, 10, 16).getTime(), new Date(2026, 10, 17).getTime());
+  const par = Object.fromEntries(occ.map((o) => [o.salle, o.compte]));
+  assert.deepEqual(par, { S1: 'u-a', S2: '', S3: 'u-c' }, 'nom seul (Dr A) ou identifiant (Mme C) : compte retrouvé ; médecin sans compte : vide');
+  // Relevé des salles (agents sans la clé du Suivi médical) : le compte est gardé
+  const SA = require('../app/js/module-salles.js');
+  if (SA.contenuReflet) assert.equal(SA.contenuReflet(occ).filter((o) => o.compte === 'u-a').length, 1);
+});
+
 test('Rôle Médecin (0.28.1) : le médecin relié à un compte saisit ses propres présences, jamais celles d’un autre', () => {
   globalThis.self = globalThis; globalThis.SIC = globalThis.SIC || {}; SIC.medecins = require('../app/js/medecins.js');
   const S2 = require('../app/js/module-suivi.js');

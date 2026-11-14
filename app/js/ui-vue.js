@@ -38,6 +38,8 @@
     return { config: cfg(), maintenant: maintenant, roles: roles(), fiches: fiches, suivi: st || null, suiviModule: SIC.suivi, agenda: ag || null, agendaModule: SIC.agenda,
       valeurs: s.valeurs(), chambresTravaux: U.chambresTravaux ? U.chambresTravaux(U.services().map(function (v) { return v.code; })) : [], lisible: U.champs.lisible, comptes: s.comptes || [], libService: U.libService, services: servicesAffiches(), hospitalises: hosp,
       libRole: function (r) { return SIC.modules.obtenir('isocont').droits.libRole(cfg(), r); },
+      // Nom d'une salle (Salles et bureaux, 14 novembre 2026 : colonne « Salle aujourd'hui » des médecins)
+      nomSalle: U.salles && s.ouvert && s.ouvert('salles') ? U.salles.nomSalle : null,
       joursRecents: SIC.listePatients ? SIC.listePatients.options(cfg()).joursRecents : 7,
       // Prochains événements du patient (Agenda, 0.30.0) : horizon de la vue, 3 jours sinon
       evenements: ag && SIC.agenda && SIC.agenda.evenementsPatients ? (function () {

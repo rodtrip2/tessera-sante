@@ -514,10 +514,15 @@
       } catch (e) { return []; }
     }
   });
-  /** Pour « Mon agenda » : réservations simples et demandes de l'agent sur [debut, fin[, triées. */
+  /**
+   * Pour « Mon agenda » : réservations simples et demandes de l'agent sur [debut, fin[, et (14 novembre 2026) présences et
+   * entretiens prévus du médecin ou du psychologue relié à son compte dans la liste commune, triés.
+   */
   function miennes(debut, fin) {
     var c = moi(), o = occupations(debut, fin);
     return o.occupations.filter(function (x) { return x.par === c.id && x.genre === 'simple'; }).map(function (x) { return Object.assign({ etat: '' }, x); })
+      // Sans la clé du Suivi médical, l'occupation vient du relevé (sans sa nature) : le compte relié suffit
+      .concat(o.occupations.filter(function (x) { return x.genre !== 'simple' && x.compte && x.compte === c.id; }).map(function (x) { return Object.assign({}, x, { etat: '', titre: x.genre === 'entretien' || /^entretien\|/.test(x.ref) ? 'Entretien prévu' : 'Présence' + (x.service ? ' — ' + U.libService(x.service) : '') }); }))
       .concat(o.enAttente.filter(function (x) { return x.par === c.id; }).map(function (x) { var d = st().demandes[x.demande]; return Object.assign({ etat: d && d.validation ? 'à valider' : 'demande en conflit' }, x); }))
       .concat(o.refusees.filter(function (x) { return x.par === c.id; }).map(function (x) { return Object.assign({ etat: 'demande refusée' }, x); }))
       .sort(function (a, b) { return a.debut - b.debut; });
