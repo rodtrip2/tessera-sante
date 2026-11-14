@@ -1398,3 +1398,9 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
 .btn.etoile { padding: 0 6px; min-width: 0; border-color: transparent; background: transparent; font-size: 1rem; line-height: 1.2; }
 .classement-etiquettes { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .classement-barre select { width: auto; }
+
+/* Tâches rattachées à un message ou un document (lot I, 14 novembre 2026) */
+.taches-liees { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 2px 0; }
+.taches-liees .btn.lien { font-size: .8rem; }
+.taches-liees .btn.lien.fait { color: var(--ok); text-decoration: none; }
+.doc-actions { white-space: nowrap; }

@@ -1310,13 +1310,15 @@
     return h('tr', { class: 'doc-ligne' },
       h('td', {}, U.classement ? U.classement.etoile('documents', d.id) : null, h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…'), d.genre === 'tableur' ? h('span', { class: 'badge', text: 'Tableur' }) : null,
         U.classement ? U.classement.marques('documents', d.id) : null,
+        U.mesTaches && U.mesTaches.rappelElement ? U.mesTaches.rappelElement('documents', d.id) : null,
         m && m.rattaches.length ? h('div', {}, h('small', { class: 'muted', text: m.rattaches.map(function (r) { return r.libelle; }).join(' · ') })) : null),
       h('td', {}, h('span', { class: 'badge statut-' + stt.statut, text: DM.STATUTS[stt.statut] })),
       h('td', { text: d.auteur === moi().id ? 'Vous' : nomAgent(d.auteur, d) }),
       h('td', { text: (d.partage || []).length ? d.partage.map(libEntree).join(', ') : 'Privé' }),
       h('td', { text: der ? dateCourte(der.le) + ' — ' + nomAgent(der.par, d) : '' }),
       h('td', { text: DM.LIB_DROITS[droit] || '' }),
-      h('td', {}, U.classement && U.classement.disponible() ? h('button', { class: 'btn petit', type: 'button', onclick: function () { U.classement.modaleClasser('documents', d.id, m ? m.titre : ''); } }, 'Classer…') : null));
+      h('td', { class: 'doc-actions' }, U.classement && U.classement.disponible() ? h('button', { class: 'btn petit', type: 'button', onclick: function () { U.classement.modaleClasser('documents', d.id, m ? m.titre : ''); } }, 'Classer…') : null,
+        U.mesTaches && U.mesTaches.disponible && U.mesTaches.disponible() ? h('button', { class: 'btn petit', type: 'button', title: 'Créer une tâche rattachée à ce document', onclick: function () { U.mesTaches.nouvelle({ titre: (m ? m.titre : 'Document'), element: { module: 'documents', genre: 'document', id: d.id, service: '' } }); } }, '+ Ma liste') : null));
   }
   function table(ds, vide) {
     if (!ds.length) return h('p', { class: 'muted', text: vide });
@@ -1525,5 +1527,14 @@
     chargerTitres(tous, rappel || function () {});
     return tous.map(function (d) { var m = metaConnue(d); return m ? { module: 'documents', libModule: d.modele ? 'Modèle' : 'Document', titre: m.titre, detail: m.resume || '', ouvrir: function () { ouvrirEditeur(d.id); } } : null; }).filter(Boolean);
   }
-  U.documents = { rechercher: rechercher, transfertsAutomatiques: transfertsAutomatiques, ouvrir: ouvrirEditeur, creer: creer, nouveau: modaleNouveau, section: section, effacementAutomatique: effacementAutomatique, lireBlocs: lireBlocs, rendreBlocs: rendreBlocs, imprimer: imprimer, lireVersion: lireVersion };
+  /** Pour les rattachements (tâches, messages) : documents lisibles par l'agent, et titre connu d'un document. */
+  function listeRattachables() { return DM.visibles(st(), moi(), cfg(), {}).map(function (d) { return { id: d.id, modifie: d.modifie }; }); }
+  function infos(id) {
+    var d = DM.visibles(st(), moi(), cfg(), {}).filter(function (x) { return x.id === id; })[0];
+    if (!d) return null;
+    var m = metaConnue(d);
+    if (!m) chargerTitres([d], function () { U.rendreContenu(); });
+    return { titre: m ? m.titre : 'Document', modele: !!d.modele };
+  }
+  U.documents = { rechercher: rechercher, listeRattachables: listeRattachables, infos: infos, transfertsAutomatiques: transfertsAutomatiques, ouvrir: ouvrirEditeur, creer: creer, nouveau: modaleNouveau, section: section, effacementAutomatique: effacementAutomatique, lireBlocs: lireBlocs, rendreBlocs: rendreBlocs, imprimer: imprimer, lireVersion: lireVersion };
 })();

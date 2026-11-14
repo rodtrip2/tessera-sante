@@ -746,3 +746,14 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 | Démonstration | Étiquettes communes « Qualité » et « Pharmacie » ; étiquette personnelle, favori, dossier « Formations » et sous-dossier « Incendie », dossier de documents | `demo.js` |
 | Restes | Dossiers partagés d'un espace de documents et étiquettes communes posées pour tous (saisies partagées) : non faits, à décider par le porteur | — |
 | Parcours | Marques, réception hors dossiers, filtre par dossier et favoris, documents (filtre, création d'une étiquette depuis « Classer ») ; sélecteurs des lignes de documents adaptés (bouton du titre) | `tests/ecrans/parcours.py` |
+
+## Version 0.53.0 (branche `liens-taches`, 14 novembre 2026) : liens entre messages, documents et tâches (phase 2, lot I)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Créer une tâche | « + Ma liste » dans un message ouvert et sur chaque ligne de document : tâche personnelle rattachée à l'élément | `ui-messagerie.js`, `ui-documents.js` |
+| Rattacher à une tâche existante | Le bouton « Rattacher un élément d'un module » d'une tâche propose aussi les documents lisibles et les messages de l'agent | `ui-messagerie.js` (`ADAPT.documents`, `ADAPT.messagerie`), `module-messagerie.js` (`RATTACHABLES`) |
+| L'élément affiche ses tâches | Sous l'objet d'un message et sous le titre d'un document : « ☐ Tâche : … (échéance) » ou « ✓ Tâche faite : … » (rappel discret), un clic ouvre la tâche | `ui-mes-taches.js` (`liees`, `rappelElement`), `app.css` |
+| Messages | Un document peut désormais être rattaché à un message ; un message ne se rattache pas à un message | `ui-messagerie.js` |
+| Démonstration | Tâche rattachée à un message (à faire), tâche faite rattachée à un document | `demo.js` |
+| Parcours | Tâche affichée sur le message, « + Ma liste », rappel sur le document | `tests/ecrans/parcours.py` |

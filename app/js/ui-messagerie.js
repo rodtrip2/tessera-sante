@@ -189,6 +189,21 @@
       },
       resoudre: function (r) { var p = patients()[r.id]; return p ? { titre: 'Fiche patient : ' + SIC.suivi.identite(p, Date.now()), detail: U.libService(p.service || r.service) } : null; },
       ouvrir: function (r) { var p = patients()[r.id]; if (p && U.fichePatient) U.fichePatient.modale(p); else U.ouvrirFenetre('patients'); }
+    },
+    // Documents et messages (lot I, 14 novembre 2026) : liens avec une tâche ; un document se rattache aussi à un message
+    documents: {
+      lister: function () { return U.documents && U.documents.listeRattachables ? U.documents.listeRattachables().map(function (d) { return { genre: 'document', id: d.id, service: '', quand: Date.parse(d.modifie) || 0 }; }) : []; },
+      resoudre: function (r) { var x = U.documents && U.documents.infos ? U.documents.infos(r.id) : null; return x ? { titre: (x.modele ? 'Modèle : ' : 'Document : ') + x.titre, detail: '' } : null; },
+      ouvrir: function (r) { if (U.documents) U.documents.ouvrir(r.id); }
+    },
+    messagerie: {
+      lister: function () {
+        var c = compte(), vus = {}, res = [];
+        ['recus', 'envoyes', 'archives'].forEach(function (o) { try { MS.liste(st(), c, c.groupes, U.config(), Date.now(), o).forEach(function (m) { if (!vus[m.id]) { vus[m.id] = 1; res.push({ genre: 'message', id: m.id, service: '', quand: Date.parse(m.cree) || 0 }); } }); } catch (e) { /* liste illisible */ } });
+        return res;
+      },
+      resoudre: function (r) { var m = st().messages[r.id]; return m ? { titre: 'Message : ' + (m.objet || '(sans objet)'), detail: 'De ' + (m.nom || s().nomAuteur(m.par)) + ' — ' + dateHeure(m.cree) } : null; },
+      ouvrir: function (r) { var m = st().messages[r.id], o = m && m.par === moi().id ? 'envoyes' : 'recus'; selection[o] = r.id; classe[o].dossier = ''; U.ouvrirFenetre('messagerie'); U.App.onglet = o; U.rendreContenu(); }
     }
   };
   /** Ligne d'un élément rattaché : détail et « Ouvrir » si l'agent y a accès, sinon « (accès réservé) » sans aucun détail. */
@@ -204,8 +219,9 @@
       retirer ? h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Retirer', onclick: retirer }, '✕') : null);
   }
   /** Choix d'un élément à rattacher : module, puis élément (seulement ceux auxquels l'agent a accès). */
-  function modaleRattacher(puis) {
-    var mods = Object.keys(MS.RATTACHABLES).filter(function (k) { return s().ouvert && s().ouvert(k); });
+  function modaleRattacher(puis, o) {
+    var exclus = (o && o.exclure) || [];
+    var mods = Object.keys(MS.RATTACHABLES).filter(function (k) { return exclus.indexOf(k) < 0 && s().ouvert && s().ouvert(k); });
     if (!mods.length) { alert('Vous n’avez accès à aucun module dont on peut rattacher un élément.'); return; }
     var selM = h('select', { 'aria-label': 'Module' }, mods.map(function (k) { return h('option', { value: k, text: MS.RATTACHABLES[k] }); }));
     var zone = h('div', { class: 'pile ms-choix-elements' }), choisi = null, filtreTxt = h('input', { type: 'search', placeholder: 'Filtrer', 'aria-label': 'Filtrer les éléments' });
@@ -405,6 +421,7 @@
         actions.push([fav ? '★ Retirer des favoris' : '☆ Favori', async function () { await s().enregistrerPreference('classement', SIC.classement.marquer(U.classement.lire(), 'messagerie', m.id, { favori: !fav })); U.rendreContenu(); }]);
         actions.push(['Classer…', function () { U.classement.modaleClasser('messagerie', m.id, m.objet); }]);
       }
+      if (U.mesTaches && U.mesTaches.nouvelle && U.mesTaches.disponible && U.mesTaches.disponible()) actions.push(['+ Ma liste', function () { U.mesTaches.nouvelle({ titre: 'Message : ' + (m.objet || ''), element: { module: 'messagerie', genre: 'message', id: m.id, service: '' } }); }]);
       if (peutEcrire()) actions.push(['Transférer…', function () { modaleNouveau({ objet: 'Tr : ' + m.objet, texte: '\n\n— Message de ' + (m.nom || s().nomAuteur(m.par)) + ' du ' + dateHeure(m.cree) + ' —\n' + m.texte, rattaches: m.rattaches.slice() }); }]);
       if ((auteur || admin()) && !m.retire) actions.push(['Retirer le message…', function () {
         var mo = prompt('Le message disparaîtra des reçus de tous les destinataires (il reste au journal). Motif (facultatif) :', '');
@@ -414,6 +431,7 @@
     return h('article', { class: 'ms-lecteur', 'aria-label': 'Message' },
       badges(m),
       h('h2', { class: 'ms-objet', text: m.objet }),
+      U.mesTaches && U.mesTaches.rappelElement ? U.mesTaches.rappelElement('messagerie', m.id) : null,
       h('dl', { class: 'ms-entete' }, h('dt', { text: 'De' }), h('dd', {}, U.equipe && U.equipe.lien ? U.equipe.lien(m.par, m.nom || s().nomAuteur(m.par)) : (m.nom || s().nomAuteur(m.par))), h('dt', { text: 'À' }), h('dd', { text: libDestinataires(m) }),
         h('dt', { text: 'Envoyé' }), h('dd', { text: 'le ' + dateHeure(m.cree) + (m.jusquau ? ' · affiché jusqu’au ' + jourFr(m.jusquau) : '') })),
       m.illisible ? h('p', { class: 'alerte', text: 'Message chiffré pour ses seuls destinataires : votre clé n’ouvre pas ce message, ou elle ne vous a pas encore été remise (à la prochaine connexion d’un administrateur après votre arrivée dans le groupe ou le service).' }) : null,
@@ -658,7 +676,7 @@
         h('small', { class: 'muted', text: encadrement() ? 'Services, groupes, rôles, agents nommés ou tout l’établissement.' : 'Vos services, vos groupes, un rôle de vos services ou des agents nommés (un seul service à la fois). Plusieurs services ou tout l’établissement : cadre et administrateur.' })),
       h('label', {}, 'Objet', objet), h('label', {}, 'Message', texte),
       h('div', { class: 'pile' }, zoneR, zoneP,
-        h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (rattaches.length >= MS.MAX_RATTACHES) return alert('Dix éléments au plus.'); modaleRattacher(function (r) { if (!rattaches.some(function (x) { return x.module === r.module && x.id === r.id; })) rattaches.push(r); dessinerR(); }); } }, 'Rattacher un élément…'),
+        h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (rattaches.length >= MS.MAX_RATTACHES) return alert('Dix éléments au plus.'); modaleRattacher(function (r) { if (!rattaches.some(function (x) { return x.module === r.module && x.id === r.id; })) rattaches.push(r); dessinerR(); }, { exclure: ['messagerie'] }); } }, 'Rattacher un élément…'),
           entree ? h('label', { class: 'btn petit ms-joindre' }, 'Joindre un fichier…', entree) : null),
         entree ? h('small', { class: 'muted', text: 'Fichiers : ' + o.typesPieces.join(', ') + ' ; ' + o.tailleMaxMo + ' Mo au plus chacun. Ils sont chiffrés et conservés avec le message.' }) : null),
       peutSondage ? h('div', { class: 'pile' }, h('label', { class: 'case' }, avecSondage, h('b', { text: 'Ajouter un sondage' })), zoneS) : null,
@@ -812,7 +830,8 @@
   function elements() {
     var res = [];
     Object.keys(ADAPT).forEach(function (k) {
-      if (!s().ouvert || !s().ouvert(k)) return;
+      // Messages et documents : la recherche générale a ses propres sources (objets, titres)
+      if (k === 'messagerie' || k === 'documents' || !s().ouvert || !s().ouvert(k)) return;
       var l = [];
       try { l = ADAPT[k].lister() || []; } catch (e) { l = []; }
       l.forEach(function (x) {

@@ -947,6 +947,11 @@
           await tp(-48, { titre: 'Relancer les services techniques pour le salon (fictif)', echeance: jC(-1), heure: '10:00', rappel: '0', note: '', element: { module: 'travaux', genre: 'demande', id: 'TR-SAL', service: 'U1' }, fait: false, faitLe: '' });
           await tp(-10, { titre: 'Lire la nouvelle note de service (fictif)', echeance: '', heure: '', rappel: '', note: '', element: null, fait: false, faitLe: '' });
           await tp(-72, { titre: 'Commander les badges des stagiaires (fictif)', echeance: jC(-2), heure: '', rappel: '', note: '', element: null, fait: true, faitLe: at(-24) });
+          // Tâches rattachées à un message et à un document (lot I, 14 novembre 2026) : l'élément affiche sa tâche
+          var stM0 = session.etatModule && session.etatModule('messagerie'), msCles = Object.keys((stM0 && stM0.messages) || {}).filter(function (k) { return stM0.messages[k].objet === 'Nouvelle procédure de remise des clés de la pharmacie'; })[0];
+          if (msCles) await tp(-6, { titre: 'Afficher la procédure des clés au poste de soins (fictif)', echeance: jC(1), heure: '', rappel: '', note: '', element: { module: 'messagerie', genre: 'message', id: msCles, service: '' }, fait: false, faitLe: '' });
+          var stD0 = session.etatModule && session.etatModule('documents'), docReg = Object.keys((stD0 && stD0.docs) || {})[0];
+          if (docReg) await tp(-30, { titre: 'Relire le document avant la réunion (fictif)', echeance: jC(-3), heure: '', rappel: '', note: '', element: { module: 'documents', genre: 'document', id: docReg, service: '' }, fait: true, faitLe: new Date(Date.now() - 2 * 864e5).toISOString() });
           await session.enregistrerLot(lotT, { libelle: 'Tâches personnelles fictives', by: moiT.id, sansControle: true });
         }
         // Classement personnel (lot I, 14 novembre 2026) : favori, étiquettes personnelle et commune, dossiers et sous-dossier

@@ -160,5 +160,16 @@
     },
     pastille: function () { var n = 0; try { n = avant.pastille ? avant.pastille() || 0 : 0; } catch (e) { n = 0; } try { n += aRappeler().length; } catch (e) { /* sans rappel */ } return n; }
   });
-  U.mesTaches = { demandes: demandes, bouton: bouton, boutonModale: boutonModale, nouvelle: function (init) { modaleTache(null, init); }, taches: taches, aRappeler: aRappeler, jourRappel: jourRappel };
+  /** Tâches de la liste rattachées à un élément (lot I, 14 novembre 2026 : l'élément affiche ses tâches). */
+  function liees(module, id) { return taches().filter(function (t) { return t.element && t.element.module === module && t.element.id === id; }); }
+  /** Rappel discret sur un élément : ses tâches, faites ou à faire ; null sans tâche. */
+  function rappelElement(module, id) {
+    var l = liees(module, id);
+    if (!l.length) return null;
+    return h('div', { class: 'taches-liees' }, l.map(function (t) {
+      return h('button', { class: 'btn lien petit' + (t.fait ? ' fait' : ''), type: 'button', title: 'Ouvrir la tâche', onclick: function (ev) { ev.stopPropagation(); modaleTache(t); } },
+        (t.fait ? '✓ Tâche faite : ' : '☐ Tâche : ') + t.titre + (t.echeance && !t.fait ? ' (échéance ' + t.echeance.split('-').reverse().join('/') + ')' : ''));
+    }));
+  }
+  U.mesTaches = { disponible: disponible, liees: liees, rappelElement: rappelElement, demandes: demandes, bouton: bouton, boutonModale: boutonModale, nouvelle: function (init) { modaleTache(null, init); }, taches: taches, aRappeler: aRappeler, jourRappel: jourRappel };
 })();
