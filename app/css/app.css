@@ -1404,3 +1404,13 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
 .taches-liees .btn.lien { font-size: .8rem; }
 .taches-liees .btn.lien.fait { color: var(--ok); text-decoration: none; }
 .doc-actions { white-space: nowrap; }
+
+/* Barre des modules : favoris et menu (lot A, 14 novembre 2026) */
+.bouton-module.temporaire { border-style: dashed; border-color: var(--line); }
+.bouton-menu-modules { border-right: 1px solid var(--line); border-radius: 8px 0 0 8px; margin-right: 6px; }
+.menu-modules { max-height: 60vh; overflow-y: auto; }
+.menu-module { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; }
+.menu-module.epingle { background: var(--accent-soft); }
+.menu-module-nom { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); }
+.menu-module-nom .icone-module { width: 20px; height: 20px; }
+.menu-module .pastille { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: .7rem; font-weight: 700; line-height: 18px; }

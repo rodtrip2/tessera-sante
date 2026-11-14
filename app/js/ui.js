@@ -801,15 +801,69 @@
   // Ancien nom (liens internes) : ouvrir le module, c'est ouvrir sa fenêtre
   function ouvrirModule(id) { ouvrirFenetre(id); }
   /** Barre des modules, en bas de l'écran. */
+  function pastilleDe(id) { var m = SIC.modules.obtenir(id); try { return m && m.interface && m.interface.pastille ? m.interface.pastille() : (id === 'admin' && SIC.ui.pastilleGroupes ? SIC.ui.pastilleGroupes() : 0); } catch (e) { return 0; } }
+  function boutonModule(f, temporaire) {
+    var actif = f.id === App.fenetre, n = pastilleDe(f.id);
+    var b = h('button', { type: 'button', class: 'bouton-module' + (actif ? ' actif' : '') + (temporaire ? ' temporaire' : ''), 'aria-current': actif ? 'page' : null, title: f.libelle + (n ? ' — ' + n + ' information(s) pour vous' : '') + (temporaire ? ' (non épinglé)' : ''), onclick: function () { ouvrirFenetre(f.id); } },
+      icone(f.id), h('span', { text: f.libelle }), n ? h('span', { class: 'pastille', text: String(n) }) : null);
+    // Barre des favoris : clic droit sur un module épinglé = le désépingler (le menu « Modules » le garde)
+    if (BM.options(config()).active && !temporaire) b.addEventListener('contextmenu', function (ev) { ev.preventDefault(); changerEpingles(BM.epingler(epinglesActuels(), f.id, false)); toast('« ' + f.libelle + ' » retiré de la barre : il reste dans le menu « Modules ».'); });
+    return b;
+  }
+  // ---------------------------------------------------------------- Barre des modules : favoris et menu (14 novembre 2026)
+  var BM = SIC.barreModules;
+  function epinglesActuels() {
+    var s = App.session, prefs = (s && s.preferences) || {};
+    return BM.epingles(config(), prefs.barreModules, s ? s.roles() : [], fenetres().map(function (f) { return f.id; }));
+  }
+  async function changerEpingles(l) { try { await App.session.enregistrerPreference('barreModules', l); } catch (e) { alert(e.message); } rendreContenu(); }
+  function menuModules() {
+    var fs = fenetres(), zone = h('div', { class: 'pile menu-modules' }), q = h('input', { type: 'search', placeholder: 'Rechercher un module', 'aria-label': 'Rechercher un module' });
+    function dessiner() {
+      vider(zone);
+      var ep = epinglesActuels(), texte = q.value.trim().toLowerCase();
+      fs.filter(function (f) { return !texte || f.libelle.toLowerCase().indexOf(texte) >= 0; }).forEach(function (f) {
+        var oui = ep.indexOf(f.id) >= 0, n = pastilleDe(f.id), k = ep.indexOf(f.id);
+        zone.appendChild(h('div', { class: 'menu-module' + (oui ? ' epingle' : '') },
+          h('button', { class: 'btn lien menu-module-nom', type: 'button', onclick: function () { var d = document.querySelector('dialog[open]'); if (d) d.dispatchEvent(new Event('cancel')); setTimeout(function () { ouvrirFenetre(f.id); }, 0); } }, icone(f.id), h('span', { text: f.libelle }), n ? h('span', { class: 'pastille', text: String(n) }) : null),
+          h('div', { class: 'espace' }),
+          oui ? h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Déplacer « ' + f.libelle + ' » vers la gauche', disabled: k === 0, onclick: async function () { await App.session.enregistrerPreference('barreModules', BM.deplacer(ep, f.id, -1)); dessiner(); } }, '◀') : null,
+          oui ? h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Déplacer « ' + f.libelle + ' » vers la droite', disabled: k === ep.length - 1, onclick: async function () { await App.session.enregistrerPreference('barreModules', BM.deplacer(ep, f.id, 1)); dessiner(); } }, '▶') : null,
+          h('button', { class: 'btn petit' + (oui ? '' : ' primaire'), type: 'button', onclick: async function () { await App.session.enregistrerPreference('barreModules', BM.epingler(ep, f.id, !oui)); dessiner(); } }, oui ? 'Désépingler' : 'Épingler')));
+      });
+    }
+    q.addEventListener('input', dessiner);
+    dessiner();
+    return modale('Modules', h('div', { class: 'pile' }, q, zone,
+      h('small', { class: 'muted', text: 'Les modules épinglés restent dans la barre, dans l’ordre choisi ; les autres sont ici. Un clic droit sur un module de la barre le retire de la barre. Votre choix vous suit sur tous les postes.' })),
+      [{ texte: 'Revenir aux favoris proposés', action: async function () { await App.session.enregistrerPreference('barreModules', null); } }, { texte: 'Fermer' }], { focus: q });
+  }
+  /** Réglage de l'établissement : barre des favoris (désactivée par défaut) et favoris proposés par rôle. */
+  function panneauBarre() {
+    var o = BM.options(config()), cb = h('input', { type: 'checkbox', checked: o.active });
+    var roles = droits().rolesConfig(config()).filter(function (r) { return !r.admin; });
+    var lignes = roles.map(function (r) { return { r: r, champ: h('input', { type: 'text', value: (o.defauts[r.code] || []).join(', '), placeholder: 'tous ses modules', 'aria-label': 'Favoris proposés : ' + r.libelle }) }; });
+    var codes = fenetres().map(function (f) { return f.id + ' (' + f.libelle + ')'; }).join(', ');
+    return h('section', { class: 'panneau' }, h('h2', { text: 'Barre des modules' }),
+      h('label', { class: 'case' }, cb, ' Barre des favoris : chaque agent épingle ses modules ; les autres sont dans le menu « Modules »'),
+      h('p', { class: 'muted', text: 'Désactivée : la barre montre tous les modules de l’agent, comme avant. Favoris proposés par rôle, tant que l’agent n’a pas fait son propre choix (identifiants séparés par des virgules ; vide = tous ses modules). Identifiants : ' + codes + '.' }),
+      h('div', { class: 'table-wrap' }, h('table', {}, h('tbody', {}, lignes.map(function (l) { return h('tr', {}, h('td', { text: l.r.libelle }), h('td', {}, l.champ)); })))),
+      boutonEnregistrer(async function () {
+        var d = {};
+        lignes.forEach(function (l) { var v = l.champ.value.split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean); if (v.length) d[l.r.code] = v; });
+        await enregistrerConfig([['barreModules', { active: cb.checked, defauts: d }]]);
+      }));
+  }
   function barreModules() {
     var fs = fenetres();
     if (fs.length < 2) return null;
-    return h('nav', { class: 'barre-modules', 'aria-label': 'Modules' }, fs.map(function (f) {
-      var actif = f.id === App.fenetre;
-      var m = SIC.modules.obtenir(f.id), n = m && m.interface && m.interface.pastille ? m.interface.pastille() : (f.id === 'admin' && SIC.ui.pastilleGroupes ? SIC.ui.pastilleGroupes() : 0);
-      return h('button', { type: 'button', class: 'bouton-module' + (actif ? ' actif' : ''), 'aria-current': actif ? 'page' : null, title: f.libelle + (n ? ' — ' + n + ' information(s) pour vous' : ''), onclick: function () { ouvrirFenetre(f.id); } },
-        icone(f.id), h('span', { text: f.libelle }), n ? h('span', { class: 'pastille', text: String(n) }) : null);
-    }));
+    if (!BM || !BM.options(config()).active) return h('nav', { class: 'barre-modules', 'aria-label': 'Modules' }, fs.map(function (f) { return boutonModule(f, false); }));
+    var ep = epinglesActuels(), parId = {}, pastilles = {};
+    fs.forEach(function (f) { parId[f.id] = f; pastilles[f.id] = pastilleDe(f.id); });
+    var n = BM.pastilleMenu(ep, pastilles);
+    var menu = h('button', { type: 'button', class: 'bouton-module bouton-menu-modules', title: 'Tous les modules' + (n ? ' — ' + n + ' information(s) dans les modules non épinglés' : ''), onclick: menuModules },
+      icone('module'), h('span', { text: 'Modules' }), n ? h('span', { class: 'pastille', text: String(n) }) : null);
+    return h('nav', { class: 'barre-modules', 'aria-label': 'Modules' }, [menu].concat(BM.boutons(ep, App.fenetre).filter(function (x) { return parId[x.id]; }).map(function (x) { return boutonModule(parId[x.id], x.temporaire); })));
   }
   /** Fenêtre affichée : bandeau de titre et onglets propres au module. */
   function titreFenetre() {
@@ -1498,7 +1552,7 @@
         : [['comptes', 'Comptes', [pIncomplets, comptes].filter(Boolean)],
           ['roles', 'Rôles et accès', [SIC.ui.roles.panneau()]],
           ['securite', 'Sécurité et clés', [pAttestation, pTrousseau, deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
-          ['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)],
+          ['services', 'Établissement et services', [pServices, pModulesServices, panneauBarre()].concat(pModule.services)],
           ['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
           ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos, SIC.ui.version.panneau(), demo]]],
       isocont: pModule.onglets,

@@ -30,8 +30,26 @@ def connecter(a, identifiant, mdp):
     a.get_by_role('button', name='Se connecter').click(); time.sleep(4)
     if a.locator('button', has_text='Données réelles').count(): a.locator('button', has_text='Données réelles').first.click(); time.sleep(2)
 
+def ouvrir_module(a, nom):
+    # Barre des favoris : un module non épinglé s'ouvre par le menu « Modules »
+    b = a.locator('.barre-modules button.bouton-module:not(.bouton-menu-modules)', has_text=nom)
+    if b.count(): b.first.click()
+    else:
+        a.locator('.barre-modules .bouton-menu-modules').click(); time.sleep(0.6)
+        a.locator('dialog[open] .menu-module-nom', has_text=nom).first.click()
+    time.sleep(1.3)
+
+def module_dispo(a, nom):
+    # Présent dans la barre ou, barre des favoris activée, dans le menu « Modules »
+    if a.locator('.barre-modules button.bouton-module:not(.bouton-menu-modules)', has_text=nom).count(): return 1
+    if not a.locator('.barre-modules .bouton-menu-modules').count(): return 0
+    a.locator('.barre-modules .bouton-menu-modules').click(); time.sleep(0.6)
+    n = a.locator('dialog[open] .menu-module-nom', has_text=nom).count()
+    a.keyboard.press('Escape'); time.sleep(0.4)
+    return 1 if n else 0
+
 def fenetre(a, nom, premier=True):
-    a.locator('.barre-modules button', has_text=nom).first.click(); time.sleep(1.3)
+    ouvrir_module(a, nom)
     # La fenêtre retrouve l'onglet laissé : les vérifications partent du premier onglet
     if premier and a.locator('nav.onglets button').count(): a.locator('nav.onglets button').first.click(); time.sleep(1)
 
@@ -149,9 +167,9 @@ with sync_playwright() as p:
     d = a.locator('dialog[open]'); d.get_by_label('Désactivé').check(); d.get_by_role('button', name='Enregistrer').click(); time.sleep(1.2)
     verifier(a.evaluate("((SIC.ui.config().validations || {}).etats || {})['donnee-clinique'].etat") == 'desactive', 'validations : désactivation après confirmation')
     a.evaluate("async () => { await SIC.ui.App.session.enregistrer('CONFIG', { cle: 'validations', valeur: SIC.validations.changer(SIC.ui.config(), 'vehicules', { etat: 'desactive' }) }); }"); time.sleep(1)
-    verifier(a.locator('.barre-modules button', has_text='Véhicules').count() == 0, 'validations : module désactivé masqué pour tous')
+    verifier(module_dispo(a, 'Véhicules') == 0, 'validations : module désactivé masqué pour tous')
     a.evaluate("async () => { await SIC.ui.App.session.enregistrer('CONFIG', { cle: 'validations', valeur: SIC.validations.changer(SIC.ui.config(), 'vehicules', { etat: 'avis', date: '2026-10-25', auteur: 'Délégué à la protection des données (fictif)' }) }); }"); time.sleep(1)
-    verifier(a.locator('.barre-modules button', has_text='Véhicules').count() == 1, 'validations : module réactivé, réservations conservées')
+    verifier(module_dispo(a, 'Véhicules') == 1, 'validations : module réactivé, réservations conservées')
     fenetre(a, 'Aujourd’hui')
     verifier(a.locator('.aj-bloc', has_text='Fonctions activées sans avis').count() == 1, 'page « Aujourd’hui » : rappel des fonctions sans avis au cadre')
 
@@ -276,13 +294,13 @@ with sync_playwright() as p:
     a.locator('nav.onglets button', has_text='Accueil').first.click(); time.sleep(1)
     verifier(a.locator('.carte-module', has_text='Patients').locator('.alimentation').is_disabled() and a.locator('.carte-module', has_text='Équipe').locator('.alimentation').is_disabled(), 'accueil : Patients et Équipe indispensables (bouton d’alimentation fixe)')
     a.locator('.carte-module', has_text='Véhicules').locator('.alimentation').click(); time.sleep(1.5)
-    verifier(a.locator('.carte-module.arrete', has_text='Véhicules').count() == 1 and a.locator('.barre-modules button', has_text='Véhicules').count() == 0, 'accueil : module arrêté d’un clic, masqué de la barre des modules')
+    verifier(a.locator('.carte-module.arrete', has_text='Véhicules').count() == 1 and module_dispo(a, 'Véhicules') == 0, 'accueil : module arrêté d’un clic, masqué de la barre des modules')
     capture(a, 'accueil-admin-arret')
     fenetre(a, 'Agenda du service')
     verifier(len(erreurs) == 0, 'agenda affiché sans erreur, module Véhicules arrêté')
     fenetre(a, 'Administration'); a.locator('nav.onglets button', has_text='Accueil').first.click(); time.sleep(1)
     a.locator('.carte-module', has_text='Véhicules').locator('.alimentation').click(); time.sleep(1.5)
-    verifier(a.locator('.barre-modules button', has_text='Véhicules').count() == 1, 'accueil : module remis en marche')
+    verifier(module_dispo(a, 'Véhicules') == 1, 'accueil : module remis en marche')
     a.evaluate("window.__toutDeplier = false")
     a.locator('nav.onglets button', has_text='Réglages généraux').first.click(); time.sleep(1)
     sous = a.locator('nav.sous-onglets button').all_inner_texts()
@@ -1071,7 +1089,7 @@ with sync_playwright() as p:
     b = ctx.new_page(); b.on('pageerror', lambda e: erreurs.append('page B : ' + str(e)))
     b.goto(ARGS.url); b.get_by_role('button', name='Mode démonstration (données fictives)').click(); time.sleep(2)
     connecter(b, 'ide.u2', 'motdepasse-ide-u2'); time.sleep(2)
-    b.locator('.barre-modules button', has_text='Documents').first.click(); time.sleep(3)
+    ouvrir_module(b, 'Documents'); time.sleep(1.7)
     b.locator('.doc-ligne', has_text='Coédition').locator('button.btn.lien').first.click(); time.sleep(13)
     verifier('Ide Deux (fictif) (modifie)' in a.locator('dialog.doc-editeur[open] .doc-presence').inner_text() and 'Cadre Démo (fictif)' in b.locator('dialog.doc-editeur[open] .doc-presence').inner_text(), 'présence : chacun voit l’autre sur le document ouvert')
     b.evaluate("""(() => { const p = document.querySelectorAll('dialog.doc-editeur .doc-corps p')[1]; const r = document.createRange(); r.selectNodeContents(p); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); p.closest('.doc-corps').focus(); })()""")
@@ -1123,6 +1141,23 @@ with sync_playwright() as p:
     a.locator('dialog[open]').last.get_by_role('button', name='Tout refuser').click(); time.sleep(0.8)
     verifier(a.evaluate("(() => { const c = SIC.ui.App.documentOuvert.editeur.lire(); return c.feuilles.length === 2 && c.feuilles[0].cellules.A7.v === 'Cinéma' && SIC.tableur.modificationsSuivies(c).length === 0; })()"), 'tableur, suivi : tout refuser rétablit lignes et feuilles')
     ed.get_by_role('button', name='Fermer').click(); time.sleep(1)
+    # Barre des modules : favoris épinglés et menu « Modules » (lot A)
+    for _ in range(3): a.keyboard.press('Escape'); time.sleep(0.3)
+    verifier(a.locator('.barre-modules .bouton-menu-modules').count() == 1, 'barre des modules : bouton « Modules » présent')
+    a.locator('.barre-modules .bouton-menu-modules').click(); time.sleep(0.8)
+    verifier(a.locator('dialog[open] .menu-module').count() >= 3, 'barre des modules : menu listant les modules')
+    ligne = a.locator('dialog[open] .menu-module.epingle').last
+    nom_mod = ligne.locator('.menu-module-nom span').first.inner_text()
+    ligne.locator('button', has_text='Désépingler').click(); time.sleep(0.8)
+    a.keyboard.press('Escape'); time.sleep(0.6)
+    verifier(a.locator('.barre-modules button.bouton-module:not(.temporaire)', has_text=nom_mod).count() == 0, 'barre des modules : module désépinglé retiré de la barre')
+    ouvrir_module(a, nom_mod)
+    verifier(a.locator('.barre-modules button.bouton-module.temporaire', has_text=nom_mod).count() == 1, 'barre des modules : module ouvert depuis le menu affiché temporairement')
+    a.locator('.barre-modules .bouton-menu-modules').click(); time.sleep(0.8)
+    a.locator('dialog[open] .menu-module', has_text=nom_mod).locator('button', has_text='Épingler').click(); time.sleep(0.8)
+    a.keyboard.press('Escape'); time.sleep(0.6)
+    verifier(a.locator('.barre-modules button.bouton-module:not(.temporaire)', has_text=nom_mod).count() == 1, 'barre des modules : module épinglé de nouveau')
+    capture(a, 'barre-modules')
     nav.close()
 
 if erreurs: print('\nErreurs du navigateur :'); [print('  ' + e) for e in erreurs[:20]]

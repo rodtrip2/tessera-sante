@@ -757,3 +757,15 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 | Messages | Un document peut désormais être rattaché à un message ; un message ne se rattache pas à un message | `ui-messagerie.js` |
 | Démonstration | Tâche rattachée à un message (à faire), tâche faite rattachée à un document | `demo.js` |
 | Parcours | Tâche affichée sur le message, « + Ma liste », rappel sur le document | `tests/ecrans/parcours.py` |
+
+## Version 0.54.0 (branche `barre-modules`, 14 novembre 2026) : barre des modules, favoris et menu (phase 2, lot A)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Option de l'établissement | Réglage `barreModules` ({ active, defauts }) : **désactivé par défaut** (la barre montre tous les modules, comme avant) ; Administration → Réglages généraux → Établissement et services → « Barre des modules » ; journal du socle, libellé du journal, groupe d'export « Points de vigilance, écran de connexion, barre des modules », jeu de formation | `barre-modules.js` (nouveau), `ui.js` (`panneauBarre`), `model.js`, `session.js`, `ui-isocont.js`, `demo.js` |
+| Favoris | Barre activée : chaque agent épingle ses modules (préférence personnelle chiffrée, le suit sur tous les postes) ; favoris proposés par rôle tant qu'il n'a pas choisi (exemples : IDE et AS → Aujourd'hui, Patients, Agenda, Isocont, Messagerie ; secrétaire → Aujourd'hui, Agenda, Suivi médical, Messagerie) ; un module ouvert hors favoris s'affiche temporairement (bordure en pointillés) | `barre-modules.js`, `ui.js` |
+| Menu « Modules » | Bouton en tête de barre : recherche, ouvrir, épingler / désépingler, ordre (◀ ▶), « Revenir aux favoris proposés » ; pastille = informations des modules non épinglés ; clic droit sur un module de la barre : le retire | `ui.js`, `app.css` |
+| Démonstration | Barre des favoris activée, favoris proposés pour IDE, AS et secrétaire | `demo.js` |
+| Parcours | Ouverture d'un module par le menu quand il n'est pas épinglé (aide `ouvrir_module`) ; désépingler, ouverture temporaire, épingler | `tests/ecrans/parcours.py` |
+| Tests | `tests/barre-modules.test.js` | — |
+| À documenter | Guide pratique IDE / AS (barre des modules, captures à régénérer si la démonstration sert aux captures), fiche technique (préférence personnelle) | — |
