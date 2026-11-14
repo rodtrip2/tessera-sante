@@ -55,6 +55,9 @@
     { code: 'formations', libelle: 'Module Formations : inscriptions des agents, décisions, départs en formation', categorie: 'personnel', interlocuteurs: ['dpo', 'rh'], existante: false, modules: ['formations'],
       description: 'Données du personnel (formations demandées, décisions, liste d’attente, départs). Désactivé : la fenêtre Formations est masquée ; les inscriptions sont conservées. Pendant le pilote, activation sur accord hiérarchique après information du délégué à la protection des données.',
       ou: 'Administration → Formations' },
+    { code: 'heures', libelle: 'Module Heures supplémentaires : déclarations, récupérations, décisions, soldes', categorie: 'personnel', interlocuteurs: ['dpo', 'rh'], existante: false, modules: ['heures'],
+      description: 'Données du personnel (heures supplémentaires déclarées, motifs, décisions, récupérations, soldes et corrections). Tessera ne calcule pas la paie : le logiciel de gestion du temps reste la référence. Désactivé : la fenêtre Heures supplémentaires est masquée ; les saisies sont conservées. Pendant le pilote, activation sur accord hiérarchique après information du délégué à la protection des données.',
+      ou: 'Administration → Heures supplémentaires' },
     { code: 'mesure-usage', libelle: 'Mesure d’usage anonyme', categorie: 'autre', interlocuteurs: ['representants', 'dpo'], existante: false,
       description: 'Nombre de saisies par module et par semaine, et nombre d’agents ayant saisi (jamais leur identité ; masqué sous 3 agents), calculés à partir du journal, pour évaluer le pilote. Information des agents et des représentants du personnel avant activation.',
       ou: 'Administration → Mesure d’usage' }

@@ -28,7 +28,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail', 'comptesPoles', 'controles', 'formalites', 'formations'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail', 'comptesPoles', 'controles', 'formalites', 'formations', 'heures'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -169,6 +169,7 @@
         conges: { etat: 'accord', date: jourIso(-10), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-12) },
         'donnee-clinique': { etat: 'desactive', date: jourIso(-5), auteur: '', reference: 'En attente de l’analyse d’impact (fictif)' },
         formations: { etat: 'accord', date: jourIso(-3), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
+        heures: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
         'mesure-usage': { etat: 'accord', date: jourIso(-7), auteur: 'Cadre supérieur de santé (fictif)', reference: 'Agents informés en réunion d’équipe (fictif)' }
       } });
       // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
@@ -772,6 +773,31 @@
       fi(-24 * 4, 'FI-6', 'FS-DESC', 'demo-d', 'Agent D (fictif)', ['IDE']);
       fi(-24 * 6, 'FI-7', 'FS-INC', 'demo-c', 'Agent C (fictif)', ['IDE'], [['FORMATION_DECISION', { decision: 'refuse', motif: 'Déjà formé(e) cette année (fictif)' }]]);
       fi(-24 * 3, 'FI-8', 'FS-INC', moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE']);
+      // Heures supplémentaires (lot C, 14 novembre 2026) : déclarations à valider, acceptées en récupération (dont une en
+      // partie) et à enregistrer dans le logiciel de gestion du temps, refusée, annulée ; récupérations validée et demandée ;
+      // correction de solde par le cadre ; heures du cadre à valider par le cadre supérieur
+      var nH = 0;
+      function hs(h0, ag, nom, roles, jour, debut, fin, minutes, motif, com, suite) {
+        var id = 'HD-DEMO' + (++nH);
+        ajouter(t(h0), 'HEURES_DECLARATION', { id: id, date: jour, debut: debut, fin: fin, minutes: minutes, motif: motif, commentaire: com || '', service: U1, nom: nom, roles: roles }, ag);
+        (suite || []).forEach(function (x, k) { ajouter(t(h0 + 2 + k), x[0], Object.assign({ declaration: id, objet: id, service: U1, nom: 'Cadre de santé (fictif)' }, x[1]), x[2] || moiC.id); });
+      }
+      function rc(h0, ag, nom, roles, jour, minutes, suite) {
+        var id = 'HR-DEMO' + (++nH);
+        ajouter(t(h0), 'HEURES_RECUP', { id: id, date: jour, debut: '', fin: '', minutes: minutes, commentaire: '', service: U1, nom: nom, roles: roles }, ag);
+        (suite || []).forEach(function (x, k) { ajouter(t(h0 + 2 + k), x[0], Object.assign({ recup: id, objet: id, service: U1, nom: 'Cadre de santé (fictif)' }, x[1]), x[2] || moiC.id); });
+      }
+      hs(-24 * 40, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-40), '19:00', '20:30', 90, 'depassement', 'Transmissions prolongées (fictif)', [['HEURES_DECISION', { decision: 'recuperation', minutes: 90 }], ['HEURES_ENREGISTREE', {}]]);
+      hs(-24 * 20, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-20), '', '', 420, 'rappel', 'Rappel sur un repos (fictif)', [['HEURES_DECISION', { decision: 'recuperation', minutes: 420 }]]);
+      rc(-24 * 10, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-3), 120, [['HEURES_RECUP_DECISION', { decision: 'valide' }]]);
+      rc(-24 * 1, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(5), 180);
+      hs(-24 * 3, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-3), '14:00', '15:30', 90, 'reunion', 'Réunion institutionnelle (fictif)');
+      hs(-24 * 15, 'demo-b', 'Agent B (fictif)', ['AS'], iso(-15), '21:00', '22:00', 60, 'depassement', '', [['HEURES_DECISION', { decision: 'recuperation', minutes: 45, motif: 'Retenu 45 min, d’après le planning (fictif)' }]]);
+      hs(-24 * 12, 'demo-c', 'Agent C (fictif)', ['IDE'], iso(-12), '06:30', '07:00', 30, 'autre', '', [['HEURES_DECISION', { decision: 'refuse', motif: 'Arrivée anticipée non demandée (fictif)' }]]);
+      hs(-24 * 6, 'demo-d', 'Agent D (fictif)', ['IDE'], iso(-6), '', '', 600, 'remplacement', 'Remplacement d’un collègue absent (fictif)');
+      hs(-24 * 4, 'demo-d', 'Agent D (fictif)', ['IDE'], iso(-4), '', '', 60, 'formation', '', [['HEURES_ANNULATION', {}, 'demo-d']]);
+      ajouter(t(-24 * 30), 'HEURES_CORRECTION', { agent: 'demo-b', annee: String(Y), minutes: 150, motif: 'Reprise du solde du logiciel de gestion du temps (fictif)', service: U1, roles: ['AS'] }, moiC.id);
+      if (moiC.id) hs(-24 * 2, moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE'], iso(-2), '17:00', '19:00', 120, 'reunion', 'Commission (fictif)');
       var nC = 0;
       function cg(h0, ag, nom, roles, type, debut, fin, statut, suite) {
         var id = 'CG-DEMO' + (++nC);

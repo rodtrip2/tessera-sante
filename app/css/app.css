@@ -1444,3 +1444,8 @@ tr.ligne-annulee td { text-decoration: line-through; color: var(--ink-2); }
 .fo-carte.annulee { opacity: .6; }
 .fo-tableau td { vertical-align: top; min-width: 70px; }
 .fo-depart { background: var(--accent-soft); border-radius: 4px; padding: 1px 4px; margin: 1px 0; font-size: .8rem; }
+
+/* Heures supplémentaires (0.65.0) : solde de l'agent */
+.hs-solde { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
+.hs-case { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; background: var(--card); }
+.hs-case b { font-size: 1.15em; }

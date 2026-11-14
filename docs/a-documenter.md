@@ -909,3 +909,21 @@ Décisions du porteur du 14 novembre 2026 : **module propre** pour les formation
 | Démonstration | Fonction activée sur accord hiérarchique ; trois formations (dont une complète avec liste d'attente et une place libérée), inscriptions à décider, refus, enregistrement fait | `demo.js` |
 | Tests et parcours | `tests/formations.test.js` ; parcours : inscription, place libérée attribuée, enregistrement dans le logiciel, tableau, Agenda | — |
 | Reste | Formations obligatoires (AFGSU, incendie) et échéances par agent ; export pour le logiciel de gestion du temps ; règles « absents en même temps » des Congés appliquées aux départs | — |
+
+## Version 0.65.0 (branche `heures`, 14 novembre 2026) : module Heures supplémentaires (phase 4, lot C)
+
+Décisions du porteur du 14 novembre 2026 : **module propre**, durées **en heures et minutes** ; confirmation de l'enregistrement dans le logiciel de gestion du temps **réglable par l'établissement**.
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Module | `heures` (journal `modules\heures\`, clé propre) ; saisies `HEURES_DECLARATION`, `HEURES_DECISION`, `HEURES_RECUP`, `HEURES_RECUP_DECISION`, `HEURES_ENREGISTREE`, `HEURES_ANNULATION`, `HEURES_CORRECTION` ; onglets Mes heures, À valider, Totaux ; icône horloge | `module-heures.js`, `ui-heures.js`, `index.html`, `ui.js` (`ICONES.heures`), `app.css` (`.hs-solde`) |
+| Soumis à avis | Données du personnel : fonction « heures » de l'onglet Validations (délégué à la protection des données, ressources humaines), **livrée désactivée** ; activation sur accord hiérarchique après information du délégué | `validations.js` |
+| Déclaration | Date, horaires facultatifs (passage de minuit compris) ou durée (« 1:30 », « 1h30 », « 90 »), motif d'une liste réglable (dépassement d'horaire, rappel sur un repos, réunion, formation, remplacement, autre), commentaire court sans donnée clinique ; annulation par l'agent tant que la demande n'est pas décidée | — |
+| Décision | Validateur selon le rôle de l'agent (règle et réglage des validateurs des Congés repris, jamais soi-même) : acceptée en récupération, en heures payées (si l'établissement l'autorise, **non par défaut**, plafond mensuel facultatif), en partie (durée retenue), ou refusée (motif obligatoire) ; information de l'agent dans « Aujourd'hui » | — |
+| Récupérations et solde | L'agent demande une récupération dans la limite de son disponible ; solde par agent et par année = acceptées en récupération − récupérations validées + corrections ; correction du solde par le validateur (motif obligatoire, ex. reprise du logiciel), le calcul restant affiché | — |
+| Logiciel de gestion du temps | Étape « Enregistrée » après la décision (désactivable), confirmée par les rôles choisis (cadre et secrétaire par défaut) ; Tessera ne calcule pas la paie et le logiciel reste la référence | — |
+| Totaux et export | Par agent (récupération, payées), par mois, par motif ; export CSV (`U.exporter('registres', …)`) | — |
+| Réglages | `heures` = { motifs, paiement, plafondMensuel, etapeGtt, rolesGtt, validateurs } ; Administration → Heures supplémentaires ; socle, libellé du journal, groupe d'export, jeu de formation | `model.js`, `session.js`, `ui-isocont.js`, `demo.js` |
+| Démonstration | Fonction activée sur accord hiérarchique ; heures acceptées (dont en partie), à valider, refusées, annulées, enregistrées ; récupérations validée et demandée ; correction de solde ; heures du cadre à valider par le cadre supérieur | `demo.js` |
+| Tests et parcours | `tests/heures.test.js` ; parcours : déclaration, acceptation en partie, enregistrement, soldes, totaux, réglages | `tests/ecrans/parcours.py` |
+| À valider | Ressources humaines : paiement des heures dans Tessera ou non, plafond, motifs ; délégué : durée de conservation des déclarations ; lien avec le logiciel de gestion du temps (export à son format, plus tard) |
