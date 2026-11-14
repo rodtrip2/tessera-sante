@@ -279,6 +279,8 @@
     controles: {},
     // Formalités d'admission et de sortie (formalites.js, 14 novembre 2026) : { '*': { active (non par défaut), liste }, <service>: ... }
     formalites: {},
+    // Formations (module-formations.js, 14 novembre 2026) : { etapeGtt, rolesGtt, validateurs }
+    formations: {},
     agenda: {},            // module Agenda (journal du socle) : { identite: 'initiales' | 'aucune' | 'ipp' | 'nom', typesAlertes: [{ code, libelle }] } ; vide = défauts
     importPatients: {},    // module Patients : modèles d'import de la liste du DPI { modeles: { '*': modèle, U1: modèle } } (noms de colonnes et correspondances, aucune donnée de patient)
     medecins: {},          // liste commune des médecins (medecins.js) : { liste, gestion } ; reprend l'ancienne liste « psychiatres »
@@ -2132,6 +2134,7 @@
     { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
     { code: 'affichage', libelle: 'Points de vigilance, écran de connexion (contact, consigne, logo), barre des modules', cles: ['vigilance', 'affichage', 'barreModules'] },
     { code: 'boitesMail', libelle: 'Messageries du service : boîtes aux lettres et webmail', cles: ['boitesMail'] },
+    { code: 'formations', libelle: 'Formations : étape d’enregistrement dans le logiciel de gestion du temps, rôles qui la confirment', cles: ['formations'] },
     { code: 'formalites', libelle: 'Formalités d’admission et de sortie : activation, liste, délais', cles: ['formalites'] },
     { code: 'controles', libelle: 'Contrôles des chambres de soins intensifs : check-list, second agent, surveillance', cles: ['controles'] },
     { code: 'roles', libelle: 'Rôles et accès, verrouillage après inactivité', cles: ['roles', 'inactiviteMinutes'] },

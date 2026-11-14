@@ -1438,3 +1438,9 @@ tr.ligne-annulee td { text-decoration: line-through; color: var(--ink-2); }
 .tb-graphiques-imprimes { break-inside: avoid; }
 .tb-zone > .tb-graphiques { flex: none; max-height: 45%; overflow: auto; padding: 8px; border-top: 1px solid var(--line); background: var(--surface); }
 .tb-zone > .tb-graphiques:empty { display: none; }
+/* Module Formations (lot C, 14 novembre 2026) */
+.fo-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.fo-carte { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); }
+.fo-carte.annulee { opacity: .6; }
+.fo-tableau td { vertical-align: top; min-width: 70px; }
+.fo-depart { background: var(--accent-soft); border-radius: 4px; padding: 1px 4px; margin: 1px 0; font-size: .8rem; }

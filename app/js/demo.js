@@ -28,7 +28,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail', 'comptesPoles', 'controles', 'formalites'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail', 'comptesPoles', 'controles', 'formalites', 'formations'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -168,6 +168,7 @@
         vehicules: { etat: 'avis', date: jourIso(-20), auteur: 'Délégué à la protection des données (fictif)', reference: 'Avis écrit, inscription au registre des traitements n° 12 (fictif)' },
         conges: { etat: 'accord', date: jourIso(-10), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-12) },
         'donnee-clinique': { etat: 'desactive', date: jourIso(-5), auteur: '', reference: 'En attente de l’analyse d’impact (fictif)' },
+        formations: { etat: 'accord', date: jourIso(-3), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
         'mesure-usage': { etat: 'accord', date: jourIso(-7), auteur: 'Cadre supérieur de santé (fictif)', reference: 'Agents informés en réunion d’équipe (fictif)' }
       } });
       // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
@@ -752,6 +753,25 @@
       ajouter(t(-24 * 40), 'DROITS_CONGES', { agent: 'demo-a', annee: Y, droits: { CA: 27 }, service: U1 }, moiC.id);
       // RTP (0.45.0) : calculées selon la quotité ; corrigées par le cadre pour l'agent D (quotité changée en cours d'année)
       ajouter(t(-24 * 45), 'DROITS_CONGES', { agent: 'demo-d', annee: Y, droits: { RTP: 55 }, service: U1 }, moiC.id);
+      // Formations (lot C, 14 novembre 2026) : trois formations ouvertes (une complète avec liste d'attente et une place
+      // libérée par un désistement, une de l'établissement), inscriptions à décider, validée à enregistrer, refusée
+      var fs = function (h0, d) { ajouter(t(h0), 'FORMATION_SESSION', d, moiC.id); };
+      fs(-24 * 30, { id: 'FS-AFGSU', intitule: 'AFGSU 2, recyclage (fictif)', debut: plus(lundi(3), 1), fin: plus(lundi(3), 2), lieu: 'Centre de formation (fictif)', places: 2, public: 'IDE et AS', service: U1, limite: plus(lundi(2), 0), precision: 'Organisme fictif, 9 h – 17 h' });
+      fs(-24 * 25, { id: 'FS-INC', intitule: 'Sécurité incendie (fictif)', debut: plus(lundi(1), 3), lieu: 'Salle de réunion (fictif)', places: 0, public: 'Tous les agents', service: '' });
+      fs(-24 * 20, { id: 'FS-DESC', intitule: 'Désescalade et prévention de la violence (fictif)', debut: plus(lundi(6), 0), fin: plus(lundi(6), 1), lieu: 'Institut de formation (fictif)', places: 8, public: 'IDE, AS', service: U1 });
+      var fi = function (h0, id, s0, ag, nom, roles, suite) {
+        ajouter(t(h0), 'FORMATION_INSCRIPTION', { id: id, session: s0, service: U1, nom: nom, roles: roles, commentaire: '' }, ag);
+        (suite || []).forEach(function (x, k) { ajouter(t(h0 + 2 + k), x[0], Object.assign({ inscription: id, service: U1, nom: 'Cadre de santé (fictif)' }, x[1]), x[2] || moiC.id); });
+      };
+      fi(-24 * 15, 'FI-1', 'FS-AFGSU', 'demo-a', 'Agent A (fictif)', ['IDE'], [['FORMATION_DECISION', { decision: 'valide' }], ['FORMATION_ENREGISTREE', {}]]);
+      fi(-24 * 14, 'FI-2', 'FS-AFGSU', 'demo-b', 'Agent B (fictif)', ['AS'], [['FORMATION_DECISION', { decision: 'valide' }]]);
+      fi(-24 * 13, 'FI-3', 'FS-AFGSU', 'demo-c', 'Agent C (fictif)', ['IDE'], [['FORMATION_DECISION', { decision: 'attente', motif: 'Formation complète : vous êtes le premier sur la liste (fictif)' }]]);
+      fi(-24 * 12, 'FI-4', 'FS-AFGSU', 'demo-d', 'Agent D (fictif)', ['IDE'], [['FORMATION_DECISION', { decision: 'attente' }]]);
+      ajouter(t(-24 * 2), 'FORMATION_DESISTEMENT', { inscription: 'FI-2', service: U1, nom: 'Agent B (fictif)' }, 'demo-b');   // place libérée : proposée à l'agent C
+      fi(-24 * 5, 'FI-5', 'FS-DESC', 'demo-a', 'Agent A (fictif)', ['IDE']);
+      fi(-24 * 4, 'FI-6', 'FS-DESC', 'demo-d', 'Agent D (fictif)', ['IDE']);
+      fi(-24 * 6, 'FI-7', 'FS-INC', 'demo-c', 'Agent C (fictif)', ['IDE'], [['FORMATION_DECISION', { decision: 'refuse', motif: 'Déjà formé(e) cette année (fictif)' }]]);
+      fi(-24 * 3, 'FI-8', 'FS-INC', moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE']);
       var nC = 0;
       function cg(h0, ag, nom, roles, type, debut, fin, statut, suite) {
         var id = 'CG-DEMO' + (++nC);

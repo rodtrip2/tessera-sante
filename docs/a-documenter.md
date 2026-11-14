@@ -890,3 +890,22 @@ Décisions du porteur du 14 novembre 2026 : **dans la fiche patient, par séjour
 | Démonstration | Activées pour l'Unité 1 (données fictives seulement, pas en formation) ; P01 : trois faites, une sans objet, l'inventaire en retard | `demo.js` |
 | Tests et parcours | `tests/formalites.test.js` ; parcours : onglet de la fiche, inventaire coché, alerte retirée | — |
 | Reste | Colonne de la Vue d'ensemble (`resume` prêt) ; lien avec l'inventaire des effets personnels (lot K) ; formalités dans le droit d'accès du patient (à valider avec le délégué à la protection des données) | — |
+
+## Version 0.64.0 (branche `formations`, 14 novembre 2026) : module Formations (phase 4, lot C)
+
+Décisions du porteur du 14 novembre 2026 : **module propre** pour les formations ; heures supplémentaires dans un **module propre, en heures et minutes** (version suivante) ; confirmation de l'enregistrement dans le logiciel de gestion du temps **par les rôles réglés par l'établissement**.
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Module | `formations` (journal `modules\formations\`, clé propre) ; saisies `FORMATION_SESSION`, `FORMATION_INSCRIPTION`, `FORMATION_DECISION`, `FORMATION_DESISTEMENT`, `FORMATION_ENREGISTREE` ; onglets Formations ouvertes, Mes inscriptions, Inscriptions à décider (validateurs et rôles qui enregistrent), Tableau annuel | `module-formations.js`, `ui-formations.js` (nouveaux), `index.html`, `ui.js` (icône) |
+| Soumis à avis | Données du personnel : fonction « formations » de l'onglet Validations (délégué à la protection des données, ressources humaines), **livrée désactivée** ; activation sur accord hiérarchique après information du délégué à la protection des données | `validations.js` |
+| Catalogue | Le cadre (ses services) ou l'administrateur (établissement) ouvre une formation : intitulé, dates, lieu, places (0 : sans limite), public visé, date limite d'inscription, précisions ; modification, annulation | `module-formations.js`, `ui-formations.js` |
+| Inscriptions | L'agent s'inscrit (commentaire), suit l'état (demandée, validée, liste d'attente avec son rang, refusée avec le motif, désistement) et peut se désister ; information dans « Aujourd'hui » à chaque décision | — |
+| Décision | Validateur selon le rôle de l'agent (règle des Congés, réglage des validateurs des Congés repris) : valider (dans la limite des places), liste d'attente, refuser (motif obligatoire) ; place libérée (désistement) proposée au premier de la liste d'attente | — |
+| Logiciel de gestion du temps | Étape « Enregistrée dans le logiciel » après la validation (désactivable), confirmée par les rôles choisis par l'établissement (cadre et secrétaire par défaut) ; liste « À enregistrer » | — |
+| Tableau annuel et Agenda | Départs validés par agent et par mois ; départs lus par l'Agenda comme des absences « Formation » (fourniture `formations.departs`, sans écrire dans le journal de l'Agenda) | `ui-agenda.js` |
+| Réglages | `formations` = { etapeGtt, rolesGtt, validateurs } ; Administration → Formations ; socle, libellé du journal, groupe d'export, jeu de formation | `model.js`, `session.js`, `ui-isocont.js`, `demo.js` |
+| Socle | Le contrôle « permis pour soi » d'un module reçoit aussi la liste des comptes | `session.js` |
+| Démonstration | Fonction activée sur accord hiérarchique ; trois formations (dont une complète avec liste d'attente et une place libérée), inscriptions à décider, refus, enregistrement fait | `demo.js` |
+| Tests et parcours | `tests/formations.test.js` ; parcours : inscription, place libérée attribuée, enregistrement dans le logiciel, tableau, Agenda | — |
+| Reste | Formations obligatoires (AFGSU, incendie) et échéances par agent ; export pour le logiciel de gestion du temps ; règles « absents en même temps » des Congés appliquées aux départs | — |

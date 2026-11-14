@@ -12,7 +12,7 @@
   try { vue.mode = localStorage.getItem('sic-agenda-mode') === 'jour' ? 'jour' : 'semaine'; } catch (e) { /* stockage indisponible */ }
 
   // Congés validés (module Congés, 0.44.0) : lus comme des absences de l'agent, sans écrire dans le journal de l'Agenda
-  function st() { var e = (U.App.session && U.App.session.etatModule('agenda')) || { rdv: {}, taches: {}, absences: {}, alertes: {} }; return U.conges && U.conges.agendaAvecConges ? U.conges.agendaAvecConges(e) : e; }
+  function st() { var e = (U.App.session && U.App.session.etatModule('agenda')) || { rdv: {}, taches: {}, absences: {}, alertes: {} }; var x = U.conges && U.conges.agendaAvecConges ? U.conges.agendaAvecConges(e) : e; return U.formations && U.formations.agendaAvecFormations ? U.formations.agendaAvecFormations(x) : x; }
   function fiches() { return (U.st() && U.st().patients) || {}; }
   function opts() { return A.optionsAgenda(U.config()); }
   function minuit(t) { var d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); }
