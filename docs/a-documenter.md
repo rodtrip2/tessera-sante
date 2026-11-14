@@ -830,3 +830,15 @@ Décisions du porteur du 14 novembre 2026 : check-list fournie plus tard par le 
 | Conservation | `controles['*'].conservationMois`, fixée par l'établissement (vide : non fixée) ; le registre signale à l'encadrement les contrôles plus anciens, rien n'est supprimé automatiquement | `module-controles.js` (`horsConservation`), `ui-controles.js`, `ui-isocont.js`, `app.css` |
 | Tests et parcours | Libération (attendue, non attendue si une mesure continue, délai de deux heures), conservation ; parcours : demande de travaux préremplie après un écart | `tests/controles.test.js`, `tests/ecrans/parcours.py` |
 | Démonstration | Pas de libération récente dans les mesures fictives : cas montré par les tests ; à ajouter si le porteur le souhaite (nouvelle mesure fictive dans Isocont) | — |
+
+## Version 0.59.0 (branche `controles-suite`, 14 novembre 2026) : modèles remplis automatiquement (phase 3, lot D)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Champs | Un modèle du module Documents peut contenir des champs entre doubles accolades : patient (Nom, Prénom, Nom de naissance, Sexe, Date de naissance, Âge, IPP, IEP, Mesure de protection), séjour (Chambre, Date d'entrée, Mode d'hospitalisation, Médecin de 1re ligne, Médecin de 2e ligne, Référents), isolement et contention (Mesure en cours, Début de la mesure, Lieu de la mesure), général (Service, Établissement, Date du jour, Heure, Agent) ; noms reconnus sans tenir compte des majuscules, des accents ni de la forme de l'apostrophe | `remplissage.js` (nouveau) |
+| Remplissage | À la création d'un document d'après un modèle qui contient des champs : valeurs du patient rattaché (fiche commune, séjour en cours, dernier mode, médecin de la liste commune), de la mesure en cours si Isocont est lisible, du service, de l'établissement, de l'agent, du jour ; paragraphes, tableaux, onglets et cases texte d'un tableur (jamais les formules) ; un champ sans valeur reste écrit et est signalé (« Champs à compléter à la main ») ; aucune donnée clinique | `remplissage.js`, `ui-documents.js` (`valeursChamps`, `modaleNouveau`) |
+| Éditeur | Menu « Champ » de la barre d'outils d'un modèle (document texte) : insère le champ choisi | `ui-documents.js` |
+| Démonstration | Modèle « Courrier d'information du tiers (modèle fictif) » avec des champs | `demo.js` |
+| Tests et parcours | `tests/remplissage.test.js` ; parcours : courrier créé depuis la fiche d'un patient fictif, champs remplacés | — |
+| Points à valider | Liste des champs proposés ; modèles fournis par défaut (courrier d'information du tiers, fiche de liaison, bordereau d'envoi au juge des libertés et de la détention) à rédiger avec le porteur | — |
+| À documenter | Guide du module Documents (champs des modèles) | — |

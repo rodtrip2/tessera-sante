@@ -883,6 +883,13 @@
             suite: [{ h: -24 * 3, par: 'demo-a', type: 'DOC_OPTIONS', data: { suivi: true, simultane: false } }, { h: -24 * 2 + 1, par: 'demo-a', type: 'DOC_STATUT', data: { statut: 'a-valider', message: 'J’ai ajouté les sorties de secours et le livret, en suivi des modifications. (fictif)' } }] });
           await docD({ titre: 'Compte rendu de réunion d’équipe (modèle fictif)', h: -24 * 60, modele: true, services: [SVd], partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
             versions: [{ h: -24 * 60, contenu: { blocs: [ti(1, 'Compte rendu de réunion d’équipe'), p('Date : …   Animateur : …   Présents : …'), ti(2, 'Points abordés'), li(''), ti(2, 'Décisions'), li(''), ti(2, 'Prochaine réunion'), p('…')], page: { pied: { gauche: '{titre}', centre: '{date}', droite: 'Page {page}' } } } }] });
+          // Modèle rempli automatiquement (lot D, 14 novembre 2026) : champs {{…}} remplacés à la création d'un document
+          // rattaché à un patient (ex. depuis sa fiche : « + Document », modèle « Courrier d'information du tiers »)
+          await docD({ titre: 'Courrier d’information du tiers (modèle fictif)', h: -24 * 20, modele: true, services: [SVd], partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
+            versions: [{ h: -24 * 20, contenu: { blocs: [p('{{Établissement}} — {{Service}}', { al: 'd' }), p('Le {{Date du jour}}', { al: 'd' }), ti(2, 'Information d’un proche (modèle fictif)'),
+              p('Madame, Monsieur,'), p('Nous vous informons que {{Prénom}} {{Nom}}, né(e) le {{Date de naissance}}, est hospitalisé(e) dans le service {{Service}} depuis le {{Date d’entrée}} ({{Mode d’hospitalisation}}).'),
+              p('Le médecin qui l’accompagne est {{Médecin de 1re ligne}}. Vous pouvez joindre l’équipe au numéro du service.'), p('Veuillez agréer, Madame, Monsieur, nos salutations distinguées.'),
+              p('{{Agent}}', { al: 'd' }), p('Modèle d’exemple, entièrement fictif.', { al: 'd' })] } }] });
           await docD({ titre: 'Organisation de la sortie à la médiathèque (fictif)', h: -24 * 3,
             rattaches: [{ module: 'patients', genre: 'fiche', id: 'P01', libelle: 'Patient : ALPHA Camille', service: SVd }],
             versions: [{ h: -24 * 3, contenu: { blocs: [ti(2, 'Sortie à la médiathèque — jeudi (fictif)'), p('Départ 14 h, retour 16 h 30. Deux accompagnateurs ; véhicule réservé.'), p('Organisation seulement : aucune donnée clinique.', { al: 'c' })] } }] });

@@ -688,7 +688,20 @@ with sync_playwright() as p:
     fenetre(a, 'Patients')
     a.evaluate("SIC.ui.fichePatient.modale(SIC.ui.App.session.etat.patients.P01)"); time.sleep(2)
     verifier(a.locator('dialog[open] .doc-section', has_text='Organisation de la sortie').count() == 1, 'fiche patient : documents rattachés')
-    a.keyboard.press('Escape'); time.sleep(0.5)
+    # Modèle rempli automatiquement (lot D) : courrier d'après le modèle, champs du patient remplacés
+    time.sleep(2)
+    bd = a.locator('dialog[open] .doc-section button', has_text='Document rattaché')
+    print('    (bouton « + Document rattaché » : ' + str(bd.count()) + ', visible : ' + str(bd.count() and bd.first.is_visible()) + ')')
+    if bd.count() and bd.first.is_visible(): bd.first.click()
+    else: a.evaluate("SIC.ui.documents.nouveau({ rattache: { module: 'patients', genre: 'fiche', id: 'P01', libelle: 'Patient : ALPHA Camille', service: 'U1' } })")
+    time.sleep(1.5)
+    d = a.locator('dialog[open]').last
+    d.get_by_label('Modèle').select_option(label='Courrier d’information du tiers (modèle fictif)'); time.sleep(0.3)
+    d.get_by_role('button', name='Créer').click(); time.sleep(3)
+    corps = a.locator('dialog.doc-editeur[open] .doc-corps').inner_text()
+    verifier('ALPHA' in corps and 'Camille' in corps and '{{Nom}}' not in corps and 'Unité 1' in corps, 'modèle rempli : identité du patient, service et date remplacés')
+    a.locator('dialog.doc-editeur[open]').get_by_role('button', name='Fermer').click(); time.sleep(1)
+    for _ in range(2): a.keyboard.press('Escape'); time.sleep(0.4)
 
     print('Salles et bureaux')
     fenetre(a, 'Salles et bureaux')

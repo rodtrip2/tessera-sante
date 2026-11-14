@@ -800,6 +800,7 @@
       bouton('▦', 'Insérer un tableau', insererTableau),
       choix('Tableau', { ligne: 'Ajouter une ligne', colonne: 'Ajouter une colonne', '-ligne': 'Supprimer la ligne', '-colonne': 'Supprimer la colonne', entete: 'Ligne de titre (oui / non)' }, tableau),
       bouton('🖼', 'Insérer une image', choisirImage),
+      d0.modele && SIC.remplissage ? choix('Champ', (function () { var o2 = {}; SIC.remplissage.CHAMPS.forEach(function (c) { o2[c.nom] = c.groupe + ' : ' + c.nom; }); return o2; })(), function (nom) { cmd('insertText', '{{' + nom + '}}'); }) : null,
       bouton('⤓', 'Saut de page', function () { insererApres([h('div', { class: 'doc-saut', contenteditable: 'false', title: 'Saut de page' })]); }),
       bouton('⌫', 'Effacer la mise en forme', effacerForme),
       bouton('↶', 'Annuler (Ctrl+Z)', function () { cmd('undo'); }), bouton('↷', 'Rétablir (Ctrl+Y)', function () { cmd('redo'); })) : h('p', { class: 'info', text: d0.corbeille ? 'Document dans la corbeille : lecture seule.' : 'Lecture seule : ce document vous est partagé en lecture.' });
@@ -980,6 +981,24 @@
     if (manq.length) U.toast('Certaines clés de partage ne sont pas encore créées : le document leur sera partagé après la prochaine connexion d’un administrateur.');
     return id;
   }
+  /**
+   * Modèles remplis automatiquement (lot D, 14 novembre 2026) : valeurs des champs {{…}} pour un document rattaché
+   * (patient : fiche commune, séjour, mesure en cours si Isocont est lisible), le service, l'établissement, l'agent, le jour.
+   */
+  function valeursChamps(rattache) {
+    var c = cfg(), patient = null, mesure = null, sv = (rattache && rattache.service) || (moi().services || [])[0] || '';
+    if (rattache && rattache.module === 'patients') {
+      try { patient = (U.st() && U.st().patients && U.st().patients[rattache.id]) || null; } catch (e) { patient = null; }
+      if (patient && patient.service) sv = patient.service;
+      try {
+        if (patient && s().ouvert('isocont')) mesure = (SIC.modules.lire('isocont.enCours', s().etatModule('isocont'), {}) || []).filter(function (m) { return m.patientId === patient.id; }).sort(function (a, b) { return b.debut - a.debut; })[0] || null;
+      } catch (e) { mesure = null; }
+    }
+    var meds = (c.medecins && c.medecins.liste) || [];
+    return SIC.remplissage.valeurs({ patient: patient, mesure: mesure, service: sv ? U.libService(sv) : '', etablissement: c.etablissement || '', agent: moi().nom || '', maintenant: Date.now(),
+      libMode: function (code) { var m = (c.modesHospitalisation || []).filter(function (x) { return x.code === code; })[0]; return m ? m.libelle : code; },
+      libMedecin: function (nom, id) { var m = id ? meds.filter(function (x) { return x.id === id; })[0] : null; return m ? (m.nom || nom) : nom; } });
+  }
   /** « Nouveau document » : vide ou d'après un modèle, éventuellement rattaché (fiche patient, salle, agent). */
   function modaleNouveau(o) {
     o = o || {};
@@ -999,11 +1018,14 @@
       cbModele ? h('label', { class: 'case' }, cbModele, h('span', { text: 'C’est un modèle, partagé en lecture avec ' + (admin && !cadre ? 'tout l’établissement' : 'vos services') })) : null,
       h('p', { class: 'muted', text: 'Le document est privé : vous seul le voyez jusqu’à ce que vous le partagiez.' })),
       [{ texte: 'Annuler' }, { texte: 'Créer', classe: 'primaire', action: async function () {
-        var base = sel.value ? doc(sel.value) : null, lu = base ? await lireVersion(base, DM.enVigueur(base)) : null;
+        var base = sel.value ? doc(sel.value) : null, lu = base ? await lireVersion(base, DM.enVigueur(base)) : null, remplis = null;
+        // Modèle avec des champs {{…}} : remplis d'après le patient rattaché, le service, l'agent et le jour
+        if (lu && base.modele && SIC.remplissage && SIC.remplissage.champsDe(lu.contenu).length) { remplis = SIC.remplissage.remplir(lu.contenu, valeursChamps(o.rattache)); lu = { meta: lu.meta, contenu: remplis.contenu }; }
         var estModele = cbModele && cbModele.checked, svs = estModele ? (admin && !cadre ? (cfg().services || []).map(function (x) { return x.code; }) : (moi().services || [])) : [];
         var id = await creer({ modele: estModele, services: estModele ? svs : [], partage: estModele ? svs.map(function (x) { return { genre: 'service', code: x, droit: 'lire' }; }) : [], depuis: base ? base.id : '',
           meta: { titre: titre.value.trim() || (lu ? lu.meta.titre : 'Sans titre'), rattaches: o.rattache ? [o.rattache] : [] }, contenu: lu ? lu.contenu : genre.value === 'tableur' ? { genre: 'tableur' } : {} });
         setTimeout(function () { ouvrirEditeur(id); }, 0);
+        if (remplis && remplis.restants.length) U.toast('Champs à compléter à la main : ' + remplis.restants.join(', ') + '.');
       } }]);
   }
 
