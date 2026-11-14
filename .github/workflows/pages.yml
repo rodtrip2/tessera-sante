@@ -26,12 +26,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publier:
+  assembler:
     if: ${{ vars.PAGES_TROIS_VERSIONS == 'oui' }}
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploiement.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,5 +59,15 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
+  # Publication dans une tâche à part (modèle de GitHub) : le site assemblé n'est lisible qu'une fois la tâche
+  # précédente terminée
+  publier:
+    needs: assembler
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
       - id: deploiement
         uses: actions/deploy-pages@v4
