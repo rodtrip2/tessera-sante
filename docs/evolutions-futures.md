@@ -142,6 +142,7 @@ Tessera doit convenir à **tout établissement**, quel que soit son logiciel de 
 - **Besoin** : graphiques dans les tableurs du module Documents (courbes, histogrammes, secteurs) tirés d'une plage de cases, mis à jour avec les valeurs et imprimés avec la feuille.
 - **Décision** : mis de côté le 12 novembre 2026, à développer plus tard (après l'édition simultanée et l'import et l'export Office).
 - **Pistes** : dessin en SVG construit dans le navigateur (aucune bibliothèque externe) ; plage, type, titre et couleurs enregistrés dans la feuille ; reprise des graphiques des fichiers `.xlsx` à l'import.
+- **Développé en 0.61.0** (histogramme, courbes, secteurs, impression). **Reste, gardé pour plus tard (décision du porteur du 14 novembre 2026)** : graphiques dans l'export PDF du tableur et dans l'export et l'import Excel.
 
 ### Suivi des modifications : style, alignement, retrait et listes (demande du porteur, 12 novembre 2026)
 

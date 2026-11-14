@@ -1024,7 +1024,25 @@
   };
 
   registre.declarer(contrat);
-  return { contrat: contrat, reduire: reduire, tachesPerso: tachesPerso, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
+  /**
+   * Droit d'accès d'un patient (phase 4, 14 novembre 2026) : événements de l'agenda qui le concernent (inscrit à
+   * l'événement ou à une date d'un événement répété), y compris quand le module est arrêté. Intitulé repris seulement
+   * pour un événement de ce seul patient (sinon : nature) ; ni commentaires, ni accompagnateurs (échanges internes et
+   * tiers). Rend [{ debut, fin, nature, titre, lieu, repete, supprime, validation }].
+   */
+  function droitAcces(st, patientId) {
+    var res = [];
+    Object.keys((st && st.rdv) || {}).forEach(function (k) {
+      var r = st.rdv[k], base = r.patients || [], dates = [];
+      Object.keys(r.surcharges || {}).forEach(function (o) { var lp = (r.surcharges[o] || {}).patients; if (lp && lp.indexOf(patientId) >= 0) dates.push(o); });
+      if (base.indexOf(patientId) < 0 && !dates.length) return;
+      var seul = base.length <= 1 && Object.keys(r.surcharges || {}).every(function (o) { var lp = (r.surcharges[o] || {}).patients; return !lp || lp.length <= 1; });
+      var val = Array.isArray(r.validations) ? r.validations.filter(function (v) { return v && TYPES_VALIDATION[v.type]; }).map(function (v) { return v.libelle || TYPES_VALIDATION[v.type]; }).join(' ; ') : '';
+      res.push({ debut: r.debut, fin: r.fin, nature: NATURES[r.nature] || r.nature || '', titre: seul ? (r.titre || '') : '', lieu: r.lieu || '', repete: regularite(r.regularite).type !== 'aucune', dates: dates.sort(), supprime: !!r.supprime, validation: val });
+    });
+    return res.sort(function (a, b) { return (a.debut || 0) - (b.debut || 0); });
+  }
+  return { droitAcces: droitAcces, contrat: contrat, reduire: reduire, tachesPerso: tachesPerso, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
     libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, suggestions: suggestions, tachesSuggerees: tachesSuggerees, SUGGESTIONS_DEFAUT: SUGGESTIONS_DEFAUT, EVENEMENTS_SUGGESTION: EVENEMENTS_SUGGESTION, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, echangesIcs: echangesIcs, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,

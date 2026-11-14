@@ -273,9 +273,19 @@
       var sm = U.App.session.etatModule('messagerie'), MS = SIC.messagerie, cpt = U.App.session.compteEffectif();
       var grp = (U.config().groupes || []).filter(function (g) { return (g.membres || []).some(function (x) { return x.id === cpt.id; }); }).map(function (g) { return g.code; });
       if (sm && MS && MS.messagesDe) MS.messagesDe(sm, cpt, grp, 'patients', p.id).forEach(function (m) {
-        el('Messages qui citent le patient', (m.objet || 'Message') + ' — ' + U.date(Date.parse(m.cree)), [U.date(Date.parse(m.cree)), m.nom || '', m.objet || '', m.texte || ''], m.tiers ? 'tiers' : 'interne', ['Date', 'Auteur', 'Objet', 'Message']);
+        el('Messages qui citent le patient' + (SIC.modules.obtenir('messagerie') && SIC.modules.obtenir('messagerie').droits.arrete && SIC.modules.obtenir('messagerie').droits.arrete(U.config()) ? ' (module arrêté)' : ''), (m.objet || 'Message') + ' — ' + U.date(Date.parse(m.cree)), [U.date(Date.parse(m.cree)), m.nom || '', m.objet || '', m.texte || ''], m.tiers ? 'tiers' : 'interne', ['Date', 'Auteur', 'Objet', 'Message']);
       });
     } catch (e) { /* messagerie indisponible */ }
+    // Autres modules (phase 4, 14 novembre 2026) : chaque module qui déclare `interface.droitAcces(etat, patient)` est lu,
+    // y compris s'il est arrêté depuis l'accueil de l'administration (données conservées : « module arrêté » au fichier)
+    SIC.modules.liste().forEach(function (m) {
+      if (!m.interface || typeof m.interface.droitAcces !== 'function') return;
+      try {
+        if (!U.App.session.detientCle(m.id)) { el(m.libelle, 'Données non lues', ['Données du module non lues : clé du module non détenue par l’agent qui exporte'], 'interne'); return; }
+        var arrete = !!(m.droits && m.droits.arrete && m.droits.arrete(U.config()));
+        m.interface.droitAcces(U.App.session.etatModule(m.id), p).forEach(function (x) { el(m.libelle + (arrete ? ' (module arrêté)' : ''), x.libelle, x.cellules, x.motif || '', x.entete || null); });
+      } catch (e) { /* module illisible */ }
+    });
     return res;
   }
   function fichierPatient(p, els) {

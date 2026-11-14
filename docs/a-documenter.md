@@ -864,3 +864,14 @@ Décisions du porteur du 14 novembre 2026 : check-list fournie plus tard par le 
 | Démonstration | Feuille « Synthèse » du budget fictif : histogramme des participants, secteurs | `demo.js` |
 | Limites | Pas encore repris dans l'export PDF du tableur ni dans l'export et l'import Excel (graphiques des fichiers `.xlsx`) ; pas de marque du suivi des modifications sur l'ajout d'un graphique | — |
 | Tests et parcours | `tests/documents-export.test.js` ; parcours : graphiques de la feuille, nouveau graphique d'après la sélection, suppression | — |
+
+## Version 0.62.0 (branche `droit-acces-arretes`, 14 novembre 2026) : droit d'accès, données des autres modules et des modules arrêtés (phase 4, lot F)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Mécanisme | Un module déclare `interface.droitAcces(etat, patient)` (lignes : section, libellé, cellules, en-tête, motif d'exclusion) ; l'export du droit d'accès les lit tous, **y compris les modules arrêtés** depuis l'accueil de l'administration (données conservées, obligation légale) : section suivie de « (module arrêté) » ; module dont l'agent n'a pas la clé : ligne « Données non lues » écartée par défaut, pour que l'agent sache qu'il faut un autre exportateur | `ui-qualite.js` (`elementsPatient`) |
+| Agenda | Événements où le patient est inscrit (ou inscrit à une date d'un événement répété) : date, nature, intitulé (seulement s'il est le seul patient de l'événement), lieu, validations demandées, événement supprimé signalé ; ni commentaires, ni accompagnateurs | `module-agenda.js` (`droitAcces`), `ui-agenda.js` |
+| Suivi médical | Entretiens médicaux et réévaluations du contrat de soins : date, nature, médecin | `ui-suivi.js` |
+| Messagerie | Section signalée « (module arrêté) » si la messagerie est arrêtée | `ui-qualite.js` |
+| Tests et parcours | `tests/droit-acces.test.js` ; parcours : sections de l'agenda et du Suivi médical, agenda arrêté puis remis en marche | — |
+| Points à valider | Délégué à la protection des données : données des modules arrêtés remises au patient ; documents rattachés au patient (module Documents, chiffrés un par un) pas encore repris : titre seul, ou contenu ? ; réservations de véhicule et Vue d'ensemble ne citent pas de patient nommément (rien à reprendre) | — |

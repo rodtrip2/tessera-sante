@@ -1339,6 +1339,13 @@
   function panneauCategories() { return I.panneauCategories.apply(null, arguments); }
   SIC.modules.completerInterface('agenda', {
     vues: { agenda: vueAgenda, taches: vueTaches, alertes: vueAlertes, 'mon-agenda': vueMonAgenda },
+    // Droit d'accès d'un patient (phase 4) : événements qui le concernent ; événement supprimé signalé
+    droitAcces: function (etat, p) {
+      return A.droitAcces(etat, p.id).map(function (x) {
+        var quand = x.debut ? U.date(x.debut) + (x.repete ? ' (répété' + (x.dates.length ? ', dates : ' + x.dates.map(function (d) { return d.split('-').reverse().join('/'); }).join(', ') : '') + ')' : '') : '';
+        return { libelle: x.nature + ' — ' + quand, cellules: [quand, x.nature, x.titre, x.lieu, x.validation, x.supprime ? 'supprimé' : ''], entete: ['Date', 'Nature', 'Intitulé', 'Lieu', 'Validation', 'État'] };
+      });
+    },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'L’élément de l’agenda revient à son état précédent.'; } },
     admin: { onglets: function () { return [['agenda-categories', 'Catégories d’événements', [panneauCategories()]], ['agenda', 'Réglages de l’agenda', [panneauReglages()]], ['agenda-services', 'Organisation par service', [I.panneauReglagesService()]]]; },
       // Réglages ouverts au cadre pour ses services : onglet « Agenda du service » de sa fenêtre Administration (0.21.0)
