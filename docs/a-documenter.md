@@ -875,3 +875,18 @@ Décisions du porteur du 14 novembre 2026 : check-list fournie plus tard par le 
 | Messagerie | Section signalée « (module arrêté) » si la messagerie est arrêtée | `ui-qualite.js` |
 | Tests et parcours | `tests/droit-acces.test.js` ; parcours : sections de l'agenda et du Suivi médical, agenda arrêté puis remis en marche | — |
 | Points à valider | Délégué à la protection des données : données des modules arrêtés remises au patient ; documents rattachés au patient (module Documents, chiffrés un par un) pas encore repris : titre seul, ou contenu ? ; réservations de véhicule et Vue d'ensemble ne citent pas de patient nommément (rien à reprendre) | — |
+
+## Version 0.63.0 (branche `formalites`, 14 novembre 2026) : formalités d'admission et de sortie (phase 4, lot P)
+
+Décisions du porteur du 14 novembre 2026 : **dans la fiche patient, par séjour** ; liste par défaut proposée retenue, **modifiable** (cadre, mode d'hospitalisation) ; **alerte 48 heures** après l'entrée ou la sortie, réglable par formalité.
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Formalités | À l'admission : livret d'accueil remis, information sur les droits et les voies de recours donnée, personne à prévenir renseignée, personne de confiance proposée, inventaire des effets fait ; à la sortie : effets restitués, documents de sortie remis ; chaque formalité : faite ou sans objet (datée et signée), remise à faire ; formalité limitée à certains modes d'hospitalisation (mode à l'entrée ou à la sortie) ; formalités de sortie attendues une fois la sortie enregistrée | `formalites.js` (nouveau), `ui-formalites.js` (nouveau) |
+| Fiche patient | Onglet « Formalités » (séjour en cours, sinon le dernier séjour), quand l'option est active pour le service | `ui-patients.js` |
+| Saisie | `FORMALITE` (journal du module Patients) : permise à tout agent qui saisit le mode d'hospitalisation ou les séjours (IDE, AS, secrétaire, cadre par défaut), sans nouvel accès à cocher ; fiche recalculée (types de la fiche) | `module-patients.js` (`permisPourSoi`, `appliquer`), `model.js` (`TYPES_FICHE`) |
+| Alertes | « Aujourd'hui » (Ce qui vous attend) : formalités en retard par patient, séjours en cours et sorties des 30 derniers jours, pour les agents qui les saisissent et l'encadrement | `ui-formalites.js` (`informations`) |
+| Réglages | `formalites` = { '*': { active, liste }, <service>: ... } : **désactivées par défaut** ; Administration → Patients → Formalités, ouvert au cadre pour ses services ; une formalité par ligne « admission ou sortie \| libellé \| délai en heures \| modes » ; socle, libellé du journal, groupe d'export, jeu de formation | `model.js`, `session.js`, `ui-isocont.js`, `ui-liste-patients.js`, `demo.js` |
+| Démonstration | Activées pour l'Unité 1 (données fictives seulement, pas en formation) ; P01 : trois faites, une sans objet, l'inventaire en retard | `demo.js` |
+| Tests et parcours | `tests/formalites.test.js` ; parcours : onglet de la fiche, inventaire coché, alerte retirée | — |
+| Reste | Colonne de la Vue d'ensemble (`resume` prêt) ; lien avec l'inventaire des effets personnels (lot K) ; formalités dans le droit d'accès du patient (à valider avec le délégué à la protection des données) | — |

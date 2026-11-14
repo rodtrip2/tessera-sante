@@ -277,6 +277,8 @@
     boitesMail: {},
     // Contrôles des CSI (module-controles.js, 14 novembre 2026) : { '*': { csiLibre: { actif, liste, deuxAgents }, surveillance: { actif } }, <service>: ... }
     controles: {},
+    // Formalités d'admission et de sortie (formalites.js, 14 novembre 2026) : { '*': { active (non par défaut), liste }, <service>: ... }
+    formalites: {},
     agenda: {},            // module Agenda (journal du socle) : { identite: 'initiales' | 'aucune' | 'ipp' | 'nom', typesAlertes: [{ code, libelle }] } ; vide = défauts
     importPatients: {},    // module Patients : modèles d'import de la liste du DPI { modeles: { '*': modèle, U1: modèle } } (noms de colonnes et correspondances, aucune donnée de patient)
     medecins: {},          // liste commune des médecins (medecins.js) : { liste, gestion } ; reprend l'ancienne liste « psychiatres »
@@ -368,7 +370,7 @@
     return (reg && reg.fournir('patients.fiches', evts)) || { fiches: {}, fusions: {} };
   }
 
-  var TYPES_FICHE = { PATIENT: 1, MODE_HOSPI: 1, FUSION: 1, SEJOUR: 1, COMPLEMENT: 1, INTERVENANT: 1, PRISE_EN_CHARGE: 1 };
+  var TYPES_FICHE = { PATIENT: 1, MODE_HOSPI: 1, FUSION: 1, SEJOUR: 1, COMPLEMENT: 1, INTERVENANT: 1, PRISE_EN_CHARGE: 1, FORMALITE: 1 };
   function reduire(evts, contexte) {
     var fp = fichesPatients(evts, contexte);
     return N.reduire(evts, {
@@ -2130,6 +2132,7 @@
     { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
     { code: 'affichage', libelle: 'Points de vigilance, écran de connexion (contact, consigne, logo), barre des modules', cles: ['vigilance', 'affichage', 'barreModules'] },
     { code: 'boitesMail', libelle: 'Messageries du service : boîtes aux lettres et webmail', cles: ['boitesMail'] },
+    { code: 'formalites', libelle: 'Formalités d’admission et de sortie : activation, liste, délais', cles: ['formalites'] },
     { code: 'controles', libelle: 'Contrôles des chambres de soins intensifs : check-list, second agent, surveillance', cles: ['controles'] },
     { code: 'roles', libelle: 'Rôles et accès, verrouillage après inactivité', cles: ['roles', 'inactiviteMinutes'] },
     { code: 'groupes', libelle: 'Groupes d’agents (équipes, groupes de travail)', cles: ['groupes'] },

@@ -9,9 +9,9 @@
  * viennent aux sous-étapes suivantes.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./modules.js'), require('./champs.js'));
-  else factory(root.SIC.noyauJournal, root.SIC.modules, root.SIC.champs);
-})(typeof self !== 'undefined' ? self : this, function (N, registre, CH) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./noyau-journal.js'), require('./modules.js'), require('./champs.js'), require('./formalites.js'));
+  else factory(root.SIC.noyauJournal, root.SIC.modules, root.SIC.champs, root.SIC.formalites);
+})(typeof self !== 'undefined' ? self : this, function (N, registre, CH, FO) {
   'use strict';
 
   // Fiche commune (décision du 5 novembre 2026) : nom (nom d'usage, affiché), nom de naissance, sexe ; médecins de
@@ -66,6 +66,10 @@
         ['type', 'nom', 'contact', 'commentaire', 'champs', 'supprime'].forEach(function (k) { if (d[k] !== undefined) iv[k] = d[k]; });
         iv.modifie = e.at;
         st.intervenants[d.id] = iv;
+        break;
+      // Formalités d'admission et de sortie (lot P, 14 novembre 2026) : fait, sans objet, remise à faire
+      case 'FORMALITE':
+        if (FO && st.fiches[id]) FO.appliquer(st.fiches[id], e);
         break;
       case 'PRISE_EN_CHARGE':
         // Intervenant rattaché à la fiche d'un patient, avec un commentaire propre à ce patient ; `retire` le détache
@@ -143,6 +147,11 @@
    * modules) : le module Patients la contrôle lui-même. ctx : { config, peut }.
    */
   function permisPourSoi(type, data, compte, ctx) {
+    // Formalités : tout agent qui saisit le mode d'hospitalisation ou les séjours (IDE, AS, secrétaire, cadre par défaut)
+    if (type === 'FORMALITE' && compte && data && ctx) {
+      if (!(ctx.peut && (ctx.peut('MODE_HOSPI') || ctx.peut('SEJOUR')))) return false;
+      try { FO.controler(data, ctx.etat && ctx.etat.fiches ? ctx.etat.fiches[data.patientId] : null); return true; } catch (e) { return false; }
+    }
     if (type !== 'COMPLEMENT' || !compte || !data || !ctx) return false;
     try { CH.controlerSaisie('COMPLEMENT', data, compte.roles, { config: ctx.config, peutModule: function () { return !!(ctx.peut && ctx.peut('PATIENT')); } }); return true; } catch (e) { return false; }
   }
@@ -218,13 +227,13 @@
 
     acces: [],                  // les saisies de la fiche sont permises par les accès des modules qui en dépendent
     saisies: {
-      types: ['PATIENT', 'MODE_HOSPI', 'FUSION', 'SEJOUR', 'COMPLEMENT', 'INTERVENANT', 'PRISE_EN_CHARGE'],
+      types: ['PATIENT', 'MODE_HOSPI', 'FUSION', 'SEJOUR', 'COMPLEMENT', 'INTERVENANT', 'PRISE_EN_CHARGE', 'FORMALITE'],
       champ: function () { return null; },   // conflits : comme dans Isocont, aucune saisie de la fiche n'en crée
       permisPourSoi: permisPourSoi,
       reduire: reduire
     },
     // Réglages que le cadre écrit pour ses services (contrôle appelé par la session avant l'enregistrement)
-    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { chambres: cadreChambres, champsAjoutes: cadreChamps, reglagesDonnees: cadreReglagesDonnees, capacites: cadreCapacites, largeursColonnes: cadreLargeurs, intervenants: cadreIntervenants } },
+    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { chambres: cadreChambres, champsAjoutes: cadreChamps, reglagesDonnees: cadreReglagesDonnees, capacites: cadreCapacites, largeursColonnes: cadreLargeurs, intervenants: cadreIntervenants, formalites: function (a, n, c) { return FO.controlerCadre(a, n, c); } } },
     // Fenêtre du module Patients (décision du porteur du 7 novembre 2026) : liste réglable des patients (ui-liste-patients.js)
     vues: { onglets: [{ code: 'fiches', libelle: 'Liste des patients' }, { code: 'plan', libelle: 'Plan du service' }] },
     migrations: [],

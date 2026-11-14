@@ -369,6 +369,8 @@
         !nouveau && U.intervenants ? U.intervenants.section(f, rouvrir) : null)],
       ['donnees', 'Données ajoutées', zoneComp],
       nouveau ? null : ['sejours', 'Séjours et sorties', h('div', { class: 'pile' }, sejours, U.sorties ? U.sorties.ligneFiche(f, rouvrir) : null)],
+      // Formalités d'admission et de sortie (lot P, 14 novembre 2026) : option désactivée par défaut
+      !nouveau && U.formalites && U.formalites.active(f) ? ['formalites', 'Formalités', U.formalites.section(f)] : null,
       agendaP || docsP ? ['liens', [agendaP ? 'Agenda' : null, docsP ? 'Documents' : null].filter(Boolean).join(' et '), h('div', { class: 'pile' }, agendaP, docsP)] : null
     ], { cle: 'fiche-patient', libelle: 'Rubriques de la fiche' });
     ongletsFiche.classList.add('fiche-onglets');

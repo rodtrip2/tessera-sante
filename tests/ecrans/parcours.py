@@ -702,6 +702,20 @@ with sync_playwright() as p:
     verifier('ALPHA' in corps and 'Camille' in corps and '{{Nom}}' not in corps and 'Unité 1' in corps, 'modèle rempli : identité du patient, service et date remplacés')
     a.locator('dialog.doc-editeur[open]').get_by_role('button', name='Fermer').click(); time.sleep(1)
     for _ in range(2): a.keyboard.press('Escape'); time.sleep(0.4)
+    # Formalités d'admission et de sortie (lot P, 14 novembre 2026)
+    a.evaluate("SIC.ui.fichePatient.modale(SIC.ui.App.session.etat.patients.P01)"); time.sleep(2)
+    fd = a.locator('dialog[open]').last
+    fd.locator('.onglets-locaux [data-code="formalites"]').click()
+    time.sleep(0.6)
+    tf = fd.locator('table.formalites')
+    verifier(tf.locator('.badge', has_text='Fait').count() == 3 and tf.locator('.badge', has_text='Sans objet').count() == 1 and tf.locator('tr', has_text='Inventaire des effets').locator('.badge', has_text='En retard').count() == 1, 'formalités : faites, sans objet, en retard après 48 h')
+    tf.locator('tr', has_text='Inventaire des effets').get_by_role('button', name='Fait').click(); time.sleep(1.2)
+    verifier(fd.locator('table.formalites tr', has_text='Inventaire des effets').locator('.badge', has_text='Fait').count() == 1, 'formalités : inventaire coché, daté et signé')
+    capture(a, 'formalites')
+    fd.locator('.onglets-locaux [data-code="identite"]').click(); time.sleep(0.3)   # onglet retenu : revenir à l'identité
+    for _ in range(2): a.keyboard.press('Escape'); time.sleep(0.4)
+    infos = a.evaluate("SIC.ui.formalites.informations().map(i => i.titre)")
+    verifier(not any('ALPHA' in x for x in infos), 'formalités : plus d’alerte pour le patient dont tout est fait ' + str(infos[:3]))
 
     print('Salles et bureaux')
     fenetre(a, 'Salles et bureaux')

@@ -28,7 +28,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail', 'comptesPoles', 'controles'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail', 'comptesPoles', 'controles', 'formalites'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -285,6 +285,12 @@
     });
     // Sorties (0.21.0) : une sortie actée (date et heure arrêtées avec le patient), une envisagée en fourchette, une approximation seule
     ajouter(t(-24 * 3), 'SEJOUR', { patientId: 'P03', sejourId: 'SP03', sortiePrevue: { etat: 'actee', debut: jISO(24 * Math.min(3, (7 - new Date(now).getDay()) % 7)), heure: '11:00' } });   // dans la semaine affichée (au plus tard dimanche)
+    // Formalités d'admission et de sortie (lot P, 14 novembre 2026) : activées pour l'Unité 1 ; P01 : trois faites, une sans objet,
+    // une en retard (inventaire) ; P02, P03 : rien de coché (en retard si l'entrée date de plus de 48 heures)
+    if (!reel) cfg('formalites', { U1: { active: true } });
+    [['livret', 'fait', -24 * 9], ['droits', 'fait', -24 * 9 + 2], ['prevenir', 'fait', -24 * 8], ['confiance', 'sansObjet', -24 * 8 + 1]].forEach(function (x) {
+      ajouter(t(x[2]), 'FORMALITE', { patientId: 'P01', sejourId: 'SP01', formalite: x[0], etat: x[1], nom: 'Agent A (fictif)' }, 'demo-a');
+    });
     ajouter(t(-24 * 2), 'SEJOUR', { patientId: 'P01', sejourId: 'SP01', sortiePrevue: { debut: jISO(24 * 6), fin: jISO(24 * 10), precision: 'après la synthèse (fictif)' } });
     ajouter(t(-24 * 1), 'SEJOUR', { patientId: 'P04', sejourId: 'SP04', sortiePrevue: { precision: 'selon place en appartement thérapeutique (fictif)' } });
     // Plan du service (0.29.1) : placements temporaires, chambre gardée (CSI en chambre ouverte dans l'Unité 2, alors
