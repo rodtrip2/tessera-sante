@@ -249,6 +249,8 @@
     verificationVersion: true,
     // Exports (PDF, CSV) enregistrés automatiquement dans ce sous-dossier du dossier des données
     exports: { dossier: 'exports', conservationJours: 0, cheminReseau: '' },
+    // Fonctions soumises à avis (validations.js, 13 novembre 2026) : { etats: { code: { etat, date, auteur, reference, dpoInforme } } } ; vide = états par défaut
+    validations: {},
     agenda: {},            // module Agenda (journal du socle) : { identite: 'initiales' | 'aucune' | 'ipp' | 'nom', typesAlertes: [{ code, libelle }] } ; vide = défauts
     importPatients: {},    // module Patients : modèles d'import de la liste du DPI { modeles: { '*': modèle, U1: modèle } } (noms de colonnes et correspondances, aucune donnée de patient)
     medecins: {},          // liste commune des médecins (medecins.js) : { liste, gestion } ; reprend l'ancienne liste « psychiatres »
@@ -2110,8 +2112,9 @@
     { code: 'decompte', libelle: 'Décompte JLD (masques, papier à en-tête)', cles: ['decompte', 'imagesDecompte'] },
     { code: 'technique', libelle: 'Exports, rappel des sauvegardes, postes de travail', cles: ['exports', 'sauvegarde', 'verrouDossier', 'verificationVersion'] }
   ];
-  // Prêts de droits et demandes de comptes (0.31.0) : propres aux agents de l'établissement, jamais exportés
-  var REGLAGES_EXCLUS = { compteursRegistre: 1, registreFige: 1, derniersClasseur: 1, registreFigeMesures: 1, rapportsAnnuels: 1, miroir: 1, delegations: 1, comptesDemandes: 1 };
+  // Prêts de droits et demandes de comptes (0.31.0) : propres aux agents de l'établissement, jamais exportés ;
+  // fonctions soumises à avis (13 novembre 2026) : décisions et avis propres à chaque établissement
+  var REGLAGES_EXCLUS = { compteursRegistre: 1, registreFige: 1, derniersClasseur: 1, registreFigeMesures: 1, rapportsAnnuels: 1, miroir: 1, delegations: 1, comptesDemandes: 1, validations: 1 };
   var REGLAGES_SUPPLEMENTAIRES = { imagesDecompte: {} };   // paramètres sans valeur par défaut dans CONFIG_DEFAUT
 
   function groupeDeCle(cle) { return GROUPES_REGLAGES.filter(function (g) { return g.cles.indexOf(cle) >= 0; })[0] || null; }

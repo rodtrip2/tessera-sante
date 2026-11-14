@@ -88,6 +88,7 @@
    * complémentaires de la fiche patient (`patientsChamps`, 0.13.0) sont reprises telles quelles.
    * options : { tous (y compris masquées), service, entite, module, type }.
    */
+  function V() { return typeof self !== 'undefined' && self.SIC && self.SIC.validations; }
   function definitions(config, options) {
     var o = options || {}, src = config && Array.isArray(config.champsAjoutes) ? config.champsAjoutes : ((config && config.patientsChamps) || []).map(function (c) { return Object.assign({}, c, { entite: 'patient', module: 'patients' }); });
     var vus = {};
@@ -95,6 +96,8 @@
       if (!c || vus[c.id]) return false;
       vus[c.id] = true;
       if (!o.tous && !c.actif) return false;
+      // Fonction désactivée dans l'onglet « Validations » (13 novembre 2026) : donnée masquée, conservée
+      if (!o.tous && V() && !V().champAutorise(c, config)) return false;
       if (o.service && c.services.length && c.services.indexOf(o.service) < 0) return false;
       if (o.entite && c.entite !== o.entite) return false;
       if (o.module && c.module !== o.module) return false;

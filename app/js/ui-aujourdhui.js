@@ -26,6 +26,8 @@
     var maintenant = Date.now(), auj = jourISO(maintenant), blocs = [];
     var d = new Date(maintenant);
     var titre = 'Aujourd’hui, ' + d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    // Fonctions activées sans avis (13 novembre 2026) : rappel au cadre et à la direction seulement
+    try { var rv = U.validations && U.validations.blocRappel(); if (rv) blocs.push(rv); } catch (e) { /* sans validations */ }
     // Mon agenda du jour
     try {
       var j = U.monJour ? U.monJour(maintenant) : null;

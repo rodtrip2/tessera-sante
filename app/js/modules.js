@@ -131,7 +131,7 @@
         return valeur;
       },
       /** Module en service (0.43.0) : déclaré et pas arrêté par l'administrateur (les données d'un module arrêté restent lisibles). */
-      enService: function (id, config) { var m = reg.obtenir(id); if (!m) return false; if (m.reference || m.indispensable || !m.droits || !m.droits.arrete) return true; return !m.droits.arrete(config); },
+      enService: function (id, config) { var m = reg.obtenir(id); if (!m) return false; var V = typeof self !== 'undefined' && self.SIC && self.SIC.validations; if (V && !V.moduleAutorise(id, config)) return false; if (m.reference || m.indispensable || !m.droits || !m.droits.arrete) return true; return !m.droits.arrete(config); },
       /** Modules affichés (hors modules de référence). */
       affiches: function () { return liste.filter(function (m) { return !m.reference; }); },
       /**

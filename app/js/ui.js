@@ -761,8 +761,9 @@
   function onglets() {
     if (App.fenetre === 'aujourdhui') return [['aujourdhui', 'Aujourd’hui']];
     if (App.fenetre === 'admin') {
-      if (App.session && App.session.roles().indexOf('ADMIN') < 0) return [['groupes', 'Groupes d’agents']].concat(modulesCadre().map(function (m) { return ['cadre-' + m.id, m.libelle]; }), [['journal', 'Journal']]);
-      return [['admin-accueil', 'Accueil'], ['admin', 'Réglages généraux'], ['groupes', 'Groupes d’agents']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['journal', 'Journal']]);
+      // Validations (13 novembre 2026) : fonctions soumises à avis, consultées par le cadre, modifiées par l'administrateur
+      if (App.session && App.session.roles().indexOf('ADMIN') < 0) return [['groupes', 'Groupes d’agents']].concat(modulesCadre().map(function (m) { return ['cadre-' + m.id, m.libelle]; }), [['validations', 'Validations'], ['journal', 'Journal']]);
+      return [['admin-accueil', 'Accueil'], ['admin', 'Réglages généraux'], ['validations', 'Validations'], ['groupes', 'Groupes d’agents']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['journal', 'Journal']]);
     }
     var id = App.fenetre === 'patients' ? 'patients' : (App.session ? App.session.moduleAffiche() : null);
     var m = id && SIC.modules.obtenir(id);
@@ -930,6 +931,7 @@
       if (App.fenetre === 'aujourdhui') return o === 'aujourdhui';
       if (o === 'aujourdhui') return false;
       if (estOngletAdmin(o)) return estAdmin;
+      if (o === 'validations') return !!(SIC.ui.validations && SIC.ui.validations.consultable());
       if (droitOnglet[o] && !estAdmin && ![].concat(droitOnglet[o]).some(function (t) { return s.peut(t); })) return false;
       if (o === 'journal') return nivJournal !== 'aucun' && !anonyme;
       if (anonyme) return o === 'registre';
@@ -1001,6 +1003,7 @@
     var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: function () { return vueAdmin('general'); }, groupes: function () { return SIC.ui.vueGroupes ? SIC.ui.vueGroupes() : h('p', { class: 'muted', text: 'Groupes indisponibles.' }); } };
     modulesAdmin().forEach(function (x) { vues['admin-' + x[0]] = function () { return vueAdmin(x[0]); }; });
     vues.aujourdhui = function () { return SIC.ui.vueAujourdhui ? SIC.ui.vueAujourdhui() : vues.aucun(); };
+    vues.validations = function () { return SIC.ui.validations ? SIC.ui.validations.vue() : h('p', { class: 'muted', text: 'Validations indisponibles.' }); };
     vues['admin-accueil'] = function () { return SIC.ui.vueAccueilAdmin ? SIC.ui.vueAccueilAdmin() : vueAdmin('general'); };
     modulesCadre().forEach(function (m) { vues['cadre-' + m.id] = function () { return h('div', { class: 'pile' }, m.interface.admin.cadre()); }; });
     var mAff = moduleAffiche(), vuesAff = (mAff.interface && mAff.interface.vues) || {}, vuesModule = interfaceModule().vues || {};

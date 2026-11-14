@@ -134,6 +134,7 @@
       var pbs = U.sauvegarde && U.sauvegarde.texteIntegrite ? U.sauvegarde.texteIntegrite(x.integrite) || [] : [];
       res.push({ niveau: pbs.length ? 'bad' : 'ok', texte: pbs.length ? 'Intégrité des données : ' + pbs.join(' ; ') : 'Intégrité des données : aucune anomalie', voir: 'sauvegardes' });
     } catch (e) { /* sans contrôle */ }
+    try { if (U.validations) { var vl = U.validations.etatPlateforme(); res.push({ niveau: vl.niveau, texte: vl.texte, ouvrir: U.validations.ouvrir }); } } catch (e) { /* sans validations */ }
     var comptes = (x.comptes || []).filter(function (c) { return c.actif; });
     var prov = comptes.filter(function (c) { return c.mdpProvisoire; });
     res.push({ niveau: prov.length ? 'warn' : 'ok', texte: prov.length ? prov.length + ' compte' + (prov.length > 1 ? 's' : '') + ' jamais activé' + (prov.length > 1 ? 's' : '') + ' (mot de passe provisoire) : ' + prov.slice(0, 6).map(function (c) { return c.nom; }).join(', ') + (prov.length > 6 ? '…' : '') : 'Tous les comptes ont été activés', voir: 'comptes' });
@@ -152,7 +153,7 @@
       h('section', { class: 'panneau' }, h('h2', { text: 'État de la plateforme' }),
         h('ul', { class: 'etat-plateforme' }, etat.map(function (x) {
           return h('li', { class: 'etat-' + x.niveau }, h('span', { class: 'etat-pastille', 'aria-hidden': 'true' }), h('span', { text: x.texte }),
-            x.voir ? h('button', { class: 'btn petit', type: 'button', onclick: function () { U.App.onglet = 'admin'; U.App.sousOngletAdmin = x.voir; U.rendreContenu(); } }, 'Voir') : null);
+            x.voir ? h('button', { class: 'btn petit', type: 'button', onclick: function () { U.App.onglet = 'admin'; U.App.sousOngletAdmin = x.voir; U.rendreContenu(); } }, 'Voir') : x.ouvrir ? h('button', { class: 'btn petit', type: 'button', onclick: x.ouvrir }, 'Voir') : null);
         }))));
   }
 
