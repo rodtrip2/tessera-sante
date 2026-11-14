@@ -723,3 +723,13 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 | « Mon agenda » | « Mes salles cette semaine » reprend les présences et entretiens prévus du médecin ou du psychologue relié au compte de l'agent (avec la salle) ; idem sur la page « Aujourd'hui » (« Mes salles aujourd'hui ») | `ui-salles.js` (`miennes`) |
 | Vue d'ensemble | Colonne native « Salle aujourd'hui » des lignes Médecins (salles notées sur les présences du jour), ajoutée à la vue proposée « Médecins » et à celle de la démonstration | `module-vue.js`, `ui-vue.js`, `demo.js` |
 | Parcours | Mon agenda du médecin relié, colonne de la vue Médecins | `tests/ecrans/parcours.py` |
+
+## Version 0.51.0 (branche `recherche-partout`, 14 novembre 2026) : recherche partout (phase 2, lot N)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Recherche générale étendue | En plus des patients, événements, salles, véhicules, travaux, suivi médical, messages, agents et contacts : documents et modèles lisibles par l'agent (titres déchiffrés à la volée, une relance au plus), médecins et psychologues de la liste commune (coordonnées si le compte est relié, sinon le Suivi médical), retours sur Tessera visibles, tâches de « Mes tâches » | `ui-aujourdhui.js`, `ui-documents.js` (`U.documents.rechercher`) |
+| Droits | Chaque source ne rend que ce que l'agent peut déjà consulter (module ouvert, documents partagés avec lui, retours qu'il voit) ; rien n'est indexé ni copié | — |
+| Accès | Bouton « Rechercher » de l'en-tête et Ctrl + K, dans toutes les fenêtres (existant) | — |
+| Restes | Recherche dans le contenu des documents et des messages chiffrés pour un destinataire (non : titres et objets seulement) | — |
+| Parcours | Document par son titre, médecin, retour | `tests/ecrans/parcours.py` |

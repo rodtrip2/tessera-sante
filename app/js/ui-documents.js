@@ -1509,5 +1509,15 @@
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'Le document revient à son état précédent (les fichiers de clés ne changent pas).'; } },
     admin: { onglets: function () { return [['documents', 'Documents', [panneauReglages()]]]; } }
   });
-  U.documents = { transfertsAutomatiques: transfertsAutomatiques, ouvrir: ouvrirEditeur, creer: creer, nouveau: modaleNouveau, section: section, effacementAutomatique: effacementAutomatique, lireBlocs: lireBlocs, rendreBlocs: rendreBlocs, imprimer: imprimer, lireVersion: lireVersion };
+  /**
+   * Recherche générale (lot N, 14 novembre 2026) : documents et modèles que l'agent peut lire, par leur titre ; les titres
+   * encore inconnus sont déchiffrés à la volée, puis `rappel` relance la recherche.
+   */
+  function rechercher(rappel) {
+    if (!s().ouvert || !s().ouvert('documents')) return [];
+    var tous = DM.visibles(st(), moi(), cfg(), {});
+    chargerTitres(tous, rappel || function () {});
+    return tous.map(function (d) { var m = metaConnue(d); return m ? { module: 'documents', libModule: d.modele ? 'Modèle' : 'Document', titre: m.titre, detail: m.resume || '', ouvrir: function () { ouvrirEditeur(d.id); } } : null; }).filter(Boolean);
+  }
+  U.documents = { rechercher: rechercher, transfertsAutomatiques: transfertsAutomatiques, ouvrir: ouvrirEditeur, creer: creer, nouveau: modaleNouveau, section: section, effacementAutomatique: effacementAutomatique, lireBlocs: lireBlocs, rendreBlocs: rendreBlocs, imprimer: imprimer, lireVersion: lireVersion };
 })();

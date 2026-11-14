@@ -66,10 +66,11 @@
   }
 
   // ------------------------------------------------------------ Recherche générale
+  /** Éléments cherchables ; `q` : texte, ou { rappel } (relance quand des titres de documents ont été déchiffrés). */
   function sources(q) {
-    var res = [];
+    var res = [], texteQ = typeof q === 'string' ? q : '';
     try { if (U.messagerie && U.messagerie.elements) res = res.concat(U.messagerie.elements()); } catch (e) { /* sans éléments */ }
-    try { if (U.messagerie && U.messagerie.chercher) res = res.concat(U.messagerie.chercher(q)); } catch (e) { /* sans messages */ }
+    try { if (U.messagerie && U.messagerie.chercher) res = res.concat(U.messagerie.chercher(texteQ)); } catch (e) { /* sans messages */ }
     try {
       ((s() && s().comptes) || []).filter(function (c) { return c.actif && c.id !== 'secours'; }).forEach(function (c) {
         res.push({ module: 'agents', libModule: 'Agent', titre: c.nom, detail: (c.roles || []).join(', ') + ((c.services || []).length ? ' — ' + c.services.map(U.libService).join(', ') : ''),
@@ -77,6 +78,32 @@
           libOuvrir: U.equipe && s().ouvert('equipe') ? 'Coordonnées' : 'Écrire' });
       });
     } catch (e) { /* sans comptes */ }
+    // Recherche partout (lot N, 14 novembre 2026) : documents, médecins et psychologues de la liste commune, retours, tâches
+    try { if (U.documents && U.documents.rechercher) res = res.concat(U.documents.rechercher(q && q.rappel)); } catch (e) { /* sans documents */ }
+    try {
+      [[SIC.medecins, 'Médecin', 'liste'], [SIC.psychologues, 'Psychologue', 'psychologues']].forEach(function (x) {
+        if (!x[0] || !(s().ouvert('suivi') || s().ouvert('patients'))) return;
+        x[0].liste(U.config()).filter(function (m) { return !m.aConfirmer; }).forEach(function (m) {
+          var fct = (x[0].FONCTIONS || {})[m.fonction] || x[1];
+          res.push({ module: 'medecins', libModule: x[1], titre: m.nom, detail: [fct, m.services && m.services.length ? m.services.map(U.libService).join(', ') : 'tous les services'].join(' — '),
+            ouvrir: m.compte && U.equipe && s().ouvert('equipe') ? function () { U.equipe.contact(m.compte, m.nom); } : s().ouvert('suivi') ? function () { U.ouvrirFenetre('suivi'); U.App.onglet = x[2]; U.rendreContenu(); } : null,
+            libOuvrir: m.compte && U.equipe && s().ouvert('equipe') ? 'Coordonnées' : 'Ouvrir' });
+        });
+      });
+    } catch (e) { /* sans liste commune */ }
+    try {
+      if (SIC.retours && s().ouvert('retours')) {
+        var c = s().compteEffectif(), stR = s().etatModule('retours');
+        SIC.retours.liste(stR, { agent: c.id, suivre: s().peut && s().peut('RETOUR_SUIVI'), tous: s().roles().indexOf('ADMIN') >= 0, services: U.services().map(function (x) { return x.code; }) }).forEach(function (r) {
+          res.push({ module: 'retours', libModule: 'Retour', titre: SIC.retours.numero(r) + ' — ' + r.texte.slice(0, 80), detail: SIC.retours.NATURES[r.nature] + ' · ' + SIC.retours.ETATS[r.etat], ouvrir: function () { U.ouvrirFenetre('retours'); } });
+        });
+      }
+    } catch (e) { /* sans retours */ }
+    try {
+      if (U.mesTaches && U.mesTaches.taches) U.mesTaches.taches().forEach(function (t) {
+        res.push({ module: 'taches', libModule: 'Tâche', titre: t.titre, detail: (t.fait ? 'faite' : 'à faire') + (t.echeance ? ' · échéance ' + t.echeance.split('-').reverse().join('/') : ''), ouvrir: function () { U.ouvrirFenetre('agenda'); U.App.onglet = 'mes-taches'; U.rendreContenu(); } });
+      });
+    } catch (e) { /* sans tâches */ }
     try {
       if (U.infos && s().ouvert('infos')) ['*'].concat(U.services().map(function (x) { return x.code; })).forEach(function (sv) {
         U.infos.contacts(sv).forEach(function (c) { res.push({ module: 'infos', libModule: 'Contact', titre: c.nom + (c.numero ? ' — ' + c.numero : ''), detail: [c.fonction, c.rubrique].filter(Boolean).join(' · '), ouvrir: function () { U.ouvrirFenetre('infos'); U.App.onglet = 'annuaire'; U.rendreContenu(); } }); });
@@ -85,13 +112,14 @@
     return res;
   }
   function modaleRecherche() {
-    var champ = h('input', { type: 'search', placeholder: 'Patient, événement, salle, message, agent, contact…', 'aria-label': 'Rechercher dans Tessera', class: 'aj-recherche' });
-    var zone = h('div', { class: 'pile aj-resultats', role: 'list' }), base = null, minuteur = null;
+    var champ = h('input', { type: 'search', placeholder: 'Patient, événement, salle, message, document, agent, médecin, tâche…', 'aria-label': 'Rechercher dans Tessera', class: 'aj-recherche' });
+    var zone = h('div', { class: 'pile aj-resultats', role: 'list' }), base = null, minuteur = null, relances = 0;
     function maj() {
       var q = champ.value.trim();
       U.vider(zone);
       if (q.length < 2) { zone.appendChild(h('p', { class: 'muted', text: 'Tapez au moins deux lettres. La recherche porte sur ce que vous pouvez consulter, dans vos services.' })); return; }
-      if (!base) base = sources('');
+      // Une seule relance après le déchiffrement des titres de documents (un titre illisible ne relance pas sans fin)
+      if (!base) base = sources({ rappel: function () { if (relances++) return; base = null; if (document.body.contains(champ)) maj(); } });
       var tous = base.concat(U.messagerie && U.messagerie.chercher ? U.messagerie.chercher(q) : []), vus = {};
       var l = tous.filter(function (x) { var k = x.module + '|' + x.titre + '|' + x.detail; if (vus[k]) return false; vus[k] = 1; return SIC.tri.correspond(x.titre + ' ' + x.detail + ' ' + x.libModule, q); });
       if (!l.length) { zone.appendChild(h('p', { class: 'muted', text: 'Aucun résultat.' })); return; }

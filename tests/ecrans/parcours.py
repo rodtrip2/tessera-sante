@@ -70,6 +70,13 @@ with sync_playwright() as p:
     a.locator('dialog[open] input[type=search]').fill('salle'); time.sleep(0.8)
     verifier(a.locator('.aj-resultat').count() >= 3, 'recherche générale (Ctrl + K) : éléments des modules')
     capture(a, 'recherche')
+    # Recherche partout (lot N, 14 novembre 2026) : documents (titres déchiffrés à la volée), médecins, tâches, retours
+    a.locator('dialog[open] input[type=search]').fill('protocole'); time.sleep(2)
+    verifier(a.locator('.aj-resultat', has_text='Protocole de gestion des clés').count() >= 1, 'recherche partout : un document par son titre')
+    a.locator('dialog[open] input[type=search]').fill('arnaud'); time.sleep(0.8)
+    verifier(a.locator('.aj-resultat', has_text='Médecin').count() >= 1, 'recherche partout : un médecin de la liste commune')
+    a.locator('dialog[open] input[type=search]').fill('imprimer l’agenda'); time.sleep(0.8)
+    verifier(a.locator('.aj-resultat', has_text='Retour').count() >= 1, 'recherche partout : un retour sur Tessera')
     a.keyboard.press('Escape'); time.sleep(0.2); a.keyboard.press('Escape'); time.sleep(0.4)
     fenetre(a, 'Agenda du service', False); a.locator('nav.onglets button', has_text='Mes tâches').click(); time.sleep(1.2)
     a.get_by_role('button', name='+ Tâche').click(); time.sleep(0.5)
