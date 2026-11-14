@@ -334,21 +334,84 @@
     if (vue.enRetard) ls.sort(function (a, b) { return ((b.entretien.retard ? 2 : 0) + (b.contrat.retard ? 1 : 0)) - ((a.entretien.retard ? 2 : 0) + (a.contrat.retard ? 1 : 0)); });
     return ls;
   }
+  // Délais d'alerte par service (14 novembre 2026) : cadre et médecins chefs pour leurs services, administrateur partout
+  function servicesReglables() {
+    var c = U.App.session.compteEffectif();
+    if (U.App.session.apercu) return [];
+    return U.tousServices().map(function (x) { return x.code; }).filter(function (sv) { return S.regleLeService(c, sv); });
+  }
+  function modaleDelaisService(service) {
+    var svs = servicesReglables(), sv = service, zone = h('div', { class: 'pile' }), etat = {};
+    var sel = h('select', { 'aria-label': 'Service', onchange: function () { lire(); sv = sel.value; dessiner(); } }, svs.map(function (x) { return h('option', { value: x, text: U.libService(x), selected: x === sv }); }));
+    function charger(code) {
+      var propre = S.reglagesService(cfg(), code), o = S.options(cfg(), code);
+      return { propre: !!propre, tranches: o.tranches.map(function (t) { return Object.assign({}, t); }), premierEntretien: o.premierEntretien, nonAttribueApres: o.nonAttribueApres, alerteCouverture: o.alerteCouverture };
+    }
+    var champs = null;
+    function lire() {
+      if (!champs) return;
+      var e = etat[sv];
+      e.propre = champs.propre.checked; e.premierEntretien = +champs.premier.value; e.nonAttribueApres = +champs.na.value; e.alerteCouverture = champs.couv.checked;
+    }
+    function dessiner() {
+      U.vider(zone);
+      var e = etat[sv] = etat[sv] || charger(sv), et = S.options(cfg(), null);
+      var num = function (obj, k, min, max) { var c = h('input', { type: 'number', min: min, max: max, value: obj[k] === null ? '' : obj[k], class: 'champ-court', oninput: function () { obj[k] = c.value === '' ? null : +c.value; } }); return c; };
+      var tb = h('tbody');
+      function dT() {
+        U.vider(tb);
+        e.tranches.forEach(function (t, i) {
+          var der = i === e.tranches.length - 1;
+          tb.appendChild(h('tr', {}, h('td', {}, der ? 'au-delà' : ['jusqu’au jour ', num(t, 'jusqua', 0, 3650)]), h('td', {}, num(t, 'entretien', 1, 365), ' jours'), h('td', {}, num(t, 'contrat', 1, 365), ' jours'),
+            h('td', {}, der || e.tranches.length < 2 ? null : bouton('Retirer', function () { e.tranches.splice(i, 1); dT(); }, 'petit danger'))));
+        });
+      }
+      dT();
+      champs = { propre: h('input', { type: 'checkbox', checked: e.propre }), premier: h('input', { type: 'number', min: 0, max: 30, value: e.premierEntretien, class: 'champ-court' }), na: h('input', { type: 'number', min: 0, max: 30, value: e.nonAttribueApres, class: 'champ-court' }), couv: h('input', { type: 'checkbox', checked: e.alerteCouverture }) };
+      var detail = h('div', { class: 'pile', hidden: !e.propre },
+        h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Durée d’hospitalisation', 'Entretien médical tous les', 'Contrat de soins réévalué tous les', ''].map(function (x) { return h('th', { text: x }); }))), tb)),
+        h('div', { class: 'actions gauche' }, bouton('+ Ajouter une tranche', function () { var a = e.tranches[e.tranches.length - 2]; e.tranches.splice(e.tranches.length - 1, 0, { jusqua: a ? a.jusqua + 7 : 7, entretien: 7, contrat: 15 }); dT(); }, 'petit')),
+        h('label', { class: 'en-ligne' }, 'Premier entretien attendu dans les', champs.premier, 'jours suivant l’entrée'),
+        h('label', { class: 'en-ligne' }, 'Patient non attribué : alerte après', champs.na, 'jour(s) d’hospitalisation'),
+        h('label', { class: 'case' }, champs.couv, h('span', { text: 'Alerter quand aucun psychiatre n’est présent sur une demi-journée ouvrée dans ce service' })));
+      champs.propre.addEventListener('change', function () { detail.hidden = !champs.propre.checked; });
+      zone.appendChild(h('div', { class: 'pile' },
+        h('label', { class: 'case' }, champs.propre, h('span', { text: 'Délais propres à ce service (sinon : ceux de l’établissement)' })),
+        h('small', { class: 'muted', text: 'Établissement : ' + et.tranches.map(function (t, i) { return (t.jusqua === null ? 'au-delà de J' + (et.tranches[i - 1] ? et.tranches[i - 1].jusqua : 0) : 'jusqu’à J' + t.jusqua) + ' → entretien ' + t.entretien + ' j, contrat ' + t.contrat + ' j'; }).join(' · ') + ' ; premier entretien ' + et.premierEntretien + ' j.' }),
+        detail));
+    }
+    dessiner();
+    U.modale('Délais d’alerte du service', h('div', { class: 'pile' }, svs.length > 1 ? h('label', {}, 'Service', sel) : h('p', {}, h('b', { text: U.libService(sv) })), zone,
+      h('small', { class: 'muted', text: 'Réglés par le cadre et les médecins chefs pour leurs services. Les gardes, les lieux et la liste des médecins restent réglés par l’établissement. Chaque changement est inscrit au journal.' })),
+      [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: async function () {
+        lire();
+        var base = JSON.parse(JSON.stringify(cfg().suiviMedical || {})), services = base.services && typeof base.services === 'object' ? base.services : {};
+        Object.keys(etat).forEach(function (k) {
+          var e = etat[k];
+          if (!e.propre) { delete services[k]; return; }
+          if (e.tranches.some(function (t, i) { return i < e.tranches.length - 1 && (t.jusqua === null || (i && t.jusqua <= e.tranches[i - 1].jusqua)); })) throw new Error(U.libService(k) + ' : les tranches doivent aller en croissant (jusqu’au jour…).');
+          services[k] = { tranches: e.tranches, premierEntretien: e.premierEntretien, nonAttribueApres: e.nonAttribueApres, alerteCouverture: e.alerteCouverture };
+        });
+        if (Object.keys(services).length) base.services = services; else delete base.services;
+        await U.enregistrerConfig([['suiviMedical', base]]);
+      } }], { large: true });
+  }
   function vueEntretiens(maintenant) {
     var ls = suivisAffiches(maintenant), toutes = S.suivis(st(), cfg(), fiches(), servicesAffiches(), maintenant);
     var nE = toutes.filter(function (x) { return x.entretien.retard; }).length, nC = toutes.filter(function (x) { return x.contrat.retard; }).length;
     var meds = {}; toutes.forEach(function (x) { [x.patient.medecin1, x.patient.medecin2].forEach(function (m) { if (m) meds[nomMed(m)] = true; }); });
     var selMed = h('select', { class: 'select-barre', 'aria-label': 'Médecin', onchange: function () { vue.filtreMedecin = selMed.value; U.rendreContenu(); } }, [h('option', { value: '', text: 'Tous les médecins' })].concat(Object.keys(meds).sort().map(function (m) { return h('option', { value: m, text: m, selected: m === vue.filtreMedecin }); })));
     var cbR = h('input', { type: 'checkbox', checked: vue.enRetard, onchange: function () { vue.enRetard = cbR.checked; U.rendreContenu(); } });
-    var tr = opts().tranches;
+    var svA = servicesAffiches(), tr = S.options(cfg(), svA.length === 1 ? svA[0] : null).tranches, reglables = servicesReglables();
     return h('div', {},
       h('div', { class: 'barre' }, h('h1', { text: 'Entretiens médicaux et contrats de soins' }), h('div', { class: 'espace' }),
+        reglables.length ? bouton('Délais du service…', function () { modaleDelaisService(svA.length === 1 && reglables.indexOf(svA[0]) >= 0 ? svA[0] : reglables[0]); }) : null,
         bouton('Imprimer', function () { imprimerEntretiens(maintenant); }),
         peut('SUIVI') ? bouton('Cocher les patients vus…', function () { modaleCocher(); }, 'primaire') : null),
       h('div', { class: 'actions gauche' },
         nE ? h('span', { class: 'badge bad', text: nE + (nE > 1 ? ' patients sans entretien médical dans le délai' : ' patient sans entretien médical dans le délai') }) : h('span', { class: 'badge ok', text: 'Entretiens à jour' }),
         nC ? h('span', { class: 'badge warn', text: nC + (nC > 1 ? ' contrats de soins à réévaluer' : ' contrat de soins à réévaluer') }) : h('span', { class: 'badge ok', text: 'Contrats à jour' }),
-        h('small', { class: 'muted', text: 'Délais : ' + tr.map(function (t, i) { return (t.jusqua === null ? 'au-delà de J' + (tr[i - 1] ? tr[i - 1].jusqua : 0) : 'jusqu’à J' + t.jusqua) + ' → entretien ' + t.entretien + ' j, contrat ' + t.contrat + ' j'; }).join(' · ') })),
+        h('small', { class: 'muted', text: 'Délais' + (svA.length === 1 && S.reglagesService(cfg(), svA[0]) ? ' du service' : svA.length > 1 && svA.some(function (x) { return S.reglagesService(cfg(), x); }) ? ' de l’établissement (certains services ont les leurs : choisissez le service)' : '') + ' : ' + tr.map(function (t, i) { return (t.jusqua === null ? 'au-delà de J' + (tr[i - 1] ? tr[i - 1].jusqua : 0) : 'jusqu’à J' + t.jusqua) + ' → entretien ' + t.entretien + ' j, contrat ' + t.contrat + ' j'; }).join(' · ') })),
       h('div', { class: 'actions gauche' }, selMed, h('label', { class: 'case' }, cbR, h('span', { text: 'En retard d’abord' }))),
       ls.length ? h('div', { class: 'table-wrap' }, h('table', {},
         h('thead', {}, h('tr', {}, ['Patient', 'Mode', 'Médecins (1re / 2e ligne)', 'Délais', 'Dernier entretien médical', 'Contrat de soins réévalué le', ''].map(function (x) { return h('th', { text: x }); }))),
@@ -549,7 +612,7 @@
     var casesG = D.rolesConfig(cfg()).filter(function (r) { return !r.admin; }).map(function (r) { return { code: r.code, cb: h('input', { type: 'checkbox', checked: gestion.indexOf(r.code) >= 0 }), libelle: r.libelle }; });
     return h('section', { class: 'panneau' }, h('h2', { text: 'Suivi médical' }),
       h('h3', { text: 'Délais d’alerte selon la durée d’hospitalisation' }),
-      h('p', { class: 'muted', text: 'Le délai appliqué à un patient dépend du nombre de jours depuis son entrée (J0 = jour d’entrée). Une alerte est levée quand le dernier entretien ou la dernière réévaluation du contrat est plus ancien que le délai.' }),
+      h('p', { class: 'muted', text: 'Le délai appliqué à un patient dépend du nombre de jours depuis son entrée (J0 = jour d’entrée). Une alerte est levée quand le dernier entretien ou la dernière réévaluation du contrat est plus ancien que le délai. Délais de l’établissement : chaque service peut avoir les siens, réglés par le cadre et les médecins chefs (Suivi médical → Entretiens → « Délais du service… »)' + (cfg().suiviMedical && cfg().suiviMedical.services && Object.keys(cfg().suiviMedical.services).length ? ' ; services qui ont les leurs : ' + Object.keys(cfg().suiviMedical.services).map(U.libService).join(', ') : '') + '.' }),
       h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Durée d’hospitalisation', 'Entretien médical tous les', 'Contrat de soins réévalué tous les', ''].map(function (x) { return h('th', { text: x }); }))), zT)),
       h('div', { class: 'actions gauche' }, bouton('+ Ajouter une tranche', function () { var a = tranches[tranches.length - 2]; tranches.splice(tranches.length - 1, 0, { jusqua: a ? a.jusqua + 7 : 7, entretien: 7, contrat: 15 }); dT(); }, 'petit')),
       h('label', { class: 'en-ligne' }, 'Premier entretien attendu dans les', premier, 'jours suivant l’entrée'),
@@ -570,6 +633,7 @@
         lieuxOk.forEach(function (l) { if (!/^[A-Za-z0-9_-]{1,20}$/.test(l.code) || !String(l.libelle).trim()) throw new Error('Lieu : code (lettres, chiffres) et libellé requis.'); if (U.tousServices().some(function (s) { return s.code === l.code; })) throw new Error('Le code ' + l.code + ' est déjà celui d’un service.'); });
         if (gardes.some(function (g) { return !String(g.libelle).trim(); })) throw new Error('Chaque type de garde doit avoir un nom.');
         var v = { tranches: tranches, premierEntretien: +premier.value, nonAttribueApres: +na.value, gardes: gardes, lieux: lieuxOk, alerteCouverture: couv.checked };
+        if (cfg().suiviMedical && cfg().suiviMedical.services) v.services = cfg().suiviMedical.services;   // délais propres des services gardés
         var g2 = casesG.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.code; });
         var brut = cfg().medecins && !Array.isArray(cfg().medecins) ? cfg().medecins : { liste: [] };
         var changements = [['suiviMedical', v]];

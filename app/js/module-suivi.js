@@ -38,8 +38,16 @@
 
   // ------------------------------------------------------------ Réglages
   /** Réglages du module, validés à la lecture (`config.suiviMedical`). */
-  function options(config) {
-    var x = (config && config.suiviMedical) || {};
+  /**
+   * Réglages du Suivi médical. Délais d'alerte (tranches, premier entretien, patient non attribué) et alerte de
+   * couverture : réglés par l'établissement, remplaçables par service (`suiviMedical.services[<service>]`, 14 novembre
+   * 2026) par le cadre et les médecins chefs pour leurs services (`controlerReglages`). Gardes, lieux et liste des
+   * médecins restent à l'établissement.
+   */
+  var CLES_SERVICE = ['tranches', 'premierEntretien', 'nonAttribueApres', 'alerteCouverture'];
+  function options(config, service) {
+    var base = (config && config.suiviMedical) || {}, propre = service && base.services && typeof base.services === 'object' ? base.services[service] : null, x = base;
+    if (propre && typeof propre === 'object') { x = Object.assign({}, base); CLES_SERVICE.forEach(function (k) { if (propre[k] !== undefined) x[k] = propre[k]; }); }
     var tr = Array.isArray(x.tranches) ? x.tranches.map(function (t) {
       return { jusqua: t && t.jusqua !== null && t.jusqua !== undefined && t.jusqua !== '' ? entier(t.jusqua, 0, 3650, null) : null, entretien: entier(t && t.entretien, 1, 365, 7), contrat: entier(t && t.contrat, 1, 365, 30) };
     }).filter(function (t, i, l) { return t.jusqua !== null || i === l.length - 1; }) : [];
@@ -54,11 +62,45 @@
       gardes: gardes, lieux: lieux, alerteCouverture: x.alerteCouverture !== false };
   }
   /** Délais (entretien, contrat) qui s'appliquent au jour d'hospitalisation `j` (J0 = jour d'entrée). */
-  function delais(config, j) {
-    var tr = options(config).tranches;
+  function delais(config, j, service) {
+    var tr = options(config, service).tranches;
     return tr.filter(function (t) { return t.jusqua === null || j <= t.jusqua; })[0] || tr[tr.length - 1];
   }
   function libGarde(g) { return g.libelle + ' ' + g.debut.replace(':', 'h') + '–' + g.fin.replace(':', 'h'); }
+
+  /** Ce qu'un service remplace (null : comme l'établissement). */
+  function reglagesService(config, service) {
+    var s = (config && config.suiviMedical && config.suiviMedical.services) || {};
+    return s[service] && typeof s[service] === 'object' ? s[service] : null;
+  }
+  var ROLES_REGLAGES = ['CADRE', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE'];
+  function regleLeService(compte, service) {
+    var roles = (compte && compte.roles) || [];
+    if (roles.indexOf('ADMIN') >= 0) return true;
+    return roles.some(function (r) { return ROLES_REGLAGES.indexOf(r) >= 0; }) && ((compte.services || []).indexOf(service) >= 0);
+  }
+  /**
+   * Changement de `suiviMedical` par le cadre ou un médecin chef : seulement les délais de ses services
+   * (`services[<service>]`, clés de CLES_SERVICE) ; le reste reste à l'administrateur.
+   */
+  function controlerReglages(ancien, nouveau, compte) {
+    var roles = (compte && compte.roles) || [];
+    if (roles.indexOf('ADMIN') >= 0) return true;
+    if (!nouveau || typeof nouveau !== 'object' || Array.isArray(nouveau)) return false;
+    var a = ancien || {}, cles = {};
+    Object.keys(a).concat(Object.keys(nouveau)).forEach(function (k) { cles[k] = 1; });
+    var autres = Object.keys(cles).every(function (k) { return k === 'services' || JSON.stringify(a[k]) === JSON.stringify(nouveau[k]); });
+    if (!autres) return false;
+    var sa = a.services || {}, sn = nouveau.services || {};
+    if (typeof sn !== 'object' || Array.isArray(sn)) return false;
+    var svs = {};
+    Object.keys(sa).concat(Object.keys(sn)).forEach(function (k) { svs[k] = 1; });
+    return Object.keys(svs).every(function (k) {
+      if (JSON.stringify(sa[k]) === JSON.stringify(sn[k])) return true;
+      if (!regleLeService(compte, k)) return false;
+      return sn[k] === undefined || (sn[k] && typeof sn[k] === 'object' && !Array.isArray(sn[k]) && Object.keys(sn[k]).every(function (c) { return CLES_SERVICE.indexOf(c) >= 0; }));
+    });
+  }
 
   // ------------------------------------------------------------ Journal
   function appliquer(st, e) {
@@ -193,7 +235,7 @@
           if (c.etat === 'absent' && c.remplacant) { var r = MED.parNom(config, c.remplacant); if (!r || r.fonction === 'psychiatre') psy++; }
         });
         var ouvre = new Date(depuisISO(j)).getDay() % 6 !== 0;
-        couverture.push({ jour: j, moment: mo, psychiatres: psy, somaticien: soma, alerte: options(config).alerteCouverture && ouvre && psy === 0 });
+        couverture.push({ jour: j, moment: mo, psychiatres: psy, somaticien: soma, alerte: options(config, lieu).alerteCouverture && ouvre && psy === 0 });
       });
     });
     var gardes = jours.map(function (j) { return { jour: j, items: gardesDuJour(st, config, j) }; });
@@ -249,7 +291,7 @@
    * contrat : retard au-delà du délai de réévaluation de sa tranche.
    */
   function suiviPatient(st, config, p, maintenant) {
-    var j = jourHospitalisation(p, maintenant), dl = delais(config, j === null ? 0 : j), d = derniers(st, p.id), o = options(config);
+    var sv = serviceDe(p), j = jourHospitalisation(p, maintenant), dl = delais(config, j === null ? 0 : j, sv), d = derniers(st, p.id), o = options(config, sv);
     function un(x, delai, sansRetardAvant) {
       if (!x) return { date: null, jours: null, retard: j !== null && j > sansRetardAvant, delai: delai };
       var n = joursEntre(depuisISO(x.date), maintenant);
@@ -272,7 +314,7 @@
    * absent de la liste a aussi la sienne.
    */
   function parMedecin(st, config, fiches, service, maintenant) {
-    var o = options(config), ls = suivis(st, config, fiches, [service], maintenant), lignes = {};
+    var o = options(config, service), ls = suivis(st, config, fiches, [service], maintenant), lignes = {};
     function ligne(nom) { return lignes[nom] = lignes[nom] || { medecin: MED.parNom(config, nom) || MED.normaliser({ nom: nom, fonction: 'autre', horsListe: true }), horsListe: !MED.parNom(config, nom), l1: [], l2: [] }; }
     MED.proposes(config, { date: maintenant, service: service }).filter(function (m) { return m.services.indexOf(service) >= 0; }).forEach(function (m) { ligne(m.nom); });
     var na = { l1: [], l2: [] };
@@ -449,7 +491,7 @@
     acces: ACCES,
     droits: D,
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: function (st, e) { return cibles(st, e); } },
-    reglages: { defaut: {}, groupes: [], exclus: [] },
+    reglages: { defaut: {}, groupes: [], exclus: [], encadrement: { suiviMedical: controlerReglages } },
     vues: { onglets: [{ code: 'presences', libelle: 'Présences médicales' }, { code: 'entretiens', libelle: 'Entretiens et contrats de soins' }, { code: 'medecins', libelle: 'Patients par médecin' }, { code: 'liste', libelle: 'Médecins' }, { code: 'planning-psy', libelle: 'Planning des psychologues' }, { code: 'psychologues', libelle: 'Psychologues' }] },
     migrations: [],
     fournitures: [
@@ -465,7 +507,7 @@
     besoins: [{ fourniture: 'patients.fiches', version: 1, obligatoire: true }]
   };
   registre.declarer(contrat);
-  return { medecinDuCompte: medecinDuCompte, permisPourSoi: permisPourSoi, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, NATURES: NATURES, MOMENTS: MOMENTS, REPETITIONS: REPETITIONS, QUOI: QUOI, TRANCHES_DEFAUT: TRANCHES_DEFAUT, GARDES_DEFAUT: GARDES_DEFAUT,
+  return { medecinDuCompte: medecinDuCompte, reglagesService: reglagesService, regleLeService: regleLeService, controlerReglages: controlerReglages, CLES_SERVICE: CLES_SERVICE, permisPourSoi: permisPourSoi, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, NATURES: NATURES, MOMENTS: MOMENTS, REPETITIONS: REPETITIONS, QUOI: QUOI, TRANCHES_DEFAUT: TRANCHES_DEFAUT, GARDES_DEFAUT: GARDES_DEFAUT,
     options: options, delais: delais, libGarde: libGarde, couvre: couvre, situation: situation, modifications: modifications, grilleLieu: grilleLieu, gardesDuJour: gardesDuJour, semaineMedecin: semaineMedecin,
     medecinsDuLieu: medecinsDuLieu, medecinDe: medecinDe, derniers: derniers, suivisDe: suivisDe, suiviPatient: suiviPatient, jourHospitalisation: jourHospitalisation, identite: identite, hospitalises: hospitalises,
     NATURES_PSY: NATURES_PSY, semainePsy: semainePsy, occupationsSalles: occupationsSalles, psyDe: psyDe,

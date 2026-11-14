@@ -935,6 +935,26 @@ with sync_playwright() as p:
       await s.modifierCoffre(async (coffre, comptes) => { comptes.filter(c => /\\.u2$|^garde$|^ds$|^dr\\.arnaud$/.test(c.login)).forEach(c => { c.mdpProvisoire = false; }); }); }""")
     a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
     connecter(a, 'cadre', MDP)   # l'administrateur se reconnecte : remise des clés aux nouveaux comptes
+    print('Cadre supérieur qui suit un pôle ; délais du Suivi médical par service (phase 3, 14 novembre 2026)')
+    a.evaluate("""async () => { const s = SIC.ui.App.session;
+      await s.creerCompte({ nom: 'Cadre supérieur (fictif)', login: 'csup', motDePasse: 'motdepasse-csup-01', roles: ['CADRE_SUP', 'CADRE'], services: ['U1'] });
+      const c = s.comptes.find(x => x.login === 'csup'); await SIC.ui.enregistrerConfig([['comptesPoles', { [c.id]: 'PSM' }]]); }""")
+    fenetre(a, 'Administration'); time.sleep(1)
+    a.locator('nav.onglets button', has_text='Réglages généraux').first.click(); time.sleep(1.2)
+    if a.get_by_role('tab', name='Comptes').count(): a.get_by_role('tab', name='Comptes').first.click(); time.sleep(0.8)
+    pp = a.locator('section.panneau', has=a.locator('h2', has_text='Comptes à mettre à jour selon leur pôle'))
+    verifier(pp.count() >= 1 and 'Cadre supérieur (fictif)' in pp.last.inner_text() and 'Unité 2' in pp.last.inner_text(), 'pôle suivi : compte du cadre supérieur à mettre à jour (service du pôle à ajouter)')
+    pp.last.get_by_role('button', name='Mettre à jour', exact=True).click(); time.sleep(3)
+    verifier(a.evaluate("SIC.ui.App.session.comptes.find(x => x.login === 'csup').services.slice().sort().join(',')") == 'U1,U2', 'pôle suivi : services du compte remis à ceux du pôle (clés remises par la voie habituelle)')
+    fenetre(a, 'Suivi médical', False); a.locator('nav.onglets button', has_text='Entretiens').first.click(); time.sleep(1)
+    a.get_by_role('button', name='Délais du service…').click(); time.sleep(0.8)
+    dlg = a.locator('dialog[open]')
+    if dlg.locator('select[aria-label="Service"]').count(): dlg.locator('select[aria-label="Service"]').select_option('U1'); time.sleep(0.4)
+    dlg.get_by_text('Délais propres à ce service').click()
+    dlg.locator('label', has_text='Premier entretien attendu').locator('input').fill('3')
+    dlg.get_by_role('button', name='Enregistrer').click(); time.sleep(1.5)
+    o = a.evaluate("[SIC.suivi.options(SIC.ui.config(), 'U1').premierEntretien, SIC.suivi.options(SIC.ui.config(), 'U2').premierEntretien, SIC.suivi.options(SIC.ui.config()).premierEntretien]")
+    verifier(o[0] == 3 and o[1] == o[2] and o[1] != 3, 'Suivi médical : délais propres à un service, les autres suivent l’établissement ' + str(o))
     a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
 
     connecter(a, 'cadre.u2', 'motdepasse-cadre-u2')

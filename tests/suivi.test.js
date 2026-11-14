@@ -239,3 +239,33 @@ test('Rôle Médecin (0.28.1) : le médecin relié à un compte saisit ses propr
   assert.equal(S2.permisPourSoi('PRESENCE', { id: 'PB', supprime: true }, a, ctx), false);
   assert.equal(S2.permisPourSoi('PRESENCE', { id: 'PA', medecinId: 'm-a' }, { id: 'u-z', roles: ['MEDECIN'] }, ctx), false);   // compte sans médecin relié
 });
+
+test('Délais par service (14 novembre 2026) : remplacement par service, contrôle du cadre et des médecins chefs', () => {
+  const cfg = { services: [{ code: 'U1', libelle: 'U1' }, { code: 'U2', libelle: 'U2' }], suiviMedical: { premierEntretien: 2, tranches: [{ jusqua: 7, entretien: 3, contrat: 10 }, { jusqua: null, entretien: 7, contrat: 30 }],
+    services: { U1: { premierEntretien: 1, tranches: [{ jusqua: null, entretien: 2, contrat: 5 }], gardes: [] } } } };
+  assert.equal(S.options(cfg, 'U1').premierEntretien, 1);
+  assert.equal(S.options(cfg, 'U1').tranches[0].entretien, 2);
+  assert.equal(S.options(cfg, 'U2').premierEntretien, 2);
+  assert.equal(S.options(cfg).tranches.length, 2);
+  assert.equal(S.options(cfg, 'U1').gardes.length, S.options(cfg).gardes.length);   // les gardes restent à l'établissement
+  const base = cfg.suiviMedical, avec = (sv, v) => Object.assign({}, base, { services: Object.assign({}, base.services, { [sv]: v }) });
+  const cadreU2 = { roles: ['CADRE'], services: ['U2'] }, chef = { roles: ['MEDECIN_CHEF_SERVICE'], services: ['U1'] }, ide = { roles: ['IDE'], services: ['U2'] };
+  assert.equal(S.controlerReglages(base, avec('U2', { premierEntretien: 3 }), cadreU2), true);
+  assert.equal(S.controlerReglages(base, avec('U1', { premierEntretien: 3 }), cadreU2), false);   // service d'un autre
+  assert.equal(S.controlerReglages(base, avec('U1', { premierEntretien: 3 }), chef), true);
+  assert.equal(S.controlerReglages(base, avec('U2', { premierEntretien: 3 }), ide), false);
+  assert.equal(S.controlerReglages(base, avec('U2', { gardes: [] }), cadreU2), false);   // clé réservée à l'établissement
+  assert.equal(S.controlerReglages(base, Object.assign({}, base, { premierEntretien: 9 }), cadreU2), false);
+  assert.equal(S.controlerReglages(base, Object.assign({}, base, { premierEntretien: 9 }), { roles: ['ADMIN'] }), true);
+});
+
+test('Comptes qui suivent un pôle : écarts entre leurs services et ceux du pôle', () => {
+  const M = require('../app/js/model.js');
+  const cfg = { services: [{ code: 'U1' }, { code: 'U2' }, { code: 'U3' }], poles: [{ code: 'P1', libelle: 'Pôle 1', services: ['U1', 'U2'] }], comptesPoles: { c1: 'P1', c3: 'P9' } };
+  const comptes = [{ id: 'c1', nom: 'Cadre sup', actif: true, services: ['U1', 'U3'] }, { id: 'c2', nom: 'Autre', actif: true, services: ['U1'] }, { id: 'c3', nom: 'Pôle disparu', actif: true, services: ['U1'] }];
+  const e = M.ecartsPoles(cfg, comptes);
+  assert.equal(e.length, 1);
+  assert.deepEqual([e[0].compte.id, e[0].ajoutes, e[0].retires, e[0].services], ['c1', ['U2'], ['U3'], ['U1', 'U2']]);
+  assert.equal(M.poleSuivi(cfg, 'c3'), null);
+  assert.equal(M.ecartsPoles(cfg, [{ id: 'c1', actif: true, services: ['U2', 'U1'] }]).length, 0);
+});

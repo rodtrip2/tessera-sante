@@ -47,6 +47,24 @@
       .map(function (p) { return { code: p.code, libelle: String(p.libelle).trim().slice(0, 80), services: (Array.isArray(p.services) ? p.services : []).filter(function (s) { if (connus.indexOf(s) < 0 || pris[s]) return false; pris[s] = 1; return true; }) }; });
   }
   function poleDe(config, service) { return poles(config).filter(function (p) { return p.services.indexOf(service) >= 0; })[0] || null; }
+  /**
+   * Comptes qui suivent un pôle (14 novembre 2026, cadre supérieur de santé, médecin chef de pôle) : `config.comptesPoles`
+   * = { <compte>: <pôle> }. Leurs services sont ceux du pôle ; quand l'administrateur change les pôles, son poste remet les
+   * services de ces comptes à jour par la voie habituelle (remise ou retrait des clés des services, inscrit au journal).
+   */
+  function poleSuivi(config, compteId) {
+    var c = (config && config.comptesPoles) || {}, code = c[compteId];
+    return code ? poles(config).filter(function (p) { return p.code === code; })[0] || null : null;
+  }
+  /** Comptes actifs dont les services ne sont plus ceux de leur pôle : [{ compte, pole, services, ajoutes, retires }]. */
+  function ecartsPoles(config, comptes) {
+    return (comptes || []).filter(function (c) { return c && c.actif !== false; }).map(function (c) {
+      var p = poleSuivi(config, c.id);
+      if (!p) return null;
+      var act = c.services || [], aj = p.services.filter(function (s) { return act.indexOf(s) < 0; }), re = act.filter(function (s) { return p.services.indexOf(s) < 0; });
+      return aj.length || re.length ? { compte: c, pole: p, services: p.services.slice(), ajoutes: aj, retires: re } : null;
+    }).filter(Boolean);
+  }
 
   // Rôles qui exigent au moins un service affecté.
   var ROLES_DE_SERVICE = ['IDE', 'AS', 'SECRETAIRE', 'CADRE', 'CADRE_SUP', 'MEDECIN', 'MEDECIN_CHEF_SERVICE', 'MEDECIN_CHEF_POLE', 'INTERVENANT'];
@@ -274,6 +292,7 @@
     comptesDemandes: { demandes: [] },    // comptes d'intervenants extérieurs demandés par le cadre (0.31.0)
     charteIntervenants: { texte: '', version: 0 },   // charte de confidentialité des intervenants extérieurs (0.31.0)
     poles: [],             // pôles : regroupements de services (0.27.2)
+    comptesPoles: {},      // comptes qui suivent un pôle : { compte: pôle } (14 novembre 2026)
     infos: {},             // informations du service : pièces jointes (désactivées par défaut), taille maximale (0.26.2)
     salles: {},            // salles et bureaux : plage affichée, horaires des demi-journées des présences, par service (0.25.0)
     conges: {},            // congés : types, validateurs, fériés, couleurs, délai, message d'avertissement (0.44.0)
@@ -2121,7 +2140,7 @@
   ];
   // Prêts de droits et demandes de comptes (0.31.0) : propres aux agents de l'établissement, jamais exportés ;
   // fonctions soumises à avis (13 novembre 2026) : décisions et avis propres à chaque établissement
-  var REGLAGES_EXCLUS = { compteursRegistre: 1, registreFige: 1, derniersClasseur: 1, registreFigeMesures: 1, rapportsAnnuels: 1, miroir: 1, delegations: 1, comptesDemandes: 1, validations: 1 };
+  var REGLAGES_EXCLUS = { compteursRegistre: 1, registreFige: 1, derniersClasseur: 1, registreFigeMesures: 1, rapportsAnnuels: 1, miroir: 1, delegations: 1, comptesDemandes: 1, validations: 1, comptesPoles: 1 };
   var REGLAGES_SUPPLEMENTAIRES = { imagesDecompte: {} };   // paramètres sans valeur par défaut dans CONFIG_DEFAUT
 
   function groupeDeCle(cle) { return GROUPES_REGLAGES.filter(function (g) { return g.cles.indexOf(cle) >= 0; })[0] || null; }
@@ -2248,7 +2267,7 @@
   }
 
   return {
-    rolesComplets: rolesComplets, poles: poles, poleDe: poleDe,
+    rolesComplets: rolesComplets, poles: poles, poleDe: poleDe, poleSuivi: poleSuivi, ecartsPoles: ecartsPoles,
     droits: D, champ: champ, ROLES: ROLES, DROITS: DROITS, ACCES: ACCES, ROLES_FOURNIS: ROLES_FOURNIS, rolesConfig: rolesConfig, libRole: libRole, accesDefaut: accesDefaut, voitTousServices: voitTousServices, exigeService: exigeService, ROLES_DE_SERVICE: ROLES_DE_SERVICE, accesFormation: accesFormation, CONFIG_DEFAUT: CONFIG_DEFAUT, LIB_CATEGORIES: LIB_CATEGORIES,
     peut: peut, servicesDe: servicesDe, periodesDe: periodesDe, estContrainte: estContrainte,
     reduire: reduire, optionsSurveillance: optionsSurveillance, agentsSurveillance: agentsSurveillance, dossierExports: dossierExports, optionsExports: optionsExports, exportsAPurger: exportsAPurger, dossierExportService: dossierExportService, cheminWindowsExports: cheminWindowsExports, DOSSIER_ETABLISSEMENT: DOSSIER_ETABLISSEMENT, CONSERVATION_EXPORTS: CONSERVATION_EXPORTS, annulabilite: annulabilite, profilAnnuelPatient: profilAnnuelPatient, libLieu: libLieu, txtLieu: txtLieu, lieuDetaille: lieuDetaille, listesConfig: listesConfig, libRaccourci: libRaccourci, optionsVigilance: optionsVigilance, optionsAffichage: optionsAffichage, comparerVersions: comparerVersions, commandesRobocopy: commandesRobocopy, cheminWindows: cheminWindows, INTERVALLES_ROBOCOPY: INTERVALLES_ROBOCOPY, registreSeul: registreSeul, ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, NIVEAUX_JOURNAL: NIVEAUX_JOURNAL, niveauJournal: niveauJournal, servicesSaisie: servicesSaisie, servicesCibles: servicesCibles, journalVisible: journalVisible, GROUPES_REGLAGES: GROUPES_REGLAGES, REGLAGES_EXCLUS: REGLAGES_EXCLUS, exporterReglages: exporterReglages, analyserReglages: analyserReglages, reglagesAImporter: reglagesAImporter, LIEUX_ISOLEMENT: LIEUX_ISOLEMENT, cheminEvenement: cheminEvenement, filtrerIntegrite: filtrerIntegrite, trierEvenements: trierEvenements, deplier: deplier,

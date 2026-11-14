@@ -1285,6 +1285,11 @@
       h('div', { class: 'actions' }, h('button', { class: 'btn primaire', onclick: async function () {
         try { s.erreurDroits = null; var r = await s.appliquerDroits(); toast(r.change ? 'Clés réémises.' : 'Aucune clé à réémettre.'); rendreContenu(); } catch (err) { alert(err.message); }
       } }, 'Réémettre les clés'))) : null;
+    // Comptes qui suivent un pôle et dont les services ne sont plus ceux du pôle (14 novembre 2026)
+    var ecartsP = M.ecartsPoles(config(), s.comptes || []);
+    var pPoles = ecartsP.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Comptes à mettre à jour selon leur pôle' }),
+      h('ul', { class: 'liste-simple' }, ecartsP.map(function (e) { return h('li', { text: e.compte.nom + ' (pôle ' + e.pole.libelle + ')' + (e.ajoutes.length ? ' — à ajouter : ' + e.ajoutes.map(libService).join(', ') : '') + (e.retires.length ? ' — à retirer : ' + e.retires.map(libService).join(', ') : '') }); })),
+      h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () { try { await appliquerPoles(ecartsP); rendreContenu(); } catch (err) { alert(err.message); } } }, 'Mettre à jour'))) : null;
     // Trousseau : clés détenues par chaque compte (coffre version 2)
     var resume = s.resumeTrousseau ? s.resumeTrousseau() : null;
     function libCle(n) { if (n === 'plateforme') return 'Plateforme'; var m = SIC.modules.obtenir(n); return m ? m.libelle : n; }
@@ -1418,6 +1423,8 @@
         });
         var vusP = {}; poles.forEach(function (p) { p.services.forEach(function (c) { if (vusP[c]) throw new Error('Le service ' + c + ' est dans deux pôles.'); vusP[c] = 1; }); });
         await enregistrerConfig([['etablissement', etab.value.trim()], ['services', svs], ['lieuxCSI', lieux], ['poles', poles]]);
+        var ecarts = M.ecartsPoles(config(), App.session.comptes || []);
+        if (ecarts.length && confirm(ecarts.length + ' compte(s) suivent un pôle modifié (' + ecarts.map(function (e) { return e.compte.nom; }).join(', ') + ') : mettre leurs services à jour maintenant ? Les clés des services ajoutés leur sont remises, celles des services retirés leur sont retirées.')) await appliquerPoles(ecarts);
       }));
 
     // -- Activation des modules par service (socle, architecture § 5)
@@ -1549,7 +1556,7 @@
     var groupes = {
       general: s.formation ? [['services', 'Établissement et services', [pServices, pModulesServices].concat(pModule.services)], ['sauvegardes', 'Sauvegardes et exports', [pExports].concat(pModule.sauvegardes)], ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos]]]
         // Comptes et sécurité découpé en trois rubriques (0.43.0, demande du porteur du 12 novembre 2026 : pages trop longues)
-        : [['comptes', 'Comptes', [pIncomplets, comptes].filter(Boolean)],
+        : [['comptes', 'Comptes', [pIncomplets, pPoles, comptes].filter(Boolean)],
           ['roles', 'Rôles et accès', [SIC.ui.roles.panneau()]],
           ['securite', 'Sécurité et clés', [pAttestation, pTrousseau, deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
           ['services', 'Établissement et services', [pServices, pModulesServices, panneauBarre()].concat(pModule.services)],
@@ -1721,7 +1728,7 @@
     return bloc;
   }
 
-  function casesServices(actuels, roles) {
+  function casesServices(actuels, roles, compteId) {
     var bloc = h('div', { class: 'pile' });
     var cases = {};
     var note = h('small', { class: 'muted', text: 'Ce rôle donne accès à tous les services.' });
@@ -1734,14 +1741,27 @@
     var ps = M.poles(config()), selPole = ps.length ? h('select', { 'aria-label': 'Pôle', onchange: function () { var p = ps.filter(function (x) { return x.code === selPole.value; })[0]; if (p) Object.keys(cases).forEach(function (k) { cases[k].checked = p.services.indexOf(k) >= 0; }); selPole.value = ''; } },
       [h('option', { value: '', text: 'Cocher les services d’un pôle…' })].concat(ps.map(function (p) { return h('option', { value: p.code, text: p.libelle + ' (' + p.services.join(', ') + ')' }); }))) : null;
     if (selPole) bloc.appendChild(selPole);
+    // Suivre un pôle (14 novembre 2026) : les services du compte restent ceux du pôle quand l'administrateur change les pôles
+    var pSuivi = compteId ? M.poleSuivi(config(), compteId) : null;
+    var selSuivi = ps.length ? h('select', { 'aria-label': 'Pôle suivi', onchange: function () { majSuivi(); } },
+      [h('option', { value: '', text: 'Ne suit pas de pôle (services cochés)' })].concat(ps.map(function (p) { return h('option', { value: p.code, text: 'Suit le pôle ' + p.libelle + ' : ses services, mis à jour avec le pôle', selected: !!pSuivi && pSuivi.code === p.code }); }))) : null;
+    if (selSuivi) bloc.appendChild(h('label', {}, 'Pôle suivi (cadre supérieur de santé, médecin chef de pôle)', selSuivi));
+    function majSuivi() {
+      var p = selSuivi && selSuivi.value ? ps.filter(function (x) { return x.code === selSuivi.value; })[0] : null;
+      if (p) Object.keys(cases).forEach(function (k) { cases[k].checked = p.services.indexOf(k) >= 0; });
+      if (selPole) selPole.disabled = !!p;
+      maj();
+    }
     function maj() {
       if (roles.cases.CADRE_SUP && roles.cases.CADRE_SUP.checked && roles.cases.CADRE) roles.cases.CADRE.checked = true;
       var choisis = Object.keys(roles.cases).filter(function (r) { return roles.cases[r].checked; });
       var tous = droits().voitTousServices(choisis, config());
       note.hidden = !tous;
-      Object.keys(cases).forEach(function (k) { cases[k].disabled = tous; });
+      var suit = !!(selSuivi && selSuivi.value);
+      Object.keys(cases).forEach(function (k) { cases[k].disabled = tous || suit; });
     }
-    Object.keys(roles.cases).forEach(function (r) { roles.cases[r].addEventListener('change', maj); }); maj();
+    Object.keys(roles.cases).forEach(function (r) { roles.cases[r].addEventListener('change', maj); }); majSuivi();
+    bloc.poleSuivi = function () { return selSuivi ? selSuivi.value : ''; };
     bloc.valeur = function (rolesChoisis) {
       var v = Object.keys(cases).filter(function (k) { return cases[k].checked; });
       var exige = droits().exigeService(rolesChoisis, config());
@@ -1751,10 +1771,28 @@
     return bloc;
   }
 
+  /** Pôle suivi d'un compte (`config.comptesPoles`), enregistré seulement s'il change. */
+  async function enregistrerPoleSuivi(id, code) {
+    var v = Object.assign({}, config().comptesPoles || {});
+    if ((v[id] || '') === (code || '')) return;
+    if (code) v[id] = code; else delete v[id];
+    await enregistrerConfig([['comptesPoles', v]]);
+  }
+  /** Remet les services des comptes qui suivent un pôle à ceux du pôle (voie habituelle : clés remises ou retirées). */
+  async function appliquerPoles(ecarts) {
+    var s = App.session, faits = 0;
+    for (var i = 0; i < ecarts.length; i++) {
+      var c = ecarts[i].compte;
+      await s.modifierRoles(c.id, c.roles, c.actif !== false, ecarts[i].services, c.formation !== false, c.finValidite || '');
+      faits++;
+    }
+    if (faits) toast(faits + ' compte(s) mis à jour selon leur pôle.');
+    return faits;
+  }
   function modaleCompte(c) {
     var s = App.session;
     var roles = casesRoles(c ? c.roles : ['IDE']);
-    var svs = casesServices(c ? (c.services || []) : (App.service !== '*' ? [App.service] : []), roles);
+    var svs = casesServices(c ? (c.services || []) : (App.service !== '*' ? [App.service] : []), roles, c ? c.id : null);
     if (c) {
       var actif = h('input', { type: 'checkbox', checked: c.actif });
       var formation = h('input', { type: 'checkbox', checked: c.formation !== false });
@@ -1769,7 +1807,9 @@
           var r = roles.valeur(), sv = svs.valeur(r);
           if (c.id === s.utilisateur.id && r.indexOf('ADMIN') < 0 && !confirm('Vous retirez votre propre rôle d’administrateur. Continuer ?')) return false;
           if (r.indexOf('ADMIN') >= 0 && !actif.checked && s.comptes.filter(function (x) { return x.actif && x.roles.indexOf('ADMIN') >= 0 && x.id !== c.id; }).length === 0) throw new Error('Il doit rester au moins un administrateur actif.');
-          await s.modifierRoles(c.id, r, actif.checked, sv, formation.checked, finVal.value); toast('Compte mis à jour.');
+          await s.modifierRoles(c.id, r, actif.checked, sv, formation.checked, finVal.value);
+          await enregistrerPoleSuivi(c.id, svs.poleSuivi());
+          toast('Compte mis à jour.');
         } }]);
     }
     var nom = h('input', { type: 'text' }), login = h('input', { type: 'text', placeholder: 'prenom.nom' });

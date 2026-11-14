@@ -71,7 +71,7 @@
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
   // validations (13 novembre 2026) : lues par tous les modules, donc dans le journal du socle
-  var REGLAGES_SOCLE = { validations: 1, etiquettesCommunes: 1, barreModules: 1, boitesMail: 1, etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
+  var REGLAGES_SOCLE = { validations: 1, etiquettesCommunes: 1, barreModules: 1, boitesMail: 1, comptesPoles: 1, etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
     champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, conges: 1, messagerie: 1, documents: 1, masquesDocuments: 1, salles: 1, infos: 1, poles: 1, chambres: 1, delegations: 1, comptesDemandes: 1, charteIntervenants: 1 };
   /** Champs ajoutés (0.18.0) : définitions, droits réglés pour chaque donnée, clés propres (`d-<id>`). */
   function CH() { return socle('champs', './champs.js'); }
@@ -1289,6 +1289,12 @@
     if (type === 'CONFIG' && data && data.cle === 'psychologues') {
       var MP = socle('medecins', './medecins.js');
       return !!MP && MP.psychologues.controler(config(s), data.cle, data.valeur, s.utilisateur);
+    }
+    // Réglages qu'un module ouvre à l'encadrement de ses services, cadre et médecins chefs (contrat : reglages.encadrement[cle],
+    // le contrôle vérifie lui-même les rôles ; Suivi médical, 14 novembre 2026)
+    if (type === 'CONFIG' && data && SIC.modules && SIC.modules.liste) {
+      var me = SIC.modules.liste().filter(function (x) { return x.reglages && x.reglages.encadrement && typeof x.reglages.encadrement[data.cle] === 'function'; })[0];
+      if (me) return !!me.reglages.encadrement[data.cle](config(s)[data.cle], data.valeur, s.utilisateur);
     }
     // Réglages qu'un module ouvre au cadre pour ses services (contrat : reglages.cadre[cle], contrôle du changement)
     if (type === 'CONFIG' && data && (s.utilisateur.roles || []).indexOf('CADRE') >= 0 && SIC.modules && SIC.modules.liste) {
