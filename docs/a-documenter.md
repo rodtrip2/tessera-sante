@@ -842,3 +842,13 @@ Décisions du porteur du 14 novembre 2026 : check-list fournie plus tard par le 
 | Tests et parcours | `tests/remplissage.test.js` ; parcours : courrier créé depuis la fiche d'un patient fictif, champs remplacés | — |
 | Points à valider | Liste des champs proposés ; modèles fournis par défaut (courrier d'information du tiers, fiche de liaison, bordereau d'envoi au juge des libertés et de la détention) à rédiger avec le porteur | — |
 | À documenter | Guide du module Documents (champs des modèles) | — |
+
+## Version 0.60.0 (branche `suivi-paragraphes`, 14 novembre 2026) : suivi des modifications étendu à la mise en forme des paragraphes (phase 3, lot D)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Marque | Sous suivi des modifications, changer le style d'un paragraphe (texte, titres), son alignement, son retrait, ou le passer en liste à puces ou numérotée (et en sortir) pose une marque « mise en forme du paragraphe » (auteur, date, état d'avant : style, alignement, retrait, type et niveau de liste) ; revenir à l'état d'avant retire la marque ; un paragraphe ajouté par soi sous suivi n'est pas marqué | `ui-documents.js` (`avecSuiviParagraphe`, `etatDe`, `attrsSuivi`, `pfmtDe`), `module-documents.js` (`etatParagraphe`, `libEtatParagraphe`, bloc `pfmt`) |
+| Revue | « Modifications suivies » : ligne « Mise en forme du paragraphe (avant : …) », Voir, Accepter (marque retirée), Refuser (état d'avant rétabli) ; Tout accepter, Tout refuser ; trait violet à gauche du paragraphe (masqué avec les marques) | `ui-documents.js`, `module-documents.js` (`modificationsSuivies`, `resoudreSuivi`), `app.css` |
+| Word | Export avec les modifications suivies : révision `w:pPrChange` (propriétés d'avant) ; import : `w:pPrChange` repris comme marque | `documents-export.js` (`proprietes`), `documents-import.js` (`etatPPr`) |
+| Tests et parcours | `tests/documents-export.test.js` (marques, refus, acceptation, Word aller-retour) ; parcours : centrer puis revenir (marque retirée), liste numérotée marquée, refus | — |
+| Limite | Marques posées par les boutons de la barre d'outils (style, alignement, retrait, listes) ; un changement fait par un raccourci du navigateur n'est pas marqué | — |

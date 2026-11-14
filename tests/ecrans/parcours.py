@@ -1185,6 +1185,25 @@ with sync_playwright() as p:
     ed.get_by_role('button', name='Modifications suivies').click(); time.sleep(0.8)
     a.locator('dialog[open]').last.get_by_role('button', name='Tout accepter').click(); time.sleep(0.8)
     verifier(ed.locator('ins.suivi-ins, del.suivi-del').count() == 0 and 'puis présenté à l’équipe' in ed.locator('.doc-corps').inner_text(), 'suivi des modifications : tout accepter')
+    # Mise en forme du paragraphe suivie (lot D) : centrer puis passer en liste, refuser → état d'avant
+    para = ed.locator('.doc-corps > p').first
+    para.click(); time.sleep(0.3)
+    ed.get_by_role('button', name='Centrer').click(); time.sleep(0.6)
+    verifier(ed.locator('.doc-corps .suivi-pfmt').count() == 1 and ed.locator('.doc-corps p.al-c').count() >= 1, 'suivi : mise en forme du paragraphe marquée (alignement)')
+    ed.get_by_role('button', name='Aligner à gauche').click(); time.sleep(0.6)
+    verifier(ed.locator('.doc-corps .suivi-pfmt').count() == 0, 'suivi : retour à la mise en forme d’avant, marque retirée')
+    para = ed.locator('.doc-corps > p').first
+    nli = ed.locator('.doc-corps li').count()
+    para.click(); time.sleep(0.3)
+    ed.get_by_role('button', name='Liste numérotée').click(); time.sleep(0.8)
+    verifier(ed.locator('.doc-corps li.suivi-pfmt').count() == 1, 'suivi : passage en liste numérotée marqué')
+    ed.get_by_role('button', name='Modifications suivies').click(); time.sleep(0.8)
+    dlg = a.locator('dialog[open]').last
+    lg = dlg.locator('.doc-suivi-ligne', has_text='Mise en forme du paragraphe')
+    verifier(lg.count() == 1 and 'avant : texte' in lg.inner_text(), 'suivi : mise en forme du paragraphe dans les modifications suivies')
+    lg.get_by_role('button', name='Refuser').click(); time.sleep(0.8)
+    dlg.get_by_text('Fermer', exact=True).click(); time.sleep(0.5)
+    verifier(ed.locator('.doc-corps .suivi-pfmt').count() == 0 and ed.locator('.doc-corps li').count() == nli, 'suivi : mise en forme du paragraphe refusée, état d’avant rétabli')
     ed.get_by_role('button', name='Fermer').click(); time.sleep(1)
     a.locator('.doc-ligne', has_text='Budget des activités').locator('button.btn.lien').first.click(); time.sleep(2.5)
     ed = a.locator('dialog.doc-editeur[open]'); cell = lambda l, c: a.locator('.tb-table td[data-l="%d"][data-c="%d"]' % (l, c))

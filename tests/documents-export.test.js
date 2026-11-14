@@ -147,3 +147,24 @@ test('Import Word : images reprises (bloc, largeur, légende) et octets rendus p
   assert.ok(DM.ID_IMAGE.test(im[0].id)); assert.equal(r.images[im[0].id].type, 'image/png'); assert.deepEqual(Array.from(r.images[im[0].id].octets), Array.from(PNG));
   assert.ok(!r.alertes.some((a) => /image/.test(a)));
 });
+
+test('Suivi de la mise en forme du paragraphe (lot D, 14 novembre 2026) : liste, refus, acceptation, Word aller-retour', async () => {
+  const c = DM.contenu({ blocs: [{ t: 'h2', al: 'c', runs: [{ x: 'Consignes (fictif)' }], pfmt: Object.assign({ id: 'pf1', avant: { t: 'p', al: 'g' } }, m) },
+    { t: 'li', liste: 'ul', runs: [{ x: 'Point (fictif)' }], pfmt: Object.assign({ id: 'pf2', avant: { t: 'p', al: 'd', r: 2 } }, m) }, { t: 'p', runs: [{ x: 'Sans marque' }], pfmt: { avant: {} } }] });
+  assert.equal(c.blocs[2].pfmt, undefined);   // marque sans auteur ignorée
+  const ms = DM.modificationsSuivies(c).filter((x) => x.genre === 'pfmt');
+  assert.equal(ms.length, 2);
+  assert.match(ms[0].texte, /avant : texte ; après : titre 2, centré/);
+  const refus = DM.resoudreSuivi(c, false);
+  assert.deepEqual(refus.blocs.slice(0, 2).map((b) => [b.t, b.al, b.r, b.liste, !!b.pfmt]), [['p', 'g', undefined, undefined, false], ['p', 'd', 2, undefined, false]]);
+  const acc = DM.resoudreSuivi(c, true, 'pf1');
+  assert.deepEqual([acc.blocs[0].t, !!acc.blocs[0].pfmt, !!acc.blocs[1].pfmt], ['h2', false, true]);
+  const z = await fichiersZip(X.docx(c, { titre: 'P (fictif)' }, { suivi: 'marques' }));
+  assert.match(z['word/document.xml'], /<w:pPrChange w:id="\d+" w:author="Agent A \(fictif\)"[^>]*><w:pPr><\/w:pPr><\/w:pPrChange>/);
+  assert.match(z['word/document.xml'], /<w:pPrChange [^>]*><w:pPr><w:ind w:left="1418"\/><w:jc w:val="right"\/><\/w:pPr>/);
+  assert.doesNotMatch((await fichiersZip(X.docx(c, { titre: 'P' }, { suivi: 'final' })))['word/document.xml'], /pPrChange/);
+  const r = await I.importer('P (fictif).docx', X.docx(c, { titre: 'P (fictif)' }, { suivi: 'marques' }));
+  const b = DM.contenu(r.contenu).blocs;
+  assert.equal(b[0].t, 'h2'); assert.equal(b[0].pfmt.n, 'Agent A (fictif)'); assert.equal(b[0].pfmt.avant.t, 'p');
+  assert.deepEqual([b[1].pfmt.avant.al, b[1].pfmt.avant.r], ['d', 2]);
+});

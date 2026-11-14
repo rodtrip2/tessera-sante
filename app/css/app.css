@@ -1428,3 +1428,6 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
 .texte-alerte { color: var(--bad); }
 tr.ligne-annulee td { text-decoration: line-through; color: var(--ink-2); }
 .alerte-ligne { background: var(--warn-soft); color: var(--warn); padding: 6px 10px; border-radius: 6px; }
+/* Mise en forme du paragraphe suivie (lot D, 14 novembre 2026) */
+.doc-corps .suivi-pfmt { box-shadow: inset 3px 0 0 #7e57c2; padding-left: 4px; }
+.doc-corps.suivi-masque .suivi-pfmt { box-shadow: none; padding-left: 0; }

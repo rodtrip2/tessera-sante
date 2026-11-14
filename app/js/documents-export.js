@@ -105,13 +105,19 @@
       var m = b.suivi, att = ' w:id="' + (idRev++) + '" w:author="' + x(m.n || m.p) + '" w:date="' + x(m.le) + '"';
       return m.op === 'ins' || m.op === 'ajout' ? '<w:rPr><w:ins' + att + '/></w:rPr>' : m.op === 'del' ? '<w:rPr><w:del' + att + '/></w:rPr>' : '';
     }
-    function para(b) {
+    function proprietes(b) {
       var pp = '';
       if (/^h[123]$/.test(b.t)) pp += '<w:pStyle w:val="Titre' + b.t[1] + '"/>';
       if (b.t === 'li') pp += '<w:pStyle w:val="Paragraphedeliste"/><w:numPr><w:ilvl w:val="' + (b.n || 0) + '"/><w:numId w:val="' + (b.liste === 'ol' ? 2 : 1) + '"/></w:numPr>';
       if (b.r) pp += '<w:ind w:left="' + (b.r * 709) + '"/>';
       if (b.al && b.al !== 'g') pp += '<w:jc w:val="' + { c: 'center', d: 'right', j: 'both' }[b.al] + '"/>';
+      return pp;
+    }
+    function para(b) {
+      var pp = proprietes(b);
       pp += marquePara(b);
+      // Mise en forme du paragraphe suivie (lot D, 14 novembre 2026) : révision Word w:pPrChange avec les propriétés d'avant
+      if (!final && b.pfmt) pp += '<w:pPrChange w:id="' + (idRev++) + '" w:author="' + x(b.pfmt.n || b.pfmt.p) + '" w:date="' + x(b.pfmt.le) + '"><w:pPr>' + proprietes(DM.etatParagraphe(b.pfmt.avant)) + '</w:pPr></w:pPrChange>';
       return '<w:p>' + (pp ? '<w:pPr>' + pp + '</w:pPr>' : '') + runsXml(b.runs) + '</w:p>';
     }
     var largeurUtile = Math.round(((p.orientation === 'paysage' ? 297 : 210) - p.marges.g - p.marges.d) * 56.7);

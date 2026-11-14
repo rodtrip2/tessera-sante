@@ -71,7 +71,26 @@
   }
   var OPS_BLOC = { ins: 'Nouveau paragraphe', ajout: 'Élément ajouté', del: 'Élément supprimé', fusion: 'Paragraphes fusionnés' };
   function marqueBloc(m) { var x = marque(m); return x && OPS_BLOC[m.op] ? Object.assign(x, { op: m.op, id: texte(m.id, 30) || 'b' + Math.random().toString(36).slice(2, 10) }) : null; }
-  function avecSuivi(x, b) { var m = marqueBloc(b && b.suivi); if (m) x.suivi = m; return x; }
+  /**
+   * Mise en forme du paragraphe changée sous suivi (lot D, 14 novembre 2026) : style (titre, paragraphe, liste),
+   * alignement, retrait, type et niveau de liste d'avant, pour refuser ; export Word en w:pPrChange.
+   */
+  function etatParagraphe(a) {
+    a = a || {};
+    var t = BLOCS[a.t] ? a.t : a.t === 'li' ? 'li' : 'p', x = { t: t, al: ALIGNEMENTS[a.al] ? a.al : 'g' };
+    var r = Math.round(+a.r); if (r > 0 && r <= 8) x.r = r;
+    if (t === 'li') { x.liste = a.liste === 'ol' ? 'ol' : 'ul'; var n = Math.round(+a.n); x.n = n > 0 && n <= 6 ? n : 0; }
+    return x;
+  }
+  function marquePfmt(m) { var x = marque(m); return x ? Object.assign(x, { id: texte(m.id, 30) || 'pf' + Math.random().toString(36).slice(2, 10), avant: etatParagraphe(m.avant) }) : null; }
+  function avecSuivi(x, b) { var m = marqueBloc(b && b.suivi); if (m) x.suivi = m; var pf = b && b.pfmt && marquePfmt(b.pfmt); if (pf && x.t !== 'table' && x.t !== 'saut' && x.t !== 'img') x.pfmt = pf; return x; }
+  /** Description courte d'un état de paragraphe (« titre 1, centré, retrait 2 »). */
+  function libEtatParagraphe(e) {
+    var x = etatParagraphe(e), l = [x.t === 'li' ? (x.liste === 'ol' ? 'liste numérotée' : 'liste à puces') + (x.n ? ' (niveau ' + (x.n + 1) + ')' : '') : (BLOCS[x.t] || 'paragraphe').toLowerCase()];
+    if (x.al !== 'g') l.push({ c: 'centré', d: 'aligné à droite', j: 'justifié' }[x.al]);
+    if (x.r) l.push('retrait ' + x.r);
+    return l.join(', ');
+  }
   function marque(m) { return m && typeof m === 'object' && texte(m.p, 60) ? { p: texte(m.p, 60), n: texte(m.n, 80), le: texte(m.le, 30) } : null; }
   function memeMarque(a, b) { return (!a && !b) || (a && b && a.p === b.p && a.le.slice(0, 16) === b.le.slice(0, 16)); }
   /** Fusionne les morceaux contigus de même mise en forme. */
@@ -248,6 +267,7 @@
     }
     (contenu(c).blocs || []).forEach(function (b, i) {
       if (b.suivi) res.push({ bloc: i, genre: 'bloc', op: b.suivi.op, id: b.suivi.id, texte: OPS_BLOC[b.suivi.op] + (b.t === 'table' ? ' (tableau)' : b.t === 'saut' ? ' (saut de page)' : ' : ' + texteBloc(b).slice(0, 80)), p: b.suivi.p, n: b.suivi.n, le: b.suivi.le });
+      if (b.pfmt) res.push({ bloc: i, genre: 'pfmt', id: b.pfmt.id, texte: 'Mise en forme du paragraphe (avant : ' + libEtatParagraphe(b.pfmt.avant) + ' ; après : ' + libEtatParagraphe(b) + ') : ' + texteBloc(b).slice(0, 60), p: b.pfmt.p, n: b.pfmt.n, le: b.pfmt.le });
       if (b.t === 'table') b.lignes.forEach(function (l) { l.forEach(function (x) { runs(x.runs, i); }); }); else runs(b.runs, i);
     });
     return res;
@@ -274,6 +294,11 @@
     x.blocs.forEach(function (b) {
       var avant = textuel(b) ? (b.runs || []).length : 0;
       if (b.t === 'table') b.lignes.forEach(function (l) { l.forEach(function (y) { y.runs = runs(y.runs); }); }); else if (b.runs) b.runs = runs(b.runs);
+      // Mise en forme du paragraphe : acceptée (marque retirée) ou refusée (état d'avant rétabli)
+      if (b.pfmt && (!id || b.pfmt.id === id)) {
+        if (!accepter) { var av = etatParagraphe(b.pfmt.avant); delete b.liste; delete b.n; delete b.r; Object.assign(b, av); }
+        delete b.pfmt;
+      }
       var m = b.suivi, vise = m && (!id || m.id === id);
       if (vise) delete b.suivi;
       if (!id && accepter && textuel(b) && avant && !b.runs.length) return;   // tout le texte supprimé : paragraphe retiré
@@ -702,7 +727,7 @@
 
   registre.declarer(contrat);
 
-  return { masques: masques, masquesPour: masquesPour, controlerMasques: controlerMasques, ID_IMAGE: ID_IMAGE, MAX_IMAGE: MAX_IMAGE, peutExporter: peutExporter, MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
+  return { masques: masques, masquesPour: masquesPour, controlerMasques: controlerMasques, ID_IMAGE: ID_IMAGE, MAX_IMAGE: MAX_IMAGE, peutExporter: peutExporter, MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, etatParagraphe: etatParagraphe, libEtatParagraphe: libEtatParagraphe, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
     POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
     run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
     entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,

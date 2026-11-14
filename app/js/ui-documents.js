@@ -63,11 +63,20 @@
   /** Attributs d'un paragraphe ou d'un élément suivi (0.38.0). */
   function attrsSuivi(b, base) {
     var a = Object.assign({}, base || {}), m = b && b.suivi;
-    if (!m) return a;
-    a['data-suivi'] = m.op; a['data-p'] = m.p; a['data-n'] = m.n; a['data-le'] = m.le; a['data-id'] = m.id;
-    a.title = DM.OPS_BLOC[m.op] + ' par ' + (m.n || m.p) + ' le ' + jourFr(m.le);
+    if (m) {
+      a['data-suivi'] = m.op; a['data-p'] = m.p; a['data-n'] = m.n; a['data-le'] = m.le; a['data-id'] = m.id;
+      a.title = DM.OPS_BLOC[m.op] + ' par ' + (m.n || m.p) + ' le ' + jourFr(m.le);
+    }
+    // Mise en forme du paragraphe suivie (lot D, 14 novembre 2026)
+    if (b && b.pfmt) {
+      a['data-pfmt'] = JSON.stringify(b.pfmt); a['data-pfmt-id'] = b.pfmt.id;
+      a.class = (a.class ? a.class + ' ' : '') + 'suivi-pfmt';
+      a.title = (a.title ? a.title + ' ; ' : '') + titrePfmt(b.pfmt);
+    }
     return a;
   }
+  function titrePfmt(pf) { return 'Mise en forme du paragraphe modifiée par ' + (pf.n || pf.p) + ' le ' + jourFr(pf.le) + ' (avant : ' + DM.libEtatParagraphe(pf.avant) + ')'; }
+  function pfmtDe(el) { try { var v = el && el.getAttribute && el.getAttribute('data-pfmt'); return v ? JSON.parse(v) : undefined; } catch (e) { return undefined; } }
   function suiviDe(el) { return el && el.getAttribute && el.getAttribute('data-suivi') ? { op: el.getAttribute('data-suivi'), p: el.getAttribute('data-p') || '', n: el.getAttribute('data-n') || '', le: el.getAttribute('data-le') || '', id: el.getAttribute('data-id') || '' } : undefined; }
   // ------------------------------------------------------------ Images et masques de fond (0.42.0)
   var images = {};   // document → image → { donnees (data:image/…), largeur, hauteur }
@@ -264,7 +273,7 @@
         if (li.tagName !== 'LI') return;
         var copie = li.cloneNode(true), sous = [];
         Array.prototype.slice.call(copie.children).forEach(function (c) { if (c.tagName === 'UL' || c.tagName === 'OL') { sous.push(c); copie.removeChild(c); } });
-        blocs.push({ t: 'li', liste: el.tagName === 'OL' ? 'ol' : 'ul', n: Math.min(6, niv), runs: finSansSaut(runsDe(copie, marques(li, {}), [])), al: alignDe(li), suivi: suiviDe(li) });
+        blocs.push({ t: 'li', liste: el.tagName === 'OL' ? 'ol' : 'ul', n: Math.min(6, niv), runs: finSansSaut(runsDe(copie, marques(li, {}), [])), al: alignDe(li), suivi: suiviDe(li), pfmt: pfmtDe(li) });
         Array.prototype.forEach.call(li.children, function (c) { if (c.tagName === 'UL' || c.tagName === 'OL') liste(c, niv + 1); });
       });
     }
@@ -297,7 +306,7 @@
         return;
       }
       var t2 = /^H[1-6]$/.test(tag) ? 'h' + Math.min(3, +tag[1]) : 'p';
-      blocs.push({ t: t2, runs: finSansSaut(runsDe(n, marques(n, {}), [])), al: alignDe(n), r: Math.min(8, retraitDe(n) + (tag === 'BLOCKQUOTE' ? 1 : 0) + (retraitBase || 0)) || undefined, suivi: suiviDe(n) });
+      blocs.push({ t: t2, runs: finSansSaut(runsDe(n, marques(n, {}), [])), al: alignDe(n), r: Math.min(8, retraitDe(n) + (tag === 'BLOCKQUOTE' ? 1 : 0) + (retraitBase || 0)) || undefined, suivi: suiviDe(n), pfmt: pfmtDe(n) });
     });
     vider();
     return blocs;
@@ -655,6 +664,31 @@
       if (!res.length && a) res.push(a);
       return res;
     }
+    // Mise en forme du paragraphe sous suivi (lot D) : état d'avant gardé sur chaque paragraphe touché (style, alignement,
+    // retrait, liste) ; revenir à l'état d'avant retire la marque ; paragraphe ajouté par soi sous suivi : pas de marque
+    function blocsTexte() { return Array.prototype.filter.call(corps.querySelectorAll('p, h1, h2, h3, li'), function (x) { return !x.closest('td, th, figure') && (x.tagName === 'LI' || !x.querySelector('ol, ul, li, p, h1, h2, h3')); }); }   // un paragraphe qui enveloppe une liste (Chrome) ne compte pas
+    function etatDe(el) {
+      var tag = el.tagName, e = { t: tag === 'LI' ? 'li' : /^H[1-3]$/.test(tag) ? tag.toLowerCase() : 'p', al: alignDe(el) };
+      var r = retraitDe(el); if (r) e.r = r;
+      if (tag === 'LI') { var niv = -1, n = el.parentNode; while (n && n !== corps) { if (n.tagName === 'UL' || n.tagName === 'OL') niv++; n = n.parentNode; } e.liste = el.parentNode && el.parentNode.tagName === 'OL' ? 'ol' : 'ul'; e.n = Math.max(0, Math.min(6, niv)); }
+      return DM.etatParagraphe(e);
+    }
+    function avecSuiviParagraphe(f) {
+      if (!suiviActif()) return f();
+      var tous = blocsTexte(), vises = blocsSelection().filter(function (x) { return tous.indexOf(x) >= 0; });
+      var avant = vises.map(function (x) { return { i: tous.indexOf(x), etat: etatDe(x), pf: pfmtDe(x), propre: (x.getAttribute('data-suivi') === 'ins' || x.getAttribute('data-suivi') === 'ajout') && x.getAttribute('data-p') === moi().id }; });
+      f();
+      var apres = blocsTexte(), me = moi(), le = new Date().toISOString();
+      avant.forEach(function (a) {
+        var el = apres[a.i];
+        if (!el || a.propre) return;
+        var ref = a.pf ? a.pf.avant : a.etat, maintenant = etatDe(el);
+        if (JSON.stringify(DM.etatParagraphe(ref)) === JSON.stringify(maintenant)) { ['data-pfmt', 'data-pfmt-id'].forEach(function (k) { el.removeAttribute(k); }); el.classList.remove('suivi-pfmt'); return; }
+        var pf = a.pf || { p: me.id, n: me.nom || '', le: le, id: 'pf' + hex(4), avant: a.etat };
+        el.setAttribute('data-pfmt', JSON.stringify(pf)); el.setAttribute('data-pfmt-id', pf.id); el.classList.add('suivi-pfmt'); el.setAttribute('title', titrePfmt(pf));
+      });
+      marquer();
+    }
     function aligner(al) { blocsSelection().forEach(function (x) { ['g', 'c', 'd', 'j'].forEach(function (k) { x.classList.remove('al-' + k); }); if (al !== 'g') x.classList.add('al-' + al); }); marquer(); }
     function retrait(sens) {
       var bs = blocsSelection();
@@ -786,16 +820,16 @@
     }
     var tailles = {}; DM.TAILLES.forEach(function (t) { tailles[t] = t + ' pt'; });
     var outils = modifiable ? h('div', { class: 'doc-outils', role: 'toolbar', 'aria-label': 'Mise en forme' },
-      choix('Style', DM.BLOCS, function (v) { cmd('formatBlock', v); }),
+      choix('Style', DM.BLOCS, function (v) { avecSuiviParagraphe(function () { cmd('formatBlock', v); }); }),
       choix('Police', Object.keys(DM.POLICES).reduce(function (o, k) { if (k) o[k] = DM.POLICES[k]; return o; }, {}), function (v) { marque('p', v); }),
       choix('Taille', tailles, function (v) { marque('z', v); }),
       bouton(h('b', { text: 'G' }), 'Gras (Ctrl+B)', function () { cmd('bold'); }), bouton(h('i', { text: 'I' }), 'Italique (Ctrl+I)', function () { cmd('italic'); }),
       bouton(h('u', { text: 'S' }), 'Souligné (Ctrl+U)', function () { cmd('underline'); }), bouton(h('s', { text: 'ab' }), 'Barré', function () { cmd('strikeThrough'); }),
       choix('Couleur', DM.COULEURS, function (v) { marque('c', v); }), choix('Surligner', DM.FONDS, function (v) { marque('f', v); }),
       h('span', { class: 'doc-sep' }),
-      bouton('⯇', 'Aligner à gauche', function () { aligner('g'); }), bouton('≡', 'Centrer', function () { aligner('c'); }), bouton('⯈', 'Aligner à droite', function () { aligner('d'); }), bouton('☰', 'Justifier', function () { aligner('j'); }),
-      bouton('• —', 'Liste à puces', function () { cmd('insertUnorderedList'); }), bouton('1. —', 'Liste numérotée', function () { cmd('insertOrderedList'); }),
-      bouton('⇤', 'Diminuer le retrait', function () { retrait(-1); }), bouton('⇥', 'Augmenter le retrait', function () { retrait(1); }),
+      bouton('⯇', 'Aligner à gauche', function () { avecSuiviParagraphe(function () { aligner('g'); }); }), bouton('≡', 'Centrer', function () { avecSuiviParagraphe(function () { aligner('c'); }); }), bouton('⯈', 'Aligner à droite', function () { avecSuiviParagraphe(function () { aligner('d'); }); }), bouton('☰', 'Justifier', function () { avecSuiviParagraphe(function () { aligner('j'); }); }),
+      bouton('• —', 'Liste à puces', function () { avecSuiviParagraphe(function () { cmd('insertUnorderedList'); }); }), bouton('1. —', 'Liste numérotée', function () { avecSuiviParagraphe(function () { cmd('insertOrderedList'); }); }),
+      bouton('⇤', 'Diminuer le retrait', function () { avecSuiviParagraphe(function () { retrait(-1); }); }), bouton('⇥', 'Augmenter le retrait', function () { avecSuiviParagraphe(function () { retrait(1); }); }),
       h('span', { class: 'doc-sep' }),
       bouton('▦', 'Insérer un tableau', insererTableau),
       choix('Tableau', { ligne: 'Ajouter une ligne', colonne: 'Ajouter une colonne', '-ligne': 'Supprimer la ligne', '-colonne': 'Supprimer la colonne', entete: 'Ligne de titre (oui / non)' }, tableau),
@@ -836,7 +870,7 @@
     // ---- Travail à plusieurs (0.37.0) : présence, édition simultanée, suivi des modifications
     var zonePresence = h('span', { class: 'doc-presence', 'aria-live': 'polite' });
     var MARQUES = 'ins.suivi-ins, del.suivi-del, span.suivi-fmt, [data-suivi]';
-    function nombreMarques() { if (tab) return tab.modifsSuivies().length; if (onglets.length > 1) return DM.modificationsSuivies(lireContenu()).length; var ids = {}; Array.prototype.forEach.call(corps.querySelectorAll(MARQUES), function (el, i) { ids[el.getAttribute('data-id') || 'n' + i] = 1; }); return Object.keys(ids).length; }
+    function nombreMarques() { if (tab) return tab.modifsSuivies().length; if (onglets.length > 1) return DM.modificationsSuivies(lireContenu()).length; var ids = {}; Array.prototype.forEach.call(corps.querySelectorAll(MARQUES), function (el, i) { ids[el.getAttribute('data-id') || 'n' + i] = 1; }); return Object.keys(ids).length + corps.querySelectorAll('[data-pfmt]').length; }
     function ligneTravail(dd) {
       var o = opts(), n = nombreMarques();
       function option(k, v) { return async function () { try { await s().enregistrer('DOC_OPTIONS', Object.assign({ doc: id, simultane: o.simultane, suivi: o.suivi, export: o.export, nom: moi().nom }, (function () { var x = {}; x[k] = v; return x; })())); dessinerBarre(); U.toast(k === 'suivi' ? (v ? 'Suivi des modifications activé : vos ajouts et suppressions sont marqués.' : 'Suivi des modifications désactivé.') : (v ? 'Édition simultanée activée : les modifications des autres s’affichent en direct.' : 'Édition simultanée désactivée.')); } catch (e) { U.toast(e.message); } }; }
@@ -890,7 +924,16 @@
           return;
         }
         var vus = {}, els = Array.prototype.slice.call(corps.querySelectorAll(MARQUES)).filter(function (el) { var k = el.getAttribute('data-id'); if (!k) return true; if (vus[k]) return false; vus[k] = 1; return true; });
-        if (!els.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune modification suivie' + (onglets.length > 1 ? ' dans cet onglet.' : '.') }));
+        var pfs = Array.prototype.slice.call(corps.querySelectorAll('[data-pfmt]'));
+        if (!els.length && !pfs.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune modification suivie' + (onglets.length > 1 ? ' dans cet onglet.' : '.') }));
+        // Mise en forme du paragraphe (lot D, 14 novembre 2026)
+        pfs.forEach(function (el) {
+          var pf = pfmtDe(el) || {};
+          zone.appendChild(h('div', { class: 'doc-suivi-ligne' }, h('span', { class: 'diff-modifie', text: 'Mise en forme du paragraphe (avant : ' + DM.libEtatParagraphe(pf.avant) + ') : ' + el.textContent.slice(0, 100) }),
+            h('small', { class: 'muted', text: ' — ' + (pf.n || nomAgent(pf.p, doc(id))) + ', ' + jourFr(pf.le) }),
+            h('button', { class: 'btn petit lien', type: 'button', onclick: function () { el.scrollIntoView({ block: 'center' }); el.classList.add('suivi-vu'); setTimeout(function () { el.classList.remove('suivi-vu'); }, 1500); } }, 'Voir'),
+            modifiable ? h('span', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { resoudrePfmt(el, true); liste(); } }, 'Accepter'), h('button', { class: 'btn petit', type: 'button', onclick: function () { resoudrePfmt(el, false); liste(); } }, 'Refuser')) : null));
+        });
         if (onglets.length > 1) { var ailleurs = DM.modificationsSuivies(lireContenu()).filter(function (m) { return m.onglet !== onglets[actif].id; }).length; if (ailleurs) zone.appendChild(h('p', { class: 'info', text: 'Onglet « ' + onglets[actif].titre + ' » affiché ; ' + ailleurs + ' autre(s) modification(s) dans les autres onglets (« Tout accepter » et « Tout refuser » valent pour tous les onglets).' })); }
         els.forEach(function (el) {
           var ajout = el.tagName === 'INS', op = el.getAttribute('data-suivi'), fmt = el.classList.contains('suivi-fmt');
@@ -918,6 +961,10 @@
       var garder = (el.tagName === 'INS') === accepter;
       if (garder) { while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el); }
       el.parentNode.removeChild(el);
+      marquer(); dessinerBarre();
+    }
+    function resoudrePfmt(el, accepter) {
+      appliquerContenu({ meta: { titre: titre.value.trim() || 'Sans titre', rattaches: meta.rattaches }, contenu: DM.resoudreSuivi(lireContenu(), accepter, el.getAttribute('data-pfmt-id')) });
       marquer(); dessinerBarre();
     }
     function toutResoudre(accepter) {

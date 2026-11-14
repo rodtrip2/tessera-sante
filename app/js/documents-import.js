@@ -135,13 +135,20 @@
       if (!deja) aImages.push({ id: id, cible: cible });
       return { t: 'img', id: id, _cx: r.cx, al: al === 'c' || al === 'd' ? al : r.ancre ? 'c' : 'g', leg: r.leg ? r.leg.slice(0, 200) : undefined };
     }
-    function paragraphe(p) {
-      var pp = enfant(p, 'pPr'), style = pp && enfant(pp, 'pStyle') ? enfant(pp, 'pStyle').a.val : '', b = { t: 'p', runs: [] };
+    /** Style, liste, alignement et retrait d'un paragraphe Word (w:pPr). */
+    function etatPPr(pp) {
+      var style = pp && enfant(pp, 'pStyle') ? enfant(pp, 'pStyle').a.val : '', b = { t: 'p', runs: [] };
       if (titres[style]) b.t = 'h' + titres[style];
       var num = pp && enfant(pp, 'numPr');
       if (num && enfant(num, 'numId') && enfant(num, 'numId').a.val !== '0') { var niv = +((enfant(num, 'ilvl') || { a: { val: 0 } }).a.val) || 0, l = nums[enfant(num, 'numId').a.val] || {}; b = { t: 'li', liste: l[niv] || 'ul', n: Math.min(6, niv), runs: [] }; }
       var jc = pp && enfant(pp, 'jc'); if (jc) b.al = { center: 'c', right: 'd', end: 'd', both: 'j', distribute: 'j' }[jc.a.val] || 'g';
       var ind = pp && enfant(pp, 'ind'); if (ind && b.t !== 'li') { var gauche = +(ind.a.left || ind.a.start || 0); if (gauche >= 300) b.r = Math.min(8, Math.round(gauche / 709) || 1); }
+      return b;
+    }
+    function paragraphe(p) {
+      var pp = enfant(p, 'pPr'), b = etatPPr(pp);
+      // Mise en forme du paragraphe suivie dans Word (w:pPrChange) : reprise comme marque de Tessera (lot D)
+      var chg = pp && enfant(pp, 'pPrChange'); if (chg) { var av = etatPPr(enfant(chg, 'pPr')); b.pfmt = Object.assign(marqueRev(chg), { avant: { t: av.t, al: av.al, r: av.r, liste: av.liste, n: av.n } }); }
       var rs = runs(p), courants = [];
       var rmarque = pp && enfant(pp, 'rPr');
       if (rmarque && enfant(rmarque, 'ins')) b.suivi = Object.assign(marqueRev(enfant(rmarque, 'ins')), { op: 'ins' });
