@@ -26,6 +26,27 @@
     if (T.estErr(v)) c.push('tb-err');
     return c.join(' ');
   }
+  // Graphiques (lot D, 14 novembre 2026) : dessin du tableur (tableur.js) rendu en SVG, sans bibliothèque
+  var SVG = 'http://www.w3.org/2000/svg';
+  function svgGraphique(dessin, titre) {
+    var s = document.createElementNS(SVG, 'svg');
+    s.setAttribute('viewBox', '0 0 ' + dessin.largeur + ' ' + dessin.hauteur); s.setAttribute('width', dessin.largeur); s.setAttribute('height', dessin.hauteur);
+    s.setAttribute('role', 'img'); s.setAttribute('aria-label', titre || 'Graphique'); s.setAttribute('class', 'tb-graphique-svg');
+    dessin.elements.forEach(function (x) {
+      var n = document.createElementNS(SVG, x.e === 'text' ? 'text' : x.e);
+      if (x.e === 'rect') { n.setAttribute('x', x.x); n.setAttribute('y', x.y); n.setAttribute('width', x.w); n.setAttribute('height', x.h); n.setAttribute('fill', x.couleur); }
+      else if (x.e === 'line') { n.setAttribute('x1', x.x1); n.setAttribute('y1', x.y1); n.setAttribute('x2', x.x2); n.setAttribute('y2', x.y2); n.setAttribute('stroke', x.couleur); n.setAttribute('stroke-width', '1'); }
+      else if (x.e === 'polyline') { n.setAttribute('points', x.points); n.setAttribute('fill', 'none'); n.setAttribute('stroke', x.couleur); n.setAttribute('stroke-width', '2'); }
+      else if (x.e === 'path') { n.setAttribute('d', x.d); n.setAttribute('fill', x.couleur); n.setAttribute('stroke', '#ffffff'); n.setAttribute('stroke-width', '1'); }
+      else if (x.e === 'circle') { n.setAttribute('cx', x.cx); n.setAttribute('cy', x.cy); n.setAttribute('r', x.r); n.setAttribute('fill', x.couleur); }
+      else if (x.e === 'text') { n.setAttribute('x', x.x); n.setAttribute('y', x.y); n.setAttribute('text-anchor', x.ancre || 'start'); n.setAttribute('font-size', x.taille || 11); n.setAttribute('class', 'tb-graphique-texte'); if (x.gras) n.setAttribute('font-weight', 'bold'); n.textContent = x.t; }
+      s.appendChild(n);
+    });
+    return s;
+  }
+  function figureGraphique(C, fi, g, calc, actions) {
+    return h('figure', { class: 'tb-graphique' }, svgGraphique(T.dessinGraphique(T.donneesGraphique(C, fi, g, calc), g), g.titre), actions || null);
+  }
   function fusionDe(f, l, c) { return f.fusions.filter(function (u) { return l >= u.l && l < u.l + u.nl && c >= u.c && c < u.c + u.nc; })[0] || null; }
 
   /**
@@ -41,7 +62,7 @@
     function recalculer() { calc = T.calculer(C, { maintenant: Date.now() }); }
     recalculer();
     function memoriser() { annuler.push(JSON.stringify({ C: C, fi: fi })); if (annuler.length > 100) annuler.shift(); retablir = []; }
-    function modifie(redessin) { recalculer(); if (redessin !== false) dessiner(); o.changer(); }
+    function modifie(redessin) { recalculer(); if (redessin !== false) dessiner(); else dessinerGraphiques(); o.changer(); }
     function caseDe(l, c) { return F().cellules[T.nom(l, c)]; }
     function ecrireCase(l, c, x) {
       var k = T.nom(l, c), y = o.suivi && o.suivi() ? T.suivre(F().cellules[k], x, o.agent) : T.caseValide(x);   // suivi des modifications (0.37.0)
@@ -56,7 +77,41 @@
     var tableau = h('table', { class: 'tb-table' }), cols = h('colgroup'), thead = h('thead'), tbody = h('tbody');
     tableau.appendChild(cols); tableau.appendChild(thead); tableau.appendChild(tbody); grille.appendChild(tableau);
     var onglets = h('div', { class: 'tb-onglets', role: 'tablist', 'aria-label': 'Feuilles' }), etat = h('div', { class: 'tb-etat muted', 'aria-live': 'polite' });
-    var zone = h('div', { class: 'tb-zone' }, grille, h('div', { class: 'tb-bas' }, onglets, etat));
+    var zoneGraphiques = h('div', { class: 'tb-graphiques' });
+    var zone = h('div', { class: 'tb-zone' }, grille, h('div', { class: 'tb-bas' }, onglets, etat), zoneGraphiques);
+    function dessinerGraphiques() {
+      U.vider(zoneGraphiques);
+      (F().graphiques || []).forEach(function (g, i) {
+        zoneGraphiques.appendChild(figureGraphique(C, fi, g, calc, modifiable ? h('figcaption', { class: 'actions gauche' },
+          h('small', { class: 'muted', text: 'Plage ' + T.nom(g.plage.l1, g.plage.c1) + ':' + T.nom(g.plage.l2, g.plage.c2) }),
+          h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleGraphique(i); } }, 'Modifier'),
+          h('button', { class: 'btn petit danger', type: 'button', onclick: function () { memoriser(); F().graphiques.splice(i, 1); modifie(); } }, 'Supprimer')) : null));
+      });
+    }
+    /** Graphique à partir de la sélection (ou modification d'un graphique existant). */
+    function modaleGraphique(i) {
+      var g0 = i === undefined ? null : F().graphiques[i], pl = g0 ? g0.plage : { l1: sel.l1, c1: sel.c1, l2: sel.l2, c2: sel.c2 };
+      if (!g0 && pl.l1 === pl.l2 && pl.c1 === pl.c2) { U.toast('Sélectionnez d’abord la plage des valeurs (avec la ligne des titres et la colonne des catégories).'); return; }
+      var type = h('select', { 'aria-label': 'Type de graphique' }, Object.keys(T.TYPES_GRAPHIQUE).map(function (k) { return h('option', { value: k, text: T.TYPES_GRAPHIQUE[k], selected: g0 ? g0.type === k : k === 'barres' }); }));
+      var titre = h('input', { type: 'text', maxlength: 120, value: g0 ? g0.titre : '', 'aria-label': 'Titre du graphique' });
+      var plage = h('input', { type: 'text', value: T.nom(pl.l1, pl.c1) + ':' + T.nom(pl.l2, pl.c2), class: 'champ-moyen', 'aria-label': 'Plage' });
+      var ent = h('input', { type: 'checkbox', checked: g0 ? g0.entetes : true });
+      var lg = h('input', { type: 'number', min: 240, max: 900, value: g0 ? g0.largeur : 480, class: 'champ-court', 'aria-label': 'Largeur' }), ht = h('input', { type: 'number', min: 160, max: 600, value: g0 ? g0.hauteur : 280, class: 'champ-court', 'aria-label': 'Hauteur' });
+      U.modale(g0 ? 'Modifier le graphique' : 'Nouveau graphique', h('div', { class: 'pile' },
+        h('div', { class: 'grille-2' }, h('label', {}, 'Type', type), h('label', {}, 'Plage', plage)), h('label', {}, 'Titre', titre),
+        h('label', { class: 'case' }, ent, h('span', { text: 'Première ligne : noms des séries ; première colonne : catégories' })),
+        h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Largeur', lg, 'px'), h('label', { class: 'en-ligne' }, 'Hauteur', ht, 'px')),
+        h('small', { class: 'muted', text: 'Une série par colonne ; secteurs : première série seulement. Le graphique suit les valeurs de la plage et s’imprime avec la feuille.' })),
+        [{ texte: 'Annuler' }, { texte: g0 ? 'Enregistrer' : 'Créer', classe: 'primaire', action: function () {
+          var m = /^\s*([A-Za-z]+\d+)\s*:\s*([A-Za-z]+\d+)\s*$/.exec(plage.value), a = m && T.lire(m[1].toUpperCase()), b = m && T.lire(m[2].toUpperCase());
+          if (!a || !b) throw new Error('Plage illisible : écrivez par exemple A1:C8.');
+          var g = T.graphique({ id: g0 ? g0.id : '', type: type.value, plage: { l1: Math.min(a.l, b.l), c1: Math.min(a.c, b.c), l2: Math.max(a.l, b.l), c2: Math.max(a.c, b.c) }, titre: titre.value.trim(), entetes: ent.checked, largeur: +lg.value, hauteur: +ht.value });
+          if (!g) throw new Error('Graphique impossible avec ces réglages.');
+          memoriser(); F().graphiques = F().graphiques || [];
+          if (g0) F().graphiques[i] = g; else F().graphiques.push(g);
+          modifie();
+        } }]);
+    }
 
     // -------------------------------------------------------- Dessin
     function dimensions() { var e = T.etendue(F()); return { l: Math.min(T.MAX_LIGNES, Math.max(e.l + 20, 60, sel.l2 + 10, vue.l)), c: Math.min(T.MAX_COLONNES, Math.max(e.c + 4, 16, sel.c2 + 3, vue.c)) }; }
@@ -608,6 +663,7 @@
       bouton('A→Z', 'Trier par ordre croissant (colonne de la case active)', function () { trier(false); }), bouton('Z→A', 'Trier par ordre décroissant', function () { trier(true); }),
       choix('Figer', { l: 'Figer la 1re ligne (oui / non)', c: 'Figer la 1re colonne (oui / non)', aucun: 'Libérer les volets' }, figer),
       bouton('Σ', 'Somme automatique', sommeAuto),
+      bouton('📊', 'Graphique à partir de la sélection…', function () { modaleGraphique(); }),
       bouton('▽', 'Filtre (poser ou retirer)', basculerFiltre), bouton('◐', 'Mise en forme conditionnelle…', modaleConditions), bouton('☑', 'Validation des saisies (liste de choix…)', modaleValidation),
       choix('Fonction', Object.keys(FONCTIONS_AIDE).reduce(function (x, k) { x[k] = FONCTIONS_AIDE[k]; return x; }, {}), function (v) { if (!edition) commencerEdition('=' + v + '('); else { edition.input.value += v + '('; fx.value = edition.input.value; edition.input.focus(); } aide('=' + v + '('); }),
       bouton('⌫', 'Effacer la mise en forme', function () { changerStyle(function (s) { Object.keys(s).forEach(function (k) { delete s[k]; }); }); }),
@@ -615,6 +671,8 @@
     signal = function (x) { var s = (x && x.s) || {}; [[bG, 'g'], [bI, 'i'], [bS, 's']].forEach(function (b) { b[0].classList.toggle('actif', !!s[b[1]]); b[0].setAttribute('aria-pressed', s[b[1]] ? 'true' : 'false'); }); };
     var barreFormule = h('div', { class: 'tb-barre-formule' }, nomCase, h('span', { class: 'tb-fx-lib', text: 'fx' }), fx, aideFx);
 
+    // Chaque dessin de la feuille redessine aussi ses graphiques (changement de feuille, annulation, valeurs)
+    dessiner = (function (base) { return function () { base(); dessinerGraphiques(); }; })(dessiner);
     dessiner();
     return {
       outils: h('div', {}, outils, barreFormule),
@@ -658,6 +716,11 @@
     if (thead) t.appendChild(thead);
     t.appendChild(tbody);
     t.largeurTotale = total;
+    if (o.graphiques !== false && (f.graphiques || []).length) {
+      var bloc = h('div', { class: 'tb-imprime-bloc' }, t, h('div', { class: 'tb-graphiques tb-graphiques-imprimes' }, f.graphiques.map(function (g) { return figureGraphique(C, fi, g, calc); })));
+      bloc.largeurTotale = total; bloc.tableau = t;
+      return bloc;
+    }
     return t;
   }
   function apercu(contenu) {
@@ -681,7 +744,7 @@
     var article = h('article', { class: 'doc-imprime tb-doc' });
     feuilles.forEach(function (i, n) {
       var t = tableFeuille(C, i, { quadrillage: p.quadrillage, repeter: p.repeter });
-      if (p.ajuster && t.largeurTotale && t.largeurTotale > largeurPx) t.style.zoom = String(Math.max(0.2, largeurPx / t.largeurTotale));
+      if (p.ajuster && t.largeurTotale && t.largeurTotale > largeurPx) (t.tableau || t).style.zoom = String(Math.max(0.2, largeurPx / t.largeurTotale));
       var v = Object.assign({}, valeurs, { feuille: C.feuilles[i].nom });
       article.appendChild(h('section', { class: 'tb-page' + (n ? ' tb-saut' : '') }, zonesPage(p.entete, v, 'doc-entete'), feuilles.length > 1 ? h('h3', { class: 'tb-titre-feuille', text: C.feuilles[i].nom }) : null, t, zonesPage(pied, v, 'doc-pied')));
     });

@@ -921,7 +921,11 @@
             A12: { v: 'Activités sans coût' }, E12: { f: '=NB.SI(D3:D7;0)' } });
           await docD({ titre: 'Budget des activités (fictif)', genre: 'tableur', h: -24 * 5, partage: [{ genre: 'role', code: 'IDE', service: SVd, droit: 'modifier' }],
             versions: [{ h: -24 * 5, contenu: { genre: 'tableur', feuilles: [{ nom: 'Activités', cellules: cases, largeurs: { 0: 170, 1: 95, 2: 95, 3: 105, 4: 95, 5: 115 }, fusions: [{ l: 0, c: 0, nl: 1, nc: 6 }], figer: { l: 0 } },
-              { nom: 'Réglages', cellules: { A1: { v: 'Budget mensuel' }, B1: { v: 150, s: eur }, A2: { v: 'Mis à jour le' }, B2: { v: sd(an, mo, 1), s: dt } }, largeurs: { 0: 140 } }], page: { entete: { gauche: '{service}', centre: '{titre}', droite: '{date}' } } } }] });
+              { nom: 'Réglages', cellules: { A1: { v: 'Budget mensuel' }, B1: { v: 150, s: eur }, A2: { v: 'Mis à jour le' }, B2: { v: sd(an, mo, 1), s: dt } }, largeurs: { 0: 140 } },
+              // Graphiques (lot D, 14 novembre 2026) : participants et coût par activité, tirés de la feuille Activités
+              { nom: 'Synthèse', cellules: (function () { var x = { A1: { v: 'Activité', s: gT }, B1: { v: 'Participants', s: gT }, C1: { v: 'Coût total', s: gT } }; for (var i = 0; i < 5; i++) { x['A' + (i + 2)] = { f: '=Activités!A' + (i + 3) }; x['B' + (i + 2)] = { f: '=Activités!C' + (i + 3) }; x['C' + (i + 2)] = { f: '=Activités!E' + (i + 3), s: eur }; } return x; })(),
+                largeurs: { 0: 160 }, graphiques: [{ id: 'gPart', type: 'barres', plage: { l1: 0, c1: 0, l2: 5, c2: 1 }, titre: 'Participants par activité (fictif)', entetes: true, largeur: 440, hauteur: 260 },
+                  { id: 'gCout', type: 'secteurs', plage: { l1: 0, c1: 0, l2: 5, c2: 1 }, titre: 'Répartition des participants (fictif)', entetes: true, largeur: 440, hauteur: 260 }] }], page: { entete: { gauche: '{service}', centre: '{titre}', droite: '{date}' } } } }] });
           // Suivi des formations (0.36.0) : échéances en couleur (date passée, dans les 60 jours), liste de choix, filtre
           var jd = TBd.serieDepuis(an, mo, aujd.getDate()), cf = { A1: { v: 'Agent', s: gT }, B1: { v: 'Formation', s: gT }, C1: { v: 'Échéance', s: gT }, D1: { v: 'Statut', s: gT } };
           [['Agent A (fictif)', 'AFGSU', 200, 'À jour'], ['Agent B (fictif)', 'AFGSU', -10, 'À planifier'], ['Agent C (fictif)', 'Incendie', 25, 'Inscrit'], ['Agent D (fictif)', 'Incendie', 400, 'À jour'],

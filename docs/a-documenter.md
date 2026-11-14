@@ -852,3 +852,15 @@ Décisions du porteur du 14 novembre 2026 : check-list fournie plus tard par le 
 | Word | Export avec les modifications suivies : révision `w:pPrChange` (propriétés d'avant) ; import : `w:pPrChange` repris comme marque | `documents-export.js` (`proprietes`), `documents-import.js` (`etatPPr`) |
 | Tests et parcours | `tests/documents-export.test.js` (marques, refus, acceptation, Word aller-retour) ; parcours : centrer puis revenir (marque retirée), liste numérotée marquée, refus | — |
 | Limite | Marques posées par les boutons de la barre d'outils (style, alignement, retrait, listes) ; un changement fait par un raccourci du navigateur n'est pas marqué | — |
+
+## Version 0.61.0 (branche `graphiques`, 14 novembre 2026) : graphiques du tableur (phase 3, lot D)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Graphiques | Histogramme (barres), courbes, secteurs, tirés d'une plage de la feuille (première ligne : noms des séries ; première colonne : catégories ; une série par colonne, huit au plus ; secteurs : première série), titre, largeur et hauteur ; mis à jour avec les valeurs calculées (formules comprises) ; cases non numériques comptées comme vides | `tableur.js` (`graphique`, `donneesGraphique`, `dessinGraphique`, feuille `graphiques`) |
+| Interface | Bouton « Graphique à partir de la sélection… » de la barre d'outils ; graphiques sous la feuille, avec leur plage, Modifier et Supprimer ; dessin en SVG construit dans le navigateur, sans bibliothèque | `ui-tableur.js` (`svgGraphique`, `figureGraphique`, `modaleGraphique`), `app.css` |
+| Impression et aperçu | Graphiques imprimés sous la feuille (et dans l'aperçu) | `ui-tableur.js` (`tableFeuille`) |
+| Structure | Plage déplacée quand des lignes ou colonnes sont insérées ou supprimées (graphique retiré si toute sa plage disparaît) ; fusion des versions en édition simultanée | `tableur.js` (`inserer`, `fusionner`) |
+| Démonstration | Feuille « Synthèse » du budget fictif : histogramme des participants, secteurs | `demo.js` |
+| Limites | Pas encore repris dans l'export PDF du tableur ni dans l'export et l'import Excel (graphiques des fichiers `.xlsx`) ; pas de marque du suivi des modifications sur l'ajout d'un graphique | — |
+| Tests et parcours | `tests/documents-export.test.js` ; parcours : graphiques de la feuille, nouveau graphique d'après la sélection, suppression | — |

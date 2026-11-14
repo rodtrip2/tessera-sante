@@ -1431,3 +1431,10 @@ tr.ligne-annulee td { text-decoration: line-through; color: var(--ink-2); }
 /* Mise en forme du paragraphe suivie (lot D, 14 novembre 2026) */
 .doc-corps .suivi-pfmt { box-shadow: inset 3px 0 0 #7e57c2; padding-left: 4px; }
 .doc-corps.suivi-masque .suivi-pfmt { box-shadow: none; padding-left: 0; }
+/* Graphiques du tableur (lot D, 14 novembre 2026) */
+.tb-graphiques { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 0; }
+.tb-graphique { margin: 0; border: 1px solid var(--line); border-radius: 6px; padding: 6px; background: #fff; }
+.tb-graphique-texte { fill: #333333; font-family: inherit; }
+.tb-graphiques-imprimes { break-inside: avoid; }
+.tb-zone > .tb-graphiques { flex: none; max-height: 45%; overflow: auto; padding: 8px; border-top: 1px solid var(--line); background: var(--surface); }
+.tb-zone > .tb-graphiques:empty { display: none; }

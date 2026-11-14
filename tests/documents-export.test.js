@@ -168,3 +168,25 @@ test('Suivi de la mise en forme du paragraphe (lot D, 14 novembre 2026) : liste,
   assert.equal(b[0].t, 'h2'); assert.equal(b[0].pfmt.n, 'Agent A (fictif)'); assert.equal(b[0].pfmt.avant.t, 'p');
   assert.deepEqual([b[1].pfmt.avant.al, b[1].pfmt.avant.r], ['d', 2]);
 });
+
+test('Graphiques du tableur (lot D, 14 novembre 2026) : données calculées, dessin, plage déplacée, fusion', () => {
+  const C = T.contenu({ feuilles: [{ cellules: { A1: { v: 'Mois' }, B1: { v: 'Entrées' }, C1: { v: 'Sorties' }, A2: { v: 'Janv' }, B2: { v: 12 }, C2: { v: 10 }, A3: { v: 'Févr' }, B3: { v: 15 }, C3: { f: '=B3-2' }, A4: { v: 'Mars' }, B4: { v: 'n.c.' }, C4: { v: -3 } },
+    graphiques: [{ type: 'barres', plage: { l1: 0, c1: 0, l2: 3, c2: 2 }, titre: 'Mouvements (fictif)' }, { type: 'inconnu', plage: { l1: 0, c1: 0, l2: 1, c2: 1 } }, { type: 'courbes', plage: { l1: 5, c1: 0, l2: 2, c2: 0 } }] }] });
+  const gs = C.feuilles[0].graphiques;
+  assert.equal(gs.length, 1);   // type inconnu et plage inversée écartés
+  const d = T.donneesGraphique(C, 0, gs[0]);
+  assert.deepEqual(d.categories, ['Janv', 'Févr', 'Mars']);
+  assert.deepEqual(d.series, [{ nom: 'Entrées', valeurs: [12, 15, null] }, { nom: 'Sorties', valeurs: [10, 13, -3] }]);
+  const ds = T.dessinGraphique(d, gs[0]);
+  assert.equal(ds.elements.filter((e) => e.e === 'rect').length, 5 + 2);   // barres (une valeur vide) + légende
+  assert.ok(ds.elements.some((e) => e.e === 'text' && e.t === 'Mouvements (fictif)'));
+  const sect = T.dessinGraphique(d, Object.assign({}, gs[0], { type: 'secteurs' }));
+  assert.equal(sect.elements.filter((e) => e.e === 'path').length, 2);
+  assert.ok(sect.elements.some((e) => e.e === 'text' && /Janv : 12 \(44 %\)/.test(e.t)));
+  assert.equal(T.dessinGraphique(d, Object.assign({}, gs[0], { type: 'courbes' })).elements.filter((e) => e.e === 'polyline').length, 2);
+  // Ligne insérée au-dessus : la plage suit ; lignes de la plage supprimées : graphique retiré
+  const C2 = T.inserer(C, 0, 'l', 0, 1);
+  assert.deepEqual(C2.feuilles[0].graphiques[0].plage, { l1: 1, c1: 0, l2: 4, c2: 2 });
+  const C3 = T.supprimer ? T.supprimer(C, 0, 'l', 0, 4) : null;
+  if (C3) assert.equal(C3.feuilles[0].graphiques.length, 0);
+});

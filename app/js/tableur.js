@@ -79,7 +79,90 @@
       filtre: filtre(f.filtre),
       // Suivi des modifications de la structure (0.38.0) : lignes et colonnes insérées ou supprimées, tris, feuille
       lignesSuivies: marquesIndex(f.lignesSuivies, MAX_LIGNES), colonnesSuivies: marquesIndex(f.colonnesSuivies, MAX_COLONNES),
-      tris: (Array.isArray(f.tris) ? f.tris : []).map(triSuivi).filter(Boolean).slice(0, 50), suivi: marqueOp(f.suivi) };
+      tris: (Array.isArray(f.tris) ? f.tris : []).map(triSuivi).filter(Boolean).slice(0, 50), suivi: marqueOp(f.suivi),
+      // Graphiques (lot D, 14 novembre 2026) : tirés d'une plage, mis à jour avec les valeurs, imprimés avec la feuille
+      graphiques: (Array.isArray(f.graphiques) ? f.graphiques : []).map(graphique).filter(Boolean).slice(0, 20) };
+  }
+  var TYPES_GRAPHIQUE = { barres: 'Histogramme (barres)', courbes: 'Courbes', secteurs: 'Secteurs' };
+  function graphique(g) {
+    if (!g || !TYPES_GRAPHIQUE[g.type]) return null;
+    var p = plageValide(g.plage); if (!p) return null;
+    var lg = Math.round(+g.largeur), ht = Math.round(+g.hauteur);
+    return { id: String(g.id || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 20) || 'g' + Math.random().toString(36).slice(2, 10), type: g.type, plage: p,
+      titre: String(g.titre == null ? '' : g.titre).slice(0, 120), entetes: g.entetes !== false,
+      largeur: lg >= 240 && lg <= 900 ? lg : 480, hauteur: ht >= 160 && ht <= 600 ? ht : 280 };
+  }
+  var COULEURS_GRAPHIQUE = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
+  /**
+   * Données d'un graphique d'après les valeurs calculées : première ligne = noms des séries et première colonne = catégories
+   * (si `entetes`), une série par colonne ; cases non numériques comptées comme vides. Rend { categories, series: [{ nom, valeurs }] }.
+   */
+  function donneesGraphique(classeur, fi, g, calc) {
+    var c = calc || calculer(classeur, {}), p = g.plage, cats = [], series = [];
+    var l0 = g.entetes ? p.l1 + 1 : p.l1, c0 = g.entetes && p.c2 > p.c1 ? p.c1 + 1 : p.c1;
+    function texteDe(v) { return v === null || v === undefined ? '' : typeof v === 'object' ? (v.e || '') : String(v); }
+    for (var l = l0; l <= p.l2; l++) cats.push(g.entetes && p.c2 > p.c1 ? texteDe(c.valeur(fi, l, p.c1)) : String(l - l0 + 1));
+    for (var col = c0; col <= p.c2; col++) {
+      var vals = [];
+      for (l = l0; l <= p.l2; l++) { var v = c.valeur(fi, l, col); vals.push(typeof v === 'number' && isFinite(v) ? v : null); }
+      series.push({ nom: g.entetes ? texteDe(c.valeur(fi, p.l1, col)) || nom(p.l1, col) : 'Série ' + (col - c0 + 1), valeurs: vals });
+    }
+    return { categories: cats.slice(0, 200), series: series.slice(0, 8).map(function (s) { return { nom: s.nom, valeurs: s.valeurs.slice(0, 200) }; }) };
+  }
+  function arrondiAxe(max) { if (max <= 0) return 1; var e = Math.pow(10, Math.floor(Math.log10(max))), m = max / e; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * e; }
+  function fmtNombre(v) { return Math.abs(v) >= 1000 ? groupes(String(Math.round(v))) : String(Math.round(v * 100) / 100).replace('.', ','); }
+  /**
+   * Dessin d'un graphique, sans navigateur : { largeur, hauteur, elements: [{ e: 'rect'|'line'|'polyline'|'path'|'circle'|'text', … }] },
+   * rendu en SVG par l'interface (impression comprise).
+   */
+  function dessinGraphique(d, g) {
+    var W = g.largeur, H = g.hauteur, el = [], haut = g.titre ? 28 : 10, legende = d.series.length > 1 || g.type === 'secteurs';
+    if (g.titre) el.push({ e: 'text', x: W / 2, y: 18, t: g.titre, ancre: 'middle', taille: 13, gras: true });
+    if (!d.categories.length || !d.series.length) { el.push({ e: 'text', x: W / 2, y: H / 2, t: 'Aucune valeur dans la plage', ancre: 'middle', taille: 12 }); return { largeur: W, hauteur: H, elements: el }; }
+    if (g.type === 'secteurs') {
+      var s = d.series[0], tot = s.valeurs.reduce(function (a, v) { return a + (v > 0 ? v : 0); }, 0), cx = Math.min(W * 0.4, W / 2), cy = haut + (H - haut) / 2, r = Math.max(20, Math.min(cx - 10, (H - haut) / 2 - 10)), a0 = -Math.PI / 2;
+      if (!tot) { el.push({ e: 'text', x: W / 2, y: H / 2, t: 'Aucune valeur positive', ancre: 'middle', taille: 12 }); return { largeur: W, hauteur: H, elements: el }; }
+      s.valeurs.forEach(function (v, i) {
+        if (!(v > 0)) return;
+        var a1 = a0 + v / tot * 2 * Math.PI, grand = a1 - a0 > Math.PI ? 1 : 0, coul = COULEURS_GRAPHIQUE[i % COULEURS_GRAPHIQUE.length];
+        if (v === tot) el.push({ e: 'circle', cx: cx, cy: cy, r: r, couleur: coul });
+        else el.push({ e: 'path', d: 'M' + cx + ',' + cy + ' L' + (cx + r * Math.cos(a0)).toFixed(1) + ',' + (cy + r * Math.sin(a0)).toFixed(1) + ' A' + r + ',' + r + ' 0 ' + grand + ' 1 ' + (cx + r * Math.cos(a1)).toFixed(1) + ',' + (cy + r * Math.sin(a1)).toFixed(1) + ' Z', couleur: coul });
+        a0 = a1;
+      });
+      d.categories.forEach(function (c, i) {
+        var v = s.valeurs[i]; if (!(v > 0) || i > 14) return;
+        var y = haut + 8 + i * 18;
+        el.push({ e: 'rect', x: cx * 2 + 4, y: y, w: 10, h: 10, couleur: COULEURS_GRAPHIQUE[i % COULEURS_GRAPHIQUE.length] });
+        el.push({ e: 'text', x: cx * 2 + 20, y: y + 9, t: (c || '—') + ' : ' + fmtNombre(v) + ' (' + Math.round(v / tot * 100) + ' %)', ancre: 'start', taille: 11 });
+      });
+      return { largeur: W, hauteur: H, elements: el };
+    }
+    var toutes = [].concat.apply([], d.series.map(function (x) { return x.valeurs; })).filter(function (v) { return v !== null; });
+    var max = Math.max(0, Math.max.apply(null, toutes.length ? toutes : [0])), min = Math.min(0, Math.min.apply(null, toutes.length ? toutes : [0]));
+    var echelle = arrondiAxe(Math.max(Math.abs(max), Math.abs(min))), haute = max > 0 ? Math.ceil(max / (echelle / 5)) * (echelle / 5) : 0, basse = min < 0 ? Math.floor(min / (echelle / 5)) * (echelle / 5) : 0;
+    if (haute === basse) haute = basse + 1;
+    var gauche = 48, bas = 28 + (legende ? 18 : 0), x0 = gauche, x1 = W - 12, y0 = haut + 4, y1 = H - bas, Y = function (v) { return y1 - (v - basse) / (haute - basse) * (y1 - y0); };
+    for (var k = 0; k <= 5; k++) {
+      var v = basse + (haute - basse) * k / 5, y = Y(v);
+      el.push({ e: 'line', x1: x0, y1: y, x2: x1, y2: y, couleur: '#dddddd' });
+      el.push({ e: 'text', x: x0 - 4, y: y + 4, t: fmtNombre(v), ancre: 'end', taille: 10 });
+    }
+    el.push({ e: 'line', x1: x0, y1: Y(0), x2: x1, y2: Y(0), couleur: '#555555' });
+    var n = d.categories.length, pas = (x1 - x0) / n, ns = d.series.length;
+    d.categories.forEach(function (c, i) { if (n <= 24 || i % Math.ceil(n / 24) === 0) el.push({ e: 'text', x: x0 + pas * (i + 0.5), y: y1 + 14, t: String(c).slice(0, 14), ancre: 'middle', taille: 10 }); });
+    d.series.forEach(function (s, j) {
+      var coul = COULEURS_GRAPHIQUE[j % COULEURS_GRAPHIQUE.length];
+      if (g.type === 'barres') {
+        var lb = pas * 0.8 / ns;
+        s.valeurs.forEach(function (v, i) { if (v === null) return; var xa = x0 + pas * i + pas * 0.1 + lb * j, ya = Y(Math.max(v, 0)), yb = Y(Math.min(v, 0)); el.push({ e: 'rect', x: xa, y: ya, w: Math.max(1, lb - 1), h: Math.max(0.5, yb - ya), couleur: coul }); });
+      } else {
+        var pts = []; s.valeurs.forEach(function (v, i) { if (v !== null) pts.push((x0 + pas * (i + 0.5)).toFixed(1) + ',' + Y(v).toFixed(1)); });
+        if (pts.length > 1) el.push({ e: 'polyline', points: pts.join(' '), couleur: coul });
+        pts.forEach(function (pt) { var q = pt.split(','); el.push({ e: 'circle', cx: +q[0], cy: +q[1], r: 2.5, couleur: coul }); });
+      }
+      if (legende) { var lx = x0 + j * Math.min(140, (x1 - x0) / ns); el.push({ e: 'rect', x: lx, y: H - 14, w: 10, h: 10, couleur: coul }); el.push({ e: 'text', x: lx + 14, y: H - 5, t: String(s.nom).slice(0, 18), ancre: 'start', taille: 10 }); }
+    });
+    return { largeur: W, hauteur: H, elements: el };
   }
   // ------------------------------------------------------------ Mise en forme conditionnelle, validation, filtre (0.36.0)
   function plageValide(p) {
@@ -698,6 +781,7 @@
     f.conditions = (f.conditions || []).map(function (r) { var p = deplacerPlage(r.plage); return p ? Object.assign({}, r, { plage: p }) : null; }).filter(Boolean);
     f.validations = (f.validations || []).map(function (r) { var p = deplacerPlage(r.plage); return p ? Object.assign({}, r, { plage: p }) : null; }).filter(Boolean);
     f.tris = (f.tris || []).map(function (r) { var p = deplacerPlage(r.plage); return p ? Object.assign({}, r, { plage: p }) : null; }).filter(Boolean);
+    f.graphiques = (f.graphiques || []).map(function (r) { var p = deplacerPlage(r.plage); return p ? Object.assign({}, r, { plage: p }) : null; }).filter(Boolean);
     if (f.filtre) {
       var x = f.filtre;
       if (axe === 'l') { var nl0 = deplace(x.l); f.filtre = nl0 === null ? null : Object.assign({}, x, { l: nl0 }); }
@@ -901,7 +985,7 @@
       if (!a) { feuilles.push(m); return; }                          // ajoutée par soi
       var bb = b || feuille({ nom: m.nom }, 0), x = { nom: m.nom };
       ['cellules', 'largeurs', 'hauteurs', 'lignesSuivies', 'colonnesSuivies'].forEach(function (t2) { var r = fusionTable(bb[t2], m[t2], a[t2]); x[t2] = r.table; conflits += r.conflits; });
-      ['fusions', 'figer', 'conditions', 'validations', 'filtre', 'tris', 'suivi'].forEach(function (t2) { var r = fusionValeur(bb[t2], m[t2], a[t2]); x[t2] = r.v; if (r.c) conflits++; });
+      ['fusions', 'figer', 'conditions', 'validations', 'filtre', 'tris', 'suivi', 'graphiques'].forEach(function (t2) { var r = fusionValeur(bb[t2], m[t2], a[t2]); x[t2] = r.v; if (r.c) conflits++; });
       feuilles.push(x);
     });
     var p = fusionValeur(B.page, M.page, A.page); if (p.c) conflits++;
@@ -953,7 +1037,7 @@
   }
   function ecrireTSV(lignes) { return lignes.map(function (l) { return l.map(function (x) { x = String(x == null ? '' : x); return /[\t\n"]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join('\t'); }).join('\n'); }
 
-  return { versAnglais: versAnglais, depuisAnglais: depuisAnglais, suivre: suivre, insererSuivi: insererSuivi, supprimerSuivi: supprimerSuivi, trierSuivi: trierSuivi, supprimerFeuilleSuivi: supprimerFeuilleSuivi, etatCase: etatCase,
+  return { TYPES_GRAPHIQUE: TYPES_GRAPHIQUE, graphique: graphique, donneesGraphique: donneesGraphique, dessinGraphique: dessinGraphique, versAnglais: versAnglais, depuisAnglais: depuisAnglais, suivre: suivre, insererSuivi: insererSuivi, supprimerSuivi: supprimerSuivi, trierSuivi: trierSuivi, supprimerFeuilleSuivi: supprimerFeuilleSuivi, etatCase: etatCase,
     modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusionner: fusionner, contenuCase: contenuCase,
     OPS_CONDITION: OPS_CONDITION, GENRES_VALIDATION: GENRES_VALIDATION, condition: condition, validation: validation, styleConditionnel: styleConditionnel, regleVraie: regleVraie,
     validationDe: validationDe, controlerSaisie: controlerSaisie, conforme: conforme, lignesMasquees: lignesMasquees, valeursColonne: valeursColonne, libPlage: libPlage, plageValide: plageValide, dans: dans,
