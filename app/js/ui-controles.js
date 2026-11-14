@@ -36,7 +36,8 @@
     var o = K.options(cfg(), sv), modele = K.MODELES[x.modele], lignes = [];
     var ecart = h('textarea', { rows: 3, maxlength: 1000, 'aria-label': 'Écart constaté', placeholder: 'Point non conforme : ce qui manque ou ne fonctionne pas, ce qui a été fait (aucune donnée de patient).' });
     var contenu;
-    if (x.modele === 'csiLibre') {
+    var avecListe = K.MODELES[x.modele].liste;
+    if (avecListe) {
       lignes = o.csiLibre.liste.map(function (l, i) {
         var nom = 'pt-' + i, oui = h('input', { type: 'radio', name: nom, value: 'oui' }), non = h('input', { type: 'radio', name: nom, value: 'non' });
         return { libelle: l, oui: oui, non: non, noeud: h('tr', {}, h('td', { text: l }), h('td', {}, h('label', { class: 'case' }, oui, h('span', { text: 'Conforme' }))), h('td', {}, h('label', { class: 'case' }, non, h('span', { text: 'Non conforme' })))) };
@@ -54,15 +55,27 @@
         h('p', { text: 'Vous notez votre passage de surveillance dans la CSI occupée, avec l’heure. Le contenu de la surveillance reste dans le dossier patient informatisé (DPI).' }),
         h('label', {}, 'Remarque sur la chambre (facultatif, aucune donnée de patient)', ecart));
     }
-    U.modale(modele.libelle, contenu, [{ texte: 'Annuler' }, { texte: x.modele === 'csiLibre' ? 'Enregistrer le contrôle' : 'Noter mon passage', classe: 'primaire', action: async function () {
+    U.modale(modele.libelle, contenu, [{ texte: 'Annuler' }, { texte: avecListe ? 'Enregistrer le contrôle' : 'Noter mon passage', classe: 'primaire', action: async function () {
       var items = lignes.map(function (l) { return { libelle: l.libelle, ok: l.oui.checked ? true : (l.non.checked ? false : null) }; });
       if (items.some(function (i) { return i.ok === null; })) throw new Error('Indiquez pour chaque point : conforme ou non conforme.');
       var d = { id: 'CT-' + C.hex(C.aleatoire(8)), modele: x.modele, service: sv, lieu: x.lieu, date: x.date, poste: x.poste, libellePoste: x.libellePoste, items: items, ecart: ecart.value.trim(),
-        deuxAgents: x.modele === 'csiLibre' && o.csiLibre.deuxAgents, nom: moi().nom || '' };
+        deuxAgents: avecListe && o.csiLibre.deuxAgents, nom: moi().nom || '' };
       await s().enregistrer('CONTROLE', d);
       var nc = items.some(function (i) { return !i.ok; });
+      if (nc) setTimeout(function () { proposerTravaux(Object.assign({}, d, { par: moi().id })); }, 0);
       U.toast(x.modele === 'surveillance' ? 'Passage noté à ' + hm(Date.now()) + '.' : (nc ? 'Contrôle enregistré : écart signalé au cadre.' : 'Contrôle enregistré.') + (d.deuxAgents ? ' Un second agent doit le confirmer.' : ''));
-    } }], { large: x.modele === 'csiLibre' });
+    } }], { large: avecListe });
+  }
+  /** Écart constaté : demande de travaux préremplie (chambre, points non conformes, commentaire), si le module est ouvert. */
+  function peutTravaux() { try { return !!(U.travaux && s().ouvert('travaux') && s().peut('TRAVAUX') && !s().apercu); } catch (e) { return false; } }
+  function demandeTravaux(c) {
+    U.travaux.modaleDemande(null, { service: c.service, lieu: 'chambre', chambre: String(c.lieu).slice(0, 20),
+      description: 'Écart au contrôle de la ' + c.lieu + ' (' + (c.libellePoste || c.poste) + ' du ' + dateFr(c.date) + ') : ' + c.items.filter(function (i) { return !i.ok; }).map(function (i) { return i.libelle; }).join(', ') + (c.ecart ? '. ' + c.ecart : '') });
+  }
+  function proposerTravaux(c) {
+    if (!peutTravaux()) return;
+    U.modale('Écart constaté', h('p', { text: 'Faut-il une intervention des services techniques ? La demande de travaux sera préremplie avec la chambre et les points non conformes.' }),
+      [{ texte: 'Non' }, { texte: 'Faire une demande de travaux', classe: 'primaire', action: function () { setTimeout(function () { demandeTravaux(c); }, 0); } }]);
   }
   function modaleConfirmer(c) {
     U.modale('Confirmer le contrôle (second agent)', h('div', { class: 'pile' },
@@ -82,14 +95,16 @@
   function carte(x, sv) {
     var c = x.controle, m = K.MODELES[x.modele], actions = [];
     var lecture = s().apercu || !peut('CONTROLE');
-    if (!c && !lecture && x.etat !== 'retard') actions.push(h('button', { class: 'btn primaire petit', type: 'button', onclick: function () { modaleControle(x, sv); } }, x.modele === 'csiLibre' ? 'Faire le contrôle' : 'Noter mon passage'));
+    if (!c && !lecture && x.etat !== 'retard') actions.push(h('button', { class: 'btn primaire petit', type: 'button', onclick: function () { modaleControle(x, sv); } }, m.liste ? 'Faire le contrôle' : 'Noter mon passage'));
     if (!c && !lecture && x.etat === 'retard') actions.push(h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleControle(x, sv); } }, 'Faire en retard'));
     if (c && c.deuxAgents && !c.confirmePar && !lecture && c.par !== moi().id) actions.push(h('button', { class: 'btn primaire petit', type: 'button', onclick: function () { modaleConfirmer(c); } }, 'Confirmer (second agent)'));
+    if (c && K.nonConforme(c) && peutTravaux()) actions.push(h('button', { class: 'btn petit', type: 'button', onclick: function () { demandeTravaux(c); } }, 'Demande de travaux…'));
     if (c && !lecture && (c.par === moi().id || encadre())) actions.push(h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleAnnuler(c); } }, 'Annuler'));
     return h('article', { class: 'controle-carte etat-' + x.etat },
       h('div', { class: 'barre' }, h('b', { text: x.lieu }), h('span', { class: 'badge', text: m.court }), h('div', { class: 'espace' }), h('span', { class: 'badge ' + CLASSE[x.etat], text: LIB_ETAT[x.etat] })),
       c ? h('small', { class: 'muted', text: (x.modele === 'surveillance' ? 'Passage de ' : 'Fait par ') + (c.nom || s().nomAuteur(c.par)) + ' à ' + hm(Date.parse(c.le)) + (c.confirmePar ? ', confirmé par ' + (c.nomConfirme || s().nomAuteur(c.confirmePar)) + ' à ' + hm(Date.parse(c.confirmeLe)) : '') }) : null,
       c && K.nonConforme(c) ? h('p', { class: 'texte-alerte', text: 'Écart : ' + c.items.filter(function (i) { return !i.ok; }).map(function (i) { return i.libelle; }).join(', ') + (c.ecart ? ' — ' + c.ecart : '') }) : (c && c.ecart ? h('p', { class: 'muted', text: c.ecart }) : null),
+      x.modele === 'liberation' ? h('small', { class: 'muted', text: 'CSI libérée à ' + hm(x.debut) + ' : contrôle avant une nouvelle mesure.' }) : null,
       actions.length ? h('div', { class: 'actions gauche' }, actions) : null);
   }
   function vuePoste() {
@@ -118,6 +133,8 @@
         h('label', {}, 'Contrôle', h('select', { onchange: function (ev) { filtre.modele = ev.target.value; U.rendreContenu(); } }, [h('option', { value: '', text: 'Tous' })].concat(Object.keys(K.MODELES).map(function (k) { return h('option', { value: k, text: K.MODELES[k].libelle, selected: filtre.modele === k }); })))),
         champ('du', 'date', 'Du'), champ('au', 'date', 'Au')),
       h('p', { class: 'muted', text: ls.length + ' contrôle(s)' + (nc ? ', dont ' + nc + ' avec un écart' : '') + '.' }),
+      (function () { var hc = encadre() ? K.horsConservation(st(), cfg(), Date.now()).filter(function (c) { return svs.indexOf(c.service) >= 0; }) : [], mois = K.options(cfg(), null).conservationMois;
+        return hc.length ? h('p', { class: 'alerte-ligne', text: hc.length + ' contrôle(s) dépassent la durée de conservation fixée par l’établissement (' + mois + ' mois) : à traiter selon sa procédure (rien n’est supprimé automatiquement).' }) : null; })(),
       ls.length ? h('div', { class: 'table-wrap' }, h('table', {},
         h('thead', {}, h('tr', {}, ['Poste', 'Service', 'Lieu', 'Contrôle', 'Fait par', 'Second agent', 'Résultat', ''].map(function (t) { return h('th', { text: t }); }))),
         h('tbody', {}, ls.slice(0, 500).map(function (c) {
@@ -142,7 +159,7 @@
     var v = JSON.parse(JSON.stringify(cfg().controles || {})), niveau = niveaux[0].code, zone = h('div', { class: 'pile' }), lire = function () {};
     function dessiner() {
       U.vider(zone);
-      var propre = v[niveau] || {}, eff = K.options(cfg(), niveau === '*' ? null : niveau), l = propre.csiLibre || {}, sv = propre.surveillance || {};
+      var propre = v[niveau] || {}, eff = K.options(cfg(), niveau === '*' ? null : niveau), l = propre.csiLibre || {}, sv = propre.surveillance || {}, lb = propre.liberation || {};
       function tri(valeur, defaut, libelle) {
         var suit = niveau !== '*' && valeur === undefined;
         var sel = h('select', { 'aria-label': libelle }, (niveau === '*' ? [] : [h('option', { value: '', text: 'Comme l’établissement (' + (defaut ? 'oui' : 'non') + ')', selected: suit })])
@@ -150,15 +167,20 @@
         return { noeud: h('label', {}, libelle, sel), lire: function () { return sel.value === '' ? undefined : sel.value === 'oui'; } };
       }
       var e = niveau === '*' ? K.options({}, null) : K.options(cfg(), null);
-      var aL = tri(l.actif, e.csiLibre.actif, 'Contrôle des CSI libres à chaque poste'), dA = tri(l.deuxAgents, e.csiLibre.deuxAgents, 'Second agent qui confirme'), aS = tri(sv.actif, e.surveillance.actif, 'Passage de surveillance des CSI occupées à chaque poste');
+      var aL = tri(l.actif, e.csiLibre.actif, 'Contrôle des CSI libres à chaque poste'), dA = tri(l.deuxAgents, e.csiLibre.deuxAgents, 'Second agent qui confirme'), aS = tri(sv.actif, e.surveillance.actif, 'Passage de surveillance des CSI occupées à chaque poste'), aB = tri(lb.actif, e.liberation.actif, 'Contrôle de la CSI à sa libération (fin de mesure)');
+      var cons = niveau === '*' ? h('input', { type: 'number', min: 1, max: 600, value: (propre.conservationMois || ''), class: 'champ-court', 'aria-label': 'Durée de conservation du registre (mois)' }) : null;
       var liste = h('textarea', { rows: 9, 'aria-label': 'Check-list des CSI libres, un point par ligne' });
       liste.value = Array.isArray(l.liste) ? l.liste.join('\n') : '';
-      zone.appendChild(h('div', { class: 'pile' }, h('div', { class: 'grille-3' }, aL.noeud, dA.noeud, aS.noeud),
+      zone.appendChild(h('div', { class: 'pile' }, h('div', { class: 'grille-3' }, aL.noeud, dA.noeud, aS.noeud, aB.noeud),
+        cons ? h('label', { class: 'en-ligne' }, 'Durée de conservation du registre :', cons, 'mois', h('small', { class: 'muted', text: 'fixée par l’établissement ; vide : non fixée. Les contrôles plus anciens sont signalés dans le registre, jamais supprimés automatiquement.' })) : null,
         h('label', {}, 'Check-list des CSI libres, un point par ligne (vide : ' + (niveau === '*' ? 'liste provisoire' : 'celle de l’établissement') + ')', liste),
         h('small', { class: 'muted', text: 'Liste appliquée : ' + eff.csiLibre.liste.join(' · ') + (eff.csiLibre.provisoire ? ' (liste provisoire, à remplacer)' : '') })));
       lire = function () {
         var pts = liste.value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
-        var n = { csiLibre: {}, surveillance: {} };
+        var n = { csiLibre: {}, surveillance: {}, liberation: {} };
+        if (aB.lire() !== undefined) n.liberation.actif = aB.lire();
+        if (!Object.keys(n.liberation).length) delete n.liberation;
+        if (cons && cons.value) n.conservationMois = Math.max(1, Math.min(600, Math.round(+cons.value)));
         if (aL.lire() !== undefined) n.csiLibre.actif = aL.lire();
         if (dA.lire() !== undefined) n.csiLibre.deuxAgents = dA.lire();
         if (pts.length) n.csiLibre.liste = pts.slice(0, 40);
@@ -171,7 +193,7 @@
     var sel = h('select', { 'aria-label': 'Niveau', onchange: function () { lire(); niveau = sel.value; dessiner(); } }, niveaux.map(function (n) { return h('option', { value: n.code, text: n.libelle }); }));
     dessiner();
     return h('section', { class: 'panneau' }, h('h2', { text: 'Contrôles des chambres de soins intensifs' }),
-      h('p', { class: 'muted', text: 'À chaque poste (postes de surveillance d’Isocont) : contrôle de chaque CSI libre, à deux agents, avec la check-list ; passage de surveillance dans chaque CSI occupée. Rappel à l’équipe pendant le poste, alerte au cadre une fois le poste terminé. Le module s’active service par service (Réglages généraux → Modules activés par service).' }),
+      h('p', { class: 'muted', text: 'À chaque poste (postes de surveillance d’Isocont) : contrôle de chaque CSI libre, à deux agents, avec la check-list ; passage de surveillance dans chaque CSI occupée ; contrôle de la CSI à sa libération, avec la même check-list. Rappel à l’équipe pendant le poste, alerte au cadre une fois le poste terminé. Le module s’active service par service (Réglages généraux → Modules activés par service).' }),
       h('label', {}, 'Niveau', sel), zone,
       U.boutonEnregistrer(async function () { lire(); await U.enregistrerConfig([['controles', v]]); }));
   }

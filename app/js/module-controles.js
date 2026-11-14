@@ -26,8 +26,11 @@
     'Sanitaires propres et fonctionnels', 'Visibilité par l’oculus', 'Matériel de contention complet et vérifié', 'Horloge visible depuis le lit'];
   var MODELES = {
     csiLibre: { libelle: 'Contrôle de la CSI libre', court: 'CSI libre', liste: true, deuxAgents: true },
-    surveillance: { libelle: 'Passage de surveillance de la CSI', court: 'Surveillance', liste: false, deuxAgents: false }
+    surveillance: { libelle: 'Passage de surveillance de la CSI', court: 'Surveillance', liste: false, deuxAgents: false },
+    // Contrôle à la libération (décision du porteur du 14 novembre 2026) : même check-list, quand une mesure se termine dans la CSI
+    liberation: { libelle: 'Contrôle de la CSI à sa libération', court: 'Libération', liste: true, deuxAgents: true }
   };
+  var DELAI_LIBERATION = 2 * 3600000;   // contrôle attendu au plus tard à la fin du poste, et au moins deux heures après la libération
   var MAX_TEXTE = 1000;
   function texte(v, n) { return String(v == null ? '' : v).replace(/[ \t]+/g, ' ').trim().slice(0, n || 200); }
 
@@ -39,10 +42,12 @@
   function options(config, service) {
     var c = (config && config.controles) || {}, e = c['*'] || {}, s = (service && c[service]) || {};
     function m(k) { return Object.assign({}, e[k] || {}, s[k] || {}); }
-    var l = m('csiLibre'), sv = m('surveillance');
+    var l = m('csiLibre'), sv = m('surveillance'), lb = m('liberation');
     var liste = (Array.isArray(l.liste) ? l.liste : LISTE_PROVISOIRE).map(function (x) { return texte(x, 120); }).filter(Boolean).slice(0, 40);
     return { csiLibre: { actif: l.actif !== false, liste: liste.length ? liste : LISTE_PROVISOIRE.slice(), deuxAgents: l.deuxAgents !== false, provisoire: !Array.isArray(l.liste) },
-      surveillance: { actif: sv.actif !== false } };
+      surveillance: { actif: sv.actif !== false }, liberation: { actif: lb.actif !== false },
+      // Durée de conservation du registre, fixée par l'établissement (mois ; null : non fixée) : signalement seulement
+      conservationMois: isFinite(+e.conservationMois) && +e.conservationMois > 0 ? Math.min(600, Math.round(+e.conservationMois)) : null };
   }
   /** CSI d'un service : lieux d'isolement déclarés dans Isocont (`lieuxCSI`). */
   function csiDu(config, service) {
@@ -103,6 +108,15 @@
           var c = faits[iso + '|' + p.code + '|' + lieu + '|' + modele], fini = b[1] <= maintenant;
           var etat = c ? (complet(c) ? 'fait' : (fini ? 'retard' : 'aConfirmer')) : (fini ? 'retard' : 'aFaire');
           res.push({ cle: iso + '|' + p.code + '|' + lieu + '|' + modele, date: iso, poste: p.code, libellePoste: p.libelle || p.code, debut: b[0], fin: b[1], lieu: lieu, modele: modele, etat: etat, controle: c || null });
+          // Libération pendant le poste : contrôle de la CSI libérée, attendu jusqu'à la fin du poste (deux heures au moins)
+          var lib = o.liberation.actif && occ.filter(function (x) { return x.lieu === lieu && typeof x.fin === 'number' && x.fin >= b[0] && x.fin < b[1] && x.fin <= maintenant; })
+            .filter(function (x) { return !occ.some(function (y) { return y !== x && y.lieu === lieu && y.debut <= x.fin && (typeof y.fin !== 'number' || y.fin > x.fin); }); })   // pas reprise aussitôt
+            .sort(function (a2, b2) { return b2.fin - a2.fin; })[0];
+          if (lib) {
+            var cl = faits[iso + '|' + p.code + '|' + lieu + '|liberation'], limite = Math.max(b[1], lib.fin + DELAI_LIBERATION), finie = limite <= maintenant;
+            res.push({ cle: iso + '|' + p.code + '|' + lieu + '|liberation', date: iso, poste: p.code, libellePoste: p.libelle || p.code, debut: lib.fin, fin: limite, lieu: lieu, modele: 'liberation',
+              etat: cl ? (complet(cl) ? 'fait' : (finie ? 'retard' : 'aConfirmer')) : (finie ? 'retard' : 'aFaire'), controle: cl || null });
+          }
         });
       });
     }
@@ -113,6 +127,14 @@
   /** Postes terminés : contrôles non faits ou non confirmés (alerte au cadre). */
   function retards(ech) { return (ech || []).filter(function (x) { return x.etat === 'retard'; }); }
   /** Registre : contrôles (annulés compris, signalés), du plus récent au plus ancien ; `f` : { services, modele, du, au, lieu }. */
+  /** Contrôles plus anciens que la durée de conservation fixée par l'établissement (signalement, aucune suppression). */
+  function horsConservation(st, config, maintenant) {
+    var mois = options(config, null).conservationMois;
+    if (!mois) return [];
+    var d = new Date(maintenant || Date.now()); d.setMonth(d.getMonth() - mois);
+    var limite = M.dateLocaleISO(d.getTime());
+    return Object.keys((st && st.controles) || {}).map(function (k) { return st.controles[k]; }).filter(function (c) { return c.date < limite; });
+  }
   function registreDe(st, f) {
     f = f || {};
     return Object.keys((st && st.controles) || {}).map(function (k) { return st.controles[k]; }).filter(function (c) {
@@ -128,7 +150,7 @@
     var ls = libService || function (x) { return x; };
     return [['Date du poste', 'Poste', 'Service', 'Lieu', 'Contrôle', 'Fait par', 'Fait le', 'Confirmé par', 'Confirmé le', 'Conforme', 'Points non conformes', 'Écart', 'Annulé']].concat(liste.map(function (c) {
       return [c.date, c.libellePoste || c.poste, ls(c.service), c.lieu, MODELES[c.modele].libelle, c.nom, String(c.le).replace('T', ' ').slice(0, 16), c.nomConfirme, String(c.confirmeLe || '').replace('T', ' ').slice(0, 16),
-        c.modele === 'csiLibre' ? (nonConforme(c) ? 'non' : 'oui') : '', c.items.filter(function (x) { return !x.ok; }).map(function (x) { return x.libelle; }).join(' ; '), c.ecart,
+        MODELES[c.modele].liste ? (nonConforme(c) ? 'non' : 'oui') : '', c.items.filter(function (x) { return !x.ok; }).map(function (x) { return x.libelle; }).join(' ; '), c.ecart,
         c.annule ? 'oui (' + c.annule.motif + ')' : ''];
     }));
   }
@@ -141,7 +163,7 @@
       if (!MODELES[d.modele]) throw new Error('Contrôle inconnu.');
       if (!d.service || !d.lieu || !/^\d{4}-\d{2}-\d{2}$/.test(String(d.date || '')) || !d.poste) throw new Error('Indiquez le service, la chambre et le poste.');
       if (valides(st).some(function (c) { return c.service === d.service && c.date === d.date && c.poste === d.poste && c.lieu === d.lieu && c.modele === d.modele; })) throw new Error('Ce contrôle est déjà fait pour ce poste.');
-      if (d.modele === 'csiLibre') {
+      if (MODELES[d.modele].liste) {
         if (!Array.isArray(d.items) || !d.items.length) throw new Error('Cochez chaque point de la liste.');
         if (d.items.some(function (x) { return !x || typeof x.ok !== 'boolean'; })) throw new Error('Indiquez pour chaque point : conforme ou non conforme.');
         if (d.items.some(function (x) { return !x.ok; }) && !texte(d.ecart, MAX_TEXTE)) throw new Error('Décrivez l’écart constaté (point non conforme).');
@@ -211,5 +233,5 @@
   registre.declarer(contrat);
   return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, MODELES: MODELES, LISTE_PROVISOIRE: LISTE_PROVISOIRE,
     options: options, csiDu: csiDu, echeances: echeances, aFaire: aFaire, retards: retards, registre: registreDe, lignesExport: lignesExport,
-    complet: complet, nonConforme: nonConforme, controler: controler, controlerCadre: controlerCadre };
+    complet: complet, nonConforme: nonConforme, horsConservation: horsConservation, controler: controler, controlerCadre: controlerCadre };
 });

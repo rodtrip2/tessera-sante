@@ -90,3 +90,23 @@ test('Occupation des CSI lue dans Isocont, segments compris', () => {
     M2: { service: 'U1', lieu: 'CSI 2', csi: true, debut: 50, fin: 80 }, M3: { service: 'U2', lieu: 'CSI A', csi: true, debut: 10, fin: null }, M4: { service: 'U1', lieu: 'CSI 2', csi: true, debut: 10, fin: null, annulee: true } } };
   assert.deepEqual(SIC.modules.lire('isocont.occupationsCSI', st, { services: ['U1'], depuis: 60 }), [{ service: 'U1', lieu: 'CSI 1', debut: 200, fin: null }, { service: 'U1', lieu: 'CSI 2', debut: 50, fin: 80 }]);
 });
+
+test('Libération de la CSI : contrôle attendu, pas si une autre mesure continue ; durée de conservation signalée', () => {
+  const maintenant = L(14, 12);
+  const st = K.reduire([]);
+  let e = K.echeances(st, cfg, { service: 'U1', occupations: [{ lieu: 'CSI 1 (fictif)', debut: L(13, 18), fin: L(14, 9) }], maintenant, jours: 1 });
+  const lib = e.filter(x => x.modele === 'liberation');
+  assert.equal(lib.length, 1);
+  assert.deepEqual([lib[0].lieu, lib[0].poste, lib[0].etat, lib[0].debut], ['CSI 1 (fictif)', 'M', 'aFaire', L(14, 9)]);
+  // Contention terminée mais isolement en cours dans la même CSI : pas de libération
+  e = K.echeances(st, cfg, { service: 'U1', occupations: [{ lieu: 'CSI 1 (fictif)', debut: L(13, 18), fin: L(14, 9) }, { lieu: 'CSI 1 (fictif)', debut: L(13, 17), fin: null }], maintenant, jours: 1 });
+  assert.equal(e.filter(x => x.modele === 'liberation').length, 0);
+  // Libération à 13 h 30 : attendue jusqu'à 15 h 30 (deux heures), au-delà de la fin du poste
+  e = K.echeances(st, cfg, { service: 'U1', occupations: [{ lieu: 'CSI 2 (fictif)', debut: L(14, 8), fin: L(14, 13, 30) }], maintenant: L(14, 14, 30), jours: 1 });
+  assert.equal(e.filter(x => x.modele === 'liberation')[0].etat, 'aFaire');
+  assert.throws(() => K.controler('CONTROLE', { id: 'L1', modele: 'liberation', service: 'U1', lieu: 'CSI 2 (fictif)', date: '2026-11-14', poste: 'M', items: [] }, { etat: st }), /Cochez/);
+  const vieux = K.reduire([ev('a', 'CONTROLE', { id: 'V1', modele: 'surveillance', service: 'U1', lieu: 'CSI 1 (fictif)', date: '2025-01-10', poste: 'M' })]);
+  assert.equal(K.horsConservation(vieux, cfg, L(14, 12)).length, 0);   // durée non fixée
+  assert.equal(K.horsConservation(vieux, Object.assign({}, cfg, { controles: { '*': { conservationMois: 12 } } }), L(14, 12)).length, 1);
+  assert.equal(K.options({ controles: { U1: { conservationMois: 3 } } }, 'U1').conservationMois, null);   // fixée par l'établissement seulement
+});

@@ -1427,3 +1427,4 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
 .controle-liste td:first-child { width: 60%; }
 .texte-alerte { color: var(--bad); }
 tr.ligne-annulee td { text-decoration: line-through; color: var(--ink-2); }
+.alerte-ligne { background: var(--warn-soft); color: var(--warn); padding: 6px 10px; border-radius: 6px; }

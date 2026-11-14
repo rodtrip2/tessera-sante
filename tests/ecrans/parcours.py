@@ -1205,6 +1205,12 @@ with sync_playwright() as p:
     verifier(a.locator('dialog[open]').count() == 1 and 'écart' in a.locator('dialog[open]').inner_text().lower(), 'Contrôles : point non conforme sans commentaire refusé')
     dlg.get_by_label('Écart constaté').fill('Horloge arrêtée : pile changée (fictif)')
     dlg.get_by_role('button', name='Enregistrer le contrôle').click(); time.sleep(1.5)
+    dt = a.locator('dialog[open]').last
+    verifier('Écart constaté' in dt.inner_text(), 'Contrôles : écart → demande de travaux proposée')
+    dt.get_by_role('button', name='Faire une demande de travaux').click(); time.sleep(1)
+    dt = a.locator('dialog[open]').last
+    verifier('Horloge' in dt.locator('textarea').first.input_value() and 'CSI 3' in dt.locator('textarea').first.input_value(), 'Contrôles : demande de travaux préremplie (chambre, points non conformes, commentaire)')
+    dt.get_by_text('Annuler', exact=True).click(); time.sleep(0.6)
     c3 = a.locator('.controle-carte', has_text='CSI 3 (fictif)').first
     verifier('À confirmer par un second agent' in c3.inner_text() and c3.get_by_role('button', name='Confirmer (second agent)').count() == 0 and 'Écart' in c3.inner_text(), 'Contrôles : contrôle à deux agents en attente du second, écart affiché, pas de confirmation par l’auteur')
     capture(a, 'controles-poste')

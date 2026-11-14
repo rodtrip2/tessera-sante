@@ -818,3 +818,15 @@ Décisions du porteur du 14 novembre 2026 : **nouveau module Contrôles** (méca
 | Tests et parcours | `tests/controles.test.js` ; parcours : passage noté, CSI libre ajoutée, contrôle avec écart refusé sans commentaire puis enregistré, en attente du second agent, registre, alertes du cadre, réglages | — |
 | Points à valider | Check-list du porteur ; contrôle à la libération d'une CSI (non fait) ; lien avec une demande de travaux en cas d'écart (non fait) ; durée de conservation du registre ; contrôles du lot K à ajouter comme nouveaux modèles | — |
 | À documenter | Guide pratique IDE / AS (contrôles du poste), fiche technique (nouveau module, fourniture d'Isocont, module désactivé par défaut), kit (registre des contrôles comme preuve pour la certification et le CGLPL) | — |
+
+## Version 0.58.0 (branche `controles-suite`, 14 novembre 2026) : contrôle à la libération, demande de travaux, durée de conservation (lot B, suite)
+
+Décisions du porteur du 14 novembre 2026 : check-list fournie plus tard par le porteur ; **contrôle à la libération** et **lien avec une demande de travaux** retenus ; **durée de conservation du registre fixée par l'établissement** ; **référents par domaine : droits à voir selon l'établissement** (rien de développé ; à concevoir quand un établissement le demandera).
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Libération | Nouveau modèle « Contrôle de la CSI à sa libération » (même check-list, même réglage du second agent) : quand une mesure se termine dans la CSI pendant le poste et qu'aucune autre ne continue, contrôle attendu jusqu'à la fin du poste, et au moins deux heures après la libération ; réglage « Contrôle de la CSI à sa libération » (oui par défaut) | `module-controles.js` (`MODELES.liberation`, `echeances`), `ui-controles.js` |
+| Demande de travaux | Après un contrôle avec un écart, proposition « Faire une demande de travaux » ; bouton « Demande de travaux… » sur la carte d'un contrôle avec écart ; demande préremplie (service, chambre, points non conformes, commentaire) ; seulement si le module Demandes de travaux est ouvert pour l'agent | `ui-controles.js` |
+| Conservation | `controles['*'].conservationMois`, fixée par l'établissement (vide : non fixée) ; le registre signale à l'encadrement les contrôles plus anciens, rien n'est supprimé automatiquement | `module-controles.js` (`horsConservation`), `ui-controles.js`, `ui-isocont.js`, `app.css` |
+| Tests et parcours | Libération (attendue, non attendue si une mesure continue, délai de deux heures), conservation ; parcours : demande de travaux préremplie après un écart | `tests/controles.test.js`, `tests/ecrans/parcours.py` |
+| Démonstration | Pas de libération récente dans les mesures fictives : cas montré par les tests ; à ajouter si le porteur le souhaite (nouvelle mesure fictive dans Isocont) | — |
