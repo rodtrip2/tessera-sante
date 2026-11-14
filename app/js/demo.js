@@ -773,13 +773,17 @@
       fi(-24 * 4, 'FI-6', 'FS-DESC', 'demo-d', 'Agent D (fictif)', ['IDE']);
       fi(-24 * 6, 'FI-7', 'FS-INC', 'demo-c', 'Agent C (fictif)', ['IDE'], [['FORMATION_DECISION', { decision: 'refuse', motif: 'Déjà formé(e) cette année (fictif)' }]]);
       fi(-24 * 3, 'FI-8', 'FS-INC', moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE']);
-      // Heures supplémentaires (lot C, 14 novembre 2026) : déclarations à valider, acceptées en récupération (dont une en
-      // partie) et à enregistrer dans le logiciel de gestion du temps, refusée, annulée ; récupérations validée et demandée ;
-      // correction de solde par le cadre ; heures du cadre à valider par le cadre supérieur
+      // Heures supplémentaires (lot C, 14 novembre 2026 ; horaire prévu et horaire effectué, 15 novembre 2026) : heures en
+      // plus à valider, acceptées en récupération (dont une en partie) et à enregistrer, payées à saisir en priorité (paie),
+      // refusées, annulées ; heures en moins à valider et déduites ; motif libre ; récupérations validée et demandée ;
+      // correction de solde ; heures du cadre à valider par le cadre supérieur
       var nH = 0;
-      function hs(h0, ag, nom, roles, jour, debut, fin, minutes, motif, com, suite) {
-        var id = 'HD-DEMO' + (++nH);
-        ajouter(t(h0), 'HEURES_DECLARATION', { id: id, date: jour, debut: debut, fin: fin, minutes: minutes, motif: motif, commentaire: com || '', service: U1, nom: nom, roles: roles }, ag);
+      function mn(a) { return +a.slice(0, 2) * 60 + +a.slice(3, 5); }
+      function lg(a, b) { var d = mn(b) - mn(a); return d <= 0 ? d + 1440 : d; }
+      function hs(h0, ag, nom, roles, jour, prevu, eff, motif, com, suite) {
+        var id = 'HD-DEMO' + (++nH), libre = motif.indexOf('libre:') === 0, repos = !prevu;
+        ajouter(t(h0), 'HEURES_DECLARATION', { id: id, date: jour, repos: repos, prevuDebut: repos ? '' : prevu[0], prevuFin: repos ? '' : prevu[1], poste: repos ? 'Repos' : prevu[2] || '', debut: eff[0], fin: eff[1], minutes: lg(eff[0], eff[1]) - (repos ? 0 : lg(prevu[0], prevu[1])),
+          motif: libre ? '' : motif, motifLibre: libre ? motif.slice(6) : '', commentaire: com || '', service: U1, nom: nom, roles: roles }, ag);
         (suite || []).forEach(function (x, k) { ajouter(t(h0 + 2 + k), x[0], Object.assign({ declaration: id, objet: id, service: U1, nom: 'Cadre de santé (fictif)' }, x[1]), x[2] || moiC.id); });
       }
       function rc(h0, ag, nom, roles, jour, minutes, suite) {
@@ -787,17 +791,21 @@
         ajouter(t(h0), 'HEURES_RECUP', { id: id, date: jour, debut: '', fin: '', minutes: minutes, commentaire: '', service: U1, nom: nom, roles: roles }, ag);
         (suite || []).forEach(function (x, k) { ajouter(t(h0 + 2 + k), x[0], Object.assign({ recup: id, objet: id, service: U1, nom: 'Cadre de santé (fictif)' }, x[1]), x[2] || moiC.id); });
       }
-      hs(-24 * 40, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-40), '19:00', '20:30', 90, 'depassement', 'Transmissions prolongées (fictif)', [['HEURES_DECISION', { decision: 'recuperation', minutes: 90 }], ['HEURES_ENREGISTREE', {}]]);
-      hs(-24 * 20, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-20), '', '', 420, 'rappel', 'Rappel sur un repos (fictif)', [['HEURES_DECISION', { decision: 'recuperation', minutes: 420 }]]);
+      var MAT = ['07:00', '14:00', 'Matin'], APM = ['14:00', '21:00', 'Après-midi'], NUIT = ['21:00', '07:00', 'Nuit'];
+      hs(-24 * 40, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-40), APM, ['14:00', '22:30'], 'depassement', 'Transmissions prolongées (fictif)', [['HEURES_DECISION', { decision: 'recuperation', minutes: 90 }], ['HEURES_ENREGISTREE', {}]]);
+      hs(-24 * 20, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-20), null, ['09:00', '16:00'], 'rappel', 'Rappel sur un repos (fictif)', [['HEURES_DECISION', { decision: 'recuperation', minutes: 420 }]]);
       rc(-24 * 10, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-3), 120, [['HEURES_RECUP_DECISION', { decision: 'valide' }]]);
       rc(-24 * 1, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(5), 180);
-      hs(-24 * 3, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-3), '14:00', '15:30', 90, 'reunion', 'Réunion institutionnelle (fictif)');
-      hs(-24 * 15, 'demo-b', 'Agent B (fictif)', ['AS'], iso(-15), '21:00', '22:00', 60, 'depassement', '', [['HEURES_DECISION', { decision: 'recuperation', minutes: 45, motif: 'Retenu 45 min, d’après le planning (fictif)' }]]);
-      hs(-24 * 12, 'demo-c', 'Agent C (fictif)', ['IDE'], iso(-12), '06:30', '07:00', 30, 'autre', '', [['HEURES_DECISION', { decision: 'refuse', motif: 'Arrivée anticipée non demandée (fictif)' }]]);
-      hs(-24 * 6, 'demo-d', 'Agent D (fictif)', ['IDE'], iso(-6), '', '', 600, 'remplacement', 'Remplacement d’un collègue absent (fictif)');
-      hs(-24 * 4, 'demo-d', 'Agent D (fictif)', ['IDE'], iso(-4), '', '', 60, 'formation', '', [['HEURES_ANNULATION', {}, 'demo-d']]);
+      hs(-24 * 3, 'demo-a', 'Agent A (fictif)', ['IDE'], iso(-3), MAT, ['07:00', '15:30'], 'reunion', 'Réunion institutionnelle (fictif)');
+      hs(-24 * 15, 'demo-b', 'Agent B (fictif)', ['AS'], iso(-15), APM, ['14:00', '22:00'], 'depassement', '', [['HEURES_DECISION', { decision: 'recuperation', minutes: 45, motif: 'Retenu 45 min, d’après le planning (fictif)' }]]);
+      hs(-24 * 12, 'demo-c', 'Agent C (fictif)', ['IDE'], iso(-12), MAT, ['06:30', '14:00'], 'libre:Arrivée anticipée (fictif)', '', [['HEURES_DECISION', { decision: 'refuse', motif: 'Arrivée anticipée non demandée (fictif)' }]]);
+      hs(-24 * 6, 'demo-d', 'Agent D (fictif)', ['IDE'], iso(-6), NUIT, ['19:00', '09:00'], 'remplacement', 'Remplacement d’un collègue absent (fictif)');
+      hs(-24 * 4, 'demo-d', 'Agent D (fictif)', ['IDE'], iso(-4), MAT, ['07:00', '15:00'], 'formation', '', [['HEURES_ANNULATION', {}, 'demo-d']]);
+      hs(-24 * 5, 'demo-c', 'Agent C (fictif)', ['IDE'], iso(-5), APM, ['14:00', '19:00'], 'depart-agent', 'Rendez-vous personnel (fictif)');
+      hs(-24 * 9, 'demo-b', 'Agent B (fictif)', ['AS'], iso(-9), MAT, ['07:00', '13:00'], 'depart-service', 'Effectif suffisant (fictif)', [['HEURES_DECISION', { decision: 'deduit', minutes: 60 }]]);
+      hs(-24 * 8, 'demo-c', 'Agent C (fictif)', ['IDE'], iso(-8), NUIT, ['21:00', '09:00'], 'libre:Accompagnement aux urgences pendant la nuit (fictif)', '', [['HEURES_DECISION', { decision: 'paiement', minutes: 120 }]]);
       ajouter(t(-24 * 30), 'HEURES_CORRECTION', { agent: 'demo-b', annee: String(Y), minutes: 150, motif: 'Reprise du solde du logiciel de gestion du temps (fictif)', service: U1, roles: ['AS'] }, moiC.id);
-      if (moiC.id) hs(-24 * 2, moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE'], iso(-2), '17:00', '19:00', 120, 'reunion', 'Commission (fictif)');
+      if (moiC.id) hs(-24 * 2, moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE'], iso(-2), ['09:00', '17:00', 'Journée'], ['09:00', '19:00'], 'reunion', 'Commission (fictif)');
       var nC = 0;
       function cg(h0, ag, nom, roles, type, debut, fin, statut, suite) {
         var id = 'CG-DEMO' + (++nC);

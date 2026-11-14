@@ -15,7 +15,8 @@ const ev = (by, type, data) => ({ v: 1, id: 'e' + String(++n).padStart(5, '0'), 
 const cadre = { id: 'c1', roles: ['CADRE'], services: ['U1'] }, ide = { id: 'i1', roles: ['IDE'], services: ['U1'] }, ide2 = { id: 'i2', roles: ['IDE'], services: ['U2'] }, sec = { id: 's1', roles: ['SECRETAIRE'], services: ['U1'] };
 const cadre2 = { id: 'c2', roles: ['CADRE'], services: ['U1'] }, sup = { id: 'cs', roles: ['CADRE_SUP'], services: ['U1'] };
 const comptes = [cadre, cadre2, ide, ide2, sec, sup];
-const decl = (by, id, date, minutes, extra) => ev(by, 'HEURES_DECLARATION', Object.assign({ id, date, debut: '', fin: '', minutes, motif: 'depassement', service: 'U1', nom: 'Agent (fictif)' }, extra || {}));
+const fin = (m) => { const t = 14 * 60 + m; return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
+const decl = (by, id, date, minutes, extra) => ev(by, 'HEURES_DECLARATION', Object.assign({ id, date, prevuDebut: '07:00', prevuFin: '14:00', debut: '07:00', fin: fin(minutes), minutes, motif: 'depassement', service: 'U1', nom: 'Agent (fictif)' }, extra || {}));
 
 test('Durées : horaires (passage de minuit), lecture « 1:30 », « 1h30 », « 90 », affichage en heures et minutes', () => {
   assert.equal(HS.duree('19:00', '20:30'), 90);
@@ -30,6 +31,7 @@ test('Réglages : motifs par défaut, paiement désactivé par défaut, plafond 
   assert.equal(o.paiement, false);
   assert.equal(o.plafondMensuel, null);
   assert.ok(o.motifs.some((m) => m.code === 'rappel'));
+  assert.equal(o.motifs.some((m) => m.code === 'autre'), false);   // motif libre à la place d'« Autre »
   assert.equal(o.etapeGtt, true);
   assert.deepEqual(o.rolesGtt, ['CADRE', 'SECRETAIRE']);
   assert.equal(HS.options({ heures: { plafondMensuel: -5 } }).plafondMensuel, null);
@@ -65,11 +67,17 @@ test('Déclaration, décision en récupération (en partie), récupération, sol
 
 test('Contrôles : saisie, durée et horaires, motif, refus motivé, validateur, paiement et plafond, annulation, enregistrement', () => {
   const ctx = (compte, config, st) => ({ etat: st || HS.reduire([]), config: config || {}, compte, comptes });
-  assert.throws(() => HS.controler('HEURES_DECLARATION', { id: 'X', date: '', minutes: 60, motif: 'rappel' }, ctx(ide)), /date/);
-  assert.throws(() => HS.controler('HEURES_DECLARATION', { id: 'X', date: '2026-11-02', minutes: 0, motif: 'rappel' }, ctx(ide)), /durée/);
-  assert.throws(() => HS.controler('HEURES_DECLARATION', { id: 'X', date: '2026-11-02', debut: '19:00', fin: '20:00', minutes: 90, motif: 'rappel' }, ctx(ide)), /horaires/);
-  assert.throws(() => HS.controler('HEURES_DECLARATION', { id: 'X', date: '2026-11-02', minutes: 60, motif: 'inconnu' }, ctx(ide)), /motif/);
-  assert.doesNotThrow(() => HS.controler('HEURES_DECLARATION', { id: 'X', date: '2026-11-02', debut: '19:00', fin: '20:00', minutes: 60, motif: 'rappel' }, ctx(ide)));
+  const D = (x) => Object.assign({ id: 'X', date: '2026-11-02', prevuDebut: '14:00', prevuFin: '21:00', debut: '14:00', fin: '22:30', minutes: 90, motif: 'depassement' }, x);
+  assert.throws(() => HS.controler('HEURES_DECLARATION', D({ date: '' }), ctx(ide)), /date/);
+  assert.throws(() => HS.controler('HEURES_DECLARATION', D({ prevuDebut: '' }), ctx(ide)), /horaire prévu/);
+  assert.throws(() => HS.controler('HEURES_DECLARATION', D({ fin: '' }), ctx(ide)), /réellement effectué/);
+  assert.throws(() => HS.controler('HEURES_DECLARATION', D({ fin: '21:00', minutes: 0 }), ctx(ide)), /identique/);
+  assert.throws(() => HS.controler('HEURES_DECLARATION', D({ minutes: 60 }), ctx(ide)), /écart/);
+  assert.throws(() => HS.controler('HEURES_DECLARATION', D({ motif: 'inconnu' }), ctx(ide)), /motif/);
+  assert.doesNotThrow(() => HS.controler('HEURES_DECLARATION', D({ motif: '', motifLibre: 'Autre raison (fictif)' }), ctx(ide)));
+  assert.doesNotThrow(() => HS.controler('HEURES_DECLARATION', D({}), ctx(ide)));
+  assert.doesNotThrow(() => HS.controler('HEURES_DECLARATION', D({ fin: '19:00', minutes: -120, motif: 'depart-agent' }), ctx(ide)));   // heures en moins
+  assert.doesNotThrow(() => HS.controler('HEURES_DECLARATION', D({ repos: true, prevuDebut: '', prevuFin: '', debut: '09:00', fin: '16:00', minutes: 420, motif: 'rappel' }), ctx(ide)));   // rappel sur un repos
   const st = HS.reduire([decl('i1', 'D1', '2026-11-02', 300), decl('i1', 'D2', '2026-11-09', 300), decl('i2', 'D3', '2026-11-03', 60, { service: 'U2' })]);
   assert.throws(() => HS.controler('HEURES_DECISION', { declaration: 'D1', decision: 'refuse' }, ctx(cadre, {}, st)), /motif du refus/);
   assert.throws(() => HS.controler('HEURES_DECISION', { declaration: 'D3', decision: 'recuperation' }, ctx(cadre, {}, st)), /ne validez pas/);
@@ -96,6 +104,12 @@ test('Contrôles : saisie, durée et horaires, motif, refus motivé, validateur,
   assert.throws(() => HS.controler('HEURES_ENREGISTREE', { objet: 'D1' }, ctx(sec, {}, st3)), /Déjà/);
   assert.deepEqual(HS.aEnregistrer(st2, {}, ['SECRETAIRE'], ['U1']).map((x) => x.id), ['D1']);
   assert.deepEqual(HS.aEnregistrer(st2, {}, ['IDE'], ['U1']), []);
+  // h+ payées : le validateur qui les a acceptées les saisit en priorité, même sans l'étape ni le rôle réglé
+  const pr = HS.aEnregistrer(st2, { heures: { etapeGtt: false } }, ['MEDECIN_CHEF_SERVICE'], ['U1'], 'c1');
+  assert.deepEqual([pr.length, pr[0].id, pr[0].prioritaire], [1, 'D1', true]);
+  assert.doesNotThrow(() => HS.controler('HEURES_ENREGISTREE', { objet: 'D1' }, ctx({ id: 'c1', roles: ['IDE'], services: ['U1'] }, { heures: { etapeGtt: false } }, st2)));
+  const st4 = HS.reduire([decl('i1', 'D1', '2026-11-02', 60), decl('i1', 'D2', '2026-11-01', 60), ev('c1', 'HEURES_DECISION', { declaration: 'D2', decision: 'recuperation' }), ev('c1', 'HEURES_DECISION', { declaration: 'D1', decision: 'paiement' })]);
+  assert.deepEqual(HS.aEnregistrer(st4, {}, ['CADRE'], ['U1'], 'c1').map((x) => [x.id, x.prioritaire]), [['D1', true], ['D2', false]]);
   // Correction de solde : motif obligatoire, validateur seulement
   assert.throws(() => HS.controler('HEURES_CORRECTION', { agent: 'i1', annee: '2026', minutes: 60, motif: '' }, ctx(cadre, {}, st)), /motif/);
   assert.throws(() => HS.controler('HEURES_CORRECTION', { agent: 'i2', annee: '2026', minutes: 60, motif: 'x' }, ctx(cadre, {}, st)), /ne validez pas/);
@@ -112,10 +126,35 @@ test('Droits pour soi, totaux, export, fonction soumise à avis livrée désacti
   assert.deepEqual([t.agents.i1.recuperation, t.agents.c1.recuperation, t.mois['03'], t.mois['04'], t.motifs.rappel], [90, 30, 90, 30, 90]);
   const l = HS.lignesExport([st.declarations.D1, st.declarations.D2], {}, (x) => 'Unité ' + x);
   assert.equal(l.length, 3);
-  assert.deepEqual([l[1][1], l[1][2], l[1][6], l[1][8], l[1][9], l[2][9]], ['Unité U1', 'Heures supplémentaires', '1 h 30', 'Rappel sur un repos', 'Accepté en récupération', 'À valider']);
+  assert.deepEqual([l[1][1], l[1][2], l[1][4], l[1][8], l[1][9], l[1][10], l[1][11], l[2][11]], ['Unité U1', 'Heures en plus', '07:00', '+1 h 30', '1 h 30', 'Rappel sur un repos', 'Accepté en récupération', 'À valider']);
   assert.equal(V.etat({}, 'heures').etat, 'desactive');
   assert.equal(V.moduleAutorise('heures', {}), false);
   assert.equal(V.moduleAutorise('heures', { validations: { etats: { heures: { etat: 'accord', date: '2026-11-14', auteur: 'Directeur des soins (fictif)', dpoInforme: '2026-11-13' } } } }), true);
   assert.equal(HS.contrat.id, 'heures');
   assert.ok(HS.contrat.vues.onglets.find((o) => o.code === 'a-valider').droit.includes('HEURES_DECISION'));
+});
+
+test('Heures en moins : écart négatif, validées (déduites du solde) ou refusées, jamais payées ni en récupération', () => {
+  assert.equal(HS.ecart('14:00', '21:00', '14:00', '19:30'), -90);
+  assert.equal(HS.ecart('21:00', '07:00', '21:00', '08:00'), 60);
+  assert.equal(HS.ecart('', '', '09:00', '12:00', true), 180);
+  const st = HS.reduire([decl('i1', 'D1', '2026-11-02', 120), ev('c1', 'HEURES_DECISION', { declaration: 'D1', decision: 'recuperation' }), decl('i1', 'D2', '2026-11-03', -90, { motif: 'depart-agent' })]);
+  assert.throws(() => HS.controler('HEURES_DECISION', { declaration: 'D2', decision: 'recuperation' }, { etat: st, config: {}, compte: cadre, comptes }), /Heures en moins/);
+  assert.throws(() => HS.controler('HEURES_DECISION', { declaration: 'D2', decision: 'deduit', minutes: 100 }, { etat: st, config: {}, compte: cadre, comptes }), /Durée retenue/);
+  const st2 = HS.reduire([decl('i1', 'D1', '2026-11-02', 120), ev('c1', 'HEURES_DECISION', { declaration: 'D1', decision: 'recuperation' }), decl('i1', 'D2', '2026-11-03', -90, { motif: 'depart-agent' }),
+    ev('c1', 'HEURES_DECISION', { declaration: 'D2', decision: 'deduit' })]);
+  assert.equal(st2.declarations.D2.retenues, 90);
+  const so = HS.solde(st2, 'i1', 2026);
+  assert.deepEqual([so.acquises, so.enMoins, so.solde], [120, 90, 30]);
+  const t = HS.totaux(st2, 2026, null);
+  assert.deepEqual([t.agents.i1.deduit, t.mois['11']], [90, 30]);
+  assert.equal(HS.lignesExport([st2.declarations.D2], {}, null)[1][2], 'Heures en moins');
+  assert.equal(HS.libMotif({}, { motif: '', motifLibre: 'Raison libre (fictif)' }), 'Raison libre (fictif)');
+});
+
+test('Postes proposés en raccourci : réglage du service, de l’établissement, sinon postes de surveillance', () => {
+  const cfg = { periodes: [{ code: 'M', libelle: 'Matin', debut: '07:00', fin: '14:00' }], heures: { postes: { '*': [{ libelle: 'Journée', debut: '09:00', fin: '17:00' }], U1: [{ libelle: 'Matin court', debut: '06:45', fin: '14:15' }, { libelle: 'x', debut: '25:00', fin: '1' }] } } };
+  assert.deepEqual(HS.postesDe(cfg, 'U1'), [{ libelle: 'Matin court', debut: '06:45', fin: '14:15' }]);
+  assert.deepEqual(HS.postesDe(cfg, 'U2').map((p) => p.libelle), ['Journée']);
+  assert.deepEqual(HS.postesDe({ periodes: cfg.periodes }, 'U1').map((p) => p.libelle), ['Matin']);
 });

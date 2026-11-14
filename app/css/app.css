@@ -1449,3 +1449,9 @@ tr.ligne-annulee td { text-decoration: line-through; color: var(--ink-2); }
 .hs-solde { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
 .hs-case { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; background: var(--card); }
 .hs-case b { font-size: 1.15em; }
+.hs-horaire { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px 10px; }
+.hs-horaire legend { padding: 0 4px; font-weight: 600; }
+.hs-ecart { font-weight: 600; }
+.hs-ecart.ok { color: var(--ok); }
+.hs-ecart.bad { color: var(--bad); }
+.hs-paie { border-left: 4px solid var(--bad); padding: 6px 10px; background: var(--card); }
