@@ -255,6 +255,23 @@
     var v = (config && config.agendaReglages) || {};
     return Object.assign({}, v['*'] || {}, service && service !== '*' && v[service] ? v[service] : {});
   }
+  /**
+   * Échanges d'agenda par fichier .ics (lot A, 14 novembre 2026), réglés par l'établissement puis par service
+   * (`agendaReglages`) : export et import activés par défaut (aucune donnée de patient n'est écrite ni reprise),
+   * conservation de la couche importée d'une connexion à l'autre désactivée par défaut. Pour un agent de plusieurs
+   * services : `services` = ceux dont les événements peuvent être exportés ; import et conservation permis si l'un
+   * de ses services les permet.
+   */
+  function echangesIcs(config, services) {
+    var svs = services && services.length ? services : ['*'], exp = [], imp = false, garder = false;
+    svs.forEach(function (sv) {
+      var r = reglagesService(config, sv);
+      if (r.icsExport !== false) exp.push(sv);
+      if (r.icsImport !== false) imp = true;
+      if (r.icsImport !== false && r.icsGarder === true) garder = true;
+    });
+    return { exporter: exp.length > 0, services: exp, importer: imp, garder: garder };
+  }
   function controlerCadreReglages(ancien, nouveau, compte) {
     var roles = (compte && compte.roles) || [], sv = (compte && compte.services) || [];
     if (roles.indexOf('ADMIN') >= 0) return true;
@@ -1010,7 +1027,7 @@
   return { contrat: contrat, reduire: reduire, tachesPerso: tachesPerso, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
-    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, suggestions: suggestions, tachesSuggerees: tachesSuggerees, SUGGESTIONS_DEFAUT: SUGGESTIONS_DEFAUT, EVENEMENTS_SUGGESTION: EVENEMENTS_SUGGESTION, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
+    libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, suggestions: suggestions, tachesSuggerees: tachesSuggerees, SUGGESTIONS_DEFAUT: SUGGESTIONS_DEFAUT, EVENEMENTS_SUGGESTION: EVENEMENTS_SUGGESTION, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, echangesIcs: echangesIcs, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
     enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
     alertesEquipe: alertesEquipe, alertePour: alertePour, occupationsSalles: occupationsSalles, evenementsPatients: evenementsPatients, limiteAuxSiens: limiteAuxSiens, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,

@@ -204,6 +204,8 @@
     var a = agent(c.agent), lui = c.agent === moi().id, v = validateurDe(a), voitType = lui || v;
     var x = voitType ? C.verifier(st(), cfg(), c, { comptes: comptes(), aujourdhui: auj() }) : null;
     var boutons = [{ texte: 'Fermer' }];
+    // « Écrire à… » (messageries du service sans connexion, 14 novembre 2026) : à l'agent et aux boîtes du service
+    if (U.messageries && (lui || v)) { var bec = U.messageries.boutonModale(function () { return 'Congé de ' + nomDe(c) + ' — ' + periodeFr(c); }, { services: (a && a.services) || [], adresses: lui ? [] : [{ libelle: nomDe(c), adresse: U.messageries.mailAgent(c.agent) }] }); if (bec) boutons.push(bec); }
     if ((lui || v) && (c.statut === 'souhait' || c.statut === 'demande')) boutons.push({ texte: 'Modifier', action: function () { setTimeout(function () { modaleDemande(c); }, 0); } });
     if (lui && c.statut === 'souhait') boutons.push({ texte: 'Envoyer la demande', action: function () { return envoyer(c); } });
     if (v && !lui && c.statut === 'demande') { boutons.push({ texte: 'Refuser…', action: function () { setTimeout(function () { modaleRefus(c); }, 0); } }); boutons.push({ texte: 'Valider', classe: 'primaire', action: function () { return decider(c, 'valide'); } }); }

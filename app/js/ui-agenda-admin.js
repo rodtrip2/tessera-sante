@@ -313,6 +313,20 @@
     var sel = h('select', { 'aria-label': 'Place proposée pour les autres services' }, (ctx.niveau === '*' ? [] : [h('option', { value: '', text: 'Comme l’établissement', selected: suit })]).concat(Object.keys(A.PARTAGES).map(function (k) { return h('option', { value: k, text: A.PARTAGES[k], selected: !suit && v === k }); })));
     return { titre: 'Événements de plusieurs services : choix proposé à la création', noeud: sel, lire: function () { return { partageDefaut: sel.value || undefined }; } };
   });
+  // Échanges avec la messagerie par fichier .ics (lot A, 14 novembre 2026)
+  ajouterRubrique(function (ctx) {
+    function choix(cle, defaut, libelle) {
+      var suit = ctx.niveau !== '*' && ctx.propre[cle] === undefined, v = ctx.effectif[cle] === undefined ? defaut : ctx.effectif[cle] === true;
+      var sel = h('select', { 'aria-label': libelle }, (ctx.niveau === '*' ? [] : [h('option', { value: '', text: 'Comme l’établissement (' + (v ? 'oui' : 'non') + ')', selected: suit })])
+        .concat([h('option', { value: 'oui', text: 'Oui', selected: !suit && v }), h('option', { value: 'non', text: 'Non', selected: !suit && !v })]));
+      return { noeud: h('label', {}, libelle, sel), lire: function () { return sel.value === '' ? undefined : sel.value === 'oui'; } };
+    }
+    var ex = choix('icsExport', true, 'Export de « Mon agenda » vers la messagerie (sans identité de patient)'),
+      im = choix('icsImport', true, 'Import de l’agenda de la messagerie dans « Mon agenda » (lecture seule)'),
+      ga = choix('icsGarder', false, 'Agenda importé gardé d’une connexion à l’autre (chiffré avec la clé de l’agent)');
+    return { titre: 'Échanges avec Outlook, Zimbra et les autres messageries (fichier .ics)', noeud: h('div', { class: 'grille-3' }, ex.noeud, im.noeud, ga.noeud),
+      lire: function () { return { icsExport: ex.lire(), icsImport: im.lire(), icsGarder: ga.lire() }; } };
+  });
   // Permissions : processus de validation par mode d'hospitalisation (étapes, couleurs, délais, tâches, rôles)
   ajouterRubrique(function (ctx) {
     var PM = SIC.agendaPermissions, propres = JSON.parse(JSON.stringify(ctx.propre.processPermissions || {})), zone = h('div', { class: 'pile' });

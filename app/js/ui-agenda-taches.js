@@ -396,21 +396,118 @@
   }
 
   // ------------------------------------------------------------ Mon agenda (sous-étape 6.4)
+  // Échanges avec la messagerie par fichier .ics (lot A, 14 novembre 2026) : export sans identité de patient, import
+  // en couche à part, lue dans le navigateur, jamais copiée sur le partage ni inscrite au journal.
+  var TYPES_EXPORT = { agenda: 'Événements de l’Agenda où je suis prévu(e) (réunions, entretiens, accompagnements…)', absences: 'Mes absences', salles: 'Mes salles réservées et mes présences' };
+  var couche = null;   // { nom, evenements: [{ id, debut, fin, objet, lieu, journee }], visible, gardee }
+  function prefs() { return (U.App.session && U.App.session.preferences) || {}; }
+  function coucheActuelle() {
+    if (couche) return couche;
+    var g = prefs().icsCouche, o = A.echangesIcs(U.config(), U.App.session.mesServices().map(function (x) { return x.code || x; }));
+    if (g && Array.isArray(g.evenements) && o.importer && o.garder) couche = { nom: g.nom || 'Agenda importé', evenements: g.evenements, visible: g.visible !== false, gardee: true };
+    return couche;
+  }
+  function libelleSansPatient(r) { return r.patients && r.patients.length ? libelleElement(Object.assign({}, r, { titre: '' })) : libelleElement(r); }
+  /** Événements à exporter sur [debut, fin[ : libellé, lieu, horaire ; jamais de patient (ni nom, ni initiales, ni chambre), ni commentaire. */
+  function evenementsExport(debut, fin, types, svsExport) {
+    var s = U.App.session, moi = moiAvecGroupes(), svs = s.mesServices().map(function (x) { return x.code || x; }), res = [];
+    var m = A.monAgenda(st(), fiches(), U.config(), moi, svs, debut, fin, Date.now());
+    if (types.indexOf('agenda') >= 0) m.elements.forEach(function (x) {
+      var r = x.rdv;
+      if (svsExport.indexOf(r.service) < 0) return;
+      var salle = r.salle && U.salles && s.ouvert('salles') ? U.salles.nomSalle(r.salle) : '';
+      res.push({ cle: 'agenda-' + r.id + '-' + x.occurrence, debut: x.debut, fin: x.fin || x.debut + 3600000, titre: libelleSansPatient(r), lieu: [r.lieu, salle].filter(Boolean).join(', ') });
+    });
+    if (types.indexOf('absences') >= 0) m.absences.forEach(function (a) {
+      res.push({ cle: 'absence-' + a.id, debut: minuit(a.debut), fin: plusJours(minuit(a.fin || a.debut), 1), journee: true, titre: 'Absence' + (a.categorie && A.CATEGORIES_ABSENCE[a.categorie] ? ' (' + A.CATEGORIES_ABSENCE[a.categorie].toLowerCase() + ')' : '') });
+    });
+    if (types.indexOf('salles') >= 0 && U.salles && s.ouvert('salles')) U.salles.miennes(debut, fin).filter(function (o) { return !o.etat; }).forEach(function (o) {
+      res.push({ cle: 'salle-' + (o.ref || o.id || o.salle + '-' + o.debut), debut: o.debut, fin: o.fin, titre: o.genre === 'simple' ? 'Réservation de salle' : o.titre, lieu: U.salles.nomSalle(o.salle) });
+    });
+    return res.sort(function (a, b) { return a.debut - b.debut; });
+  }
+  function modaleExportIcs() {
+    var svs = U.App.session.mesServices().map(function (x) { return x.code || x; }), o = A.echangesIcs(U.config(), svs);
+    var auj = minuit(Date.now()), du = h('input', { type: 'date', value: A.jourISO(lundi(auj)) }), au = h('input', { type: 'date', value: A.jourISO(plusJours(lundi(auj), 34)) });
+    var choisis = Array.isArray(prefs().icsTypes) ? prefs().icsTypes.filter(function (k) { return TYPES_EXPORT[k]; }) : Object.keys(TYPES_EXPORT);
+    var cases = Object.keys(TYPES_EXPORT).map(function (k) { return { k: k, cb: h('input', { type: 'checkbox', checked: choisis.indexOf(k) >= 0 }) }; });
+    U.modale('Exporter vers mon agenda (.ics)', h('div', { class: 'pile' },
+      h('div', { class: 'grille-2' }, h('label', {}, 'Du', du), h('label', {}, 'Au (inclus)', au)),
+      h('div', { class: 'pile' }, cases.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: TYPES_EXPORT[c.k] })); })),
+      o.services.length < svs.length ? h('p', { class: 'muted', text: 'Les événements de ' + svs.filter(function (x) { return o.services.indexOf(x) < 0; }).map(U.libService).join(', ') + ' ne sont pas exportés (réglage du service).' }) : null,
+      h('p', { class: 'muted', text: 'Aucune identité de patient dans le fichier : chaque rendez-vous garde son type, son lieu et son horaire, sans nom, initiales, chambre ni commentaire. Ouvrez le fichier avec Outlook, Zimbra ou Thunderbird pour l’ajouter à votre agenda.' }),
+      h('p', { class: 'muted', text: 'Refaites l’export après chaque changement : les rendez-vous déjà importés sont mis à jour, ceux retirés de Tessera depuis le dernier export apparaissent annulés.' })),
+      [{ texte: 'Annuler' }, { texte: 'Exporter', classe: 'primaire', action: async function () {
+        var d = A.depuisISO(du.value), f0 = A.depuisISO(au.value);
+        if (d === null || f0 === null || f0 < d) throw new Error('Indiquez une période valide.');
+        if (f0 - d > 400 * 86400000) throw new Error('Période trop longue (un an au plus).');
+        var types = cases.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.k; });
+        if (!types.length) throw new Error('Choisissez au moins un type de rendez-vous.');
+        var f = plusJours(f0, 1), evts = evenementsExport(d, f, types, o.services);
+        var cmp = SIC.ics.comparer(prefs().icsExportes, evts, d, f);
+        var texte = SIC.ics.ecrire(evts, { nom: 'Tessera — ' + (U.App.session.compteEffectif().nom || 'mon agenda'), annules: cmp.annules });
+        await U.exporter('agenda', 'mon-agenda-tessera-' + du.value + '-' + au.value + '.ics', texte, 'text/calendar', { service: svs.length === 1 ? svs[0] : undefined });
+        try { await U.App.session.enregistrerPreference('icsTypes', types); await U.App.session.enregistrerPreference('icsExportes', cmp.memoire); } catch (e) { /* préférence non gardée : sans conséquence */ }
+        U.toast(evts.length + ' rendez-vous exporté(s)' + (cmp.annules.length ? ', ' + cmp.annules.length + ' annulé(s)' : '') + '.');
+      } }]);
+  }
+  function modaleImportIcs() {
+    var svs = U.App.session.mesServices().map(function (x) { return x.code || x; }), o = A.echangesIcs(U.config(), svs), c0 = coucheActuelle();
+    var fichier = h('input', { type: 'file', accept: '.ics,text/calendar', 'aria-label': 'Fichier d’agenda (.ics)' });
+    var garder = o.garder ? h('input', { type: 'checkbox', checked: !!(c0 && c0.gardee) }) : null;
+    var boutons = [{ texte: 'Annuler' }];
+    if (c0) boutons.push({ texte: 'Retirer l’agenda importé', classe: 'danger', action: async function () {
+      couche = null;
+      if (prefs().icsCouche) await U.App.session.enregistrerPreference('icsCouche', null);
+      U.toast('Agenda importé retiré.');
+    } });
+    boutons.push({ texte: 'Importer', classe: 'primaire', action: async function () {
+      var f = fichier.files && fichier.files[0];
+      if (!f) throw new Error('Choisissez le fichier .ics exporté de votre messagerie.');
+      if (f.size > 5 * 1024 * 1024) throw new Error('Fichier trop volumineux (5 Mo au plus).');
+      var maintenant = Date.now(), evts = SIC.ics.lire(await f.text(), plusJours(minuit(maintenant), -60), plusJours(minuit(maintenant), 365)).slice(0, 3000);
+      if (!evts.length) throw new Error('Aucun rendez-vous lisible dans ce fichier (entre deux mois avant et un an après aujourd’hui).');
+      couche = { nom: f.name, evenements: evts, visible: true, gardee: !!(garder && garder.checked) };
+      await U.App.session.enregistrerPreference('icsCouche', couche.gardee ? { nom: f.name, evenements: evts, visible: true, le: new Date(maintenant).toISOString() } : null);
+      U.toast(evts.length + ' rendez-vous importé(s), affichés dans Mon agenda.');
+    } });
+    U.modale('Importer mon agenda (.ics)', h('div', { class: 'pile' },
+      c0 ? h('p', {}, h('b', { text: 'Agenda importé : ' }), c0.nom + ' (' + c0.evenements.length + ' rendez-vous' + (c0.gardee ? ', gardé d’une connexion à l’autre' : ', jusqu’à la déconnexion') + ')') : null,
+      h('label', {}, 'Fichier exporté de votre messagerie (Outlook, Zimbra…)', fichier),
+      garder ? h('label', { class: 'case' }, garder, h('span', { text: 'Garder cet agenda d’une connexion à l’autre (chiffré avec votre clé personnelle)' })) : null,
+      h('p', { class: 'muted', text: 'Le fichier est lu sur ce poste et n’est jamais copié sur le partage. Seuls l’horaire, l’objet et le lieu sont repris, affichés à part dans Mon agenda, pour vous seul(e) : rien n’est inscrit au journal ni visible des autres agents.' }),
+      h('p', { class: 'muted', text: 'Dans Outlook : Fichier → Enregistrer le calendrier (ou Partager → Exporter) ; dans Zimbra : Préférences → Importer/Exporter → Exporter le calendrier.' })), boutons);
+  }
+  function carteExterne(e, j0) {
+    var j1 = plusJours(j0, 1), plage = e.journee ? 'Journée' : (e.debut < j0 ? '…' : hm(e.debut)) + ' – ' + (e.fin >= j1 ? '…' : hm(e.fin));
+    return h('article', { class: 'agenda-element agenda-importe', title: 'Agenda importé (lecture seule)' },
+      h('div', { class: 'agenda-plage', text: plage }), h('b', { text: e.objet }), e.lieu ? h('div', {}, h('small', { text: e.lieu })) : null);
+  }
+  I.modaleExportIcs = modaleExportIcs;
+  I.modaleImportIcs = modaleImportIcs;
+  I.evenementsExport = evenementsExport;
+
   function vueMonAgenda(maintenant) {
     var s = U.App.session, moi = moiAvecGroupes(), svs = s.mesServices().map(function (x) { return x.code || x; });
     var debut = lundi(vue.ref), fin = plusJours(debut, 7), m = A.monAgenda(st(), fiches(), U.config(), moi, svs, debut, fin, maintenant);
-    var colonnes = [];
+    var colonnes = [], ech = A.echangesIcs(U.config(), svs), cx = ech.importer ? coucheActuelle() : null;
     for (var i = 0; i < 7; i++) {
       var j0 = plusJours(debut, i), j1 = plusJours(debut, i + 1), iso = A.jourISO(j0);
       var els = m.elements.filter(function (x) { return x.debut < j1 && (x.fin || x.debut) >= j0; }), ts = m.taches.filter(function (x) { return x.occurrence === iso; });
       var abs = m.absences.filter(function (a) { return a.debut < j1 && (a.fin || a.debut) >= j0; });
+      var ext = cx && cx.visible ? cx.evenements.filter(function (e) { return e.debut < j1 && (e.fin > j0 || (e.fin === e.debut && e.debut >= j0)); }) : [];
       colonnes.push(h('section', { class: 'agenda-jour' + (j0 === minuit(maintenant) ? ' aujourdhui' : '') }, h('h3', { text: libJour(j0) }),
         abs.length ? h('div', { class: 'agenda-absents' }, h('span', { text: 'Absent(e)' + (abs[0].categorie ? ' (' + (A.CATEGORIES_ABSENCE[abs[0].categorie] || '').toLowerCase() + ')' : '') })) : null,
         ts.length ? h('div', { class: 'agenda-taches' }, ts.map(ligneTache)) : null,
-        els.length ? els.map(function (x) { return carteElement(x, j0, svs.length > 1); }) : (ts.length || abs.length ? null : h('p', { class: 'muted', text: '—' }))));
+        els.length ? els.map(function (x) { return carteElement(x, j0, svs.length > 1); }) : (ts.length || abs.length || ext.length ? null : h('p', { class: 'muted', text: '—' })),
+        ext.map(function (e) { return carteExterne(e, j0); })));
     }
     return h('div', {},
-      h('div', { class: 'barre' }, h('h1', { text: 'Mon agenda' }), h('div', { class: 'espace' }), h('button', { class: 'btn', onclick: function () { modaleAbsence(null); } }, '+ Absence')),
+      h('div', { class: 'barre' }, h('h1', { text: 'Mon agenda' }), h('div', { class: 'espace' }),
+        ech.exporter ? h('button', { class: 'btn', type: 'button', onclick: modaleExportIcs }, 'Exporter vers mon agenda (.ics)') : null,
+        ech.importer ? h('button', { class: 'btn', type: 'button', onclick: modaleImportIcs }, cx ? 'Agenda importé…' : 'Importer mon agenda (.ics)') : null,
+        cx ? h('button', { class: 'btn', type: 'button', 'aria-pressed': cx.visible ? 'true' : 'false', onclick: async function () { cx.visible = !cx.visible; if (cx.gardee) { try { var g = Object.assign({}, prefs().icsCouche, { visible: cx.visible }); await U.App.session.enregistrerPreference('icsCouche', g); } catch (e) { /* sans conséquence */ } } U.rendreContenu(); } }, cx.visible ? 'Masquer l’agenda importé' : 'Afficher l’agenda importé') : null,
+        h('button', { class: 'btn', onclick: function () { modaleAbsence(null); } }, '+ Absence')),
       bandeauAvis(),
       m.alertes.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Alertes qui me sont adressées' }), h('div', { class: 'pile' }, m.alertes.map(function (a) { return carteAlerte(a, svs.length > 1); }))) : null,
       // Salles réservées par l'agent cette semaine (Salles et bureaux, 0.25.1) ; celles de ses événements figurent sur leur carte
@@ -427,7 +524,7 @@
         h('button', { class: 'btn petit', type: 'button', onclick: function () { vue.ref = plusJours(vue.ref, 7); U.rendreContenu(); } }, '▶'),
         h('b', { text: 'Semaine du ' + libJour(debut) + ' au ' + libJour(plusJours(debut, 6)) + ' ' + new Date(debut).getFullYear() })),
       h('div', { class: 'agenda-semaine' }, colonnes),
-      h('p', { class: 'muted' }, h('small', { text: 'Tous vos services réunis : accompagnements, activités et réunions où vous êtes prévu(e), tâches qui vous sont affectées ou qui reviennent à votre rôle, vos absences. Cette vue reste dans Tessera : aucune copie hors de l’outil.' })));
+      h('p', { class: 'muted' }, h('small', { text: 'Tous vos services réunis : accompagnements, activités et réunions où vous êtes prévu(e), tâches qui vous sont affectées ou qui reviennent à votre rôle, vos absences. Cette vue reste dans Tessera : aucune copie hors de l’outil, sauf l’export que vous faites vous-même vers votre messagerie (sans identité de patient).' + (cx && cx.visible ? ' En pointillés : votre agenda importé « ' + cx.nom + ' », en lecture seule, visible de vous seul(e).' : '') })));
   }
 
   // ------------------------------------------------------------ Réglages (Administration → Agenda)

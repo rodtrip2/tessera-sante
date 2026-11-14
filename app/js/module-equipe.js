@@ -179,7 +179,7 @@
     acces: ACCES,
     droits: D,
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: cibles },
-    reglages: { defaut: {}, groupes: [], exclus: [] },
+    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { boitesMail: controlerBoites } },
     vues: { onglets: [{ code: 'annuaire', libelle: 'Annuaire' }, { code: 'referents', libelle: 'Référents' }, { code: 'ma-fiche', libelle: 'Ma fiche' }, { code: 'prets', libelle: 'Prêts de droits' }, { code: 'medecins', libelle: 'Médecins', droit: 'COORDONNEES_MEDECIN' }] },
     migrations: [],
     fournitures: [
@@ -191,6 +191,15 @@
   };
   contrat.fournitures.push({ nom: 'equipe.referents', version: 1, acces: 'lecture', champs: ['domaine', 'libelle', 'titulaires', 'suppleants', 'precision'], lire: function (st, o) { return referents(st, o.service); } });
 
+  /** Boîtes aux lettres du service (`config.boitesMail`, lot A, 14 novembre 2026) : le cadre change seulement celles de ses services. */
+  function controlerBoites(ancien, nouveau, compte) {
+    var roles = (compte && compte.roles) || [], sv = (compte && compte.services) || [];
+    if (roles.indexOf('ADMIN') >= 0) return true;
+    if (roles.indexOf('CADRE') < 0 || !nouveau || typeof nouveau !== 'object' || Array.isArray(nouveau)) return false;
+    var a = ancien || {}, cles = {};
+    Object.keys(a).concat(Object.keys(nouveau)).forEach(function (k) { cles[k] = 1; });
+    return Object.keys(cles).every(function (k) { return JSON.stringify(a[k]) === JSON.stringify(nouveau[k]) || (k !== '*' && sv.indexOf(k) >= 0); });
+  }
   registre.declarer(contrat);
-  return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, ETABLISSEMENT: ETABLISSEMENT, DOMAINES_DEFAUT: DOMAINES_DEFAUT, domaines: domaines, referents: referents, referentDe: referentDe, gereReferents: gereReferents, fiche: fiche, clesAgent: clesAgent, clesMedecin: clesMedecin, gere: gere, controler: controler, permisPourSoi: permisPourSoi, TEL: TEL, MAIL: MAIL };
+  return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, ETABLISSEMENT: ETABLISSEMENT, DOMAINES_DEFAUT: DOMAINES_DEFAUT, domaines: domaines, referents: referents, referentDe: referentDe, gereReferents: gereReferents, fiche: fiche, clesAgent: clesAgent, clesMedecin: clesMedecin, gere: gere, controler: controler, controlerBoites: controlerBoites, permisPourSoi: permisPourSoi, TEL: TEL, MAIL: MAIL };
 });

@@ -521,8 +521,8 @@
       return null;
     }
   }
-  var LIB_CATEGORIES_EXPORT = { decomptes: 'Décomptes JLD', registres: 'Registres', statistiques: 'Statistiques', communication: 'Registre pour communication', patients: 'Droit d’accès', archives: 'Archives annuelles', reglages: 'Réglages' };
-  function typeFichier(nom) { return /\.pdf$/i.test(nom) ? 'application/pdf' : /\.csv$/i.test(nom) ? 'text/csv;charset=utf-8' : /\.json$/i.test(nom) ? 'application/json' : 'application/octet-stream'; }
+  var LIB_CATEGORIES_EXPORT = { decomptes: 'Décomptes JLD', registres: 'Registres', statistiques: 'Statistiques', communication: 'Registre pour communication', patients: 'Droit d’accès', archives: 'Archives annuelles', reglages: 'Réglages', agenda: 'Agendas exportés (.ics)' };
+  function typeFichier(nom) { return /\.pdf$/i.test(nom) ? 'application/pdf' : /\.csv$/i.test(nom) ? 'text/csv;charset=utf-8' : /\.json$/i.test(nom) ? 'application/json' : /\.ics$/i.test(nom) ? 'text/calendar;charset=utf-8' : 'application/octet-stream'; }
   function taille(o) { return o < 1024 ? o + ' o' : o < 1048576 ? Math.round(o / 1024) + ' Ko' : (o / 1048576).toFixed(1).replace('.', ',') + ' Mo'; }
 
   /** Raccourci Windows (.url) vers un dossier réseau : à garder sur le bureau, il ouvre l'Explorateur sur ce dossier. */

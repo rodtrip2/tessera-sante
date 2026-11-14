@@ -28,7 +28,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -155,6 +155,10 @@
       // Demandes de travaux (0.22.0) : numéro des services techniques ; case « chambre indisponible » proposée en Unité 1
       cfg('travaux', { '*': { telephone: '5555 (fictif)' }, U1: { chambreIndisponible: true, salleIndisponible: true } });
       cfg('vehiculesInformation', { U2: { roles: ['CADRE'], groupes: ['groupe-qualite'], agents: [] } });
+      cfg('boitesMail', { '*': [{ libelle: 'Services techniques (fictif)', adresse: 'services.techniques@hopital-fictif.example', roles: [], webmail: 'https://webmail.hopital-fictif.example' }],
+        U1: [{ libelle: 'Paramédicaux Unité 1 (fictif)', adresse: 'paramedicaux.u1@hopital-fictif.example', roles: ['IDE', 'AS'], webmail: 'https://webmail.hopital-fictif.example' },
+          { libelle: 'Secrétariat Unité 1 (fictif)', adresse: 'secretariat.u1@hopital-fictif.example', roles: ['SECRETAIRE'], webmail: 'https://webmail.hopital-fictif.example' },
+          { libelle: 'Cadre de santé Unité 1 (fictif)', adresse: 'cadre.u1@hopital-fictif.example', roles: ['CADRE'], webmail: 'https://webmail.hopital-fictif.example' }] });
       cfg('barreModules', { active: true, defauts: { IDE: ['aujourdhui', 'patients', 'agenda', 'isocont', 'messagerie'], AS: ['aujourdhui', 'patients', 'agenda', 'isocont', 'messagerie'], SECRETAIRE: ['aujourdhui', 'agenda', 'suivi', 'messagerie'] } });
       cfg('etiquettesCommunes', { '*': [{ code: 'qualite', libelle: 'Qualité', couleur: 'vert' }], U1: [{ code: 'pharmacie', libelle: 'Pharmacie', couleur: 'bleu' }] });
       // Validations (13 novembre 2026) : un avis rendu, un accord hiérarchique après information du délégué, une fonction

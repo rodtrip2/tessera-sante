@@ -71,7 +71,7 @@
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
   // validations (13 novembre 2026) : lues par tous les modules, donc dans le journal du socle
-  var REGLAGES_SOCLE = { validations: 1, etiquettesCommunes: 1, barreModules: 1, etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
+  var REGLAGES_SOCLE = { validations: 1, etiquettesCommunes: 1, barreModules: 1, boitesMail: 1, etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
     champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, conges: 1, messagerie: 1, documents: 1, masquesDocuments: 1, salles: 1, infos: 1, poles: 1, chambres: 1, delegations: 1, comptesDemandes: 1, charteIntervenants: 1 };
   /** Champs ajoutés (0.18.0) : définitions, droits réglés pour chaque donnée, clés propres (`d-<id>`). */
   function CH() { return socle('champs', './champs.js'); }

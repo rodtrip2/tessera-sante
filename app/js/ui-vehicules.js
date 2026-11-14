@@ -185,9 +185,6 @@
     var motif = h('input', { type: 'text', maxlength: 120, value: x.motif || '', placeholder: 'Précision (facultatif)' });
     var liste = V.pretsDe(st(), v.id, minuit(Date.now()), Infinity);
     var boutons = [{ texte: 'Fermer' }];
-    // « Envoyer par message » (messagerie, 0.23.0) : nouveau message avec la réservation rattachée
-    if (r && U.messagerie && U.messagerie.peutEnvoyer()) boutons.push(U.messagerie.boutonModale('vehicules', 'reservation', r.id, r.service));
-    if (r && U.mesTaches) { var bml = U.mesTaches.boutonModale('vehicules', 'reservation', r.id, r.service, ''); if (bml) boutons.push(bml); }
     if (p) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () { await U.App.session.enregistrer('PRET', { id: p.id, vehicule: v.id, supprime: true }); U.toast('Prêt supprimé.'); } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       if (!debut.value) throw new Error('Indiquez le premier jour.');
@@ -240,6 +237,11 @@
     dateD.addEventListener('change', function () { if (dateF.value < dateD.value) dateF.value = dateD.value; });
     majVehicules();
     var boutons = [{ texte: 'Fermer' }];
+    // « Envoyer par message » (messagerie, 0.23.0) : nouveau message avec la réservation rattachée
+    if (r && U.messagerie && U.messagerie.peutEnvoyer()) boutons.push(U.messagerie.boutonModale('vehicules', 'reservation', r.id, r.service));
+    if (r && U.mesTaches) { var bml = U.mesTaches.boutonModale('vehicules', 'reservation', r.id, r.service, ''); if (bml) boutons.push(bml); }
+    // « Écrire à… » (messageries du service sans connexion, 14 novembre 2026)
+    if (r && U.messageries) { var bec = U.messageries.boutonModale(function () { var vv = st().vehicules[r.vehicule]; return 'Réservation du véhicule ' + (vv ? V.libelleVehicule(vv) : '') + ' — ' + quand(r); }, { services: [r.service] }); if (bec) boutons.push(bec); }
     var moiOuDroit = r && (peut('RESERVATION') || r.agent === m.id || r.par === m.id);
     if (r && moiOuDroit) boutons.push({ texte: 'Annuler la réservation', classe: 'danger', action: async function () {
       var mo = prompt('Annuler la réservation ' + quand(r) + ' ? Motif (facultatif) :', '');

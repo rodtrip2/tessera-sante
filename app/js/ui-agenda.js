@@ -1123,6 +1123,8 @@
     // « Envoyer par message » (messagerie, 0.23.0) : nouveau message avec l'événement rattaché
     if (!nouveau && U.messagerie && U.messagerie.peutEnvoyer()) boutons.push(U.messagerie.boutonModale('agenda', 'evenement', r.id, r.service));
     if (!nouveau && U.mesTaches) { var bml = U.mesTaches.boutonModale('agenda', 'evenement', r.id, r.service, r.titre || ''); if (bml) boutons.push(bml); }
+    // « Écrire à… » (messageries du service sans connexion) : objet sans identité de patient (titre écarté s'il y a des patients)
+    if (!nouveau && U.messageries) { var bec = U.messageries.boutonModale(function () { var d0 = occurrence ? A.depuisISO(occurrence) : null; return libelleElement(r.patients && r.patients.length ? Object.assign({}, r, { titre: '' }) : r) + (d0 !== null ? ' du ' + libJour(d0) : ''); }, { services: [r.service] }); if (bec) boutons.push(bec); }
     var propres = (x.surchargee || []).map(function (k) { return LIB_CHAMPS[k] || k; });
     if (!lecture && parDate && x.annulee) boutons.push({ texte: 'Rétablir cette date', action: async function () {
       await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, annulee: false, service: x.service });

@@ -255,6 +255,8 @@
     etiquettesCommunes: {},
     // Barre des modules (barre-modules.js, 14 novembre 2026) : { active (désactivée par défaut), defauts: { ROLE: [fenêtres] } }
     barreModules: {},
+    // Messageries du service sans connexion (messageries.js, 14 novembre 2026) : { '*': [boîtes], <service>: [boîtes] }
+    boitesMail: {},
     agenda: {},            // module Agenda (journal du socle) : { identite: 'initiales' | 'aucune' | 'ipp' | 'nom', typesAlertes: [{ code, libelle }] } ; vide = défauts
     importPatients: {},    // module Patients : modèles d'import de la liste du DPI { modeles: { '*': modèle, U1: modèle } } (noms de colonnes et correspondances, aucune donnée de patient)
     medecins: {},          // liste commune des médecins (medecins.js) : { liste, gestion } ; reprend l'ancienne liste « psychiatres »
@@ -2106,6 +2108,7 @@
     { code: 'suiviMedical', libelle: 'Module Suivi médical : délais d’alerte, gardes et astreintes, lieux de présence', cles: ['suiviMedical'] },
     { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
     { code: 'affichage', libelle: 'Points de vigilance, écran de connexion (contact, consigne, logo), barre des modules', cles: ['vigilance', 'affichage', 'barreModules'] },
+    { code: 'boitesMail', libelle: 'Messageries du service : boîtes aux lettres et webmail', cles: ['boitesMail'] },
     { code: 'roles', libelle: 'Rôles et accès, verrouillage après inactivité', cles: ['roles', 'inactiviteMinutes'] },
     { code: 'groupes', libelle: 'Groupes d’agents (équipes, groupes de travail)', cles: ['groupes'] },
     { code: 'legal', libelle: 'Règles légales (seuils et cycles JLD)', cles: ['parametres'], prudence: true },

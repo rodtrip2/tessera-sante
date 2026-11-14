@@ -125,7 +125,7 @@
         h('div', {}, h('small', { class: 'muted', text: 'Fonction' }), h('div', { text: f.fonction || (med ? (SIC.medecins.FONCTIONS || {})[med.fonction] || 'Médecin' : '') || libRoles(a.roles) || '—' })),
         h('div', {}, h('small', { class: 'muted', text: 'Services' }), h('div', { text: a.services.map(U.libService).join(', ') || '—' })),
         h('div', {}, h('small', { class: 'muted', text: 'Téléphone professionnel' }), h('div', {}, boutonCopie(f.telPro, 'Copier le numéro'))),
-        h('div', {}, h('small', { class: 'muted', text: 'Courriel professionnel' }), h('div', {}, boutonCopie(f.mailPro, 'Copier l’adresse')))),
+        h('div', {}, h('small', { class: 'muted', text: 'Courriel professionnel' }), h('div', {}, boutonCopie(f.mailPro, 'Copier l’adresse'), f.mailPro && U.messageries ? ' ' : null, f.mailPro && U.messageries ? U.messageries.lienMail(f.mailPro, '', 'Écrire un courriel') : null))),
       zonePerso, id === moi().id ? null : blocDonnees(a, false).noeud,
       U.documents ? U.documents.section('equipe', 'agent', id, 'Agent : ' + a.nom, (a.services || [])[0]) : null);
     U.modale(a.nom, conges ? U.ongletsLocaux([['coordonnees', 'Coordonnées', coord], ['conges', 'Congés et droits', conges]], { cle: 'fiche-agent', libelle: 'Rubriques de la fiche' }) : coord,
@@ -173,7 +173,7 @@
     var mes = mesServices(), voitTout = s().roles().indexOf('ADMIN') >= 0, c = compte();
     var l = agents().filter(function (a) { return voitTout || a.services.some(function (x) { return mes.indexOf(x) >= 0; }) || a.id === moi().id; });
     if (U.App.service !== '*') l = l.filter(function (a) { return a.services.indexOf(U.App.service) >= 0; });
-    return h('section', { class: 'panneau' }, h('h2', { text: 'Annuaire de l’équipe' + (U.App.service !== '*' ? ' — ' + U.libService(U.App.service) : '') }),
+    return h('div', { class: 'pile' }, U.messageries ? U.messageries.sectionAnnuaire(U.App.service) : null, h('section', { class: 'panneau' }, h('h2', { text: 'Annuaire de l’équipe' + (U.App.service !== '*' ? ' — ' + U.libService(U.App.service) : '') }),
       h('div', { class: 'barre' }, h('p', { class: 'muted', text: 'Coordonnées professionnelles des agents de vos services. Un clic sur un nom ouvre sa fiche de contact ; un clic sur un numéro le copie.' }), h('div', { class: 'espace' }),
         U.champs && U.champs.boutonGerer ? U.champs.boutonGerer('agent', function () { U.rendreContenu(); }) : null),
       h('div', { class: 'table-wrap' }, h('table', { class: 'eq-annuaire' },
@@ -183,7 +183,7 @@
           return h('tr', {}, h('td', {}, lien(a.id, a.nom), a.compte ? null : h('small', { class: 'muted', text: ' (sans compte)' })), h('td', { text: f.fonction || libRoles(a.roles) }),
             h('td', { text: a.services.map(U.libService).join(', ') }), h('td', { class: 'nowrap' }, boutonCopie(f.telPro, 'Copier le numéro')), h('td', {}, boutonCopie(f.mailPro, 'Copier l’adresse')),
             h('td', { class: 'actions-ligne' }, a.id !== moi().id && E.gere(c, a.id, a.services) && s().peut('COORDONNEES') && !s().apercu ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleFiche(a); } }, 'Modifier') : null));
-        })))));
+        }))))));
   }
   function vueMaFiche() {
     var a = agent(moi().id) || { id: moi().id, nom: moi().nom, roles: moi().roles || [], services: moi().services || [], compte: true }, f = E.fiche(st(), a.id);
@@ -334,6 +334,7 @@
 
   SIC.modules.completerInterface('equipe', {
     vues: { annuaire: vueAnnuaire, referents: vueReferents, 'ma-fiche': vueMaFiche, medecins: vueMedecins },
+    admin: { onglets: function () { return U.messageries ? [['equipe', 'Équipe', [U.messageries.panneauReglage()].filter(Boolean)]] : []; }, cadre: function () { return U.messageries ? [U.messageries.panneauReglage()].filter(Boolean) : []; } },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'La fiche revient à son état précédent.'; } }
   });
   U.equipe = { contact: contact, lien: lien, agents: agents, tableReferents: function (sv) { try { return s().ouvert('equipe') ? tableReferents(sv, false) : null; } catch (e) { return null; } } };

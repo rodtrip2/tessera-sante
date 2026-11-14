@@ -1414,3 +1414,7 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
 .menu-module-nom { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); }
 .menu-module-nom .icone-module { width: 20px; height: 20px; }
 .menu-module .pastille { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: .7rem; font-weight: 700; line-height: 18px; }
+
+/* Agenda importé (.ics), lecture seule, lot A (14 novembre 2026) */
+.agenda-element.agenda-importe { border: 1px dashed var(--muted); background: transparent; cursor: default; opacity: .9; }
+.agenda-element.agenda-importe b { font-weight: 600; }
