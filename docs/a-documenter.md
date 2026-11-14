@@ -927,3 +927,17 @@ Décisions du porteur du 14 novembre 2026 : **module propre**, durées **en heur
 | Démonstration | Fonction activée sur accord hiérarchique ; heures acceptées (dont en partie), à valider, refusées, annulées, enregistrées ; récupérations validée et demandée ; correction de solde ; heures du cadre à valider par le cadre supérieur | `demo.js` |
 | Tests et parcours | `tests/heures.test.js` ; parcours : déclaration, acceptation en partie, enregistrement, soldes, totaux, réglages | `tests/ecrans/parcours.py` |
 | À valider | Ressources humaines : paiement des heures dans Tessera ou non, plafond, motifs ; délégué : durée de conservation des déclarations ; lien avec le logiciel de gestion du temps (export à son format, plus tard) |
+
+## Version 0.65.1 (branche `heures-prevu`, 15 novembre 2026) : heures en plus ou en moins d'après l'horaire prévu
+
+Correction du porteur du 15 novembre 2026 : l'agent déclare l'**horaire prévu** (raccourcis : postes du service) puis l'**horaire réellement effectué** ; l'écart donne les **h+ ou les h−**. Motifs proposés dans une liste, avec possibilité d'**écrire un autre motif**. Les **h+ payées** impactent la paie : le supérieur qui les valide les saisit **en priorité** dans le logiciel de gestion du temps.
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Déclaration | Date, horaire prévu (boutons des postes, ou « Repos (rappel) » : prévu compté zéro), horaire effectué ; écart affiché en direct (« Heures en plus : +1 h 15 », « Heures en moins : −1 h 30 ») et contrôlé ; saisie `HEURES_DECLARATION` enrichie (`prevuDebut`, `prevuFin`, `repos`, `poste`, `motifLibre`, `minutes` signé) | `module-heures.js`, `ui-heures.js`, `app.css` |
+| Postes | Réglage `heures.postes` { '*', <service> } (« libellé;début;fin ») ; sans réglage : postes de l'établissement, sinon postes de surveillance du service (`periodesDe`) | `module-heures.js` (`postesDe`), Administration → Heures supplémentaires |
+| Motifs | Liste par défaut revue (dont départ anticipé ou arrivée tardive, à la demande de l'agent ou du service ; accompagnement d'un patient) ; « Autre motif (à écrire)… » remplace « Autre » | — |
+| Heures en moins | Validées (« déduites » du solde, en partie possible) ou refusées ; jamais en récupération ni payées ; colonne « Heures en moins » du solde, « En moins » des totaux, « Heures en moins » de l'export | statut `deduit` |
+| Heures payées prioritaires | En tête de la liste « À enregistrer » du validateur qui les a acceptées, badge « Prioritaire : paie », information rouge dans « Aujourd'hui », message à la décision ; le validateur peut les confirmer même si l'étape est désactivée ou si son rôle n'est pas parmi ceux qui confirment (les médecins chefs et le directeur des soins reçoivent ce droit) | `aEnregistrer(…, moi)`, `controler` |
+| Démonstration, tests, parcours | Jeu revu (prévu / effectué, repos, motif libre, h− à valider et déduites, h+ payées à saisir en priorité) ; tests ; parcours : raccourci de poste, écart, motif libre, h− validées, priorité des heures payées | `demo.js`, `tests/heures.test.js`, `tests/ecrans/parcours.py` |
+| À valider | Ressources humaines : traitement des heures en moins (déduction du solde, ou autre règle) ; postes et horaires de référence du service |
