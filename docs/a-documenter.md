@@ -689,3 +689,17 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 | Procédure | Étiquettes signées pour la bêta et la stable : `CLAUDE.md` § 6, point 4 | `CLAUDE.md` |
 | Reliquat | Avertissement à l'ouverture d'un dossier déjà écrit par une version plus récente (dossiers d'essai) : non fait, l'interdiction des données réelles aux versions d'essai couvre le risque principal | — |
 | Documentation | Fiche technique (adresses des trois versions, dossier d'essai), kit (procédure de mise en service et de publication), guide de l'administrateur | — |
+
+## Version 0.48.0 (branche `retours-usage`, 14 novembre 2026) : retours des agents et mesure d'usage (phase 1 du plan d'action)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Module « Retours sur Tessera » | Bouton « Signaler » de l'en-tête (toutes les fenêtres) : défaut ou amélioration, texte libre avec rappel « aucune donnée sur un patient » ; fenêtre, onglet, version (et version bêta ou de développement), navigateur, rôles et nom de l'agent joints d'office. Suivi par le cadre (ses services) et l'administrateur (tous) : nouveau, retenu, écarté (explication obligatoire), fait, réponse lue par l'auteur (information dans sa session, pastille). Export CSV pour le porteur. Retours signés (le journal garde toujours l'auteur : pas d'anonymat possible). Journal `modules\retours\`, clé propre | `module-retours.js`, `ui-retours.js` (nouveaux), `ui.js` (icône, bouton), `tests/retours.test.js` |
+| Droits par défaut | Tous les rôles signalent ; cadre, cadre supérieur et administrateur suivent | `module-retours.js` |
+| Mesure d'usage anonyme | Saisies par module et par semaine (12 semaines) calculées à partir du journal, aucune donnée nouvelle ; nombre d'agents ayant saisi, masqué sous 3 ; jamais d'identité ; cadre limité à ses services ; export CSV. Onglet « Mesure d'usage » de l'administration (administrateur toujours, cadre quand la fonction est activée) | `usage.js`, `ui-usage.js` (nouveaux), `ui.js`, `app.css`, `tests/usage.test.js` |
+| Validations | Nouvelle fonction du catalogue « Mesure d'usage anonyme » (représentants du personnel, délégué à la protection des données), livrée désactivée | `validations.js` |
+| Réglage `validations` dans le journal du socle | Correction : le réglage est rangé avec les réglages communs (`REGLAGES_SOCLE`), lisible par tous les modules, y compris par un agent sans la clé d'Isocont | `session.js` |
+| Démonstration | Cinq retours (nouveau, retenu, fait, écarté, retour de l'agent connecté avec réponse) ; mesure d'usage activée sur accord hiérarchique | `demo.js` |
+| Parcours des écrans | Signaler, retours vus par l'administrateur et par une IDE, écarter avec explication, mesure d'usage | `tests/ecrans/parcours.py` |
+| Restes | Compteurs d'ouverture des fenêtres (non faits : les saisies suffisent pour l'instant) ; courbes (barres dans le tableau) | — |
+| Documentation | Architecture (nouveau module, socle « usage »), fiche technique, kit RGPD (traitement « retours » et mesure d'usage, information des agents), guide de l'agent (bouton Signaler) | — |

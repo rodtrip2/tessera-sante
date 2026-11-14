@@ -1378,3 +1378,9 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
 .cg-annee { width: auto !important; min-width: 0; flex: none; }
 .cg-total-np { font-weight: 600; font-size: .58rem; color: #12a594; }
 .cg-avec-np { flex-direction: column; line-height: 1.05; }
+
+/* Mesure d'usage (lot O, 14 novembre 2026) : nombre et barre proportionnelle (--part réglée par CSSOM) */
+.usage-table td.nombre { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.usage-barre { display: block; height: 4px; margin-top: 2px; border-radius: 2px; background: linear-gradient(to left, var(--accent) var(--part, 0%), transparent var(--part, 0%)); }
+.usage-agents td { border-top: 2px solid var(--line); color: var(--ink-2); }
+.retour-carte p { margin: .4rem 0; white-space: pre-wrap; }

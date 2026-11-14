@@ -721,6 +721,7 @@
     equipe: ['M9 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 1 0 0 7', 'M2.5 20c.6-3.6 3.2-6 6.5-6s5.9 2.4 6.5 6', 'M16 4.3a3.5 3.5 0 0 1 0 6.4', 'M18 14.4c1.9.8 3.2 2.9 3.5 5.6'],
     salles: ['M4 21V4h16v17', 'M2 21h20', 'M9 21v-6h6v6', 'M8 8h3', 'M13 8h3', 'M8 11h3', 'M13 11h3'],
     travaux: ['M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z'],
+    retours: ['M4 4h16v12H8l-4 4z', 'M12 7v4', 'M12 13.5v.5'],
     conges: ['M3 5h18v16H3z', 'M3 10h18', 'M8 2v5', 'M16 2v5', 'M8 15l2.5 2.5L16 13'],
     documents: ['M6 2h8l5 5v15H6z', 'M14 2v5h5', 'M9 12h7', 'M9 15h7', 'M9 18h5'],
     vehicules: ['M5 17h14v-5l-2-5H7l-2 5z', 'M3 12h18', 'M7 17v2', 'M17 17v2', 'M7.5 14.5h1', 'M15.5 14.5h1'],
@@ -764,8 +765,8 @@
     if (App.fenetre === 'aujourdhui') return [['aujourdhui', 'Aujourd’hui']];
     if (App.fenetre === 'admin') {
       // Validations (13 novembre 2026) : fonctions soumises à avis, consultées par le cadre, modifiées par l'administrateur
-      if (App.session && App.session.roles().indexOf('ADMIN') < 0) return [['groupes', 'Groupes d’agents']].concat(modulesCadre().map(function (m) { return ['cadre-' + m.id, m.libelle]; }), [['validations', 'Validations'], ['journal', 'Journal']]);
-      return [['admin-accueil', 'Accueil'], ['admin', 'Réglages généraux'], ['validations', 'Validations'], ['groupes', 'Groupes d’agents']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['journal', 'Journal']]);
+      if (App.session && App.session.roles().indexOf('ADMIN') < 0) return [['groupes', 'Groupes d’agents']].concat(modulesCadre().map(function (m) { return ['cadre-' + m.id, m.libelle]; }), [['validations', 'Validations'], ['usage', 'Mesure d’usage'], ['journal', 'Journal']]);
+      return [['admin-accueil', 'Accueil'], ['admin', 'Réglages généraux'], ['validations', 'Validations'], ['groupes', 'Groupes d’agents']].concat(modulesAdmin().map(function (x) { return ['admin-' + x[0], x[1]]; }), [['usage', 'Mesure d’usage'], ['journal', 'Journal']]);
     }
     var id = App.fenetre === 'patients' ? 'patients' : (App.session ? App.session.moduleAffiche() : null);
     var m = id && SIC.modules.obtenir(id);
@@ -934,6 +935,7 @@
       if (o === 'aujourdhui') return false;
       if (estOngletAdmin(o)) return estAdmin;
       if (o === 'validations') return !!(SIC.ui.validations && SIC.ui.validations.consultable());
+      if (o === 'usage') return !!(SIC.ui.usage && SIC.ui.usage.consultable());
       if (droitOnglet[o] && !estAdmin && ![].concat(droitOnglet[o]).some(function (t) { return s.peut(t); })) return false;
       if (o === 'journal') return nivJournal !== 'aucun' && !anonyme;
       if (anonyme) return o === 'registre';
@@ -974,6 +976,8 @@
       SIC.ui.horsReseau.boutonInstaller(),
       SIC.ui.modaleRecherche && !anonyme ? h('button', { class: 'btn petit', type: 'button', title: 'Rechercher dans Tessera (Ctrl + K)', onclick: function () { SIC.ui.modaleRecherche(); } }, 'Rechercher') : null,
       boutonAffichage(), boutonTheme(),
+      // Retours sur Tessera (lot O, 14 novembre 2026) : signaler un défaut ou une idée depuis n'importe quelle fenêtre
+      SIC.ui.retours && SIC.ui.retours.disponible() ? h('button', { class: 'btn petit', type: 'button', title: 'Signaler un défaut ou proposer une amélioration de Tessera (l’écran ouvert est joint)', onclick: function () { SIC.ui.retours.modaleSignaler(); } }, 'Signaler') : null,
       h('button', { class: 'btn petit', title: 'Licence, crédits, signaler un problème', onclick: function () { SIC.ui.apropos.modale(); } }, 'À propos'),
       h('button', { class: 'btn petit', onclick: function () { verrouiller(); } }, 'Verrouiller')));
     zoneEntete.appendChild(h('div', { id: 'actualisation-attente', class: 'actualisation-attente', hidden: !App.miseAJourEnAttente },
@@ -1005,6 +1009,7 @@
     var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: function () { return vueAdmin('general'); }, groupes: function () { return SIC.ui.vueGroupes ? SIC.ui.vueGroupes() : h('p', { class: 'muted', text: 'Groupes indisponibles.' }); } };
     modulesAdmin().forEach(function (x) { vues['admin-' + x[0]] = function () { return vueAdmin(x[0]); }; });
     vues.aujourdhui = function () { return SIC.ui.vueAujourdhui ? SIC.ui.vueAujourdhui() : vues.aucun(); };
+    vues.usage = function () { return SIC.ui.usage ? SIC.ui.usage.vue() : h('p', { class: 'muted', text: 'Mesure d’usage indisponible.' }); };
     vues.validations = function () { return SIC.ui.validations ? SIC.ui.validations.vue() : h('p', { class: 'muted', text: 'Validations indisponibles.' }); };
     vues['admin-accueil'] = function () { return SIC.ui.vueAccueilAdmin ? SIC.ui.vueAccueilAdmin() : vueAdmin('general'); };
     modulesCadre().forEach(function (m) { vues['cadre-' + m.id] = function () { return h('div', { class: 'pile' }, m.interface.admin.cadre()); }; });

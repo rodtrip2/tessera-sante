@@ -160,7 +160,8 @@
       cfg('validations', { etats: {
         vehicules: { etat: 'avis', date: jourIso(-20), auteur: 'Délégué à la protection des données (fictif)', reference: 'Avis écrit, inscription au registre des traitements n° 12 (fictif)' },
         conges: { etat: 'accord', date: jourIso(-10), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-12) },
-        'donnee-clinique': { etat: 'desactive', date: jourIso(-5), auteur: '', reference: 'En attente de l’analyse d’impact (fictif)' }
+        'donnee-clinique': { etat: 'desactive', date: jourIso(-5), auteur: '', reference: 'En attente de l’analyse d’impact (fictif)' },
+        'mesure-usage': { etat: 'accord', date: jourIso(-7), auteur: 'Cadre supérieur de santé (fictif)', reference: 'Agents informés en réunion d’équipe (fictif)' }
       } });
       // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
       cfg('agenda', { categories: {
@@ -543,6 +544,20 @@
       salle({ id: 'SA-ACT', nom: 'Salle d’activités', type: 'activites', capacite: 12, accessible: true, service: '', services: [U1, U2] });
       salle({ id: 'SA-PSY2', nom: 'Bureau du psychologue', type: 'psychologue', capacite: 3, service: U2 });
       salle({ id: 'SA-DET', nom: 'Salon des patients', type: 'autre', capacite: 10, service: U1 });
+      // Retours sur Tessera (lot O, 14 novembre 2026) : défaut nouveau, idée retenue avec réponse, défaut fait, idée écartée,
+      // et un retour de l'agent connecté auquel le cadre a répondu (information dans sa session)
+      var ecr = function (f, o) { return { fenetre: f, onglet: o }; }, nav = 'Edge 131 (fictif)';
+      ajouter(t(-3), 'RETOUR', { id: 'R001', service: U1, nature: 'defaut', texte: 'Le bouton « Enregistrer » de la fiche patient reste grisé après avoir choisi la chambre (fictif)', ecran: ecr('Patients', 'Fiches'), version: SIC.VERSION, navigateur: nav, roles: ['IDE'], nom: 'Agent A (fictif)' }, 'demo-a');
+      ajouter(t(-24 * 6), 'RETOUR', { id: 'R002', service: U1, nature: 'idee', texte: 'Pouvoir imprimer l’agenda de la semaine sur une seule page (fictif)', ecran: ecr('Agenda du service', 'Agenda'), version: SIC.VERSION, navigateur: nav, roles: ['AS'], nom: 'Agent B (fictif)' }, 'demo-b');
+      ajouter(t(-24 * 4), 'RETOUR_SUIVI', { retour: 'R002', service: U1, etat: 'retenu', reponse: 'Bonne idée : transmise au porteur du projet pour une prochaine version (fictif).' , nom: 'Cadre de santé (fictif)' }, 'demo-cadre');
+      ajouter(t(-24 * 12), 'RETOUR', { id: 'R003', service: U2, nature: 'defaut', texte: 'Le tableau des congés déborde sur un petit écran (fictif)', ecran: ecr('Congés', 'Tableau du service'), version: SIC.VERSION, navigateur: nav, roles: ['IDE'], nom: 'Agent C (fictif)' }, 'demo-c');
+      ajouter(t(-24 * 9), 'RETOUR_SUIVI', { retour: 'R003', service: U2, etat: 'fait', reponse: 'Corrigé dans la version suivante (fictif).' , nom: 'Cadre de santé (fictif)' }, 'demo-cadre');
+      ajouter(t(-24 * 15), 'RETOUR', { id: 'R004', service: U1, nature: 'idee', texte: 'Afficher la météo sur la page d’accueil (fictif)', ecran: ecr('Aujourd’hui', 'Aujourd’hui'), version: SIC.VERSION, navigateur: nav, roles: ['IDE'], nom: 'Agent A (fictif)' }, 'demo-a');
+      ajouter(t(-24 * 14), 'RETOUR_SUIVI', { retour: 'R004', service: U1, etat: 'ecarte', reponse: 'Tessera ne se connecte à aucun service extérieur (fictif).' , nom: 'Cadre de santé (fictif)' }, 'demo-cadre');
+      if (options.moi && options.moi.id) {
+        ajouter(t(-24 * 2), 'RETOUR', { id: 'R005', service: U1, nature: 'idee', texte: 'Trier les demandes de travaux par urgence (fictif)', ecran: ecr('Demandes de travaux', 'Demandes'), version: SIC.VERSION, navigateur: nav, roles: ['CADRE'] }, options.moi.id);
+        ajouter(t(-20), 'RETOUR_SUIVI', { retour: 'R005', service: U1, etat: 'retenu', reponse: 'Retenu pour le prochain lot de développement (fictif).', nom: 'Administrateur (fictif)' }, 'demo-admin');
+      }
       // Demande de travaux sur une salle, case « salle indisponible » cochée : salle fermée jusqu'à la fin des travaux
       ajouter(t(-24), 'TRAVAUX', { id: 'TR-SAL', service: U1, type: 'electricite', lieu: 'salle', salle: 'SA-DET', salleNom: 'Salon des patients', salleIndisponible: true, precisionLieu: 'Plafonnier', gravite: 'gene', urgence: 'non', description: 'Plafonnier qui grésille, à vérifier avant usage (fictif)', nom: 'Agent B (fictif)' }, 'demo-b');
       if (options.moi && options.moi.id) ajouter(t(-24), 'SALLE_RESERVATION', { id: 'SR-MOI', salle: 'SA-REU', jour: SIC.model.dateLocaleISO(jour(3)), de: '08:00', a: '09:00', titre: 'Préparation du staff', service: U1, nom: options.moi.nom || '', repetition: { type: 'aucune', jours: [] } }, options.moi.id);

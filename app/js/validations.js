@@ -51,7 +51,10 @@
       ou: 'Administration → Véhicules de l’établissement' },
     { code: 'donnee-clinique', libelle: 'Option « donnée clinique » des données ajoutées', categorie: 'clinique', interlocuteurs: ['dpo', 'rssi', 'soins'], existante: true, champs: ['clinique'],
       description: 'Données ajoutées marquées « donnée clinique » par l’administrateur (clé propre obligatoire). Désactivé : ces données sont masquées partout ; elles sont conservées.',
-      ou: 'Administration → Réglages généraux → données ajoutées' }
+      ou: 'Administration → Réglages généraux → données ajoutées' },
+    { code: 'mesure-usage', libelle: 'Mesure d’usage anonyme', categorie: 'autre', interlocuteurs: ['representants', 'dpo'], existante: false,
+      description: 'Nombre de saisies par module et par semaine, et nombre d’agents ayant saisi (jamais leur identité ; masqué sous 3 agents), calculés à partir du journal, pour évaluer le pilote. Information des agents et des représentants du personnel avant activation.',
+      ou: 'Administration → Mesure d’usage' }
   ];
 
   var ETATS = { desactive: 'Désactivé', accord: 'Activé sur accord hiérarchique (pilote)', avis: 'Activé après avis' };
