@@ -46,6 +46,8 @@
     var TYPES_ADMIN = def.typesAdmin || [], ROLES_FOURNIS = def.rolesFournis || [], ONGLETS_MASQUABLES = def.ongletsMasquables || [];
     var TYPES_EN_PLUS = def.typesEnPlus || {}, JOURNAL_COMPLET = def.rolesJournalComplet || [], ONGLET_REGISTRE_SEUL = def.ongletRegistreSeul || null;
     var MODULE = def.module || null, ENCADREMENT = def.rolesEncadrement || [];
+    // Module désactivé par défaut (Contrôles, 14 novembre 2026) : sans réglage, activé dans aucun service
+    var INACTIF_DEFAUT = !!def.inactifParDefaut;
     // Cadre supérieur de santé (0.27.2) : accès par défaut, journal et encadrement du cadre, dans chaque module
     if (DROITS.CADRE && !DROITS.CADRE_SUP) DROITS = Object.assign({}, DROITS, { CADRE_SUP: DROITS.CADRE.slice() });
     if (TYPES_EN_PLUS.CADRE && !TYPES_EN_PLUS.CADRE_SUP) TYPES_EN_PLUS = Object.assign({}, TYPES_EN_PLUS, { CADRE_SUP: TYPES_EN_PLUS.CADRE.slice() });
@@ -61,13 +63,14 @@
     function activation(config) {
       var v = MODULE && config && config.modulesServices && config.modulesServices[MODULE];
       if (v && v.arret === true) return [];   // module arrêté (0.43.0) : désactivé dans tous les services, réglage par service gardé
-      if (!v || v.tous !== false) return null;
+      if (!v) return INACTIF_DEFAUT ? [] : null;
+      if (v.tous !== false) return null;
       return Array.isArray(v.services) ? v.services.map(String) : [];
     }
     /** Module arrêté depuis l'accueil de l'administration (0.43.0) : fenêtre masquée pour tous, données conservées. */
     function arrete(config) { var v = MODULE && config && config.modulesServices && config.modulesServices[MODULE]; return !!(v && v.arret === true); }
     /** Service choisi dans le réglage par service, sans tenir compte de l'arrêt du module (0.43.0). */
-    function serviceChoisi(config, code) { var v = MODULE && config && config.modulesServices && config.modulesServices[MODULE]; if (!v || v.tous !== false) return true; return (Array.isArray(v.services) ? v.services.map(String) : []).indexOf(code) >= 0; }
+    function serviceChoisi(config, code) { var v = MODULE && config && config.modulesServices && config.modulesServices[MODULE]; if (!v) return !INACTIF_DEFAUT; if (v.tous !== false) return true; return (Array.isArray(v.services) ? v.services.map(String) : []).indexOf(code) >= 0; }
     function serviceActif(config, code) { var a = activation(config); return !a || a.indexOf(code) >= 0; }
     /** Services où le module est désactivé (données conservées, plus de saisie, consultation par l'encadrement). */
     function servicesInactifs(config) {
@@ -239,7 +242,7 @@
       voitTousServices: voitTousServices, exigeService: exigeService, servicesDe: servicesDe, membre: membre, LIRE_ACCES: LIRE_ACCES,
       NIVEAUX_JOURNAL: NIVEAUX_JOURNAL, niveauJournal: niveauJournal, journalVisible: journalVisible,
       ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, registreSeul: registreSeul,
-      module: MODULE, ROLES_ENCADREMENT: ENCADREMENT, activation: activation, arrete: arrete, serviceChoisi: serviceChoisi, serviceActif: serviceActif, servicesInactifs: servicesInactifs, consulteInactifs: consulteInactifs
+      module: MODULE, ROLES_ENCADREMENT: ENCADREMENT, INACTIF_PAR_DEFAUT: INACTIF_DEFAUT, activation: activation, arrete: arrete, serviceChoisi: serviceChoisi, serviceActif: serviceActif, servicesInactifs: servicesInactifs, consulteInactifs: consulteInactifs
     };
   }
 

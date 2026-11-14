@@ -49,6 +49,27 @@
     return res;
   }
 
+  /**
+   * Occupation des chambres de soins intensifs (CSI) depuis `options.depuis` (module Contrôles, 14 novembre 2026) :
+   * lieu, service, début et fin (null si en cours) des mesures en CSI, sans patient.
+   */
+  function occupationsCSI(st, options) {
+    var res = [], o = options || {}, depuis = o.depuis || 0;
+    if (!st || !st.mesures) return res;
+    Object.keys(st.mesures).forEach(function (k) {
+      var m = st.mesures[k];
+      if (m.annulee || (typeof m.fin === 'number' && m.fin < depuis)) return;
+      // Segments : transferts et soins somatiques changent de lieu en cours de mesure
+      var segs = Array.isArray(m.segments) && m.segments.length ? m.segments : [{ debut: m.debut, service: m.service, lieu: m.lieu, csi: m.csi }];
+      segs.forEach(function (sg, i) {
+        var fin = i + 1 < segs.length ? segs[i + 1].debut : (typeof m.fin === 'number' ? m.fin : null);
+        if (!sg.csi || !sg.lieu || (o.services && o.services.indexOf(sg.service) < 0) || (fin !== null && fin < depuis)) return;
+        res.push({ service: sg.service, lieu: sg.lieu, debut: sg.debut, fin: fin });
+      });
+    });
+    return res;
+  }
+
   var contrat = {
     // Identité
     id: 'isocont',
@@ -97,7 +118,8 @@
     fournitures: [
       { nom: 'isocont.echeancesJLD', version: 1, acces: 'jld', lire: echeancesJLD,
         champs: ['date', 'nature', 'typeMesure', 'service', 'mesure', 'patientId', 'statut'] },
-      { nom: 'isocont.enCours', version: 1, acces: 'lecture', lire: enCours, champs: ['patientId', 'service', 'lieu', 'csi', 'type', 'debut'] }
+      { nom: 'isocont.enCours', version: 1, acces: 'lecture', lire: enCours, champs: ['patientId', 'service', 'lieu', 'csi', 'type', 'debut'] },
+      { nom: 'isocont.occupationsCSI', version: 1, acces: 'lecture', lire: occupationsCSI, champs: ['service', 'lieu', 'debut', 'fin'] }
     ],
 
     // Besoins : la fiche commune du module Patients (étape 5), indispensable

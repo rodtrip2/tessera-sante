@@ -95,6 +95,7 @@ Vérifier une fois par poste, à deux agents, qu'une chambre de soins intensifs 
 - **Fonctionnement envisagé** : liste des CSI du service (lieux d'isolement déjà déclarés dans Isocont) ; pour chaque CSI libre, une tâche par poste (matin, après-midi, nuit, horaires réglables) ; **check-list** réglable par l'établissement ou le service (par exemple : matelas et literie, absence d'objet dangereux, éclairage, appel malade, sanitaires, visibilité par l'oculus, matériel de contention complet et vérifié, horloge visible) ; validation par **deux agents** (le second confirme avec son propre compte) ; écart signalé au cadre, avec lien possible vers une demande de travaux.
 - **Traçabilité** : chaque contrôle est une saisie datée et signée ; historique consultable et exportable (preuve pour les visites de certification ou du Contrôleur général des lieux de privation de liberté, CGLPL).
 - **À trancher** : contenu de la check-list par défaut ; ce qui se passe si le contrôle n'est pas fait (alerte au cadre) ; module d'accueil (Isocont ou agenda) ; contrôle aussi à la libération de la CSI.
+- **Décisions du porteur (14 novembre 2026), développé en 0.57.0** : nouveau module **Contrôles** (mécanisme commun du lot K) ; surveillance **par CSI, une fois par poste** ; contrôle non fait : rappel à l'équipe pendant le poste, puis alerte au cadre ; check-list fournie plus tard par le porteur (liste provisoire en attendant). Restent : contrôle à la libération, lien avec une demande de travaux.
 
 ## C. Temps de travail : formations et heures supplémentaires
 

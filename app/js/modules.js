@@ -118,8 +118,9 @@
        * `tous` : tous les services cochés (réglage d'origine). Modifie et renvoie `valeur`.
        */
       ecrireActivation: function (valeur, id, actifs, tous) {
-        var arret = !!(valeur[id] && valeur[id].arret);
-        if (tous) { if (arret) valeur[id] = { arret: true }; else delete valeur[id]; }
+        var arret = !!(valeur[id] && valeur[id].arret), m = reg.obtenir(id), inactif = !!(m && m.droits && m.droits.INACTIF_PAR_DEFAUT);
+        if (tous && inactif) valeur[id] = arret ? { tous: true, arret: true } : { tous: true };   // module désactivé par défaut : « tous » écrit
+        else if (tous) { if (arret) valeur[id] = { arret: true }; else delete valeur[id]; }
         else valeur[id] = arret ? { tous: false, services: actifs, arret: true } : { tous: false, services: actifs };
         return valeur;
       },
@@ -127,7 +128,7 @@
       ecrireArret: function (valeur, id, arret) {
         var v = Object.assign({}, valeur[id] || {});
         if (arret) v.arret = true; else delete v.arret;
-        if (v.tous === false || v.arret) valeur[id] = v; else delete valeur[id];
+        if (v.tous !== undefined || v.arret) valeur[id] = v; else delete valeur[id];
         return valeur;
       },
       /** Module en service (0.43.0) : déclaré et pas arrêté par l'administrateur (les données d'un module arrêté restent lisibles). */

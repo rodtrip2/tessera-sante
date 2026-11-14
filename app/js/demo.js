@@ -28,7 +28,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail', 'comptesPoles'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail', 'comptesPoles', 'controles'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -47,6 +47,7 @@
       cfg('services', [{ code: 'U1', libelle: 'Unité 1 (fictive)' }, { code: 'U2', libelle: 'Unité 2 (fictive)' }]);
       cfg('etablissement', 'Établissement fictif de démonstration');
       cfg('poles', [{ code: 'PSM', libelle: 'Pôle santé mentale (fictif)', services: ['U1', 'U2'] }]);   // 0.27.2
+      cfg('modulesServices', { controles: { tous: false, services: ['U1'] } });   // module Contrôles (désactivé par défaut) activé pour l'Unité 1
       // Chambres et lits (0.29.0) : Unité 1 (chambres doubles et simples, deux CSI, pièces dont un espace d'apaisement
       // utilisé par les patients), Unité 2 (chambres simples, une CSI) ; plan du service en grille
       var ch = function (nom, lits, x, y, w) { return { id: 'c' + nom, nom: nom, type: 'chambre', lits: lits, x: x, y: y, w: w || 1, h: 1 }; };
@@ -694,6 +695,30 @@
     })();
     if (!reel) cfg('messagerie', { '*': { informations: { agenda: true, vehicules: true, travaux: true, suivi: true }, piecesJointes: true, chiffrement: 'choixCoche' }, U1: { affichageJours: 15 } });
 
+    // Contrôles des CSI (lot B, 14 novembre 2026), Unité 1, deux derniers jours : occupation reprise des mesures fictives
+    // ci-dessus ; contrôles des CSI libres confirmés par un second agent (dont un avec un écart), passages de surveillance
+    // notés, un passage oublié (alerte au cadre) ; poste en cours : un passage à noter, un contrôle à confirmer
+    if (SIC.controles) (function () {
+      var occ = {}, K = SIC.controles;
+      file.forEach(function (x) {
+        if (x.type === 'MESURE_DEBUT' && x.data.service === U1 && x.data.lieu && x.data.lieu.indexOf('Chambre ') !== 0) occ[x.data.mesureId] = { lieu: x.data.lieu, debut: x.data.debut, fin: null };
+        if (x.type === 'MESURE_FIN' && occ[x.data.mesureId]) occ[x.data.mesureId].fin = x.data.fin;
+      });
+      var cfgK = { lieuxCSI: {}, periodes: SIC.model.periodesDe(SIC.model.CONFIG_DEFAUT, U1) };
+      cfgK.lieuxCSI[U1] = [CSI1, CSI2];
+      var ech = K.echeances({ controles: {} }, cfgK, { service: U1, occupations: Object.keys(occ).map(function (k) { return occ[k]; }), maintenant: now, jours: 2 });
+      var ag = [['Agent A (fictif)', 'demo-a'], ['Agent B (fictif)', 'demo-b'], ['Agent C (fictif)', 'demo-c'], ['Agent D (fictif)', 'demo-d']], n = 0, ecart = false, oubli = false, aFaire = false;
+      ech.forEach(function (x) {
+        var cours = x.fin > now, a1 = ag[n % 4], a2 = ag[(n + 1) % 4], id = 'CT-D' + String(++n).padStart(3, '0'), at = Math.min(x.debut + 45 * 60000 + n * 60000, now - 60000);
+        if (x.modele === 'surveillance' && !cours && !oubli) { oubli = true; return; }
+        if (x.modele === 'surveillance' && cours && !aFaire) { aFaire = true; return; }
+        var nc = x.modele === 'csiLibre' && !cours && !ecart ? 'Appel malade fonctionnel' : '';
+        if (nc) ecart = true;
+        ajouter(at, 'CONTROLE', { id: id, modele: x.modele, service: U1, lieu: x.lieu, date: x.date, poste: x.poste, libellePoste: x.libellePoste, deuxAgents: x.modele === 'csiLibre',
+          items: x.modele === 'csiLibre' ? K.LISTE_PROVISOIRE.map(function (l) { return { libelle: l, ok: l !== nc }; }) : [], ecart: nc ? 'Appel malade en panne : demande faite aux services techniques (fictif)' : '', nom: a1[0] }, a1[1]);
+        if (x.modele === 'csiLibre' && !cours) ajouter(at + 2 * 60000, 'CONTROLE_CONFIRME', { controle: id, service: U1, nom: a2[0] }, a2[1]);
+      });
+    })();
     file.sort(function (a, b) { return a.at - b.at || a.n - b.n; });
     // Congés (0.44.0) : types (dont un ajouté), fériés à récupérer pour les IDE et AS de l'Unité 1, message d'avertissement
     // activé ; tableaux de l'année et de l'année suivante, règles (une non respectée), période bloquée, à éviter, vacances
