@@ -28,7 +28,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations'].forEach(function (k) {
+      ['services', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -155,6 +155,7 @@
       // Demandes de travaux (0.22.0) : numéro des services techniques ; case « chambre indisponible » proposée en Unité 1
       cfg('travaux', { '*': { telephone: '5555 (fictif)' }, U1: { chambreIndisponible: true, salleIndisponible: true } });
       cfg('vehiculesInformation', { U2: { roles: ['CADRE'], groupes: ['groupe-qualite'], agents: [] } });
+      cfg('etiquettesCommunes', { '*': [{ code: 'qualite', libelle: 'Qualité', couleur: 'vert' }], U1: [{ code: 'pharmacie', libelle: 'Pharmacie', couleur: 'bleu' }] });
       // Validations (13 novembre 2026) : un avis rendu, un accord hiérarchique après information du délégué, une fonction
       // désactivée ; les données du personnel restent à l'état par défaut (fonction existante, rappel au cadre et à la direction)
       cfg('validations', { etats: {
@@ -947,6 +948,18 @@
           await tp(-10, { titre: 'Lire la nouvelle note de service (fictif)', echeance: '', heure: '', rappel: '', note: '', element: null, fait: false, faitLe: '' });
           await tp(-72, { titre: 'Commander les badges des stagiaires (fictif)', echeance: jC(-2), heure: '', rappel: '', note: '', element: null, fait: true, faitLe: at(-24) });
           await session.enregistrerLot(lotT, { libelle: 'Tâches personnelles fictives', by: moiT.id, sansControle: true });
+        }
+        // Classement personnel (lot I, 14 novembre 2026) : favori, étiquettes personnelle et commune, dossiers et sous-dossier
+        if (moiT && session.enregistrerPreference) {
+          var stM = session.etatModule && session.etatModule('messagerie'), stDc = session.etatModule && session.etatModule('documents');
+          var idMsg = function (objet) { var ms = (stM && stM.messages) || {}; return Object.keys(ms).filter(function (k) { return ms[k].objet === objet; })[0]; };
+          var cl = { etiquettes: [{ id: 'e1', libelle: 'À relire', couleur: 'orange' }],
+            dossiers: { messagerie: [{ id: 'd1', libelle: 'Formations (fictif)' }, { id: 'd2', libelle: 'Incendie', parent: 'd1' }], documents: [{ id: 'd1', libelle: 'Protocoles (fictif)' }] }, elements: {} };
+          var mCles = idMsg('Nouvelle procédure de remise des clés de la pharmacie'), mFormation = idMsg('Inscriptions à la formation incendie');
+          if (mCles) cl.elements['messagerie|' + mCles] = { favori: true, etiquettes: ['e1', 'c-qualite'] };
+          if (mFormation) cl.elements['messagerie|' + mFormation] = { dossier: 'd2' };
+          Object.keys((stDc && stDc.docs) || {}).slice(0, 2).forEach(function (k, i) { cl.elements['documents|' + k] = i ? { etiquettes: ['c-qualite'] } : { favori: true, dossier: 'd1' }; });
+          await session.enregistrerPreference('classement', cl);
         }
       } catch (e) { if (typeof console !== 'undefined') console.warn('Démonstration incomplète : ' + e.message); /* démonstration sans ces valeurs */ }
     }

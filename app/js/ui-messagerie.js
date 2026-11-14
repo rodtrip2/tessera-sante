@@ -10,6 +10,8 @@
   'use strict';
   var SIC = self.SIC, U = SIC.ui, h = U.h, MS = SIC.messagerie, G = SIC.groupes;
   var selection = { recus: null, envoyes: null, archives: null }, filtre = 'tous', recherche = '', luEnCours = {};
+  // Classement personnel (lot I, 14 novembre 2026) : la boîte de réception ne montre que les messages hors dossier
+  var classe = { recus: { favoris: false, etiquette: '', dossier: '-' }, envoyes: { favoris: false, etiquette: '', dossier: '' }, archives: { favoris: false, etiquette: '', dossier: '' } };
 
   function s() { return U.App.session; }
   function brut() { return (s() && s().etatModule('messagerie')) || { messages: {} }; }
@@ -288,7 +290,8 @@
         si.aVoter ? h('span', { class: 'badge warn', text: 'Sondage à remplir' }) : m.sondage ? h('span', { class: 'badge', text: 'Sondage' }) : null,
         si.nouvellesReponses ? h('span', { class: 'badge', text: si.nouvellesReponses + ' réponse' + (si.nouvellesReponses > 1 ? 's' : '') + ' nouvelle' + (si.nouvellesReponses > 1 ? 's' : '') }) : null,
         m.pieces.length ? h('span', { class: 'badge', text: m.pieces.length + ' PJ' }) : null,
-        m.rattaches.length ? h('span', { class: 'badge', text: m.rattaches.length + ' élément' + (m.rattaches.length > 1 ? 's' : '') }) : null));
+        m.rattaches.length ? h('span', { class: 'badge', text: m.rattaches.length + ' élément' + (m.rattaches.length > 1 ? 's' : '') }) : null,
+        U.classement ? U.classement.marques('messagerie', m.id) : null));
   }
   function sectionSuivi(m) {
     var r = MS.suiviLectures(m, comptes(), U.config()), attendus = r.confirmes.length + r.ouverts.length + r.nonOuverts.length;
@@ -397,6 +400,11 @@
     if (!s().apercu) {
       if (!auteur && !m.retire) actions.push(si.archive ? ['Remettre dans les reçus', function () { ecrire('MESSAGE_ARCHIVE', { message: m.id, archive: false }, 'Message remis dans les reçus.'); }]
         : ['Archiver', function () { selection[onglet] = null; ecrire('MESSAGE_ARCHIVE', { message: m.id }, 'Message archivé.'); }]);
+      if (U.classement && U.classement.disponible()) {
+        var fav = SIC.classement.element(U.classement.lire(), 'messagerie', m.id).favori;
+        actions.push([fav ? '★ Retirer des favoris' : '☆ Favori', async function () { await s().enregistrerPreference('classement', SIC.classement.marquer(U.classement.lire(), 'messagerie', m.id, { favori: !fav })); U.rendreContenu(); }]);
+        actions.push(['Classer…', function () { U.classement.modaleClasser('messagerie', m.id, m.objet); }]);
+      }
       if (peutEcrire()) actions.push(['Transférer…', function () { modaleNouveau({ objet: 'Tr : ' + m.objet, texte: '\n\n— Message de ' + (m.nom || s().nomAuteur(m.par)) + ' du ' + dateHeure(m.cree) + ' —\n' + m.texte, rattaches: m.rattaches.slice() }); }]);
       if ((auteur || admin()) && !m.retire) actions.push(['Retirer le message…', function () {
         var mo = prompt('Le message disparaîtra des reçus de tous les destinataires (il reste au journal). Motif (facultatif) :', '');
@@ -430,6 +438,7 @@
   function vueListe(onglet) {
     var c = compte(), maintenant = Date.now();
     var l = MS.liste(st(), c, c.groupes, U.config(), maintenant, onglet, { filtre: filtre, recherche: recherche });
+    if (U.classement) l = U.classement.filtrer('messagerie', l, function (m) { return m.id; }, classe[onglet]);
     var tete = onglet === 'recus' ? MS.liste(st(), c, c.groupes, U.config(), maintenant, 'recus').filter(function (m) { return m.situation.enTete; }) : [];
     if (selection[onglet] && !l.some(function (m) { return m.id === selection[onglet]; })) selection[onglet] = null;
     if (!selection[onglet] && l.length) selection[onglet] = (tete[0] || l[0]).id;
@@ -443,7 +452,8 @@
       h('div', { class: 'ms-cadre' },
         h('div', { class: 'ms-liste' },
           h('div', { class: 'ms-outils' }, peutEcrire() ? h('button', { class: 'btn primaire', type: 'button', onclick: function () { modaleNouveau(); } }, '+ Nouveau message') : null, champ,
-            h('div', { class: 'actions gauche', role: 'group', 'aria-label': 'Filtrer' }, bf('tous', 'Tous'), bf('nonlus', 'Non lus'), bf('importants', 'Importants'), bf('sondages', 'Sondages'))),
+            h('div', { class: 'actions gauche', role: 'group', 'aria-label': 'Filtrer' }, bf('tous', 'Tous'), bf('nonlus', 'Non lus'), bf('importants', 'Importants'), bf('sondages', 'Sondages')),
+            U.classement ? U.classement.barre('messagerie', classe[onglet], onglet === 'recus' ? 'Boîte de réception (hors dossiers)' : 'Hors dossiers') : null),
           l.length ? h('div', { class: 'ms-lignes' }, l.map(function (m) { return ligneListe(m, onglet); }))
             : h('p', { class: 'muted', text: recherche || filtre !== 'tous' ? 'Aucun message pour cette recherche.' : onglet === 'envoyes' ? 'Aucun message envoyé.' : onglet === 'archives' ? 'Aucun message archivé.' : 'Aucun message reçu.' })),
         h('div', { class: 'ms-lecture' }, choisi ? lecteurMessage(choisi, onglet) : h('p', { class: 'muted', text: 'Choisissez un message.' }))));
@@ -833,7 +843,7 @@
   SIC.modules.completerInterface('messagerie', {
     vues: { recus: function () { return vueListe('recus'); }, envoyes: function () { return vueListe('envoyes'); }, archives: function () { return vueListe('archives'); }, informations: vueInformations, consultation: vueConsultation },
     journal: { resume: resume, action: function (e) { return LIB[e.type] || e.type; }, libelleType: function (t) { return LIB[t] || t; }, effetAnnulation: function () { return 'Le message revient à son état précédent.'; } },
-    admin: { onglets: function () { return [['messagerie', 'Messagerie', [panneauReglages()]]]; }, cadre: function () { return [panneauReglages()]; } },
+    admin: { onglets: function () { return [['messagerie', 'Messagerie', [panneauReglages(), U.classement ? U.classement.panneauCommunes() : null].filter(Boolean)]]; }, cadre: function () { return [panneauReglages(), U.classement ? U.classement.panneauCommunes() : null].filter(Boolean); } },
     // Pastille : messages qui vous attendent et informations non vues
     pastille: function () { try { var c = compte(); return MS.enAttente(st(), c, c.groupes, U.config(), Date.now()) + informationsNonVues().length; } catch (e) { return 0; } }
   });

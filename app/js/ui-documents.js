@@ -1308,20 +1308,25 @@
   function ligne(d, apres) {
     var m = metaConnue(d), stt = DM.statut(d), der = DM.derniere(d), droit = DM.droitDe(d, moi(), cfg());
     return h('tr', { class: 'doc-ligne' },
-      h('td', {}, h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…'), d.genre === 'tableur' ? h('span', { class: 'badge', text: 'Tableur' }) : null,
+      h('td', {}, U.classement ? U.classement.etoile('documents', d.id) : null, h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…'), d.genre === 'tableur' ? h('span', { class: 'badge', text: 'Tableur' }) : null,
+        U.classement ? U.classement.marques('documents', d.id) : null,
         m && m.rattaches.length ? h('div', {}, h('small', { class: 'muted', text: m.rattaches.map(function (r) { return r.libelle; }).join(' · ') })) : null),
       h('td', {}, h('span', { class: 'badge statut-' + stt.statut, text: DM.STATUTS[stt.statut] })),
       h('td', { text: d.auteur === moi().id ? 'Vous' : nomAgent(d.auteur, d) }),
       h('td', { text: (d.partage || []).length ? d.partage.map(libEntree).join(', ') : 'Privé' }),
       h('td', { text: der ? dateCourte(der.le) + ' — ' + nomAgent(der.par, d) : '' }),
-      h('td', { text: DM.LIB_DROITS[droit] || '' }));
+      h('td', { text: DM.LIB_DROITS[droit] || '' }),
+      h('td', {}, U.classement && U.classement.disponible() ? h('button', { class: 'btn petit', type: 'button', onclick: function () { U.classement.modaleClasser('documents', d.id, m ? m.titre : ''); } }, 'Classer…') : null));
   }
   function table(ds, vide) {
     if (!ds.length) return h('p', { class: 'muted', text: vide });
-    return h('div', { class: 'table-wrap' }, h('table', { class: 'table-documents' }, h('thead', {}, h('tr', {}, ['Titre', 'Statut', 'Auteur', 'Partagé avec', 'Dernière version', 'Votre droit'].map(function (t) { return h('th', { text: t }); }))), h('tbody', {}, ds.map(function (d) { return ligne(d); }))));
+    return h('div', { class: 'table-wrap' }, h('table', { class: 'table-documents' }, h('thead', {}, h('tr', {}, ['Titre', 'Statut', 'Auteur', 'Partagé avec', 'Dernière version', 'Votre droit', ''].map(function (t) { return h('th', { text: t }); }))), h('tbody', {}, ds.map(function (d) { return ligne(d); }))));
   }
+  // Classement personnel (lot I, 14 novembre 2026) : favoris, étiquette, dossier
+  var classeDocs = { favoris: false, etiquette: '', dossier: '' };
   function filtrer(ds) {
     var q = filtre.texte.trim().toLowerCase();
+    if (U.classement) ds = U.classement.filtrer('documents', ds, function (d) { return d.id; }, classeDocs);
     return q ? ds.filter(function (d) { var m = metaConnue(d); return m && (m.titre.toLowerCase().indexOf(q) >= 0 || m.rattaches.some(function (r) { return (r.libelle || '').toLowerCase().indexOf(q) >= 0; })); }) : ds;
   }
   function recherche() {
@@ -1340,6 +1345,7 @@
         !s().apercu ? h('button', { class: 'btn primaire', type: 'button', disabled: !cle, onclick: function () { modaleNouveau(); } }, '+ Nouveau document') : null,
         !s().apercu ? h('button', { class: 'btn', type: 'button', disabled: !cle, onclick: function () { modaleNouveau({ genre: 'tableur' }); } }, '+ Nouveau tableur') : null,
         !s().apercu && SIC.documentsImport ? h('button', { class: 'btn', type: 'button', disabled: !cle, onclick: function () { choisirImport(); } }, 'Importer un fichier…') : null),
+      U.classement ? U.classement.barre('documents', classeDocs, 'Hors dossiers') : null,
       cle ? null : h('p', { class: 'alerte', text: 'Votre clé de documents n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.' }),
       demandes.length ? h('div', { class: 'alerte' }, h('b', { text: 'Validation qui vous est demandée : ' }), demandes.map(function (d, i) { var m = metaConnue(d); return [i ? ', ' : '', h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…')]; })) : null,
       aReviser.length ? h('p', { class: 'alerte', text: aReviser.length + ' document(s) à réviser : ' + aReviser.map(function (d) { var m = metaConnue(d); return m ? m.titre : '…'; }).join(', ') + '.' }) : null,

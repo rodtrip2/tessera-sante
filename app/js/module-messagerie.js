@@ -508,6 +508,18 @@
    * Réglages écrits par le cadre (`config.messagerie`) : seulement l'entrée de ses services (durée d'affichage) ; les
    * réglages de l'établissement (onglet Informations, pièces jointes, conservation) restent à l'administrateur.
    */
+  /**
+   * Étiquettes communes (`config.etiquettesCommunes`, classement des messages et documents, 14 novembre 2026) : le cadre
+   * change seulement la liste de ses services ; celle de l'établissement reste à l'administrateur.
+   */
+  function controlerEtiquettes(ancien, nouveau, compte) {
+    var roles = (compte && compte.roles) || [], sv = (compte && compte.services) || [];
+    if (roles.indexOf('ADMIN') >= 0) return true;
+    if (roles.indexOf('CADRE') < 0 || !nouveau || typeof nouveau !== 'object' || Array.isArray(nouveau)) return false;
+    var a = ancien || {}, cles = {};
+    Object.keys(a).concat(Object.keys(nouveau)).forEach(function (k) { cles[k] = 1; });
+    return Object.keys(cles).every(function (k) { return JSON.stringify(a[k]) === JSON.stringify(nouveau[k]) || (k !== '*' && sv.indexOf(k) >= 0); });
+  }
   function controlerCadre(ancien, nouveau, compte) {
     var roles = (compte && compte.roles) || [], sv = (compte && compte.services) || [];
     if (roles.indexOf('ADMIN') >= 0) return true;
@@ -552,7 +564,7 @@
     acces: ACCES,
     droits: D,
     saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, services: function (st, e) { return cibles(st, e); } },
-    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { messagerie: controlerCadre } },
+    reglages: { defaut: {}, groupes: [], exclus: [], cadre: { messagerie: controlerCadre, etiquettesCommunes: controlerEtiquettes } },
     vues: { onglets: [{ code: 'recus', libelle: 'Reçus' }, { code: 'envoyes', libelle: 'Envoyés' }, { code: 'informations', libelle: 'Informations' }, { code: 'archives', libelle: 'Archives' },
       { code: 'consultation', libelle: 'Consultation', droit: 'CONSULTATION' }] },
     migrations: [],

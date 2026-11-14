@@ -251,6 +251,8 @@
     exports: { dossier: 'exports', conservationJours: 0, cheminReseau: '' },
     // Fonctions soumises à avis (validations.js, 13 novembre 2026) : { etats: { code: { etat, date, auteur, reference, dpoInforme } } } ; vide = états par défaut
     validations: {},
+    // Étiquettes communes du classement des messages et documents (classement.js, 14 novembre 2026) : { '*': [{ code, libelle, couleur }], U1: [...] }
+    etiquettesCommunes: {},
     agenda: {},            // module Agenda (journal du socle) : { identite: 'initiales' | 'aucune' | 'ipp' | 'nom', typesAlertes: [{ code, libelle }] } ; vide = défauts
     importPatients: {},    // module Patients : modèles d'import de la liste du DPI { modeles: { '*': modèle, U1: modèle } } (noms de colonnes et correspondances, aucune donnée de patient)
     medecins: {},          // liste commune des médecins (medecins.js) : { liste, gestion } ; reprend l'ancienne liste « psychiatres »
@@ -2088,7 +2090,7 @@
     { code: 'chambres', libelle: 'Chambres, lits et plan des services', cles: ['chambres'] },
     { code: 'charteIntervenants', libelle: 'Charte de confidentialité des intervenants extérieurs', cles: ['charteIntervenants'] },
     { code: 'salles', libelle: 'Salles et bureaux : plage affichée, horaires des présences, nom sur les occupations des autres plannings', cles: ['salles'] },
-    { code: 'messagerie', libelle: 'Messagerie : onglet Informations, pièces jointes, conservation, durée d’affichage', cles: ['messagerie'] },
+    { code: 'messagerie', libelle: 'Messagerie : onglet Informations, pièces jointes, conservation, durée d’affichage', cles: ['messagerie', 'etiquettesCommunes'] },
     { code: 'documents', libelle: 'Documents : corbeille, masques de fond', cles: ['documents', 'masquesDocuments'] },
     { code: 'conges', libelle: 'Congés : types, droits, validateurs, jours fériés, couleurs, avertissement', cles: ['conges'] },
     { code: 'travaux', libelle: 'Demandes de travaux : types, lieux, gravités, urgences, délai d’affichage, numéro des services techniques', cles: ['travaux'] },

@@ -1384,3 +1384,17 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
 .usage-barre { display: block; height: 4px; margin-top: 2px; border-radius: 2px; background: linear-gradient(to left, var(--accent) var(--part, 0%), transparent var(--part, 0%)); }
 .usage-agents td { border-top: 2px solid var(--line); color: var(--ink-2); }
 .retour-carte p { margin: .4rem 0; white-space: pre-wrap; }
+
+/* Classement personnel des messages et des documents (lot I, 14 novembre 2026) */
+.etq { display: inline-block; padding: 0 7px; margin: 0 3px 0 0; border-radius: 10px; font-size: .74rem; font-weight: 600; line-height: 1.5; border: 1px solid transparent; vertical-align: middle; }
+.etq-bleu { background: var(--done-soft); color: var(--done); }
+.etq-vert { background: var(--ok-soft); color: var(--ok); }
+.etq-orange { background: var(--warn-soft); color: var(--warn); }
+.etq-rouge { background: var(--bad-soft); color: var(--bad); }
+.etq-violet { background: var(--late-soft); color: var(--late); }
+.etq-gris { background: var(--muted-soft); color: var(--ink-2); border-color: var(--line); }
+.classement-marques { display: inline-flex; flex-wrap: wrap; gap: 2px; align-items: center; margin-left: 4px; }
+.etoile-fixe, .btn.etoile.active { color: var(--warn); }
+.btn.etoile { padding: 0 6px; min-width: 0; border-color: transparent; background: transparent; font-size: 1rem; line-height: 1.2; }
+.classement-etiquettes { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.classement-barre select { width: auto; }

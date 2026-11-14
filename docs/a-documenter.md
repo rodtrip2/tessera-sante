@@ -733,3 +733,16 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 | Accès | Bouton « Rechercher » de l'en-tête et Ctrl + K, dans toutes les fenêtres (existant) | — |
 | Restes | Recherche dans le contenu des documents et des messages chiffrés pour un destinataire (non : titres et objets seulement) | — |
 | Parcours | Document par son titre, médecin, retour | `tests/ecrans/parcours.py` |
+
+## Version 0.52.0 (branche `classement`, 14 novembre 2026) : classement personnel des messages et des documents (phase 2, lot I)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Classement personnel | Favoris (étoile), étiquettes en couleur (six couleurs lisibles en thème clair et sombre), dossiers et sous-dossiers (un niveau), pour la Messagerie et les Documents ; gardé dans les préférences de l'agent, chiffrées avec sa clé personnelle, invisible des autres | `classement.js` (nouveau), `ui-classement.js` (nouveau), `tests/classement.test.js` |
+| Messagerie | Marques sur chaque ligne (étoile, étiquettes) ; barre de filtre (favoris, étiquette, dossier) ; boîte de réception = messages hors dossier (un message rangé la quitte sans être supprimé) ; « ☆ Favori » et « Classer… » dans le message ouvert ; le bandeau « à lire en priorité » garde les messages rangés | `ui-messagerie.js` |
+| Documents | Étoile et étiquettes dans la liste, colonne « Classer… », même barre de filtre ; ranger un document ne change pas qui peut le lire | `ui-documents.js` |
+| Gestion | Fenêtre « Étiquettes et dossiers… » : renommer, supprimer (une étiquette est retirée des éléments ; un dossier supprimé rend son contenu et ses sous-dossiers à la racine, rien n'est supprimé), sous-dossiers | `ui-classement.js` |
+| Étiquettes communes | Réglage `etiquettesCommunes` ({ '*': établissement, <service> }), réglé par l'administrateur et par le cadre pour ses services (Administration → Messagerie) ; chaque agent les pose pour lui seul ; journal du socle, libellé du journal, groupe d'export « Messagerie », jeu de formation | `model.js`, `session.js`, `module-messagerie.js` (`controlerEtiquettes`), `ui-isocont.js`, `demo.js` |
+| Démonstration | Étiquettes communes « Qualité » et « Pharmacie » ; étiquette personnelle, favori, dossier « Formations » et sous-dossier « Incendie », dossier de documents | `demo.js` |
+| Restes | Dossiers partagés d'un espace de documents et étiquettes communes posées pour tous (saisies partagées) : non faits, à décider par le porteur | — |
+| Parcours | Marques, réception hors dossiers, filtre par dossier et favoris, documents (filtre, création d'une étiquette depuis « Classer ») ; sélecteurs des lignes de documents adaptés (bouton du titre) | `tests/ecrans/parcours.py` |
