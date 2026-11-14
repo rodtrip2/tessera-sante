@@ -675,3 +675,17 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 | Parcours des écrans | Onglet, trois états, refus sans information du délégué, désactivation d'un module, rappel au cadre, absence pour une IDE, consultation par le cadre et le directeur des soins | `tests/ecrans/parcours.py` |
 | Point à valider (porteur) | État par défaut des fonctions existantes : « accord hiérarchique » sans date (donc rappel au cadre et à la direction tant qu'aucun avis n'est enregistré) | — |
 | Documentation | Architecture (socle : fonctions soumises à avis), fiche technique (mécanisme « Validations » : existant), kit (procédure d'activation, dossiers par interlocuteur), guide de l'administrateur | — |
+
+## Version 0.47.0 (branche `versions`, 14 novembre 2026) : versions stable, bêta et développement (phase 1 du plan d'action)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Trois versions sur GitHub Pages | Racine : dernière étiquette `vX.Y.Z` ; `/beta/` : dernière étiquette `vX.Y.Z-beta.N` plus récente que la stable (sinon la stable) ; `/dev/` : état de `main`, republié à chaque envoi ; aucune étape de construction (copie de chaque état du dépôt) ; fichier `versions-publiees.txt` à la racine du site | `.github/workflows/pages.yml` (nouveau) |
+| Mise en service (porteur, une fois) | Settings → Pages → Source « GitHub Actions » ; variable d'Actions `PAGES_TROIS_VERSIONS = oui`. Sans la variable, le flux ne fait rien et la publication actuelle continue. Première étiquette stable : `v0.47.0` | — |
+| Version déduite de l'adresse | `SIC.CANAL` (stable, beta, dev), `SIC.suffixeCanal`, `SIC.libelleCanal` ; chargé avant le stockage et dans le service worker | `app/js/canal.js` (nouveau), `index.html`, `sw.js` |
+| Réglages du navigateur séparés | Base `sic-reglages-beta` / `-dev`, stockage de démonstration `SuiviIsoCont-demo-beta` / `-dev`, cache hors réseau `sic-outil-beta` / `-dev`, identifiant du sélecteur de dossier ; les préférences d'affichage (`localStorage`) restent communes aux trois versions | `store.js`, `sw.js` |
+| Protection des données du service | Bêta et développement n'ouvrent qu'un dossier d'essai (`ESSAI-LISEZMOI.txt`) ; un dossier vide est marqué à son premier choix ; un dossier qui contient des données sans marque est refusé | `store.js` (`Dossier.verifierEssai`), `tests/canal.test.js` |
+| Bandeau | « Version bêta / Version de développement X.Y.Z — essais seulement » en haut de chaque écran | `ui.js`, `app.css` |
+| Procédure | Étiquettes signées pour la bêta et la stable : `CLAUDE.md` § 6, point 4 | `CLAUDE.md` |
+| Reliquat | Avertissement à l'ouverture d'un dossier déjà écrit par une version plus récente (dossiers d'essai) : non fait, l'interdiction des données réelles aux versions d'essai couvre le risque principal | — |
+| Documentation | Fiche technique (adresses des trois versions, dossier d'essai), kit (procédure de mise en service et de publication), guide de l'administrateur | — |

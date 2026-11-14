@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Publication des trois versions sur GitHub Pages (demande du porteur du 13 novembre 2026, lot H) :
+#   …/            version stable : dernière étiquette vX.Y.Z (sans suffixe)
+#   …/beta/       version bêta : dernière étiquette vX.Y.Z-beta.N si elle est plus récente que la stable, sinon la stable
+#   …/dev/        version de développement : état de la branche main, republié à chaque envoi
+# Aucune étape de construction : chaque version est la copie de son état du dépôt.
+#
+# Mise en service (une seule fois, par le porteur) : Settings → Pages → Source « GitHub Actions », puis
+# Settings → Secrets and variables → Actions → Variables : PAGES_TROIS_VERSIONS = oui.
+# Tant que la variable n'existe pas, ce flux ne fait rien et la publication actuelle (branche main) continue.
+name: Publication des versions (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publier:
+    if: ${{ vars.PAGES_TROIS_VERSIONS == 'oui' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Assembler les trois versions
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          stable=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+          beta=$(git tag -l 'v*-beta.*' --sort=-v:refname | head -1 || true)
+          dev=$(git rev-parse origin/main)
+          [ -n "$stable" ] || stable="$dev"          # aucune étiquette stable : la racine reste l'état de main
+          if [ -n "$beta" ]; then
+            base="${beta%%-beta.*}"
+            if [ "$base" = "$stable" ] || [ "$(printf '%s\n%s\n' "${stable#v}" "${base#v}" | sort -V | tail -1)" != "${base#v}" ]; then beta="$stable"; fi
+          else
+            beta="$stable"
+          fi
+          echo "Stable : $stable ; bêta : $beta ; développement : $dev"
+          rm -rf _site && mkdir -p _site/beta _site/dev
+          git archive "$stable" | tar -x -C _site
+          git archive "$beta" app index.html | tar -x -C _site/beta
+          git archive "$dev" app index.html | tar -x -C _site/dev
+          rm -rf _site/.github _site/tests _site/scripts
+          touch _site/.nojekyll
+          printf 'stable=%s\nbeta=%s\ndev=%s\n' "$stable" "$beta" "$dev" > _site/versions-publiees.txt
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploiement
+        uses: actions/deploy-pages@v4

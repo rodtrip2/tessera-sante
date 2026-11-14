@@ -23,11 +23,13 @@
   'use strict';
   var SIC = root.SIC = root.SIC || {};
   var C = SIC.crypto;
+  // Version bêta ou de développement (canal.js) : réglages du navigateur et stockage de démonstration séparés
+  function suffixe() { return SIC.suffixeCanal || ''; }
 
   // --------------------------------------------- Mémorisation du dossier
   function idb() {
     return new Promise(function (ok, ko) {
-      var r = indexedDB.open('sic-reglages', 1);
+      var r = indexedDB.open('sic-reglages' + suffixe(), 1);
       r.onupgradeneeded = function () { r.result.createObjectStore('kv'); };
       r.onsuccess = function () { ok(r.result); };
       r.onerror = function () { ko(r.error); };
@@ -55,7 +57,8 @@
 
   Dossier.choisirReseau = async function () {
     if (!window.showDirectoryPicker) throw new Error("Ce navigateur ne permet pas d'ouvrir un dossier réseau. Utilisez Edge ou Chrome à jour.");
-    var h = await window.showDirectoryPicker({ id: 'sic-dossier', mode: 'readwrite' });
+    var h = await window.showDirectoryPicker({ id: 'sic-dossier' + suffixe(), mode: 'readwrite' });
+    await Dossier.verifierEssai(h);
     await memoriser('dossier', h);
     await memoriser('mode', 'reseau');
     return new Dossier(h, 'reseau');
@@ -64,7 +67,7 @@
   Dossier.demo = async function () {
     if (!navigator.storage || !navigator.storage.getDirectory) throw new Error('Le stockage de démonstration n\'est pas disponible dans ce navigateur.');
     var racine = await navigator.storage.getDirectory();
-    var h = await racine.getDirectoryHandle('SuiviIsoCont-demo', { create: true });
+    var h = await racine.getDirectoryHandle('SuiviIsoCont-demo' + suffixe(), { create: true });
     await memoriser('mode', 'demo');
     return new Dossier(h, 'demo');
   };
@@ -84,7 +87,28 @@
     if ((await prec.handle.queryPermission(opts)) !== 'granted' && (await prec.handle.requestPermission(opts)) !== 'granted') {
       throw new Error("L'accès au dossier a été refusé.");
     }
+    await Dossier.verifierEssai(prec.handle);
     return new Dossier(prec.handle, 'reseau');
+  };
+
+  /**
+   * Version bêta ou de développement (13 novembre 2026) : un dossier réseau n'est ouvert que s'il est marqué comme
+   * dossier d'essai (fichier ESSAI-LISEZMOI.txt). Un dossier vide est marqué à son premier choix ; un dossier qui
+   * contient déjà des données sans ce fichier est refusé : une version d'essai n'écrit jamais dans les données du service.
+   * Sans effet sur la version stable.
+   */
+  Dossier.verifierEssai = async function (handle, canal) {
+    canal = canal || SIC.CANAL || 'stable';
+    if (canal === 'stable') return 'stable';
+    try { await handle.getFileHandle('ESSAI-LISEZMOI.txt'); return 'essai'; } catch (e) { /* absent */ }
+    var vide = true;
+    for await (var k of handle.keys()) { vide = false; break; }   // eslint-disable-line no-unused-vars
+    var lib = canal === 'beta' ? 'version bêta' : 'version de développement';
+    if (!vide) throw new Error('Cette ' + lib + ' sert aux essais : elle n’ouvre qu’un dossier d’essai. Ce dossier contient déjà des données et n’est pas marqué comme dossier d’essai : ouvrez-le avec la version stable, ou choisissez un dossier vide (il sera marqué comme dossier d’essai).');
+    var f = await handle.getFileHandle('ESSAI-LISEZMOI.txt', { create: true }), w = await f.createWritable();
+    await w.write(new TextEncoder().encode('Dossier d’essai de Tessera Santé, créé par la ' + lib + ' le ' + new Date().toISOString().slice(0, 10) + '.\r\nNe pas y mettre de données réelles. La version stable peut l’ouvrir ; les versions bêta et de développement n’ouvrent que les dossiers marqués ainsi.\r\n'));
+    await w.close();
+    return 'marque';
   };
 
   /**

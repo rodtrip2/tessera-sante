@@ -212,6 +212,8 @@
   function rendre() {
     vider(racine);
     if (App.dossier && App.dossier.mode === 'demo') racine.appendChild(h('div', { class: 'bandeau-demo', text: 'Mode démonstration — données fictives uniquement, stockées dans ce navigateur. Ne saisissez aucune donnée réelle.' }));
+    // Version bêta ou de développement (13 novembre 2026) : bandeau permanent, essais seulement
+    if (SIC.CANAL && SIC.CANAL !== 'stable') racine.appendChild(h('div', { class: 'bandeau-canal bandeau-canal-' + SIC.CANAL, role: 'note', text: SIC.libelleCanal + ' ' + SIC.VERSION + ' — essais seulement : mode démonstration ou dossier d’essai, jamais les données du service.' }));
     if (!App.dossier) return racine.appendChild(ecranAccueil());
     if (App.deplacement) return racine.appendChild(SIC.ui.miroir.ecranDeplace(App.deplacement));
     if (App.secours) racine.appendChild(h('div', { class: 'bandeau-secours', role: 'alert', text: App.secours === 'local'

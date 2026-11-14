@@ -12,8 +12,9 @@
 'use strict';
 // La version de l'outil est importée : à chaque nouvelle version publiée, le navigateur réinstalle ce script
 // et recharge le cache (fichiers de nouveau contrôlés par leurs empreintes).
-importScripts('js/version.js');
-var CACHE = 'sic-outil';
+importScripts('js/version.js', 'js/canal.js');
+// Cache propre à chaque version (stable, bêta, développement : même site, chemins différents)
+var CACHE = 'sic-outil' + (self.SIC.suffixeCanal || '');
 var DELAI_RESEAU = 4000;
 
 function hex(buf) { return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('').toUpperCase(); }
