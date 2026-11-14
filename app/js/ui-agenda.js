@@ -739,7 +739,7 @@
     function dessinerPros() {
       U.vider(zonePro);
       zonePro.appendChild(h('b', { class: 'ag-sous-titre', text: 'Désignés (sans confirmation)' }));
-      if (lecture) { zonePro.appendChild(h('p', { text: profs.length ? profs.map(function (p) { return p.nom; }).join(', ') : '—' })); return; }
+      if (lecture) { zonePro.appendChild(profs.length ? h('p', {}, profs.map(function (p, k) { return h('span', {}, k ? ', ' : '', p.id && U.equipe && U.equipe.lien ? U.equipe.lien(p.id, p.nom) : p.nom); })) : h('p', { text: '—' })); return; }
       var comptes = (s.comptes || []).filter(function (c) { return c.actif !== false && c.id !== 'secours' && (!(c.services || []).length || (c.services || []).some(function (v) { return svTous().indexOf(v) >= 0; }) || profs.some(function (p) { return p.id === c.id; })); })
         .sort(function (a, b) { return (a.nom || '').localeCompare(b.nom || ''); });
       zonePro.appendChild(h('div', { class: 'grille-2 liste-cases' }, comptes.map(function (c) {
@@ -816,7 +816,8 @@
       var confirme = P.peutConfirmer(etatR, moiG, A.rolesConfirmation(U.config(), etatR.service)) && !s.apercu && !externe, cadre = (moi.roles || []).indexOf('CADRE') >= 0 && !s.apercu;
       zoneAcc.appendChild(h('div', {}, h('b', { text: 'Le ' + occurrence.split('-').reverse().join('/') + ' : ' }), badgeAccompagnateurs({ accompagnateurs: acc }) || h('span', { text: acc.total + ' professionnel(s)' })));
       function ligne(i, suffixe, boutons) {
-        return h('div', { class: 'barre' }, h('span', { text: (i.nom || s.nomAuteur(i.agent)) + (suffixe || '') }), boutons);
+        // Contact d'un clic (lot A, 14 novembre 2026) : le nom ouvre la fiche de contact de l'Équipe
+        return h('div', { class: 'barre' }, h('span', {}, U.equipe && U.equipe.lien ? U.equipe.lien(i.agent, i.nom || s.nomAuteur(i.agent)) : (i.nom || s.nomAuteur(i.agent)), suffixe || ''), boutons);
       }
       function groupe(titreG, l, f) { if (!l.length) return; zoneAcc.appendChild(h('small', { class: 'muted', text: titreG })); l.forEach(function (i, k) { zoneAcc.appendChild(f(i, k)); }); }
       groupe('Inscrits', acc.inscrits, function (i) {

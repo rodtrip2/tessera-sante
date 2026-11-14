@@ -207,6 +207,8 @@
     U.modale(o.titre, h('div', { class: 'pile' },
       h('p', {}, h('b', { text: nomSalle(o.salle) }), ' — ' + jourLong(S.jourISO(o.debut)) + ', ' + S.hm(o.debut) + ' – ' + S.hm(o.fin)),
       h('p', { class: 'muted', text: (extra === 'sb-conflit' ? 'Demande en conflit, en attente d’arbitrage' : extra === 'sb-attente' ? 'Réservation à valider par le cadre' : S.GENRES[o.genre] || '') + (o.service ? ' · ' + U.libService(o.service) : '') }),
+      // Contact d'un clic (lot A) : auteur de la réservation ou de la demande, quand le réglage montre son nom
+      (r || dm) && o.nom && o.genre !== 'occupe' ? h('p', {}, (dm ? 'Demandée par ' : 'Réservée par '), U.equipe && U.equipe.lien ? U.equipe.lien((r || dm).par, o.nom) : o.nom) : null,
       dm && dm.motif ? h('p', { text: 'Motif : ' + dm.motif }) : null,
       o.deplacee ? h('p', { class: 'info', text: 'Déplacé par arbitrage depuis ' + nomSalle(o.deplacee) + '.' }) : null,
       o.genre === 'occupe' ? h('small', { class: 'muted', text: 'Occupation venue d’un planning auquel vous n’avez pas accès' + (o.nom ? ' : réservée par ' + o.nom : '') + '. Pour l’obtenir, faites une demande : le gestionnaire de la salle arbitrera.' }) : null,

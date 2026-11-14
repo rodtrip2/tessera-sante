@@ -171,6 +171,17 @@ with sync_playwright() as p:
     d.get_by_label('Réponse à l’auteur').fill('Déjà corrigé dans la version de développement (fictif)'); d.get_by_role('button', name='Enregistrer').click(); time.sleep(1.2)
     verifier(a.evaluate("SIC.ui.App.session.etatModule('retours').retours['R001'].etat") == 'ecarte', 'retours : suivi enregistré, réponse à l’auteur')
 
+    print('Contact d’un clic partout (lot A, 14 novembre 2026)')
+    fenetre(a, 'Messagerie')
+    a.locator('.ms-ligne-tete').first.click(); time.sleep(1)
+    verifier(a.locator('.ms-entete .eq-lien').count() >= 1, 'messagerie : l’expéditeur ouvre sa fiche de contact')
+    a.keyboard.press('Escape'); time.sleep(0.3)
+    fenetre(a, 'Vue d’ensemble')
+    a.locator('nav.onglets button', has_text='Équipe').first.click(); time.sleep(1.2)
+    a.locator('td.case-vue button.btn.lien').first.click(); time.sleep(1)
+    verifier(a.locator('dialog[open]', has_text='Téléphone professionnel').count() == 1, 'Vue d’ensemble, vue Équipe : le nom ouvre la fiche de contact')
+    a.keyboard.press('Escape'); time.sleep(0.3)
+
     print('Agenda : professionnels, patients, permissions, sorties')
     fenetre(a, 'Agenda du service')
     verifier(a.locator('.ag-reponses li').count() >= 2, 'bandeau « Votre réponse est attendue » (invitation, demande à confirmer)')

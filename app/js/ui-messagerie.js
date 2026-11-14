@@ -406,7 +406,7 @@
     return h('article', { class: 'ms-lecteur', 'aria-label': 'Message' },
       badges(m),
       h('h2', { class: 'ms-objet', text: m.objet }),
-      h('dl', { class: 'ms-entete' }, h('dt', { text: 'De' }), h('dd', { text: m.nom || s().nomAuteur(m.par) }), h('dt', { text: 'À' }), h('dd', { text: libDestinataires(m) }),
+      h('dl', { class: 'ms-entete' }, h('dt', { text: 'De' }), h('dd', {}, U.equipe && U.equipe.lien ? U.equipe.lien(m.par, m.nom || s().nomAuteur(m.par)) : (m.nom || s().nomAuteur(m.par))), h('dt', { text: 'À' }), h('dd', { text: libDestinataires(m) }),
         h('dt', { text: 'Envoyé' }), h('dd', { text: 'le ' + dateHeure(m.cree) + (m.jusquau ? ' · affiché jusqu’au ' + jourFr(m.jusquau) : '') })),
       m.illisible ? h('p', { class: 'alerte', text: 'Message chiffré pour ses seuls destinataires : votre clé n’ouvre pas ce message, ou elle ne vous a pas encore été remise (à la prochaine connexion d’un administrateur après votre arrivée dans le groupe ou le service).' }) : null,
       (m.consultations || []).filter(function (x) { return x.informer; }).map(function (x) {
@@ -493,7 +493,7 @@
     var m = st().messages[id];
     if (!m) return;
     U.modale('Message consulté', h('div', { class: 'pile' },
-      h('dl', { class: 'ms-entete' }, h('dt', { text: 'De' }), h('dd', { text: m.nom || s().nomAuteur(m.par) }), h('dt', { text: 'À' }), h('dd', { text: libDestinataires(m) }), h('dt', { text: 'Envoyé' }), h('dd', { text: 'le ' + dateHeure(m.cree) })),
+      h('dl', { class: 'ms-entete' }, h('dt', { text: 'De' }), h('dd', {}, U.equipe && U.equipe.lien ? U.equipe.lien(m.par, m.nom || s().nomAuteur(m.par)) : (m.nom || s().nomAuteur(m.par))), h('dt', { text: 'À' }), h('dd', { text: libDestinataires(m) }), h('dt', { text: 'Envoyé' }), h('dd', { text: 'le ' + dateHeure(m.cree) })),
       h('h3', { text: m.objet }), h('div', { class: 'ms-texte', text: m.texte }),
       m.reponsesListe.length ? h('div', { class: 'pile' }, h('b', { text: 'Réponses (' + m.reponsesListe.length + ')' }), m.reponsesListe.map(function (r) { return h('div', { class: 'ms-reponse' }, h('small', { class: 'muted', text: (r.nom || s().nomAuteur(r.par)) + (r.a ? ' → ' + (r.nomA || s().nomAuteur(r.a)) : '') + ' — ' + dateHeure(r.le) }), h('p', { class: 'ms-texte', text: r.texte })); })) : null,
       m.pieces.length ? h('div', { class: 'ms-pieces' }, m.pieces.map(function (p) { return puce(p, null, m); })) : null,

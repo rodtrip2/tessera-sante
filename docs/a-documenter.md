@@ -703,3 +703,14 @@ Restes connus : une occupation d'un module que l'agent ne lit pas (pas de clé) 
 | Parcours des écrans | Signaler, retours vus par l'administrateur et par une IDE, écarter avec explication, mesure d'usage | `tests/ecrans/parcours.py` |
 | Restes | Compteurs d'ouverture des fenêtres (non faits : les saisies suffisent pour l'instant) ; courbes (barres dans le tableau) | — |
 | Documentation | Architecture (nouveau module, socle « usage »), fiche technique, kit RGPD (traitement « retours » et mesure d'usage, information des agents), guide de l'agent (bouton Signaler) | — |
+
+## Version 0.49.0 (branche `contact-partout`, 14 novembre 2026) : contact d'un clic partout (phase 2, lot A)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Agenda | Accompagnateurs inscrits, en attente, proposés : le nom ouvre la fiche de contact ; professionnels d'un événement en lecture | `ui-agenda.js` |
+| Messagerie | Expéditeur (« De ») d'un message, en clair ou chiffré | `ui-messagerie.js` |
+| Salles et bureaux | « Réservée par » / « Demandée par » dans le détail d'une occupation, quand le réglage montre le nom | `ui-salles.js` |
+| Vue d'ensemble | Lignes « Agents » : le nom ouvre la fiche de contact de l'Équipe (qui garde le bouton « Données ajoutées » pour le cadre) ; sans le module Équipe, fiche des données ajoutées comme avant | `ui-vue.js` |
+| Sans module Équipe | Nom en texte simple (comportement de `U.equipe.lien`) | — |
+| Parcours | Messagerie et Vue d'ensemble | `tests/ecrans/parcours.py` |

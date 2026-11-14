@@ -320,7 +320,8 @@
           // Nom d'un agent ou d'un médecin : ouvre sa fiche (données ajoutées), sans changer de fenêtre
           if (!o.impression && x.col.code === 'nom' && (l.a || l.m)) {
             var lien = h('button', { class: 'btn lien', type: 'button', title: 'Ouvrir la fiche', text: cell.lib });
-            lien.addEventListener('click', function (ev) { ev.stopPropagation(); if (l.a) U.champs.ficheAgent(l.a); else U.champs.ficheMedecin(l.m); });
+            // Agent (lot A, 14 novembre 2026) : fiche de contact de l'Équipe (coordonnées, et « Données ajoutées » pour le cadre)
+            lien.addEventListener('click', function (ev) { ev.stopPropagation(); if (l.a && U.equipe && U.App.session.ouvert && U.App.session.ouvert('equipe')) U.equipe.contact(l.a.id, l.a.nom); else if (l.a) U.champs.ficheAgent(l.a); else U.champs.ficheMedecin(l.m); });
             U.vider(td).appendChild(lien);
           }
           // Nom d'un patient : ouvre sa fiche (Patients, avec ses séjours), sans quitter la Vue d'ensemble (0.28.0)
