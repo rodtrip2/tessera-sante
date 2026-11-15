@@ -1,5 +1,10 @@
 # Journal des modifications — Tessera Santé
 
+## 0.73.0 — 15 novembre 2026
+
+- **Contrôle des droits de l'auteur à la lecture** (suite du constat S1 de l'audit, accord du porteur du 15 novembre 2026). Un réglage signé par un agent qui n'avait pas le droit de l'écrire, sans passer par l'écran, n'est appliqué sur aucun poste (pas même le sien) ; il est listé dans le panneau « Signature des saisies ». Les droits sont ceux du compte à la date du réglage : un réglage permis reste en vigueur quand son auteur change de rôle ou quitte l'établissement.
+- Tests : `tests/droits-lecture.test.js`.
+
 ## 0.72.0 — 15 novembre 2026
 
 - **Signature des saisies** (correction de fond du constat S1 de l'audit du 15 novembre 2026, demande du porteur du même jour). Chaque saisie est signée par la clé de son auteur, tirée de sa clé personnelle et attestée par l'administrateur dans le coffre. Sur tous les postes, une saisie non signée, altérée, ou écrite au nom d'un autre agent sans passer par l'écran est **écartée** à la lecture (masquée, jamais supprimée) et signalée à l'administrateur (rappel en haut de l'écran, panneau « Signature des saisies » dans *Sécurité et clés*). Un dossier créé à partir de cette version exige la signature dès le départ ; pour un dossier plus ancien, l'administrateur décide d'exiger la signature quand chaque compte a une clé attestée (choix inscrit dans le coffre, définitif).

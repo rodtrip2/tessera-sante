@@ -1662,54 +1662,65 @@
     var m = moduleDe(e.type), st = etatDe(s, m);
     return !(st && st.annules && st.annules[e.id]);
   }
+  /**
+   * Réglage permis à un auteur qui n'est pas administrateur (cadre, encadrement, rôles désignés…) : true ou false si une
+   * règle propre au réglage s'applique (erreur en clair possible), null sinon. `cfg` : réglages avant le changement.
+   * Partagé par le contrôle de l'écriture et celui de la lecture (0.73.0).
+   */
+  function permisConfig(cfg, auteur, data, comptes, maintenant, lecture) {
+    var cadre = (auteur.roles || []).indexOf('CADRE') >= 0;
+    // Groupes d'agents (décision du 8 novembre 2026) : le cadre modifie les groupes de ses services (contrôle de chaque groupe changé)
+    if (data.cle === 'groupes' && cadre) {
+      var G = socle('groupes', './groupes.js');
+      return !!G && G.controler(cfg.groupes, data.valeur, auteur);
+    }
+    // Rôles selon le service (phase 5) : le cadre règle ceux des agents de ses services (contrôle de chaque changement)
+    if (data.cle === 'rolesServices' && cadre) {
+      var RSc = socle('rolesServices', './roles-services.js');
+      return !!RSc && RSc.controler(cfg.rolesServices, data.valeur, auteur, comptes);
+    }
+    // Accès particuliers (0.31.0) : prêts de droits (l'agent prête les siens, le cadre ceux de ses services) ; demandes
+    // de comptes d'intervenants extérieurs (cadre pour ses services), créés par la session d'un administrateur
+    if (data.cle === 'delegations') {
+      var DL = socle('delegations', './delegations.js');
+      return !!DL && DL.controler(cfg.delegations, data.valeur, auteur, comptes);
+    }
+    if (data.cle === 'comptesDemandes') {
+      var DL2 = socle('delegations', './delegations.js');
+      return !!DL2 && DL2.controlerDemandes(cfg.comptesDemandes, data.valeur, auteur, comptes, maintenant, lecture);
+    }
+    // Liste commune des médecins (décision du 8 novembre 2026) : gérée aussi par les rôles désignés (cadre et secrétaire
+    // par défaut) ; l'ancienne liste `psychiatres` est tenue à jour avec elle
+    if ((data.cle === 'medecins' || data.cle === 'psychiatres')) {
+      var MD = socle('medecins', './medecins.js');
+      return !!MD && MD.controler(cfg, data.cle, data.valeur, auteur);
+    }
+    // Liste commune des psychologues (0.20.0) : mêmes règles que celle des médecins
+    if (data.cle === 'psychologues') {
+      var MP = socle('medecins', './medecins.js');
+      return !!MP && MP.psychologues.controler(cfg, data.cle, data.valeur, auteur);
+    }
+    // Réglages qu'un module ouvre à l'encadrement de ses services, cadre et médecins chefs (contrat : reglages.encadrement[cle],
+    // le contrôle vérifie lui-même les rôles ; Suivi médical, 14 novembre 2026)
+    if (SIC.modules && SIC.modules.liste) {
+      var me = SIC.modules.liste().filter(function (x) { return x.reglages && x.reglages.encadrement && typeof x.reglages.encadrement[data.cle] === 'function'; })[0];
+      if (me) return !!me.reglages.encadrement[data.cle](cfg[data.cle], data.valeur, auteur);
+    }
+    // Réglages qu'un module ouvre au cadre pour ses services (contrat : reglages.cadre[cle], contrôle du changement)
+    if (cadre && SIC.modules && SIC.modules.liste) {
+      var mc = SIC.modules.liste().filter(function (x) { return x.reglages && x.reglages.cadre && typeof x.reglages.cadre[data.cle] === 'function'; })[0];
+      if (mc) return !!mc.reglages.cadre[data.cle](cfg[data.cle], data.valeur, auteur);
+    }
+    return null;
+  }
   function permisPourSoi(s, type, data) {
     // Annulation immédiate par l'auteur de sa propre saisie, dans les deux minutes (0.26.4) : saisie d'annulation habituelle
     if (type === 'ANNULATION' && data && data.immediate === true && data.cible) {
       var vise = s.evts.filter(function (x) { return x.id === data.cible; })[0];
       return annulableParAuteur(s, vise);
     }
-    // Groupes d'agents (décision du 8 novembre 2026) : le cadre modifie les groupes de ses services (contrôle de chaque groupe changé)
-    if (type === 'CONFIG' && data && data.cle === 'groupes' && (s.utilisateur.roles || []).indexOf('CADRE') >= 0) {
-      var G = socle('groupes', './groupes.js');
-      return !!G && G.controler(config(s).groupes, data.valeur, s.utilisateur);
-    }
-    // Rôles selon le service (phase 5) : le cadre règle ceux des agents de ses services (contrôle de chaque changement)
-    if (type === 'CONFIG' && data && data.cle === 'rolesServices' && (s.utilisateur.roles || []).indexOf('CADRE') >= 0) {
-      var RSc = socle('rolesServices', './roles-services.js');
-      return !!RSc && RSc.controler(config(s).rolesServices, data.valeur, s.utilisateur, s.comptes || []);
-    }
-    // Accès particuliers (0.31.0) : prêts de droits (l'agent prête les siens, le cadre ceux de ses services) ; demandes
-    // de comptes d'intervenants extérieurs (cadre pour ses services), créés par la session d'un administrateur
-    if (type === 'CONFIG' && data && data.cle === 'delegations') {
-      var DL = socle('delegations', './delegations.js');
-      return !!DL && DL.controler(config(s).delegations, data.valeur, s.utilisateur, s.comptes || []);
-    }
-    if (type === 'CONFIG' && data && data.cle === 'comptesDemandes') {
-      var DL2 = socle('delegations', './delegations.js');
-      return !!DL2 && DL2.controlerDemandes(config(s).comptesDemandes, data.valeur, s.utilisateur, s.comptes || []);
-    }
-    // Liste commune des médecins (décision du 8 novembre 2026) : gérée aussi par les rôles désignés (cadre et secrétaire
-    // par défaut) ; l'ancienne liste `psychiatres` est tenue à jour avec elle
-    if (type === 'CONFIG' && data && (data.cle === 'medecins' || data.cle === 'psychiatres')) {
-      var MD = socle('medecins', './medecins.js');
-      return !!MD && MD.controler(config(s), data.cle, data.valeur, s.utilisateur);
-    }
-    // Liste commune des psychologues (0.20.0) : mêmes règles que celle des médecins
-    if (type === 'CONFIG' && data && data.cle === 'psychologues') {
-      var MP = socle('medecins', './medecins.js');
-      return !!MP && MP.psychologues.controler(config(s), data.cle, data.valeur, s.utilisateur);
-    }
-    // Réglages qu'un module ouvre à l'encadrement de ses services, cadre et médecins chefs (contrat : reglages.encadrement[cle],
-    // le contrôle vérifie lui-même les rôles ; Suivi médical, 14 novembre 2026)
-    if (type === 'CONFIG' && data && SIC.modules && SIC.modules.liste) {
-      var me = SIC.modules.liste().filter(function (x) { return x.reglages && x.reglages.encadrement && typeof x.reglages.encadrement[data.cle] === 'function'; })[0];
-      if (me) return !!me.reglages.encadrement[data.cle](config(s)[data.cle], data.valeur, s.utilisateur);
-    }
-    // Réglages qu'un module ouvre au cadre pour ses services (contrat : reglages.cadre[cle], contrôle du changement)
-    if (type === 'CONFIG' && data && (s.utilisateur.roles || []).indexOf('CADRE') >= 0 && SIC.modules && SIC.modules.liste) {
-      var mc = SIC.modules.liste().filter(function (x) { return x.reglages && x.reglages.cadre && typeof x.reglages.cadre[data.cle] === 'function'; })[0];
-      if (mc) return !!mc.reglages.cadre[data.cle](config(s)[data.cle], data.valeur, s.utilisateur);
-    }
+    // Réglages ouverts à d'autres que l'administrateur (même contrôle à la lecture : `autoriseConfigLue`)
+    if (type === 'CONFIG' && data) { var pc = permisConfig(config(s), s.utilisateur, data, s.comptes || []); if (pc !== null) return pc; }
     // Module qui déclare le type, y compris un module de référence (données complémentaires de la fiche patient)
     var d = SIC.modules && SIC.modules.moduleDuType ? SIC.modules.moduleDuType(type) : null, m = d && d.saisies && d.saisies.permisPourSoi ? d : moduleDe(type);
     return !!(m.saisies && m.saisies.permisPourSoi && m.saisies.permisPourSoi(type, data, s.utilisateur, { config: config(s), etat: etatDe(s, m), peut: function (t) { return s.peut(t); }, comptes: s.comptes || [] }));
@@ -2424,12 +2435,83 @@
     return res;
   };
 
+  /**
+   * Contrôle des droits de l'auteur à la lecture (0.73.0, constat S1) : un réglage signé n'est appliqué que si son
+   * signataire pouvait l'écrire, d'après les réglages d'avant (`st.config`) : administrateur attesté, droit d'écrire les
+   * réglages, ou règle propre au réglage (cadre, encadrement, prêts…, `permisConfig`). Saisie non signée (exigence pas
+   * encore en vigueur) : appliquée comme avant ; mode formation : sans contrôle.
+   */
+  function autoriseConfigLue(s, st, e) {
+    if (s.formation || !v2(s)) return true;
+    var porteur = e.lot ? st.parId && st.parId[e.lot] : e;
+    if (!porteur || !porteur.sig) return true;
+    var sg = porteur.sg || porteur.by, etat = s.controle && s.controle.etat, cpt = (s.comptes || []).filter(function (c) { return c.id === sg; })[0];
+    if (etat && Array.isArray(etat.admins) ? etat.admins.indexOf(sg) >= 0 : !!(cpt && (cpt.roles || []).indexOf('ADMIN') >= 0)) return true;
+    if (!cpt) return false;
+    cpt = compteA(s, cpt, e.at);   // rôles, services et activité du compte à la date de la saisie
+    if (cpt.actif === false) return false;
+    var cfg = st.config || {}, t = Date.parse(e.at) || Date.now(), DL = socle('delegations', './delegations.js'), RS = socle('rolesServices', './roles-services.js');
+    var x = DL ? DL.appliquer(cpt, cfg, t) : cpt, roles = RS && RS.aDesRoles(cfg, x) ? RS.rolesTous(x, cfg) : (x.roles || []), m = moduleDe('CONFIG');
+    try { if (m.droits.peut(roles, 'CONFIG', cfg)) return true; } catch (er) { /* règle suivante */ }
+    var cs = comptesA(s, e.at);
+    try { var pc = permisConfig(cfg, cpt, e.data || {}, cs, t, true); if (pc !== null) return pc; } catch (er) { return false; }
+    try { return !!(m.saisies && m.saisies.permisPourSoi && m.saisies.permisPourSoi('CONFIG', e.data || {}, cpt, { config: cfg, etat: st, peut: function (ty) { return m.droits.peut(roles, ty, cfg); }, comptes: cs })); } catch (er) { return false; }
+  }
+  /**
+   * Compte tel qu'il était à une date, d'après les traces signées de l'administrateur (création, changement de rôles) :
+   * un réglage permis au moment où il a été écrit le reste quand le compte change ensuite (fin de faisant fonction,
+   * départ). Sans trace antérieure : le compte tel qu'il est.
+   */
+  function compteA(s, cpt, at) {
+    if (!s.histoComptes) {
+      var h = {}, etat = s.controle && s.controle.etat, admins = etat && Array.isArray(etat.admins) ? etat.admins : null;
+      var parLogin = {}; (s.comptes || []).forEach(function (c) { parLogin[c.login] = c.id; });
+      var noter = function (e, x) { var id = parLogin[x.login]; if (id && Array.isArray(x.roles)) (h[id] = h[id] || []).push({ at: e.at, roles: SIC.model && SIC.model.rolesComplets ? SIC.model.rolesComplets(x.roles) : x.roles, services: x.services, actif: x.actif }); };
+      (s.evts || []).forEach(function (e) {
+        if (e.type !== 'COMPTE' || !e.data || !e.sig) return;
+        var sg = e.sg || e.by;
+        if (admins ? admins.indexOf(sg) < 0 : !(s.comptes || []).some(function (c) { return c.id === sg && (c.roles || []).indexOf('ADMIN') >= 0; })) return;
+        if (e.data.action === 'CREATION' || e.data.action === 'ROLES') noter(e, e.data);
+        else if (e.data.action === 'CREATION_LOT') (e.data.comptes || []).forEach(function (x) { noter(e, x); });
+      });
+      Object.keys(h).forEach(function (id) { h[id].sort(function (a, b) { return String(a.at).localeCompare(String(b.at)); }); });
+      s.histoComptes = h;
+    }
+    var l = s.histoComptes[cpt.id] || [], r = null;
+    for (var i = 0; i < l.length && String(l[i].at) <= String(at); i++) r = l[i];
+    if (!r) return cpt;
+    return Object.assign({}, cpt, { roles: r.roles, services: Array.isArray(r.services) ? r.services : cpt.services, actif: r.actif === undefined ? true : r.actif !== false });
+  }
+  /** Comptes tels qu'ils étaient à une date (ceux créés après, d'après les traces, sont omis). */
+  function comptesA(s, at) {
+    var res = [];
+    (s.comptes || []).forEach(function (c) {
+      var x = compteA(s, c, at), l = s.histoComptes[c.id];
+      if (x === c && l && l.length && String(l[0].at) > String(at)) return;   // créé après la date
+      res.push(x);
+    });
+    return res;
+  }
   Session.prototype.recalculer = function (info) {
-    N.suivre(this.evts);   // journal de la session : recalcul incrémental des modules (0.21.2)
-    this.etat = moduleActif().saisies.reduire(this.evts);
+    var s0 = this;
+    this.histoComptes = null;
+    var Mo = SIC.model && SIC.model.definirControleConfig ? SIC.model : null;
+    if (Mo) Mo.definirControleConfig(function (st, e) { return autoriseConfigLue(s0, st, e); });
+    try { recalculerEtats(this); } finally { if (Mo) Mo.definirControleConfig(null); }
+    this.notifier(info);
+  };
+  /** Réglages écrits par un agent qui n'avait pas le droit de les écrire : [{ id, at, by, sg, cle }] (plus récents d'abord). */
+  Session.prototype.reglagesHorsDroit = function () {
+    var vus = {}, res = [];
+    ((this.etat && this.etat.horsDroit) || []).forEach(function (e) { if (vus[e.id]) return; vus[e.id] = 1; res.push({ id: e.id, at: e.at, by: e.by, sg: e.sg || null, cle: (e.data || {}).cle }); });
+    return res.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
+  };
+  function recalculerEtats(sess) {
+    N.suivre(sess.evts);   // journal de la session : recalcul incrémental des modules (0.21.2)
+    sess.etat = moduleActif().saisies.reduire(sess.evts);
     // Autres modules affichés dont la session détient la clé : leur propre état (étape 6)
-    var s = this, etats = {};
-    etats[idModule()] = this.etat;
+    var s = sess, etats = {};
+    etats[idModule()] = sess.etat;
     if (SIC.modules && SIC.modules.affiches) SIC.modules.affiches().forEach(function (m) {
       if (m !== moduleActif() && aCle(s, m.id)) etats[m.id] = m.saisies.reduire(s.evts);
     });
@@ -2439,14 +2521,13 @@
     if (mp && !etats.patients && aCle(s, 'patients')) etats.patients = mp.saisies.reduire(s.evts);
     // Identité des patients réduite aux initiales (0.27.3 : administrateur de garde par défaut, réglable par rôle) :
     // états d'affichage recopiés avec les fiches réduites ; le journal et les états d'origine ne changent pas
-    var cpt = this.utilisateur && this.compteEffectif ? this.compteEffectif() : null;
-    if (cpt && !this.apercu && moduleActif().droits.identiteReduite && moduleActif().droits.identiteReduite(cpt.roles, config(this))) {
+    var cpt = sess.utilisateur && sess.compteEffectif ? sess.compteEffectif() : null;
+    if (cpt && !sess.apercu && moduleActif().droits.identiteReduite && moduleActif().droits.identiteReduite(cpt.roles, config(sess))) {
       var reduire = function (e) { if (!e || !e.patients) return e; var p = {}; Object.keys(e.patients).forEach(function (k) { p[k] = patientReduit(e.patients[k]); }); return Object.assign({}, e, { patients: p }); };
-      this.etat = reduire(this.etat);
+      sess.etat = reduire(sess.etat);
       Object.keys(etats).forEach(function (k) { etats[k] = k === idModule() ? s.etat : reduire(etats[k]); });
     }
-    this.etats = etats;
-    this.notifier(info);
+    sess.etats = etats;
   };
   /** Fiche réduite : initiales du nom et du prénom, sans IPP ni date de naissance (l'âge reste calculable à l'année). */
   function patientReduit(p) {

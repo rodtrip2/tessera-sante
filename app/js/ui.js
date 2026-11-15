@@ -1057,9 +1057,9 @@
       h('span', { text: 'Coffre modifié hors de l’outil ou restauré : aucune remise de clé avant réparation. ' }),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'securite'; rendreContenu(); } }, 'Voir')));
     // Saisies écartées à la lecture (signature des saisies, 0.72.0) : rappel à l'administrateur
-    var nEc = ea && ea.attestateur && !s.formation && s.saisiesEcartees ? s.saisiesEcartees().length : 0;
+    var nEc = ea && ea.attestateur && !s.formation && s.saisiesEcartees ? s.saisiesEcartees().length + (s.reglagesHorsDroit ? s.reglagesHorsDroit().length : 0) : 0;
     if (nEc && !s.apercu && !(App.onglet === 'admin' && App.sousOngletAdmin === 'securite')) zoneEntete.appendChild(h('div', { class: 'bandeau-secours', role: 'alert' },
-      h('span', { text: nEc + ' saisie(s) écartée(s) : non signée(s), altérée(s) ou écrite(s) au nom d’un autre agent. ' }),
+      h('span', { text: nEc + ' saisie(s) écartée(s) : non signée(s), altérée(s), écrite(s) au nom d’un autre agent ou sans en avoir le droit. ' }),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'securite'; rendreContenu(); } }, 'Voir')));
     // Remises de clés et comptes demandés qui attendent la confirmation de l'administrateur (correctif du 15 novembre 2026)
     var nAtt = (s.remisesAConfirmer ? s.remisesAConfirmer().length : 0) + (s.demandesComptesAConfirmer ? s.demandesComptesAConfirmer().length : 0);
@@ -1680,9 +1680,10 @@
   function panneauSignatures(s) {
     var e = s.etatSignatures && s.etatSignatures(), at = s.etatAttestation && s.etatAttestation();
     if (!e || !at || !at.attestateur || s.formation) return null;
-    var ec = s.saisiesEcartees(), nomDe = function (id) { return id ? s.nomAuteur(id) : '—'; };
+    var ec = s.saisiesEcartees(), hd = s.reglagesHorsDroit ? s.reglagesHorsDroit() : [], nomDe = function (id) { return id ? s.nomAuteur(id) : '—'; };
+    var libReglage = function (cle) { try { return (SIC.ui.libConfig ? SIC.ui.libConfig(cle) : '') || cle; } catch (er) { return cle; } };
     return h('section', { class: 'panneau' }, h('h2', { text: 'Signature des saisies' }),
-      h('p', { class: 'muted', text: 'Chaque saisie est signée par la clé de son auteur, tirée de sa clé personnelle et attestée dans le coffre. Une saisie non signée, altérée, ou écrite au nom d’un autre agent est écartée à la lecture sur tous les postes : elle est masquée, jamais supprimée, et listée ici.' }),
+      h('p', { class: 'muted', text: 'Chaque saisie est signée par la clé de son auteur, tirée de sa clé personnelle et attestée dans le coffre. Une saisie non signée, altérée, ou écrite au nom d’un autre agent est écartée à la lecture sur tous les postes : elle est masquée, jamais supprimée, et listée ici. Un réglage signé par un agent qui n’avait pas le droit de l’écrire (d’après ses rôles à la date du réglage) n’est pas appliqué et figure aussi ici.' }),
       e.exigee ? h('p', { text: 'Signature exigée depuis le ' + dateIso(e.exigee) + '.' })
         : h('div', { class: 'alerte', text: 'Signature pas encore exigée (coffre créé avant la version 0.72.0) : les saisies non signées restent acceptées' + (e.anciennes ? ' (' + e.anciennes + ' lue(s) sur ce poste)' : '') + '.' }),
       !e.exigee && e.provisoires ? h('p', { class: 'muted', text: e.provisoires + ' saisie(s) signée(s) par une clé pas encore attestée : attestée à la connexion d’un administrateur.' }) : null,
@@ -1696,6 +1697,11 @@
               h('td', { text: x.journal === 'socle' ? 'commun' : ((SIC.modules.obtenir(x.journal) || {}).libelle || x.journal) }), h('td', { text: x.libelle }));
           })))),
         ec.length > 50 ? h('p', { class: 'muted', text: 'Les 50 plus récentes sont affichées.' }) : null] : h('p', { class: 'muted', text: 'Aucune saisie écartée.' }),
+      // Contrôle des droits à la lecture (0.73.0) : réglages signés par un agent qui n'avait pas le droit de les écrire
+      hd.length ? [
+        h('div', { class: 'alerte', text: hd.length + ' réglage(s) écrit(s) sans en avoir le droit, non appliqué(s).' }),
+        h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Date', 'Écrit par', 'Réglage'].map(function (x) { return h('th', { text: x }); }))),
+          h('tbody', {}, hd.slice(0, 50).map(function (x) { return h('tr', {}, h('td', { text: dateIso(x.at) }), h('td', { text: nomDe(x.sg || x.by) }), h('td', { text: libReglage(x.cle) })); }))))] : null,
       !e.exigee ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', disabled: e.comptesSansCle.length > 0, onclick: async function (ev) {
         if (!confirm('Exiger la signature de toute saisie ?\n\nLes saisies non signées (écrites avant la version 0.72.0) seront écartées sur tous les postes : masquées, jamais supprimées. Ce choix est inscrit dans le coffre attesté et ne peut pas être retiré.')) return;
         var b = ev.currentTarget; b.disabled = true;
