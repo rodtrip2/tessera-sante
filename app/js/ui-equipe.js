@@ -169,6 +169,11 @@
 
   // ------------------------------------------------------------ Vues
   function mesServices() { return U.services().map(function (x) { return x.code; }); }
+  /** Rôles selon le service (phase 5) : bouton pour le cadre des services de l'agent (compte affecté à plusieurs services). */
+  function rolesParService(a) {
+    var cpt = a.compte && U.rolesServices ? ((s().comptes || []).filter(function (x) { return x.id === a.id; })[0]) : null;
+    return cpt && U.rolesServices.proposable(cpt) ? h('button', { class: 'btn petit', type: 'button', title: U.rolesServices.resume(cpt) || 'Mêmes rôles dans tous ses services', onclick: function () { U.rolesServices.modale(cpt); } }, 'Rôles par service') : null;
+  }
   function vueAnnuaire() {
     var mes = mesServices(), voitTout = s().roles().indexOf('ADMIN') >= 0, c = compte();
     var l = agents().filter(function (a) { return voitTout || a.services.some(function (x) { return mes.indexOf(x) >= 0; }) || a.id === moi().id; });
@@ -182,7 +187,7 @@
           var f = E.fiche(st(), a.id);
           return h('tr', {}, h('td', {}, lien(a.id, a.nom), a.compte ? null : h('small', { class: 'muted', text: ' (sans compte)' })), h('td', { text: f.fonction || libRoles(a.roles) }),
             h('td', { text: a.services.map(U.libService).join(', ') }), h('td', { class: 'nowrap' }, boutonCopie(f.telPro, 'Copier le numéro')), h('td', {}, boutonCopie(f.mailPro, 'Copier l’adresse')),
-            h('td', { class: 'actions-ligne' }, a.id !== moi().id && E.gere(c, a.id, a.services) && s().peut('COORDONNEES') && !s().apercu ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleFiche(a); } }, 'Modifier') : null));
+            h('td', { class: 'actions-ligne' }, rolesParService(a), a.id !== moi().id && E.gere(c, a.id, a.services) && s().peut('COORDONNEES') && !s().apercu ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleFiche(a); } }, 'Modifier') : null));
         }))))));
   }
   function vueMaFiche() {

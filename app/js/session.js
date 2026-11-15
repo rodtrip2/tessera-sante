@@ -71,7 +71,7 @@
   /** Saisies du socle : traces des comptes et des clés, prises d'acte d'intégrité, réglages communs. */
   var TYPES_SOCLE = { COMPTE: 1, INTEGRITE: 1 };
   // validations (13 novembre 2026) : lues par tous les modules, donc dans le journal du socle
-  var REGLAGES_SOCLE = { validations: 1, etiquettesCommunes: 1, barreModules: 1, boitesMail: 1, comptesPoles: 1, controles: 1, formalites: 1, formations: 1, heures: 1, etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
+  var REGLAGES_SOCLE = { validations: 1, etiquettesCommunes: 1, barreModules: 1, boitesMail: 1, comptesPoles: 1, controles: 1, formalites: 1, formations: 1, heures: 1, rolesServices: 1, etablissement: 1, services: 1, roles: 1, modulesServices: 1, fichePatient: 1, importPatients: 1, patientsListe: 1, patientsChamps: 1, vehicules: 1, vehiculesInformation: 1, agenda: 1, groupes: 1, medecins: 1, suiviMedical: 1,
     champsAjoutes: 1, reglagesDonnees: 1, capacites: 1, vuesEnsemble: 1, psychologues: 1, largeursColonnes: 1, agendaReglages: 1, intervenants: 1, travaux: 1, conges: 1, messagerie: 1, documents: 1, masquesDocuments: 1, salles: 1, infos: 1, poles: 1, chambres: 1, delegations: 1, comptesDemandes: 1, charteIntervenants: 1 };
   /** Champs ajoutés (0.18.0) : définitions, droits réglés pour chaque donnée, clés propres (`d-<id>`). */
   function CH() { return socle('champs', './champs.js'); }
@@ -169,9 +169,46 @@
   function controlerModule(s, type, data) {
     var m = moduleDe(type);
     if (!m || !m.saisies || typeof m.saisies.controler !== 'function') return;
-    var c = s.compteEffectif && s.compteEffectif(), G = c && socle('groupes', './groupes.js');
-    m.saisies.controler(type, data || {}, { etat: etatDe(s, m), config: config(s), peut: function (t) { return s.peut(t); },
-      compte: c ? Object.assign({}, c, { groupes: G ? G.de(config(s), c.id) : [] }) : null, comptes: s.comptes || [] });
+    var c = s.compteEffectif && s.compteEffectif(), G = c && socle('groupes', './groupes.js'), comptes = s.comptes || [];
+    // Rôles selon le service (phase 5) : le module contrôle avec les rôles du compte, et des autres comptes, dans le
+    // service que la saisie concerne (un seul service : sinon rôles habituels)
+    var RS = socle('rolesServices', './roles-services.js'), cfg = config(s), cib = ciblesDe(s, type, data);
+    if (RS && c && cib.length === 1) {
+      var base = compteDeBase(s);
+      if (base && RS.aDesRoles(cfg, base)) c = RS.compteDans(base, cfg, cib[0]);
+      comptes = comptes.map(function (x) { return RS.aDesRoles(cfg, x) ? RS.compteDans(x, cfg, cib[0]) : x; });
+    }
+    m.saisies.controler(type, data || {}, { etat: etatDe(s, m), config: cfg, peut: function (t) { return s.peut(t); },
+      compte: c ? Object.assign({}, c, { groupes: G ? G.de(cfg, c.id) : [] }) : null, comptes: comptes });
+  }
+  /** Services que vise une saisie (contrat du module : `saisies.cibles`) ; aucun pour le journal du socle. */
+  function ciblesDe(s, type, data) {
+    var m = moduleDe(type);
+    if (!s.etat || !m || !m.saisies || !m.saisies.cibles) return [];
+    var jv = null;
+    try { jv = journalPour(s, journaux(s), type, data); } catch (e) { jv = null; }
+    if (jv && jv.nom === SOCLE) return [];
+    try { return m.saisies.cibles(etatDe(s, m) || {}, { type: type, data: data || {} }) || []; } catch (e) { return []; }
+  }
+  /** Compte connecté avec ses prêts de droits, sans les rôles propres à un service (base des rôles selon le service). */
+  function compteDeBase(s) {
+    if (!s.utilisateur || s.apercu) return null;
+    var DL = socle('delegations', './delegations.js');
+    return DL && s.etat ? DL.appliquer(s.utilisateur, config(s), Date.now()) : s.utilisateur;
+  }
+  /**
+   * Rôles selon le service (phase 5, décision du porteur du 15 novembre 2026) : chaque saisie est permise par les rôles
+   * du compte dans chacun des services qu'elle concerne ; « Tous les services » cumule l'affichage, pas les droits.
+   */
+  function controlerRolesService(s, type, data) {
+    var RS = socle('rolesServices', './roles-services.js'), cfg = config(s), base = compteDeBase(s);
+    if (!RS || !base || !RS.aDesRoles(cfg, base)) return;
+    var m = moduleDe(type);
+    ciblesDe(s, type, data).forEach(function (sv) {
+      if (m.droits.peut(RS.rolesDans(base, cfg, sv), type, cfg)) return;
+      var x = (cfg.services || []).filter(function (v) { return v.code === sv; })[0];
+      throw new Error('Votre rôle dans le service ' + (x ? x.libelle : sv) + ' ne permet pas cette action.');
+    });
   }
   // ---------------------------------------------------------- Trousseau (étape 4)
   function v2(s) { return !!(s.coffre && s.coffre.version === 2); }
@@ -519,7 +556,9 @@
     return comptes.map(function (c) {
       if (c.actif && SIC.comptes && SIC.comptes.validite(c, now).expire) return Object.assign({}, c, { actif: false });
       // Prêts de droits en cours (0.31.0) : les clés des rôles prêtés vont au délégataire, retirées à la fin du prêt
-      return DL && cfg ? DL.appliquer(c, cfg, now) : c;
+      var x = DL && cfg ? DL.appliquer(c, cfg, now) : c, RS = socle('rolesServices', './roles-services.js');
+      // Rôles selon le service (phase 5) : clés remises selon l'ensemble des rôles du compte, tous services confondus
+      return RS && cfg && RS.aDesRoles(cfg, x) ? Object.assign({}, x, { roles: RS.rolesTous(x, cfg) }) : x;
     });
   }
   /** Trousseau de travail d'une modification du coffre : installé seulement si l'écriture réussit (modifierCoffre). */
@@ -1200,7 +1239,9 @@
    * pour l'un de ses services (l'encadrement et l'administrateur consultent aussi les services désactivés).
    */
   Session.prototype.modulesAccessibles = function () {
-    var s = this, cfg = config(this), c = this.compteEffectif();
+    var s = this, cfg = config(this), c = this.compteEffectif(), RSm = socle('rolesServices', './roles-services.js');
+    // Rôles selon le service : les fenêtres suivent l'ensemble des rôles (elles ne changent pas avec le service affiché)
+    if (c && RSm && !this.apercu && RSm.aDesRoles(cfg, c)) c = Object.assign({}, c, { roles: RSm.rolesTous(compteDeBase(this) || c, cfg) });
     if (!c || !SIC.modules || !SIC.modules.affiches) return [moduleActif()];
     return SIC.modules.affiches().filter(function (m) {
       if (!m.droits || !aCle(s, m.id)) return false;
@@ -1243,7 +1284,14 @@
   Session.prototype.compteEffectif = function () {
     if (!this.utilisateur) return null;
     // Prêts de droits en cours (0.31.0) : rôles et services prêtés ajoutés (affichage et droits ; clés : session de l'administrateur)
-    if (!this.apercu) { var DL = socle('delegations', './delegations.js'); return DL && this.etat ? DL.appliquer(this.utilisateur, config(this), Date.now()) : this.utilisateur; }
+    if (!this.apercu) {
+      var DL = socle('delegations', './delegations.js'), c0 = DL && this.etat ? DL.appliquer(this.utilisateur, config(this), Date.now()) : this.utilisateur;
+      // Rôles selon le service (phase 5) : rôles du service affiché (`serviceCourant`, choisi par l'interface) ; « Tous les
+      // services » : ensemble de ses rôles pour l'affichage, chaque saisie restant contrôlée dans son service
+      var RS = socle('rolesServices', './roles-services.js'), cf0 = this.etat ? config(this) : null;
+      if (RS && cf0 && RS.aDesRoles(cf0, c0)) return Object.assign({}, c0, { roles: this.serviceCourant && this.serviceCourant !== '*' ? RS.rolesDans(c0, cf0, this.serviceCourant) : RS.rolesTous(c0, cf0) });
+      return c0;
+    }
     var cfg = config(this);
     return Object.assign({}, this.utilisateur, { roles: [this.apercu.code], services: (cfg.services || []).map(function (s) { return s.code; }) });
   };
@@ -1268,6 +1316,11 @@
     if (type === 'CONFIG' && data && data.cle === 'groupes' && (s.utilisateur.roles || []).indexOf('CADRE') >= 0) {
       var G = socle('groupes', './groupes.js');
       return !!G && G.controler(config(s).groupes, data.valeur, s.utilisateur);
+    }
+    // Rôles selon le service (phase 5) : le cadre règle ceux des agents de ses services (contrôle de chaque changement)
+    if (type === 'CONFIG' && data && data.cle === 'rolesServices' && (s.utilisateur.roles || []).indexOf('CADRE') >= 0) {
+      var RSc = socle('rolesServices', './roles-services.js');
+      return !!RSc && RSc.controler(config(s).rolesServices, data.valeur, s.utilisateur, s.comptes || []);
     }
     // Accès particuliers (0.31.0) : prêts de droits (l'agent prête les siens, le cadre ceux de ses services) ; demandes
     // de comptes d'intervenants extérieurs (cadre pour ses services), créés par la session d'un administrateur
@@ -1366,7 +1419,7 @@
     if (type === 'VALEUR') { if (!(options && options.sansControle)) controlerValeur(this, data); }
     else {
       if (!(options && options.sansControle) && !this.peut(type) && !permisPourSoi(this, type, data)) throw new Error("Votre rôle ne permet pas cette action.");
-      if (!(options && options.sansControle)) { controlerActivation(this, type, data); controlerModule(this, type, data); }
+      if (!(options && options.sansControle)) { controlerActivation(this, type, data); if (!permisPourSoi(this, type, data)) controlerRolesService(this, type, data); controlerModule(this, type, data); }
     }
     var at = (options && options.at) || new Date().toISOString();
     var by = (options && options.by) || this.utilisateur.id;

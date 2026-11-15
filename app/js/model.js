@@ -300,6 +300,7 @@
     comptesDemandes: { demandes: [] },    // comptes d'intervenants extérieurs demandés par le cadre (0.31.0)
     charteIntervenants: { texte: '', version: 0 },   // charte de confidentialité des intervenants extérieurs (0.31.0)
     poles: [],             // pôles : regroupements de services (0.27.2)
+    rolesServices: {},     // rôles selon le service : { compte: { service: [rôles de service] } } (phase 5, 15 novembre 2026)
     comptesPoles: {},      // comptes qui suivent un pôle : { compte: pôle } (14 novembre 2026)
     infos: {},             // informations du service : pièces jointes (désactivées par défaut), taille maximale (0.26.2)
     salles: {},            // salles et bureaux : plage affichée, horaires des demi-journées des présences, par service (0.25.0)
@@ -2152,7 +2153,7 @@
   ];
   // Prêts de droits et demandes de comptes (0.31.0) : propres aux agents de l'établissement, jamais exportés ;
   // fonctions soumises à avis (13 novembre 2026) : décisions et avis propres à chaque établissement
-  var REGLAGES_EXCLUS = { compteursRegistre: 1, registreFige: 1, derniersClasseur: 1, registreFigeMesures: 1, rapportsAnnuels: 1, miroir: 1, delegations: 1, comptesDemandes: 1, validations: 1, comptesPoles: 1 };
+  var REGLAGES_EXCLUS = { compteursRegistre: 1, registreFige: 1, derniersClasseur: 1, registreFigeMesures: 1, rapportsAnnuels: 1, miroir: 1, delegations: 1, comptesDemandes: 1, validations: 1, comptesPoles: 1, rolesServices: 1 };
   var REGLAGES_SUPPLEMENTAIRES = { imagesDecompte: {} };   // paramètres sans valeur par défaut dans CONFIG_DEFAUT
 
   function groupeDeCle(cle) { return GROUPES_REGLAGES.filter(function (g) { return g.cles.indexOf(cle) >= 0; })[0] || null; }
