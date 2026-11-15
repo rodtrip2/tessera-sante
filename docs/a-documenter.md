@@ -1006,3 +1006,19 @@ Décisions du porteur du 15 novembre 2026 : durée du bris de glace **jusqu'à l
 | Information, relecture | Cadre du service du patient : « Bris de glace à relire » ; administrateur de garde : bris des dernières 24 heures ; fenêtre Patients, onglet « Bris de glace » (visible si la fonction est activée ou s'il y en a) : relecture du mois (relu, commentaire), export CSV pour le délégué, « Mes bris de glace » pour chaque agent | `ui-acces-clinique.js` ; mécanisme d'onglet `visible(config)` étendu à la fenêtre Patients (`ui.js`) |
 | Tests, parcours | `tests/acces-clinique.test.js` ; parcours : patient sorti, valeur masquée, bris de glace, relecture | — |
 | À valider | Responsable de la sécurité informatique : accès garanti par l'application (la clé est remise aux rôles du bris de glace), justification lisible par les détenteurs de la clé du module Patients ; délégué : relecture, conservation des traces de bris de glace |
+
+## Version 0.69.0 (branche `clinique`, 15 novembre 2026) : données cliniques du séjour (phase 5, lot G)
+
+Décisions du porteur du 15 novembre 2026 : codes CIM en **saisie libre** (liste intégrée : évolutions futures) ; dépendance : **6 variables AVQ** ; notes cliniques écrites et lues par **IDE, cadre, médecin selon les réglages de l'établissement**, **rattachées au séjour** ; pour un patient **déjà hospitalisé, rappel des codes CIM et de la cotation de dépendance précédents** pour référence.
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Module | `clinique` « Données cliniques » (journal `modules\clinique\`, clé propre, remise aussi aux rôles du bris de glace : contrat `clesBrisDeGlace`) ; saisies `CLINIQUE_STAFF` { patientId, sejour, service, cim, motif, projet, avq } (versions gardées), `CLINIQUE_NOTE`, `CLINIQUE_NOTE_RETRAIT` (masquée, motif, auteur ou cadre) ; fourniture `clinique.staff` | `module-clinique.js`, `ui-clinique.js`, `index.html`, `ui.js` (icône), `app.css`, `session.js` |
+| Dépendance | Habillage, déplacements et locomotion, alimentation, continence, comportement, relation et communication ; cotées de 1 (autonomie complète) à 4 (assistance totale) ; score de 6 à 24 | — |
+| Droits | Accès « Consulter », « Feuille de staff », « Notes » dans Rôles et accès (repère de lecture `CLINIQUE_LECTURE`) ; par défaut IDE, cadre, médecins ; limites communes : patients présents, bris de glace (lecture seule) | — |
+| Écrans | Fenêtre « Données cliniques », onglet « Feuille de staff clinique » (patients hospitalisés du service) ; fenêtre du séjour (choix du séjour, rappel du séjour précédent, feuille de staff, notes) ; fiche patient, onglet « Données ajoutées » : bouton « Données cliniques du séjour… » ou « accès restreint » avec bris de glace | `ui-patients.js` |
+| Droit d'accès du patient | Feuilles de staff et notes (retirées comprises) reprises dans l'export | `interface.droitAcces` |
+| Soumis à avis | Fonction « dossier-clinique » de l'onglet Validations (délégué, responsable de la sécurité informatique, direction des soins et commission médicale), **livrée désactivée** (fenêtre masquée) | `validations.js` |
+| Démonstration, tests, parcours | Séjour ancien de P02 renseigné (rappel), feuilles de staff, notes, note retirée ; `tests/clinique.test.js` ; parcours | `demo.js` |
+| Évolutions futures | Liste de référence des codes CIM intégrée à l'application (sans connexion sortante) ; colonnes cliniques dans la Vue d'ensemble (fourniture `clinique.staff` prête) |
+| À valider | Direction des soins et commission médicale : double saisie avec le DPI ; délégué : analyse d'impact, conservation |

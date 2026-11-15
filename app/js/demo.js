@@ -170,6 +170,7 @@
         'donnee-clinique': { etat: 'desactive', date: jourIso(-5), auteur: '', reference: 'En attente de l’analyse d’impact (fictif)' },
         formations: { etat: 'accord', date: jourIso(-3), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
         entretiens: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
+        'dossier-clinique': { etat: 'accord', date: jourIso(-1), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote (démonstration, fictif)', dpoInforme: jourIso(-2) },
         heures: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
         'mesure-usage': { etat: 'accord', date: jourIso(-7), auteur: 'Cadre supérieur de santé (fictif)', reference: 'Agents informés en réunion d’équipe (fictif)' }
       } });
@@ -302,6 +303,15 @@
     ajouter(t(-3), 'SEJOUR', { patientId: 'P06', sejourId: 'SP06', placement: { piece: 'CSI A' } });
     ajouter(t(-1), 'SEJOUR', { patientId: 'P05', sejourId: 'SP05', placement: { piece: 'Espace d’apaisement' } });
     // Rappel : P01 soins sans consentement (SDT), P03 soins libres, P04 SDRE (Unité 2)
+    // Données cliniques du séjour (phase 5, 15 novembre 2026) : séjour ancien de P02 renseigné (codes CIM et dépendance
+    // rappelés pour référence), feuilles de staff des séjours en cours, notes cliniques, note retirée (tout est fictif)
+    ajouter(t(-24 * 20), 'SEJOUR', { patientId: 'P02', sejourId: 'SP02-A', iep: '7900', entree: jISO(-24 * 400), sortie: jISO(-24 * 372), service: 'U1', chambre: '14' });
+    ajouter(t(-24 * 19), 'CLINIQUE_STAFF', { patientId: 'P02', sejour: 'SP02-A', service: 'U1', cim: [{ code: 'F31.1', libelle: 'Code fictif de démonstration' }], motif: 'Motif fictif du séjour précédent', projet: 'Projet fictif', avq: { habillage: 2, deplacement: 1, alimentation: 2, continence: 1, comportement: 3, communication: 2 } });
+    ajouter(t(-24 * 3), 'CLINIQUE_STAFF', { patientId: 'P02', sejour: 'SP02', service: 'U1', cim: [{ code: 'F31.2', libelle: 'Code fictif de démonstration' }], motif: 'Motif fictif de l’hospitalisation', projet: 'Projet thérapeutique fictif : stabilisation, préparation de la sortie avec le centre médico-psychologique (fictif).', avq: { habillage: 1, deplacement: 1, alimentation: 2, continence: 1, comportement: 2, communication: 2 } });
+    ajouter(t(-24 * 2), 'CLINIQUE_STAFF', { patientId: 'P01', sejour: 'SP01', service: 'U1', cim: [{ code: 'F20.0', libelle: 'Code fictif de démonstration' }, { code: 'Z91.1', libelle: '' }], motif: 'Motif fictif', projet: 'Projet fictif en cours d’élaboration', avq: { habillage: 2, deplacement: 1, alimentation: 1 } });
+    ajouter(t(-20), 'CLINIQUE_NOTE', { patientId: 'P02', sejour: 'SP02', service: 'U1', id: 'CN-DEMO1', texte: 'Note clinique fictive de démonstration.', nom: 'Agent A (fictif)' }, 'demo-a');
+    ajouter(t(-10), 'CLINIQUE_NOTE', { patientId: 'P02', sejour: 'SP02', service: 'U1', id: 'CN-DEMO2', texte: 'Note fictive écrite par erreur dans ce dossier.', nom: 'Agent A (fictif)' }, 'demo-a');
+    ajouter(t(-9), 'CLINIQUE_NOTE_RETRAIT', { patientId: 'P02', sejour: 'SP02', service: 'U1', id: 'CN-DEMO2', motif: 'Mauvais patient (fictif)' }, 'demo-a');
 
     var nMes = 0;
     function mesure(patientId, service, type, debutH, finH, lieu, psy, opts) {

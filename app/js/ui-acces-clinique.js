@@ -156,5 +156,5 @@
   itf.admin = Object.assign({}, adm0, { onglets: function (f) { return (ong0 ? ong0(f) : []).concat([['acces-clinique', 'Données cliniques', [panneau()]]]); } });
   ct.interface = itf;
   if (!ct.vues.onglets.some(function (o) { return o.code === 'bris'; })) ct.vues.onglets.push({ code: 'bris', libelle: 'Bris de glace', visible: function (config) { return AC.brisActive(config) || Object.keys(bris()).length > 0; } });
-  U.accesClinique = { acces: acces, ok: ok, lisibleParBris: lisibleParBris, blocFiche: blocFiche, vue: vue, panneau: panneau };
+  U.accesClinique = { acces: acces, ok: ok, lisibleParBris: lisibleParBris, blocFiche: blocFiche, modaleBris: modaleBris, vue: vue, panneau: panneau };
 })();

@@ -505,7 +505,9 @@
       return function (compte) {
         var roles = compte.roles || [];
         if (!roles.some(function (r) { return codes.indexOf(r) >= 0; })) return false;
-        if (d.membre && !d.membre(roles, cfg)) return false;   // module où un rôle n'entre que par ses accès (Agenda)
+        // Données cliniques (phase 5) : clé du module aussi remise aux rôles qui peuvent recourir au bris de glace
+        var ACb = m.clesBrisDeGlace ? socle('accesClinique', './acces-clinique.js') : null, parBris = !!ACb && roles.some(function (r) { return ACb.rolesBris(cfg).indexOf(r) >= 0; });
+        if (d.membre && !d.membre(roles, cfg) && !parBris) return false;   // module où un rôle n'entre que par ses accès (Agenda)
         // Module arrêté (0.43.0, décision du porteur du 12 novembre 2026) : les agents gardent sa clé (pas de nouvelle
         // génération à chaque arrêt) ; la règle suit le choix des services, comme si le module était en marche
         var arrete = d.arrete && d.arrete(cfg), actif = arrete ? d.serviceChoisi : d.serviceActif;
