@@ -1,5 +1,12 @@
 # Journal des modifications — Tessera Santé
 
+## 0.75.0 — 15 novembre 2026
+
+- **Mots de passe renforcés** (constat S3 de l'audit, décision du porteur du 15 novembre 2026 : appliqué d'office). Tout nouveau mot de passe suit la recommandation de la CNIL : 12 caractères mêlant majuscules, minuscules, chiffres et caractères spéciaux, ou 14 caractères avec trois de ces familles, ou une phrase d'au moins 7 mots. Les mots de passe courants ou devinables (nom, identifiant, suites du clavier…) sont refusés. L'administrateur peut revenir à la règle simple (12 caractères). Les mots de passe actuels restent valables jusqu'à leur changement.
+- **Second facteur, livré désactivé** : l'administrateur peut exiger, rôle par rôle, la connexion par le mot de passe **et** une clé de sécurité (*Sécurité et clés → Connexion*). L'agent concerné associe sa clé à sa prochaine connexion ; ensuite le mot de passe seul n'ouvre plus rien, même sur une copie du coffre. Clé perdue : l'administrateur réinitialise le mot de passe.
+- **Code de la clé de sécurité exigible** (désactivé par défaut).
+- Tests : `tests/mots-de-passe.test.js`, `tests/second-facteur.test.js`.
+
 ## 0.74.0 — 15 novembre 2026
 
 - **Droits contrôlés à la lecture pour toutes les saisies** (suite du constat S1, demande du porteur du 15 novembre 2026). Une annulation, un lot ou une saisie d'un module signés par un agent dont le rôle ne le permettait pas, écrits sans passer par l'écran, ne sont appliqués sur aucun poste (une annulation hors droit n'annule rien) ; ils sont listés dans le panneau « Signature des saisies ». Les droits sont ceux du compte et des réglages à la date de la saisie. Par prudence, ce qui ne peut pas être rejoué à la lecture reste accepté (permissions qui dépendent de l'état du module à l'époque, données ajoutées, traces des comptes).

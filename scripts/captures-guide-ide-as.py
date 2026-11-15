@@ -24,7 +24,7 @@ with sync_playwright() as p:
     a.goto('http://localhost:8765/app/')
     a.get_by_role('button', name='Mode démonstration (données fictives)').click()
     a.get_by_placeholder('Prénom NOM').fill('Cadre Démo (fictif)'); a.get_by_placeholder('ex. prenom.nom').fill('cadre')
-    pw = a.locator('input[type=password]'); pw.nth(0).fill('motdepasse-demo'); pw.nth(1).fill('motdepasse-demo')
+    pw = a.locator('input[type=password]'); pw.nth(0).fill('Carotte-Verte-Demo-27'); pw.nth(1).fill('Carotte-Verte-Demo-27')
     if a.get_by_label('Charger des données fictives de démonstration').count(): a.get_by_label('Charger des données fictives de démonstration').check()
     a.get_by_role('button', name='Initialiser le dossier').click()
     a.wait_for_selector('.code-secours', timeout=90000)
