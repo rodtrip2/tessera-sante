@@ -414,6 +414,8 @@
         // de l'écrire (sans passer par l'écran) n'est pas appliqué ; il est gardé à part (`horsDroit`) et signalé
         if (controleConfig && !controleConfig(st, e)) { st.horsDroit = (st.horsDroit || []).concat([e]); break; }
         st.config[d.cle] = cloner(d.valeur);
+        // Historique des réglages appliqués (0.74.0) : réglages en vigueur à la date d'une saisie (contrôle des droits à la lecture)
+        (st.histoConfig = st.histoConfig || []).push({ at: e.at, id: e.id, cle: d.cle, valeur: st.config[d.cle] });
         break;
 
       case 'INTEGRITE':

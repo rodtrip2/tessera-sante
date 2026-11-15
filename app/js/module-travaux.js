@@ -250,7 +250,7 @@
     icone: 'TR',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi,
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['TRAVAUX_ETAPE'],
       services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { travaux: controlerCadre } },
     vues: { onglets: [{ code: 'demandes', libelle: 'Demandes' }, { code: 'historique', libelle: 'Historique' }] },

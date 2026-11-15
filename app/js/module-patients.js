@@ -262,6 +262,8 @@
       types: ['PATIENT', 'MODE_HOSPI', 'FUSION', 'SEJOUR', 'COMPLEMENT', 'INTERVENANT', 'PRISE_EN_CHARGE', 'FORMALITE', 'BRIS_GLACE', 'BRIS_GLACE_FIN', 'BRIS_GLACE_RELU'],
       champ: function () { return null; },   // conflits : comme dans Isocont, aucune saisie de la fiche n'en crée
       permisPourSoi: permisPourSoi,
+      // Types dont la permission « pour soi » dépend de l'état (non rejouable à la lecture : contrôle à l'écriture seulement)
+      pourSoiSelonEtat: ['BRIS_GLACE', 'BRIS_GLACE_FIN', 'BRIS_GLACE_RELU', 'FORMALITE'],
       controler: controler,
       reduire: reduire
     },

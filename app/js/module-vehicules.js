@@ -265,7 +265,7 @@
     icone: 'VE',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi,
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['RESERVATION'],
       services: function (st, e) { return cibles(st, e); } },
     // Réglages que le cadre écrit pour ses services (contrôle appelé par la session avant l'enregistrement)
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { vehiculesInformation: controlerInformation } },

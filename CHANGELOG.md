@@ -1,5 +1,11 @@
 # Journal des modifications — Tessera Santé
 
+## 0.74.0 — 15 novembre 2026
+
+- **Droits contrôlés à la lecture pour toutes les saisies** (suite du constat S1, demande du porteur du 15 novembre 2026). Une annulation, un lot ou une saisie d'un module signés par un agent dont le rôle ne le permettait pas, écrits sans passer par l'écran, ne sont appliqués sur aucun poste (une annulation hors droit n'annule rien) ; ils sont listés dans le panneau « Signature des saisies ». Les droits sont ceux du compte et des réglages à la date de la saisie. Par prudence, ce qui ne peut pas être rejoué à la lecture reste accepté (permissions qui dépendent de l'état du module à l'époque, données ajoutées, traces des comptes).
+- **Publication sécurisée** (constat S2) : rien n'est publié si les tests échouent ; une version stable ou bêta doit porter une signature vérifiée et attend l'approbation du porteur quand elle change ; actions désignées par l'empreinte de leur commit ; tests lancés sur chaque branche.
+- Tests : `tests/droits-lecture.test.js` complété.
+
 ## 0.73.0 — 15 novembre 2026
 
 - **Contrôle des droits de l'auteur à la lecture** (suite du constat S1 de l'audit, accord du porteur du 15 novembre 2026). Un réglage signé par un agent qui n'avait pas le droit de l'écrire, sans passer par l'écran, n'est appliqué sur aucun poste (pas même le sien) ; il est listé dans le panneau « Signature des saisies ». Les droits sont ceux du compte à la date du réglage : un réglage permis reste en vigueur quand son auteur change de rôle ou quitte l'établissement.

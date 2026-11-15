@@ -367,7 +367,7 @@
     icone: 'SB',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: function (st, e) { return cibles(st, e); } },
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['SALLE_DECISION'], services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { salles: controlerCadre } },
     vues: { onglets: [{ code: 'journee', libelle: 'Journée' }, { code: 'salle', libelle: 'Par salle' }, { code: 'mes', libelle: 'Mes réservations' },
       { code: 'arbitrer', libelle: 'À arbitrer', droit: 'SALLE_DECISION' }, { code: 'liste', libelle: 'Salles du service' }] },

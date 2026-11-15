@@ -295,7 +295,7 @@
     icone: 'HS',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: function (st, e) { return cibles(st, e); } },
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['HEURES_DECISION', 'HEURES_RECUP_DECISION', 'HEURES_ENREGISTREE', 'HEURES_CORRECTION'], services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [] },
     vues: { onglets: [{ code: 'mes-heures', libelle: 'Mes heures' }, { code: 'a-valider', libelle: 'À valider', droit: DECIDER.concat(['HEURES_ENREGISTREE']) }, { code: 'totaux', libelle: 'Totaux', droit: DECIDER.concat(['HEURES_ENREGISTREE']) }] },
     migrations: [],
