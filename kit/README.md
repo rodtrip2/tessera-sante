@@ -26,6 +26,6 @@ Tessera Santé réunit un **socle commun** (connexion, comptes, services, droits
 3. **Installer** selon le guide (03) et faire la recette.
 4. **Former** les équipes avec le guide utilisateur (06), le guide du module Isolement et contention (12) et le guide pratique des IDE et AS (08) ; imprimer les procédures de secours (04).
 5. **Piloter** dans une unité, puis étendre service par service et module par module ; les agents font remonter défauts et idées par le bouton « Signaler ».
-6. **Mettre à jour** : une version stable est publiée par une étiquette signée `vX.Y.Z` ; fermer Tessera sur tous les postes, déposer la nouvelle version, rouvrir (tous les postes en même temps : le rangement des saisies peut changer d'une version à l'autre). Versions bêta et de développement : essais seulement, dans un dossier d'essai.
+6. **Mettre à jour** : une version stable est publiée par la branche `stable` du dépôt (ou une étiquette signée `vX.Y.Z`) ; fermer Tessera sur tous les postes, déposer la nouvelle version, rouvrir (tous les postes en même temps : le rangement des saisies peut changer d'une version à l'autre). Versions bêta et de développement : essais seulement, dans un dossier d'essai.
 
 Pour adapter les documents à votre établissement (référents, chemins du partage, adresse intranet), modifiez les fichiers Markdown puis régénérez les PDF : `python3 scripts/docs-pdf.py`.

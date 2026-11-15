@@ -1,5 +1,9 @@
 # Journal des modifications — Tessera Santé
 
+## 0.70.1 — 15 novembre 2026
+
+- **Publication de la version stable sans étiquette** (demande du porteur du 15 novembre 2026) : le flux GitHub Pages retient aussi les branches `stable` et `beta`, poussées par Claude sur demande du porteur (la session ne peut pas envoyer d'étiquette) ; la plus récente de la branche et de la dernière étiquette l'emporte ; une branche qui ne pointe pas sur un commit de `main` est ignorée ; le fichier `versions-publiees.txt` indique les numéros de version. Première publication par ce moyen : 0.70.0.
+
 ## 0.70.0 — 15 novembre 2026 (version stable)
 
 Version stable rassemblant les développements 0.48 à 0.69 (plan d'action en cinq phases) et mise à jour de la documentation (demande du porteur du 15 novembre 2026).

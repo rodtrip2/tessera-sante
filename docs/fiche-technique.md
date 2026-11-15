@@ -22,7 +22,7 @@
 | Postes | Windows 10/11 (ou tout système avec Edge/Chrome) ; aucun logiciel à installer | existant |
 | Volumétrie | Environ 1 à 2 Ko par saisie ; ordre de grandeur : quelques dizaines de Mo par an et par unité ; test de charge : environ 20 000 saisies par service et par an, recalcul après une saisie en quelques dizaines de millisecondes (recalcul incrémental, 0.21.2) | existant |
 | Fonctions soumises à avis | Onglet « Validations » : chaque fonction qui demande un avis (délégué à la protection des données, responsable de la sécurité informatique, ressources humaines…) est désactivable ; les nouvelles sont livrées désactivées ; changements datés et inscrits au journal | existant (version 0.46.0) |
-| Versions publiées | Stable (étiquette signée `vX.Y.Z`), bêta (`vX.Y.Z-beta.N`) et développement (état de `main`) ; les versions d'essai n'ouvrent qu'un dossier d'essai | existant (version 0.47.0) |
+| Versions publiées | Stable (branche `stable` ou étiquette signée `vX.Y.Z`, la plus récente), bêta (branche `beta` ou étiquette `vX.Y.Z-beta.N`) et développement (état de `main`) ; branches retenues seulement si elles pointent sur un commit de `main` (commits signés) ; les versions d'essai n'ouvrent qu'un dossier d'essai | existant (versions 0.47.0 et 0.70.1) |
 
 ## 2. Architecture
 
