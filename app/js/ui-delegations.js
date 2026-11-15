@@ -72,7 +72,7 @@
     selDe.addEventListener('change', dessiner); selA.addEventListener('change', avertir);
     dessiner();
     U.modale('Prêter des droits', h('div', { class: 'pile' },
-      h('p', { class: 'muted', text: 'Pendant une absence, un collègue reçoit vos rôles dans les services choisis. Ses saisies faites grâce au prêt portent « pour le compte de » l’absent. Les clés des données sont remises par la session de l’administrateur (aussitôt s’il est connecté, sinon à sa prochaine connexion) et retirées à la fin du prêt. Vos messages personnels ne sont pas prêtés.' }),
+      h('p', { class: 'muted', text: 'Pendant une absence, un collègue reçoit vos rôles dans les services choisis. Ses saisies faites grâce au prêt portent « pour le compte de » l’absent. Les clés des données sont remises par l’administrateur, qui confirme chaque prêt (aussitôt s’il l’enregistre lui-même, sinon à sa prochaine connexion), et retirées à la fin du prêt. Vos messages personnels ne sont pas prêtés.' }),
       h('div', { class: 'grille-2' }, h('label', {}, 'Agent absent', selDe), h('label', {}, 'Remplacé par', selA)),
       h('fieldset', {}, h('legend', { text: 'Rôles prêtés' }), zoneRoles),
       h('fieldset', {}, h('legend', { text: 'Services' }), zoneSv), avert,
@@ -146,7 +146,7 @@
       h('div', { class: 'grille-2' }, h('label', {}, 'Nom', nomI), h('label', {}, 'Identifiant', login)),
       h('div', { class: 'grille-2' }, h('label', {}, 'Type', type), h('label', {}, 'Dernier jour d’accès', fin)),
       h('fieldset', {}, h('legend', { text: 'Services' }), h('div', { class: 'actions gauche' }, svs.map(function (x) { return h('label', { class: 'case' }, x.cb, h('span', { text: x.libelle })); }))),
-      estAdmin() ? null : h('p', { class: 'info', text: 'Le compte sera créé à la prochaine connexion de l’administrateur (il signe le coffre des clés). Vous verrez alors son état ici.' })),
+      estAdmin() ? null : h('p', { class: 'info', text: 'Le compte sera créé quand l’administrateur aura confirmé la demande, à sa prochaine connexion (il signe le coffre des clés). Vous verrez alors son état ici.' })),
       [{ texte: 'Annuler' }, { texte: 'Créer', classe: 'primaire', action: async function () {
         var mdp = C.nouveauMotDePasseProvisoire();
         await s().demanderCompteIntervenant({ nom: nomI.value, login: login.value, type: type.value, services: svs.filter(function (x) { return x.cb.checked; }).map(function (x) { return x.code; }), finValidite: fin.value, motDePasse: mdp, aleatoire: true });
@@ -160,7 +160,7 @@
   function modaleModifier(c) {
     var fin = h('input', { type: 'date', value: c.finValidite || plusJours(90), min: aujourdhui(), max: plusJours(DL.VALIDITE_MAX_JOURS), 'aria-label': 'Nouveau dernier jour d’accès' });
     U.modale('Intervenant : ' + c.nom, h('div', { class: 'pile' }, h('label', {}, 'Dernier jour d’accès', fin),
-      estAdmin() ? null : h('p', { class: 'muted', text: 'Appliqué à la prochaine connexion de l’administrateur.' })),
+      estAdmin() ? null : h('p', { class: 'muted', text: 'Appliqué quand l’administrateur aura confirmé la demande, à sa prochaine connexion.' })),
       [{ texte: 'Annuler' },
         { texte: 'Mettre fin au compte', classe: 'danger', action: async function () { if (!confirm('Mettre fin au compte de ' + c.nom + ' ?')) return false; await s().demanderModificationIntervenant(c.id, { actif: false }); U.toast('Fin du compte demandée.'); } },
         { texte: 'Prolonger', classe: 'primaire', action: async function () { await s().demanderModificationIntervenant(c.id, { finValidite: fin.value }); U.toast('Prolongation enregistrée.'); } }]);

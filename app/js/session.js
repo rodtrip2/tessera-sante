@@ -376,8 +376,9 @@
   async function apresSynchro(s) {
     if (!v2(s) || s.formation || !attestateur(s) || bloquantes(s.controle).length) return;
     await clesModulesManquantes(s);
-    // Accès particuliers (0.31.0) : comptes d'intervenants demandés par le cadre, prêts de droits commencés ou finis
-    try { await traiterDemandesComptes(s); } catch (e) { s.erreurDroits = e.message; }
+    // Accès particuliers (0.31.0) : prêts de droits finis (clés retirées). Depuis le correctif du 15 novembre 2026, les
+    // comptes d'intervenants demandés et les clés nouvelles attendent la confirmation de l'administrateur
+    // (`remisesAConfirmer`, `demandesComptesAConfirmer`) : ils découlent de réglages qu'un autre agent a écrits.
     try { if (s.etat) await s.appliquerDroits(); } catch (e) { s.erreurDroits = e.message; }
   }
   async function clesModulesManquantes(s) {
@@ -386,7 +387,7 @@
     await s.modifierCoffre(async function (cf, comptes) {
       var t = travail(s);
       manquantes.forEach(function (n) { T.ajouterCle(t, cf, n); });
-      await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s));
+      await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { approuve: approbation(s) });
     });
     oublierJournaux(s);
     await s.synchroniser();
@@ -397,10 +398,10 @@
    * le cadre (partie publique et partie privée emballée par le mot de passe provisoire, jamais le mot de passe), ou
    * applique la prolongation ou la fin demandée ; la demande est marquée faite (ou refusée, avec le motif).
    */
-  async function traiterDemandesComptes(s) {
+  async function traiterDemandesComptes(s, ids) {
     var DL = socle('delegations', './delegations.js'), cfg = config(s);
     if (!DL || !s.etat) return;
-    var att = DL.enAttente(cfg);
+    var att = DL.enAttente(cfg).filter(function (d) { return !ids || ids.indexOf(d.id) >= 0; });
     if (!att.length) return;
     var brut = JSON.parse(JSON.stringify(cfg.comptesDemandes || { demandes: [] })), faits = [];
     for (var i = 0; i < att.length; i++) {
@@ -452,7 +453,7 @@
     var v = JSON.parse(JSON.stringify(config(this).comptesDemandes || { demandes: [] }));
     v.demandes = (v.demandes || []).concat([d]);
     await this.enregistrer('CONFIG', { cle: 'comptesDemandes', valeur: v });
-    if (attestateur(this)) await traiterDemandesComptes(this);
+    if (attestateur(this)) await traiterDemandesComptes(this, [d.id]);   // sa propre demande seulement
     return d.id;
   };
   /** Prolongation, fin anticipée ou changement de services d'un compte d'intervenant (cadre ; appliqué par l'administrateur). */
@@ -465,8 +466,26 @@
     var v = JSON.parse(JSON.stringify(config(this).comptesDemandes || { demandes: [] }));
     v.demandes = (v.demandes || []).concat([d]);
     await this.enregistrer('CONFIG', { cle: 'comptesDemandes', valeur: v });
-    if (attestateur(this)) await traiterDemandesComptes(this);
+    if (attestateur(this)) await traiterDemandesComptes(this, [d.id]);   // sa propre demande seulement
     return d.id;
+  };
+  /**
+   * Demandes de comptes d'intervenants en attente de la confirmation d'un administrateur : [{ id, action, nom, login,
+   * type, services, finValidite, par, auteur }] (vide pour un autre agent).
+   */
+  Session.prototype.demandesComptesAConfirmer = function () {
+    var DL = socle('delegations', './delegations.js'), s = this;
+    if (!DL || !gardien(this)) return [];
+    return DL.enAttente(config(this)).map(function (d) {
+      var c = (s.comptes || []).filter(function (x) { return x.id === d.par; })[0];
+      return { id: d.id, action: d.action, nom: d.nom, login: d.login, type: d.type, services: d.services, finValidite: d.finValidite, par: d.par, auteur: c ? c.nom : 'auteur inconnu' };
+    });
+  };
+  /** Traite les demandes de comptes d'intervenants confirmées par l'administrateur (`ids` ; toutes par défaut). */
+  Session.prototype.confirmerDemandesComptes = async function (ids) {
+    var s = this;
+    if (!gardien(this)) throw new Error('Réservé à un administrateur, sur les données réelles.');
+    await acte(this, function () { return traiterDemandesComptes(s, ids || s.demandesComptesAConfirmer().map(function (d) { return d.id; })); });
   };
   /** Crée les clés manquantes (modules déclarés, clés propres des données) : connexion d'un administrateur, démonstration. */
   Session.prototype.creerClesManquantes = function () { return apresSynchro(this); };
@@ -563,8 +582,71 @@
       // Prêts de droits en cours (0.31.0) : les clés des rôles prêtés vont au délégataire, retirées à la fin du prêt
       var x = DL && cfg ? DL.appliquer(c, cfg, now) : c, RS = socle('rolesServices', './roles-services.js');
       // Rôles selon le service (phase 5) : clés remises selon l'ensemble des rôles du compte, tous services confondus
-      return RS && cfg && RS.aDesRoles(cfg, x) ? Object.assign({}, x, { roles: RS.rolesTous(x, cfg) }) : x;
+      var y = RS && cfg && RS.aDesRoles(cfg, x) ? Object.assign({}, x, { roles: RS.rolesTous(x, cfg) }) : x;
+      // Le rôle d'administrateur ne vient jamais d'un réglage : seulement du compte, attesté dans le coffre
+      if ((y.roles || []).indexOf('ADMIN') >= 0 && (c.roles || []).indexOf('ADMIN') < 0) y = Object.assign({}, y, { roles: y.roles.filter(function (r) { return r !== 'ADMIN'; }) });
+      return y;
     });
+  }
+
+  // --- Remises de clés à confirmer (correctif du 15 novembre 2026, constat S1 de l'audit) ---
+  // Le journal du socle est chiffré par la clé de plateforme, que tout agent détient : un réglage qui ouvre un droit
+  // (prêt de droits, rôle selon le service, rôles d'un module, activation…) peut y avoir été écrit par un agent qui n'en
+  // avait pas le pouvoir. Une clé qu'un compte ne détient pas encore ne lui est donc remise d'office que si elle découle
+  // d'un acte de l'administrateur dans sa session (compte modifié, réglage enregistré) ; sinon elle attend sa
+  // confirmation (Administration : « Clés à remettre »). Les administrateurs et la clé de plateforme ne sont pas concernés.
+  /** Session qui remet les clés : administrateur, données réelles, réglages lus. */
+  function gardien(s) { return v2(s) && !s.formation && attestateur(s) && !!s.etat && !!s.coffre; }
+  /** Clés dues et non détenues : { 'compte|clé': true } (hors administrateurs et clé de plateforme). */
+  function nonTenues(s) {
+    var res = {}, cf = s.coffre, tient = {};
+    if (!cf || !cf.cles || !s.etat) return res;
+    var aDroit = aDroitPour(s);
+    (cf.enveloppes || []).forEach(function (e) { if (e.g !== 'm') tient[e.pour + '|' + e.cle] = true; });
+    comptesPourClesAvec(s.comptes || [], config(s)).forEach(function (x) {
+      if (!x.actif || (x.roles || []).indexOf('ADMIN') >= 0) return;
+      Object.keys(cf.cles).forEach(function (nom) { if (nom !== T.PLATEFORME && !tient[x.id + '|' + nom] && aDroit(nom, x)) res[x.id + '|' + nom] = true; });
+    });
+    return res;
+  }
+  /**
+   * Acte de l'administrateur : les remises qu'il fait naître sont approuvées (celles qui attendaient déjà restent en
+   * attente). Sans effet pour une autre session ou à l'intérieur d'un acte en cours.
+   */
+  async function acte(s, fn) {
+    if (s.acte || !gardien(s)) return fn();
+    var a = s.acte = { avant: nonTenues(s) };
+    try { return await fn(); }
+    finally {
+      try {
+        // Remises nées de l'acte et pas encore faites (compte sans clé personnelle…) : approuvées pour la session
+        var apres = gardien(s) ? nonTenues(s) : {};
+        s.remisesApprouvees = s.remisesApprouvees || {};
+        Object.keys(apres).forEach(function (k) { if (!a.avant[k]) s.remisesApprouvees[k] = true; });
+      } catch (e) { /* sans conséquence : ces remises attendront la confirmation */ }
+      if (s.acte === a) s.acte = null;
+    }
+  }
+  /** Règle d'approbation d'une remise nouvelle : confirmée (`remises` : liste de { id, cle } ou 'toutes'), ou née d'un acte. */
+  function approbation(s, remises) {
+    var plus = {}, toutes = remises === 'toutes';
+    if (Array.isArray(remises)) remises.forEach(function (r) { plus[r.id + '|' + r.cle] = true; });
+    return function (id, nom) {
+      var k = id + '|' + nom;
+      return toutes || !!plus[k] || !!(s.remisesApprouvees && s.remisesApprouvees[k]) || !!(s.acte && !s.acte.avant[k]);
+    };
+  }
+  /** Libellé d'une clé pour l'administrateur (module, donnée sous clé propre, clés de l'équipe, des documents, de la messagerie). */
+  function libelleCle(s, nom) {
+    var m = SIC.modules && SIC.modules.obtenir(nom);
+    if (m) return m.libelle;
+    if (/^d-/.test(nom) && CH()) { var lk = CH().lireCle(nom), d = lk ? CH().definition(config(s), lk.id) : null; if (d) return 'donnée « ' + d.libelle + ' »' + (lk.perimetre ? ' (' + lk.perimetre.replace(/^sv-/, '') + ')' : ''); }
+    if (/^e-p\./.test(nom)) return 'Équipe : coordonnées des agents (' + nom.slice(4) + ')';
+    if (/^e-m\./.test(nom)) return 'Équipe : coordonnées des médecins (' + nom.slice(4) + ')';
+    if (/^t-a\./.test(nom)) return 'Mes tâches (liste de l’agent)';
+    if (/^k-/.test(nom)) return 'Documents : partage (' + nom.slice(2) + ')';
+    if (/^m-/.test(nom)) return 'Messagerie : destinataires (' + nom.slice(2) + ')';
+    return nom;
   }
   /** Trousseau de travail d'une modification du coffre : installé seulement si l'écriture réussit (modifierCoffre). */
   function travail(s) {
@@ -896,7 +978,7 @@
         // Clé personnelle oubliée : à la réactivation, une nouvelle est créée (réinitialisation du mot de passe).
       }
       if (coffre.version === 2) {
-        await T.appliquerDroits(travail(s), coffre, comptesPourClesAvec(comptes, config(s)), aDroitPour(s));   // clés selon les droits, nouvelle génération si retrait
+        await T.appliquerDroits(travail(s), coffre, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { approuve: approbation(s) });   // clés selon les droits, nouvelle génération si retrait
         if (!actif) delete coffre.agents[userId];
       }
     });
@@ -926,7 +1008,13 @@
       if (!c) throw new Error('Compte introuvable.');
       coffre.emballages = coffre.emballages.filter(function (e) { return !(e.methode === 'mdp' && e.userId === userId); });
       if (!emb) {
-        var a = await T.nouvelAgent(s.trousseau, coffre, c, motDePasse, it, aDroitPour(s), ancre);
+        // Clés remises avec la nouvelle clé personnelle : celles que le compte détenait, ou dont la remise est approuvée
+        // (administrateur) ; celles que l'agent tient lui-même (changement par l'agent). Les autres attendent.
+        var regle = aDroitPour(s), ok = approbation(s), tenues = {}, maitre = attestateur(s);
+        (coffre.enveloppes || []).forEach(function (e) { if (e.pour === userId && e.g !== 'm') tenues[e.cle] = true; });
+        var a = await T.nouvelAgent(s.trousseau, coffre, c, motDePasse, it, function (nom, compte) {
+          return regle(nom, compte) && (maitre ? !!(tenues[nom] || ok(userId, nom)) : !!s.trousseau[nom]);
+        }, ancre);
         var ancien = coffre.agents[userId], preuves;
         // Clé personnelle créée par l'agent lui-même (sans les clés d'attestation) : preuve de continuité pour
         // l'administrateur, tirée de son ancienne partie privée (0.5.0)
@@ -960,10 +1048,12 @@
   /**
    * Applique les droits actuels aux clés (administrateur, données réelles, coffre version 2) : enveloppes à remettre
    * ou à retirer, nouvelle génération si un détenteur perd une clé. Sans effet si rien n'a changé.
-   * Retourne { change, generations, maitresses }.
+   * Une clé qu'un compte ne détient pas encore n'est remise que si elle découle d'un acte de l'administrateur ou si elle
+   * est confirmée (`options.remises` : liste de { id, cle }, ou 'toutes') ; sinon elle reste en attente.
+   * Retourne { change, generations, maitresses, enAttente }.
    */
-  Session.prototype.appliquerDroits = async function () {
-    var s = this, res = { change: false, generations: [], maitresses: [] };
+  Session.prototype.appliquerDroits = async function (options) {
+    var s = this, res = { change: false, generations: [], maitresses: [], enAttente: [] }, approuve = approbation(this, options && options.remises);
     if (!v2(this) || this.formation || !this.trousseau || !this.trousseau[T.PLATEFORME].maitresse || !this.etat) return res;
     var coffre = await this.dossier.lireCoffre(), aDroit = aDroitPour(this);
     var essai = JSON.parse(JSON.stringify(coffre));
@@ -977,11 +1067,50 @@
       Object.keys(j.octets).forEach(function (g) { o[g] = j.octets[g].slice(); });   // vraie copie : la copie est effacée ensuite
       jeuxCopie[n] = T.nouveauJeu(n, j.courante, o, j.maitresse && j.maitresse.slice(), j.base);
     });
-    var blanc = await T.appliquerDroits(jeuxCopie, essai, comptesPourClesAvec(this.comptes, config(this)), aDroit);
+    var blanc = await T.appliquerDroits(jeuxCopie, essai, comptesPourClesAvec(this.comptes, config(this)), aDroit, { approuve: approuve });
     T.effacer(jeuxCopie);
-    if (!blanc.change) return res;
-    await this.modifierCoffre(async function (cf, comptes) { res = await T.appliquerDroits(travail(s), cf, comptesPourClesAvec(comptes, config(s)), aDroit); });
+    if (!blanc.change) { res.enAttente = blanc.enAttente; return res; }
+    await this.modifierCoffre(async function (cf, comptes) { res = await T.appliquerDroits(travail(s), cf, comptesPourClesAvec(comptes, config(s)), aDroit, { approuve: approuve }); });
     if (res.generations.length) await this.tracer('GENERATION', { cles: res.generations, maitresses: res.maitresses.length ? res.maitresses : undefined, libelle: 'nouvelle génération de clé après un retrait de droit' });
+    return res;
+  };
+
+  /**
+   * Clés dues à un compte qui ne les détient pas encore, en attente de la confirmation de l'administrateur :
+   * [{ id, nom, login, cle, libelle, motif, detail }]. `motif` : 'compte' (rôles et services du compte, réglages des
+   * modules), 'pret' (prêt de droits en cours), 'roleService' (rôle selon le service). Vide pour un autre agent.
+   */
+  Session.prototype.remisesAConfirmer = function () {
+    if (!gardien(this)) return [];
+    var s = this, cfg = config(this), aDroit = aDroitPour(this), DL = socle('delegations', './delegations.js'), now = Date.now(), tient = {}, res = [];
+    (this.coffre.enveloppes || []).forEach(function (e) { if (e.g !== 'm') tient[e.pour + '|' + e.cle] = true; });
+    var vus = comptesPourClesAvec(this.comptes || [], cfg);
+    (this.comptes || []).forEach(function (c, i) {
+      var x = vus[i];
+      if (!x.actif || !s.coffre.agents[c.id] || (x.roles || []).indexOf('ADMIN') >= 0) return;
+      var prete = DL ? DL.appliquer(c, cfg, now) : c;
+      Object.keys(s.coffre.cles).forEach(function (nom) {
+        if (nom === T.PLATEFORME || tient[c.id + '|' + nom] || !aDroit(nom, x)) return;
+        var motif = aDroit(nom, c) ? 'compte' : aDroit(nom, prete) ? 'pret' : 'roleService', detail = '';
+        if (motif === 'pret') detail = (prete.pretsRecus || []).map(function (d) { return 'prêt de ' + s.nomAuteur(d.de) + ' jusqu’au ' + String(d.fin).split('-').reverse().join('/'); }).join(' ; ');
+        res.push({ id: c.id, nom: c.nom, login: c.login, cle: nom, libelle: libelleCle(s, nom), motif: motif, detail: detail });
+      });
+    });
+    return res;
+  };
+  /**
+   * Remet les clés confirmées par l'administrateur (`liste` de { id, cle } ; par défaut toutes celles qui attendent) et
+   * l'inscrit au journal. Retourne { change, generations, maitresses, enAttente }.
+   */
+  Session.prototype.confirmerRemises = async function (liste) {
+    if (!gardien(this)) throw new Error('Réservé à un administrateur, sur les données réelles.');
+    var att = this.remisesAConfirmer(), choix = !liste ? att : att.filter(function (r) { return liste.some(function (l) { return l.id === r.id && l.cle === r.cle; }); });
+    if (!choix.length) return { change: false, generations: [], maitresses: [], enAttente: att.map(function (r) { return { id: r.id, cle: r.cle }; }) };
+    var res = await this.appliquerDroits({ remises: choix });
+    var parCompte = {};
+    choix.forEach(function (r) { (parCompte[r.login] = parCompte[r.login] || []).push(r.libelle); });
+    await this.tracer('REMISES_CLES', { remises: choix.map(function (r) { return { login: r.login, cle: r.cle, motif: r.motif }; }),
+      libelle: 'remise de clés confirmée : ' + Object.keys(parCompte).map(function (l) { return l + ' (' + parCompte[l].join(', ') + ')'; }).join(' ; ').slice(0, 600) });
     return res;
   };
 
@@ -1138,7 +1267,7 @@
     var s = this, h = await historiqueAttestations(this, await this.dossier.lireCoffre()), res;
     await this.modifierCoffre(async function (cf, comptes) {
       var t = travail(s), depuis = await preparerRenouvellement(s, cf, t, h);
-      res = await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { tout: true, depuis: depuis });
+      res = await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { tout: true, depuis: depuis, approuve: approbation(s) });
       delete cf.restaureLe; cf.renouveleLe = new Date().toISOString();
     }, { reparation: ['restaure', 'ancienne', 'cles'], nMin: h.n });
     await this.tracer('RENOUVELLEMENT', { cles: res.generations, libelle: 'renouvellement de toutes les clés' });
@@ -1179,7 +1308,7 @@
       }
       comptes.splice.apply(comptes, [0, comptes.length].concat(comptesChoisis));
       var t = travail(s), depuis = await preparerRenouvellement(s, cf, t, h);
-      await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { tout: true, depuis: depuis });
+      await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { tout: true, depuis: depuis, approuve: approbation(s) });
       cf.renouveleLe = cf.remiseAttesteeLe = new Date().toISOString();
     }, { reparation: TOUTES, nMin: h.n });
     await this.tracer('REMISE_ATTESTEE', { libelle: 'dernière version attestée du coffre remise en place, clés renouvelées', etatDu: etat.le });
@@ -1214,6 +1343,8 @@
     await this.modifierCoffre(async function (cf, comptes) {
       var manquants = comptesPourClesAvec(comptes, config(s)).filter(function (c) { return c.actif && !nouvelles[c.id]; });
       if (manquants.length) throw new Error('Des comptes ont été créés ou réactivés pendant l’opération : recommencez.');
+      // Les clés que chaque compte détenait lui sont rendues ; celles qui attendaient une confirmation attendent encore
+      var tenuesAvant = (cf.enveloppes || []).filter(function (e) { return e.g !== 'm'; }).map(function (e) { return { id: e.pour, cle: e.cle }; });
       cf.agents = { secours: cf.agents.secours }; cf.emballages = []; cf.enveloppes = [];
       Object.keys(nouvelles).forEach(function (id) {
         cf.agents[id] = { publique: nouvelles[id].publique }; cf.emballages.push(nouvelles[id].emb);
@@ -1223,7 +1354,7 @@
       if (nouvelles[moi]) s.priveeEnAttente = nouvelles[moi].p8;
       s.attestEnAttente = cles; s.ancreEnAttente = ancre;
       var t = travail(s), depuis = await preparerRenouvellement(s, cf, t, h);
-      await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { tout: true, depuis: depuis });
+      await T.appliquerDroits(t, cf, comptesPourClesAvec(comptes, config(s)), aDroitPour(s), { tout: true, depuis: depuis, approuve: approbation(s, tenuesAvant) });
       await T.nouveauSecours(t, cf, code, nouvelId(), ancre);
       delete cf.restaureLe; cf.renouveleLe = cf.compromissionLe = new Date().toISOString();
     }, { reparation: ['absente', 'cles', 'restaure', 'ancienne', 'agents', 'secours'], nMin: h.n });
@@ -2290,6 +2421,30 @@
     oublierJournaux(this);
     await this.synchroniser();
   };
+
+  // Actes de l'administrateur (correctif du 15 novembre 2026) : les remises de clés qu'ils font naître sont approuvées ;
+  // celles qui attendaient déjà, ou qu'une lecture du dossier amène pendant l'acte, restent à confirmer.
+  ['modifierRoles', 'creerComptes'].forEach(function (n) {
+    var f = Session.prototype[n];
+    Session.prototype[n] = function () { var s = this, args = arguments; return acte(s, function () { return f.apply(s, args); }); };
+  });
+  (function () {
+    var f = Session.prototype.enregistrer;
+    Session.prototype.enregistrer = function (type) {
+      var s = this, args = arguments;
+      if (type !== 'CONFIG' && type !== 'ANNULATION' && type !== 'LOT') return f.apply(s, args);
+      return acte(s, function () { return f.apply(s, args); });
+    };
+    var g = Session.prototype.synchroniserUneFois;
+    Session.prototype.synchroniserUneFois = async function () {
+      var a0 = this.acte, avant = a0 ? nonTenues(this) : null;
+      var r = await g.apply(this, arguments);
+      var a1 = this.acte;
+      // Droits amenés par la lecture du dossier pendant un acte : ils ne viennent pas de l'acte, ils attendent
+      if (a1 && gardien(this)) { var apres = nonTenues(this); Object.keys(apres).forEach(function (k) { if (!(a1 === a0 && avant[k])) a1.avant[k] = true; }); }
+      return r;
+    };
+  })();
 
   SIC.Session = Session;
 })(typeof self !== 'undefined' ? self : this);

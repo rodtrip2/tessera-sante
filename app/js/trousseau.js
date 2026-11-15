@@ -250,7 +250,7 @@
    * - Un administrateur qui perd ce rôle : en plus, nouvelle clé maîtresse (les générations antérieures restent
    *   remises explicitement) ; la copie sous scellé est alors à refaire.
    * Les enveloppes de tous les comptes actifs et de la clé de secours sont recalculées. Retourne
-   * { change, generations: [noms], maitresses: [noms] } ; `change` faux si rien n'était à faire.
+   * { change, generations: [noms], maitresses: [noms], enAttente: [{ id, cle }] } ; `change` faux si rien n'était à faire.
    */
   async function appliquerDroits(trousseau, coffre, comptes, aDroit, options) {
     var tout = !!(options && options.tout);   // renouvellement de toutes les clés (restauration, compromission)
@@ -261,6 +261,18 @@
     (coffre.enveloppes || []).forEach(function (e) {
       if (e.pour === SECOURS || !tenait[e.cle]) return;
       if (e.g === 'm') tenait[e.cle].m[e.pour] = true; else tenait[e.cle].gen[e.pour] = true;
+    });
+    // Remises nouvelles (correctif du 15 novembre 2026) : avec `options.approuve`, une clé qu'un compte ne détient pas
+    // encore ne lui est remise que si `approuve(id, nom)` l'accepte ; sinon elle reste en attente (`res.enAttente`), sans
+    // effet sur les générations. La clé de plateforme et les administrateurs ne sont pas concernés.
+    res.enAttente = [];
+    if (options && options.approuve) Object.keys(a).forEach(function (id) {
+      if (a[id].maitresses) return;
+      a[id].cles = a[id].cles.filter(function (nom) {
+        if (nom === PLATEFORME || tenait[nom].gen[id] || options.approuve(id, nom)) return true;
+        res.enAttente.push({ id: id, cle: nom });
+        return false;
+      });
     });
     for (var i = 0; i < noms.length; i++) {
       var nom = noms[i], jeu = trousseau[nom];

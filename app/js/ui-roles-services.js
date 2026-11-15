@@ -38,7 +38,7 @@
         ok.length ? zone : null,
         horsChoix.length ? h('small', { class: 'muted', text: 'Comprend un rôle attribué par l’administrateur seulement (' + libRoles(horsChoix) + ') : modification réservée à l’administrateur.' }) : null));
     });
-    corps.appendChild(h('small', { class: 'muted', text: (a.roles.indexOf('ADMIN') >= 0 ? '' : 'En tant que cadre, vous attribuez dans vos services les rôles IDE, aide-soignant, secrétaire et intervenant ; les autres rôles sont attribués par l’administrateur. ') + 'Les clés suivent l’ensemble des rôles du compte ; elles sont remises à la prochaine connexion d’un administrateur.' }));
+    corps.appendChild(h('small', { class: 'muted', text: (a.roles.indexOf('ADMIN') >= 0 ? '' : 'En tant que cadre, vous attribuez dans vos services les rôles IDE, aide-soignant, secrétaire et intervenant ; les autres rôles sont attribués par l’administrateur. ') + 'Les clés suivent l’ensemble des rôles du compte ; elles sont remises par un administrateur, qui confirme le changement à sa prochaine connexion (aussitôt s’il l’enregistre lui-même).' }));
     U.modale('Rôles par service — ' + compte.nom, corps, [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: async function () {
       var v = { rolesServices: RS.normaliser(U.config().rolesServices) };
       lignes.forEach(function (l) {

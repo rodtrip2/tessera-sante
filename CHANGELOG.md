@@ -1,5 +1,11 @@
 # Journal des modifications — Tessera Santé
 
+## 0.71.0 — 15 novembre 2026
+
+- **Remises de clés confirmées par l'administrateur** (correctif de sécurité, constat S1 de l'audit du 15 novembre 2026, accord du porteur le même jour). Le journal du socle est chiffré par la clé de plateforme, que tout agent détient : un réglage qui ouvre un droit (prêt de droits, rôle selon le service, activation d'un module…) pouvait y être écrit par un agent qui n'en avait pas le pouvoir, au nom d'un autre, et l'administrateur remettait alors les clés d'office à sa connexion. Désormais, une clé qu'un compte ne détient pas encore n'est remise d'office que si elle découle d'un **acte de l'administrateur dans sa session** (compte créé ou modifié, réglage enregistré par lui) ; les autres attendent sa confirmation dans *Administration → Réglages généraux → Comptes → « Clés à remettre »* (agent, clés, origine : rôles du compte, prêt de droits, rôle selon le service), avec un rappel en haut de l'écran. Les **comptes d'intervenants demandés par le cadre** ne sont plus créés d'office : ils attendent la même confirmation. Chaque confirmation est inscrite au journal. Les administrateurs et la clé de plateforme ne sont pas concernés ; les retraits de clés restent automatiques. « Tout renouveler » rend à chacun les clés qu'il détenait.
+- **Limite qui demeure** : l'auteur d'une saisie n'est toujours pas prouvé (signature des saisies : à venir). Un réglage forgé peut encore changer l'affichage des rôles d'un agent dans les modules dont il détient déjà la clé ; il ne lui donne plus aucune clé nouvelle.
+- Tests : `tests/remises-cles.test.js` (prêt forgé, rôle par service forgé, acte de l'administrateur, compte d'intervenant, changement de mot de passe avec une clé en attente).
+
 ## 0.70.1 — 15 novembre 2026
 
 - **Publication de la version stable sans étiquette** (demande du porteur du 15 novembre 2026) : le flux GitHub Pages retient aussi les branches `stable` et `beta`, poussées par Claude sur demande du porteur (la session ne peut pas envoyer d'étiquette) ; la plus récente de la branche et de la dernière étiquette l'emporte ; une branche qui ne pointe pas sur un commit de `main` est ignorée ; le fichier `versions-publiees.txt` indique les numéros de version. Première publication par ce moyen : 0.70.0.

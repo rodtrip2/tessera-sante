@@ -124,6 +124,9 @@ test('Coffre créé avant le module Patients : fiches dans le journal d’Isocon
   const ad = await connecter(racine);
   assert.equal(ad.coffre.cles.patients.courante, 1);
   assert.equal(ad.etatAttestation().anomalies.length, 0);
+  // Clé créée à la connexion : sa remise aux agents attend la confirmation de l'administrateur (correctif du 15 novembre 2026)
+  assert.ok(ad.remisesAConfirmer().some((x) => x.cle === 'patients' && x.login === 'ide.a'));
+  await ad.confirmerRemises();
   const a2 = await co(racine, 'ide.a', 'mot de passe ide a');
   assert.deepEqual(a2.journauxActifs.map((j) => j.nom), ['socle', 'patients', 'isocont']);
   const p2 = await a2.enregistrer('PATIENT', { patientId: 'P2', nom: 'NOUVEAU (fictif)', service: 'U1' });

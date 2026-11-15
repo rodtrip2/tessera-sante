@@ -196,10 +196,16 @@ test('Premier changement de mot de passe : l’agent crée sa propre clé person
   // Enveloppe perdue (coffre modifié à la main) : signalée, puis réémise par l'administrateur
   await admin.modifierCoffre(async (cf) => { cf.enveloppes = cf.enveloppes.filter((e) => !(e.pour === id('ide.b') && e.cle === 'isocont')); });
   assert.deepEqual(admin.trousseauxIncomplets().map((x) => [x.nom, x.cles]), [['IDE B (fictif)', ['isocont']]]);
-  const r = await admin.appliquerDroits();
+  // Depuis le correctif du 15 novembre 2026 : une clé non détenue n'est remise que sur confirmation de l'administrateur
+  const r0 = await admin.appliquerDroits();
+  assert.equal(r0.change, false);
+  assert.deepEqual(r0.enAttente, [{ id: id('ide.b'), cle: 'isocont' }]);
+  assert.deepEqual(admin.remisesAConfirmer().map((x) => [x.nom, x.cle, x.motif]), [['IDE B (fictif)', 'isocont', 'compte']]);
+  const r = await admin.confirmerRemises();
   assert.equal(r.change, true);
   assert.deepEqual(r.generations, []);
   assert.deepEqual(admin.trousseauxIncomplets(), []);
+  assert.deepEqual(admin.remisesAConfirmer(), []);
   assert.equal((await admin.appliquerDroits()).change, false);            // plus rien à faire : coffre non réécrit
 });
 
