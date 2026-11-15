@@ -58,6 +58,9 @@
     { code: 'heures', libelle: 'Module Heures supplémentaires : déclarations, récupérations, décisions, soldes', categorie: 'personnel', interlocuteurs: ['dpo', 'rh'], existante: false, modules: ['heures'],
       description: 'Données du personnel (heures supplémentaires déclarées, motifs, décisions, récupérations, soldes et corrections). Tessera ne calcule pas la paie : le logiciel de gestion du temps reste la référence. Désactivé : la fenêtre Heures supplémentaires est masquée ; les saisies sont conservées. Pendant le pilote, activation sur accord hiérarchique après information du délégué à la protection des données.',
       ou: 'Administration → Heures supplémentaires' },
+    { code: 'entretiens', libelle: 'Entretiens des agents (suivi, recadrage, reprise, intégration)', categorie: 'personnel', interlocuteurs: ['dpo', 'rh', 'representants'], existante: false,
+      description: 'Comptes rendus d’entretiens menés par le cadre de l’agent, lus par lui seul et, à son choix, par un ou plusieurs supérieurs et par l’agent (signature possible, avec ses observations). Contenu chiffré pour les seuls lecteurs ; l’administrateur ne le lit pas. Retrait possible de l’export du droit d’accès quand un entretien concerne d’autres agents. À articuler avec le dossier administratif de l’agent (éviter un dossier parallèle). Désactivé : l’onglet Entretiens est masqué ; les entretiens sont conservés.',
+      ou: 'Équipe → Entretiens' },
     { code: 'mesure-usage', libelle: 'Mesure d’usage anonyme', categorie: 'autre', interlocuteurs: ['representants', 'dpo'], existante: false,
       description: 'Nombre de saisies par module et par semaine, et nombre d’agents ayant saisi (jamais leur identité ; masqué sous 3 agents), calculés à partir du journal, pour évaluer le pilote. Information des agents et des représentants du personnel avant activation.',
       ou: 'Administration → Mesure d’usage' }

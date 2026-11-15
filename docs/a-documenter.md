@@ -958,3 +958,19 @@ Précision du porteur du 15 novembre 2026 : les **h− ne sont pas déduites de 
 ## Version 0.65.3 (branche `heures-annee`, 15 novembre 2026)
 
 Décisions du porteur du 15 novembre 2026 : les récupérations **ne sont pas bloquées** par le solde ; la différence h+ − h− est **remise à zéro en fin d'année** (année civile, sans report). Soldes calculés par année (corrections comprises), mention à l'écran « Mes heures » ; test ajouté. Points « À valider » de la 0.65.2 tranchés.
+
+## Version 0.66.0 (branche `entretiens`, 15 novembre 2026) : entretiens des agents (phase 4, lot F)
+
+Décisions du porteur du 15 novembre 2026 : entretiens lus par **le cadre de l'agent seul**, qui **choisit de les partager** avec un ou plusieurs supérieurs ; partage avec **l'agent au choix du cadre** (entretiens de suivi ou de recadrage), **signature de l'agent** possible ; **retrait du droit d'accès** possible quand des éléments concernent d'autres agents ; types par défaut : recadrage, retour d'absence ou reprise, intégration ou fin de période (plus « Entretien de suivi »), **autres types écrits par le cadre**.
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Où | Module Équipe, onglet « Entretiens » (masqué tant que la fonction est désactivée : onglet `visible(config)`, nouveau mécanisme du socle) | `module-equipe.js`, `ui-entretiens.js`, `ui.js`, `index.html`, `app.css` |
+| Saisies | `ENTRETIEN_AGENT` { id, env, signataire }, `ENTRETIEN_AGENT_MAJ` (auteur seul : contenu ou partage), `ENTRETIEN_AGENT_SIGNATURE` { id, env des observations } (l'agent à qui la signature est demandée, une fois par version) | `module-equipe.js` |
+| Chiffrement | Tout le contenu (agent, date, type, présents, compte rendu, suites, partage, retrait du droit d'accès) dans une enveloppe pour les clés de liste `t-a.<compte>` de l'auteur, des supérieurs choisis et de l'agent s'il est partagé ; l'administrateur n'ouvre pas ; un autre cadre du service non plus. Métadonnées en clair : identifiant, auteur, dates, signataire, et les noms des clés lectrices (donc l'agent si l'entretien est partagé avec lui) : **à présenter au responsable de la sécurité informatique** | `session.chiffrerEnveloppe` |
+| Qui écrit | Le validateur de l'agent (règle et réglage des validateurs des Congés) : cadre pour les IDE, AS, secrétaires ; cadre supérieur pour les cadres… Droits : cadre, cadre supérieur, directeur des soins, médecins chefs | `menePour` |
+| Agent | Onglet « Entretiens » : « À signer » (lecture, observations, case « J'ai pris connaissance », la signature ne vaut pas accord) et « Mes entretiens partagés avec moi » ; information dans « Aujourd'hui » et pastille | — |
+| Droit d'accès | Case « Retirer de l'export du droit d'accès » avec motif ; **l'export du droit d'accès des agents reste à construire** (le retrait y sera appliqué) | — |
+| Soumis à avis | Fonction « entretiens » de l'onglet Validations (délégué à la protection des données, ressources humaines, représentants du personnel), **livrée désactivée** | `validations.js` |
+| Démonstration, tests, parcours | Entretien d'intégration, recadrage retiré du droit d'accès, entretien du cadre connecté mené par le cadre supérieur (fictif) à signer ; `tests/entretiens.test.js` (chiffrement de bout en bout : auteur, supérieur, agent, autre cadre, administrateur) ; parcours | `demo.js` |
+| À valider | Ressources humaines et délégué : frontière avec le dossier administratif de l'agent, durée de conservation, inscription au registre ; responsable de la sécurité informatique : métadonnées en clair ; export du droit d'accès des agents |
