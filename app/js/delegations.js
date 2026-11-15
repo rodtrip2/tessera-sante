@@ -39,7 +39,9 @@
   function pret(d) {
     if (!d || !/^[a-z0-9-]{3,40}$/.test(d.id || '') || !texte(d.de, 40) || !texte(d.a, 40)) return null;
     return { id: d.id, de: texte(d.de, 40), a: texte(d.a, 40), debut: jour(d.debut), fin: jour(d.fin), roles: liste(d.roles).filter(function (r) { return NON_PRETABLES.indexOf(r) < 0; }),
-      services: liste(d.services), motif: texte(d.motif, 120), par: texte(d.par, 40), le: texte(d.le, 30), annule: d.annule === true, annulePar: texte(d.annulePar, 40) };
+      services: liste(d.services), motif: texte(d.motif, 120), par: texte(d.par, 40), le: texte(d.le, 30), annule: d.annule === true, annulePar: texte(d.annulePar, 40),
+      // Prêt refusé par l'administrateur (0.72.0) : annulé, avec la date et le motif du refus, montrés au cadre et aux deux agents
+      refuse: d.refuse === true && d.annule === true, refuseLe: texte(d.refuseLe, 30), refusMotif: texte(d.refusMotif, 200) };
   }
   /** Prêts du réglage, validés (les incomplets sont écartés). */
   function prets(config) {

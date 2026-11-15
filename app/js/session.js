@@ -13,6 +13,7 @@
   function socle(nom, fichier) { return SIC[nom] || (typeof require === 'function' ? require(fichier) : undefined); }
   var Droits = socle('droits', './droits.js'), N = socle('noyauJournal', './noyau-journal.js'), X = socle('exportsRangement', './exports-rangement.js');
   var T = socle('trousseau', './trousseau.js'), A = socle('attestation', './attestation.js');
+  function SG() { return socle('signatures', './signatures.js'); }
   /**
    * Module dont la session tient le journal : celui du registre des modules (contrat, modules.js). Sans registre
    * (tests qui ne chargent que le modèle), le modèle d'Isocont est lu comme un contrat.
@@ -334,12 +335,95 @@
     }
     return { etat: r.etat, anomalies: an };
   }
+  // --- Signature des saisies (0.72.0, correctif de fond du constat S1) : voir signatures.js ---
+  /** Identifiant de signature de la session (le compte de secours signe sous « secours »). */
+  function idSignature(s) { return s.utilisateur ? (s.utilisateur.id === 'secours' ? T.SECOURS : s.utilisateur.id) : null; }
+  /** Clé de signature de la session, tirée de sa clé personnelle (recalculée quand celle-ci change). */
+  async function cleSignature(s) {
+    if (!v2(s) || !s.privee8 || !SG() || !s.utilisateur) return null;
+    if (s.signature && s.signature.de === s.privee8) return s.signature.k;
+    if (s.signature) s.signature.k.prive8.fill(0);
+    s.signature = { de: s.privee8, k: await SG().paireAgent(s.privee8) };
+    return s.signature.k;
+  }
+  function oublierSignature(s) { if (s.signature) s.signature.k.prive8.fill(0); s.signature = null; s.ctxSignatures = null; }
+  /** Signe une saisie avant son écriture (sans effet pour un coffre version 1). */
+  async function signerSaisie(s, evt) {
+    var k = await cleSignature(s);
+    if (k) await SG().signerSaisie(evt, k, idSignature(s));
+    return evt;
+  }
+  /** Clé de signature posée par l'administrateur (compte créé, mot de passe réinitialisé) : attestée à la signature du coffre. */
+  function retenirSignature(s, id, p) { s.nouvellesSignatures = s.nouvellesSignatures || {}; (s.nouvellesSignatures[id] = s.nouvellesSignatures[id] || []).push(p); }
+  /**
+   * Champs de l'état attesté propres aux signatures : clés attestées (déjà valides, preuves vérifiées, clés posées par
+   * l'administrateur, clé de la session qui signe), comptes administrateurs, exigence (jamais retirée une fois posée).
+   */
+  async function infoSignatures(s, coffre, cles, info, prec) {
+    if (!SG()) return;
+    var nouv = JSON.parse(JSON.stringify(s.nouvellesSignatures || {})), moi = idSignature(s), k = await cleSignature(s);
+    if (moi && k) (nouv[moi] = nouv[moi] || []).push(k.publique);
+    if (moi && s.priveeEnAttente) (nouv[moi] = nouv[moi] || []).push(await SG().publiqueAgent(s.priveeEnAttente));
+    var r = await SG().aAttester(coffre, prec || null, cles.temoin8, nouv);
+    info.signatures = r.signatures; s.signaturesNonVerifiees = r.nonVerifiees;
+    info.admins = (s.comptes || []).filter(function (c) { return c.actif !== false && (c.roles || []).indexOf('ADMIN') >= 0; }).map(function (c) { return c.id; }).concat([T.SECOURS]);
+    var exige = (prec && prec.saisiesSignees) || s.exigerSignaturesLe;
+    if (exige) info.saisiesSignees = exige;
+  }
+  /** Contexte de vérification des saisies lues (gardé tant que le coffre et son état attesté ne changent pas). */
+  async function contexteSignatures(s) {
+    var etat = s.controle && s.controle.etat, cle = (s.coffre && s.coffre.rev) + '|' + (etat ? etat.n + '|' + (s.coffre.attestation || {}).signature : '-');
+    if (!s.ctxSignatures || s.ctxSignatures.cle !== cle) s.ctxSignatures = { cle: cle, ctx: await SG().contexte(s.coffre, etat) };
+    return s.ctxSignatures;
+  }
+  /**
+   * Vérifie les saisies lues d'un journal : les saisies écartées (non signées sous exigence, signature fausse, écrites
+   * au nom d'un autre) sont gardées à part, masquées et signalées ; revérifiées quand le coffre change (clé reçue).
+   */
+  async function verifierLues(s, j, evts) {
+    if (!v2(s) || s.formation || !SG() || !s.coffre) return evts;
+    var c = await contexteSignatures(s), garde = [];
+    j.ecartes = j.ecartes || []; j.statSig = j.statSig || { ok: 0, provisoire: 0, ancienne: 0 };
+    if (j.ecartes.length && j.ctxEcartes !== c.cle) { evts = j.ecartes.map(function (x) { return x.evt; }).concat(evts); j.ecartes = []; }
+    j.ctxEcartes = c.cle;
+    for (var i = 0; i < evts.length; i++) {
+      var r = await SG().verifierSaisie(evts[i], c.ctx);
+      if (r === 'ok' || r === 'provisoire' || r === 'ancienne') { j.statSig[r]++; garde.push(evts[i]); }
+      else j.ecartes.push({ evt: evts[i], raison: r });
+    }
+    return garde;
+  }
+  /**
+   * Inscrit la clé de signature de la session dans le coffre si elle n'y est pas (compte d'avant 0.72.0 : preuve tirée
+   * du témoin, vérifiée par l'administrateur) ; administrateur : fait attester sa clé et les clés en attente.
+   */
+  async function inscrireSignature(s) {
+    if (!v2(s) || s.formation || !SG() || !s.coffre || !s.privee8) return;
+    var k = await cleSignature(s), moi = idSignature(s), c = await contexteSignatures(s), x = c.ctx.cles[moi] || { cles: [], enAttente: [] };
+    if (attestateur(s)) {
+      var attente = Object.keys(c.ctx.cles).some(function (id) { return c.ctx.cles[id].enAttente.length; });
+      if ((x.cles.indexOf(k.publique) < 0 || attente) && !bloquantes(s.controle).length) await s.modifierCoffre(async function () { /* nouvel état attesté */ });
+      return;
+    }
+    if (x.cles.indexOf(k.publique) >= 0 || x.enAttente.indexOf(k.publique) >= 0) return;
+    var etat = s.controle && s.controle.etat;
+    if (!etat || !etat.temoin) return;
+    var e = await SG().preuve(s.privee8, etat.temoin, moi, k.publique);
+    await s.modifierCoffre(async function (cf) {
+      var a = cf.agents[moi];
+      if (!a) return;
+      a.sig = (Array.isArray(a.sig) ? a.sig : []).filter(function (y) { return y && y.p !== e.p; }).concat([e]);
+    });
+  }
+
   /** Signe l'état du coffre à écrire (administrateur) ; crée les clés d'attestation si le coffre n'en a pas encore. */
   async function signerCoffre(s, coffre, trousseau, nMin) {
     if (!s.attestEnAttente && !s.attest) s.attestEnAttente = await A.creerCles();
     var cles = s.attestEnAttente || s.attest, prec = A.etatDe(coffre);
     var n = Math.max(prec ? prec.n : 0, s.controle && s.controle.etat ? s.controle.etat.n : 0, nVu(s, coffre), nMin || 0) + 1;
-    return A.signer(cles, trousseau, coffre, s.comptes, { n: n, par: s.utilisateur ? s.utilisateur.id : null });
+    var info = { n: n, par: s.utilisateur ? s.utilisateur.id : null };
+    await infoSignatures(s, coffre, cles, info, s.controle && s.controle.etat);
+    return A.signer(cles, trousseau, coffre, s.comptes, info);
   }
   /** Réemballe l'emballage de connexion avec l'ancre (emballage d'avant 0.5.0, ou attestation tout juste établie). */
   async function ancrerEmballage(s, emb, secret) {
@@ -374,6 +458,7 @@
    * la création du coffre (module Patients, étape 5) et la remet selon les droits.
    */
   async function apresSynchro(s) {
+    try { await inscrireSignature(s); } catch (e) { /* clé de signature inscrite à la prochaine connexion */ }
     if (!v2(s) || s.formation || !attestateur(s) || bloquantes(s.controle).length) return;
     await clesModulesManquantes(s);
     // Accès particuliers (0.31.0) : prêts de droits finis (clés retirées). Depuis le correctif du 15 novembre 2026, les
@@ -431,6 +516,7 @@
     await s.modifierCoffre(async function (coffre, comptes) {
       if (comptes.some(function (x) { return x.login === d.login; })) throw new Error('L’identifiant « ' + d.login + ' » existe déjà.');
       comptes.push(compte); coffre.emballages.push(emb); coffre.agents[id] = { publique: publique };
+      if (typeof d.publique.signature === 'string') { coffre.agents[id].sig = [{ p: d.publique.signature }]; retenirSignature(s, id, d.publique.signature); }
       coffre.enveloppes = coffre.enveloppes.concat(await T.enveloppesPour(s.trousseau, coffre, id, cle, T.droitsDe(coffre, compte, aDroitPour(s))));
     });
     await clesMessagerieAJour(s);
@@ -446,9 +532,10 @@
     var DL = socle('delegations', './delegations.js');
     if (!v2(this)) throw new Error('Coffre d’ancien format : demandez à l’administrateur de créer le compte.');
     var paire = await C.nouvellePaire(), p8 = await C.exporterPrivee(paire.privateKey), ancre = await ancreSession(this);
+    var sigIntervenant = SG() ? await SG().publiqueAgent(p8) : undefined;
     var emb = await C.emballerMotDePasse(C.paquet(p8, ancre), c.motDePasse, c.aleatoire ? C.ITERATIONS_PROVISOIRE : undefined); p8.fill(0);
     var d = { id: 'dc' + id8(), action: 'creer', etat: 'attente', login: String(c.login || '').trim().toLowerCase(), nom: String(c.nom || '').trim(), type: c.type, services: c.services || [], finValidite: c.finValidite,
-      publique: { publique: await C.exporterPublique(paire.publicKey) }, emb: emb, par: this.utilisateur.id, le: new Date().toISOString() };
+      publique: { publique: await C.exporterPublique(paire.publicKey), signature: sigIntervenant }, emb: emb, par: this.utilisateur.id, le: new Date().toISOString() };
     DL.controlerDemande(DL.demande(d), this.utilisateur, this.comptes || [], Date.now());
     var v = JSON.parse(JSON.stringify(config(this).comptesDemandes || { demandes: [] }));
     v.demandes = (v.demandes || []).concat([d]);
@@ -749,7 +836,10 @@
     installerTrousseau(this, r.trousseau, r.privee8);
     this.comptes = [compte]; this.utilisateur = compte; this.attest = cles; this.ancre = ancre;
     r.coffre.comptes = await chiffrerComptes(this.cle, this.comptes);
-    var etat = await A.signer(cles, r.trousseau, r.coffre, this.comptes, { n: 1, par: compte.id });
+    // Coffre créé à partir de 0.72.0 : toute saisie est signée dès le départ (aucune saisie ancienne à reprendre)
+    var sigAdmin = SG() ? await SG().publiqueAgent(r.privee8) : null;
+    if (sigAdmin) r.coffre.agents[compte.id].sig = [{ p: sigAdmin }];
+    var etat = await A.signer(cles, r.trousseau, r.coffre, this.comptes, sigAdmin ? { n: 1, par: compte.id, signatures: { [compte.id]: [sigAdmin] }, admins: [compte.id, T.SECOURS], saisiesSignees: new Date().toISOString() } : { n: 1, par: compte.id });
     this.coffre = await this.dossier.ecrireCoffre(r.coffre, undefined);
     this.controle = { etat: etat, anomalies: [] }; retenirN(this, this.coffre, 1);
     await this.synchroniser();
@@ -848,7 +938,7 @@
 
   Session.prototype.verrouiller = function () {
     // Trousseau effacé de la mémoire (octets des clés et partie privée remis à zéro)
-    T.effacer(this.trousseau); if (this.privee8) this.privee8.fill(0); this.clesPerso = null;
+    T.effacer(this.trousseau); if (this.privee8) this.privee8.fill(0); this.clesPerso = null; oublierSignature(this); this.nouvellesSignatures = null;
     this.clesMessages = null;   // clés des messages chiffrés ouverts (messagerie, 0.24.0)
     this.trousseau = null; this.privee8 = null; this.cleV1 = null; this.moduleChoisi = undefined;
     A.effacerCles(this.attest); this.attest = null; this.ancre = null; this.controle = null;
@@ -936,8 +1026,9 @@
       if (v2(s)) {
         // Paire et emballage préparés ici (calcul lent) ; enveloppes calculées sur le coffre relu, dans l'écriture
         var paire = await C.nouvellePaire(), p8 = await C.exporterPrivee(paire.privateKey);
+        var sigC = SG() ? await SG().publiqueAgent(p8) : null;
         emb = await C.emballerMotDePasse(C.paquet(p8, ancre), c.motDePasse, it); p8.fill(0);
-        agent = { publique: await C.exporterPublique(paire.publicKey), cle: paire.publicKey };
+        agent = { publique: await C.exporterPublique(paire.publicKey), cle: paire.publicKey, sig: sigC };
       }
       else emb = await C.emballerMotDePasse(s.cleV1, c.motDePasse, it);
       emb.id = nouvelId(); emb.userId = id; emb.login = c.login;
@@ -951,6 +1042,7 @@
       prepares.forEach(function (p) {
         comptes.push(p.compte); coffre.emballages.push(p.emb);
         if (p.agent) coffre.agents[p.compte.id] = { publique: p.agent.publique };
+        if (p.agent && p.agent.sig) { coffre.agents[p.compte.id].sig = [{ p: p.agent.sig }]; retenirSignature(s, p.compte.id, p.agent.sig); }
       });
       for (var k = 0; k < prepares.length; k++) {
         var p = prepares[k];
@@ -1021,9 +1113,18 @@
         if (!provisoire && !attestateur(s) && ancien && s.privee8 && s.controle && s.controle.etat && s.controle.etat.temoin) {
           preuves = (ancien.preuves || []).concat([await A.preuve(s.privee8, ancien.publique, s.controle.etat.temoin, userId, a.publique)]);
         }
+        // Clé de signature tirée de la nouvelle clé personnelle : posée par l'administrateur (attestée), ou reliée par
+        // l'agent à sa clé précédente (lien signé, vérifiable par tous)
+        var sigN = SG() ? await SG().publiqueAgent(a.privee8) : null, sigs = ancien && Array.isArray(ancien.sig) ? ancien.sig.slice() : [];
+        if (sigN) {
+          var ancK = !provisoire ? await cleSignature(s) : null;
+          if (ancK && userId === idSignature(s)) sigs.push(await SG().lien(ancK, userId, sigN));
+          else { sigs.push({ p: sigN }); if (maitre) retenirSignature(s, userId, sigN); }
+        }
         if (provisoire) a.privee8.fill(0); else s.priveeEnAttente = a.privee8;   // installée après l'écriture du coffre
         emb = a.emballage;
         coffre.agents[userId] = preuves ? { publique: a.publique, preuves: preuves } : { publique: a.publique };
+        if (sigs.length) coffre.agents[userId].sig = sigs;
         coffre.emballages = coffre.emballages.filter(function (e) { return e.userId !== userId; });   // clés de sécurité de l'ancienne paire
         coffre.enveloppes = coffre.enveloppes.filter(function (e) { return e.pour !== userId; }).concat(a.enveloppes);
       }
@@ -1082,21 +1183,101 @@
    */
   Session.prototype.remisesAConfirmer = function () {
     if (!gardien(this)) return [];
-    var s = this, cfg = config(this), aDroit = aDroitPour(this), DL = socle('delegations', './delegations.js'), now = Date.now(), tient = {}, res = [];
-    (this.coffre.enveloppes || []).forEach(function (e) { if (e.g !== 'm') tient[e.pour + '|' + e.cle] = true; });
-    var vus = comptesPourClesAvec(this.comptes || [], cfg);
-    (this.comptes || []).forEach(function (c, i) {
+    return remisesDues(this).filter(function (r) { return !r.refus; });
+  };
+  /** Refus en vigueur : { 'compte|clé': { id, cle, motif, le, par, raison } } (réglage `remisesRefusees`, 0.72.0). */
+  function refusDe(cfg) {
+    var r = {}, x = cfg && cfg.remisesRefusees, l = x && Array.isArray(x.liste) ? x.liste : [];
+    l.forEach(function (e) { if (e && typeof e.id === 'string' && typeof e.cle === 'string') r[e.id + '|' + e.cle] = e; });
+    return r;
+  }
+  /**
+   * Clés dues et non détenues, avec leur motif et le refus éventuel de l'administrateur (`seul` : un compte seulement).
+   * Lisible par toute session (enveloppes et réglages sont connus de tous) : le cadre et l'agent voient ce qui attend.
+   */
+  function remisesDues(s, seul) {
+    var res = [];
+    if (!v2(s) || !s.coffre || !s.coffre.cles || !s.etat) return res;
+    var cfg = config(s), aDroit = aDroitPour(s), DL = socle('delegations', './delegations.js'), now = Date.now(), tient = {}, refus = refusDe(cfg);
+    (s.coffre.enveloppes || []).forEach(function (e) { if (e.g !== 'm') tient[e.pour + '|' + e.cle] = true; });
+    var vus = comptesPourClesAvec(s.comptes || [], cfg);
+    (s.comptes || []).forEach(function (c, i) {
       var x = vus[i];
-      if (!x.actif || !s.coffre.agents[c.id] || (x.roles || []).indexOf('ADMIN') >= 0) return;
+      if ((seul && c.id !== seul) || !x.actif || !s.coffre.agents[c.id] || (x.roles || []).indexOf('ADMIN') >= 0) return;
       var prete = DL ? DL.appliquer(c, cfg, now) : c;
       Object.keys(s.coffre.cles).forEach(function (nom) {
         if (nom === T.PLATEFORME || tient[c.id + '|' + nom] || !aDroit(nom, x)) return;
-        var motif = aDroit(nom, c) ? 'compte' : aDroit(nom, prete) ? 'pret' : 'roleService', detail = '';
-        if (motif === 'pret') detail = (prete.pretsRecus || []).map(function (d) { return 'prêt de ' + s.nomAuteur(d.de) + ' jusqu’au ' + String(d.fin).split('-').reverse().join('/'); }).join(' ; ');
-        res.push({ id: c.id, nom: c.nom, login: c.login, cle: nom, libelle: libelleCle(s, nom), motif: motif, detail: detail });
+        var motif = aDroit(nom, c) ? 'compte' : aDroit(nom, prete) ? 'pret' : 'roleService', detail = '', prets = [];
+        if (motif === 'pret') {
+          prets = (prete.pretsRecus || []).map(function (d) { return d.id; });
+          detail = (prete.pretsRecus || []).map(function (d) { return 'prêt de ' + s.nomAuteur(d.de) + ' jusqu’au ' + String(d.fin).split('-').reverse().join('/'); }).join(' ; ');
+        }
+        res.push({ id: c.id, nom: c.nom, login: c.login, cle: nom, libelle: libelleCle(s, nom), motif: motif, detail: detail, prets: prets, refus: refus[c.id + '|' + nom] || null });
       });
     });
     return res;
+  }
+  /**
+   * Remises en attente pour un compte, vues par n'importe quelle session (information du cadre et de l'agent, 0.72.0) :
+   * [{ cle, libelle, motif, detail, prets, refus }]. Les administrateurs n'attendent jamais.
+   */
+  Session.prototype.remisesEnAttenteDe = function (compteId) {
+    return remisesDues(this, compteId).map(function (r) { return { cle: r.cle, libelle: r.libelle, motif: r.motif, detail: r.detail, prets: r.prets, refus: r.refus }; });
+  };
+  /** Remises refusées par l'administrateur et toujours dues : [{ id, nom, login, cle, libelle, motif, refus }] (administrateur). */
+  Session.prototype.remisesRefusees = function () {
+    if (!gardien(this)) return [];
+    return remisesDues(this).filter(function (r) { return !!r.refus; });
+  };
+  /**
+   * Refuse les remises (`liste` de { id, cle }) : un prêt de droits en cause est annulé et marqué « refusé par
+   * l'administrateur » ; les autres remises sont inscrites au réglage `remisesRefusees` (plus proposées, jusqu'à la levée
+   * du refus). `raison` : motif court montré au cadre, sans donnée de patient. Inscrit au journal.
+   */
+  Session.prototype.refuserRemises = async function (liste, raison) {
+    if (!gardien(this)) throw new Error('Réservé à un administrateur, sur les données réelles.');
+    var s = this, att = this.remisesAConfirmer(), maintenant = new Date().toISOString(), motifCourt = String(raison || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200);
+    var choix = att.filter(function (r) { return (liste || []).some(function (l) { return l.id === r.id && l.cle === r.cle; }); });
+    if (!choix.length) return false;
+    var pretsRefuses = {}, autres = [];
+    choix.forEach(function (r) { if (r.motif === 'pret' && r.prets.length) r.prets.forEach(function (id) { pretsRefuses[id] = true; }); else autres.push(r); });
+    var ids = Object.keys(pretsRefuses);
+    if (ids.length) {
+      var brut = JSON.parse(JSON.stringify((config(s).delegations && config(s).delegations.prets) || []));
+      brut = brut.map(function (d) { return pretsRefuses[d.id] ? Object.assign({}, d, { annule: true, annulePar: s.utilisateur.id, refuse: true, refuseLe: maintenant, refusMotif: motifCourt }) : d; });
+      await s.enregistrer('CONFIG', { cle: 'delegations', valeur: { prets: brut } });
+    }
+    if (autres.length) {
+      var v = JSON.parse(JSON.stringify((config(s).remisesRefusees && config(s).remisesRefusees.liste) || []));
+      autres.forEach(function (r) { v.push({ id: r.id, cle: r.cle, motif: r.motif, le: maintenant, par: s.utilisateur.id, raison: motifCourt }); });
+      await s.enregistrer('CONFIG', { cle: 'remisesRefusees', valeur: { liste: v } });
+    }
+    await s.tracer('REMISES_REFUSEES', { remises: choix.map(function (r) { return { login: r.login, cle: r.cle, motif: r.motif }; }), prets: ids,
+      libelle: ('remise de clés refusée : ' + choix.map(function (r) { return r.login + ' (' + r.libelle + ')'; }).join(', ') + (motifCourt ? ' — motif : ' + motifCourt : '')).slice(0, 600) });
+    return true;
+  };
+  /** Lève le refus de remises (`liste` de { id, cle }) : elles attendent de nouveau la confirmation. Inscrit au journal. */
+  Session.prototype.leverRefusRemises = async function (liste) {
+    if (!gardien(this)) throw new Error('Réservé à un administrateur, sur les données réelles.');
+    var cles = {}; (liste || []).forEach(function (l) { cles[l.id + '|' + l.cle] = true; });
+    var avant = (config(this).remisesRefusees && config(this).remisesRefusees.liste) || [];
+    var garde = avant.filter(function (e) { return !(e && cles[e.id + '|' + e.cle]); });
+    if (garde.length === avant.length) return false;
+    await this.enregistrer('CONFIG', { cle: 'remisesRefusees', valeur: { liste: JSON.parse(JSON.stringify(garde)) } });
+    await this.tracer('REFUS_LEVE', { remises: Object.keys(cles), libelle: 'refus de remise de clés levé (' + (avant.length - garde.length) + ')' });
+    return true;
+  };
+  /** Refuse des demandes de comptes d'intervenants (`ids`) : marquées « refusée », avec le motif montré au cadre. */
+  Session.prototype.refuserDemandesComptes = async function (ids, raison) {
+    if (!gardien(this)) throw new Error('Réservé à un administrateur, sur les données réelles.');
+    var DL = socle('delegations', './delegations.js'), cfg = config(this), att = DL.enAttente(cfg).filter(function (d) { return (ids || []).indexOf(d.id) >= 0; });
+    if (!att.length) return false;
+    var motifCourt = String(raison || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200) || 'refusée par l’administrateur';
+    var brut = JSON.parse(JSON.stringify(cfg.comptesDemandes || { demandes: [] })), le = new Date().toISOString();
+    brut.demandes.forEach(function (x) { if (att.some(function (d) { return d.id === x.id; })) { x.etat = 'refusee'; x.message = motifCourt; x.traiteLe = le; delete x.emb; } });
+    await this.enregistrer('CONFIG', { cle: 'comptesDemandes', valeur: brut });
+    await this.tracer('INTERVENANTS', { comptes: att.map(function (d) { return d.nom || d.login || d.compte; }), libelle: ('demandes de comptes d’intervenants extérieurs refusées — motif : ' + motifCourt).slice(0, 600) });
+    return true;
   };
   /**
    * Remet les clés confirmées par l'administrateur (`liste` de { id, cle } ; par défaut toutes celles qui attendent) et
@@ -1112,6 +1293,42 @@
     await this.tracer('REMISES_CLES', { remises: choix.map(function (r) { return { login: r.login, cle: r.cle, motif: r.motif }; }),
       libelle: 'remise de clés confirmée : ' + Object.keys(parCompte).map(function (l) { return l + ' (' + parCompte[l].join(', ') + ')'; }).join(' ; ').slice(0, 600) });
     return res;
+  };
+
+  // --- Signature des saisies (0.72.0) : état et exigence ---
+  /** Saisies écartées à la lecture : [{ journal, id, at, by, sg, type, raison, libelle }] (plus récentes d'abord). */
+  Session.prototype.saisiesEcartees = function () {
+    var L = SG() ? SG().LIB_ECART : {}, res = [];
+    (this.journauxActifs || []).forEach(function (j) { (j.ecartes || []).forEach(function (x) { var e = x.evt || {}; res.push({ journal: j.nom, id: e.id, at: e.at, by: e.by, sg: e.sg || null, type: e.type, raison: x.raison, libelle: L[x.raison] || x.raison }); }); });
+    return res.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
+  };
+  /**
+   * État de la signature des saisies : { exigee (date ou null), provisoires, anciennes, ecartees, comptesSansCle:
+   * [{ id, nom }] (comptes actifs sans clé attestée), nonVerifiees: [{ id, nom }] (preuve invalide, administrateur) }.
+   */
+  Session.prototype.etatSignatures = function () {
+    var s = this, etat = this.controle && this.controle.etat, stat = { provisoire: 0, ancienne: 0 }, n = 0;
+    (this.journauxActifs || []).forEach(function (j) { if (j.statSig) { stat.provisoire += j.statSig.provisoire; stat.ancienne += j.statSig.ancienne; } n += (j.ecartes || []).length; });
+    var att = (etat && etat.signatures) || {}, nom = function (id) { return { id: id, nom: s.nomAuteur(id) }; };
+    var sans = (this.comptes || []).filter(function (c) { return c.actif !== false && !(att[c.id] && att[c.id].length); }).map(function (c) { return nom(c.id); });
+    return { exigee: (etat && etat.saisiesSignees) || null, provisoires: stat.provisoire, anciennes: stat.ancienne, ecartees: n, comptesSansCle: sans, nonVerifiees: (this.signaturesNonVerifiees || []).map(nom) };
+  };
+  /**
+   * Exige la signature de toute saisie (coffre créé avant 0.72.0) : inscrit dans l'état attesté, jamais retiré ensuite.
+   * Les saisies non signées sont alors écartées (masquées, jamais supprimées). Réservé à l'administrateur, quand chaque
+   * compte actif a une clé de signature attestée.
+   */
+  Session.prototype.exigerSignatures = async function () {
+    if (!gardien(this)) throw new Error('Réservé à un administrateur, sur les données réelles.');
+    var e = this.etatSignatures();
+    if (e.exigee) return e.exigee;
+    if (e.comptesSansCle.length) throw new Error('Comptes sans clé de signature attestée : ' + e.comptesSansCle.map(function (x) { return x.nom; }).join(', ') + '. Chacun doit se connecter une fois (ou voir son mot de passe réinitialisé) avant d’exiger la signature.');
+    this.exigerSignaturesLe = new Date().toISOString();
+    try { await this.modifierCoffre(async function () { /* exigence inscrite dans l'état attesté */ }); }
+    finally { this.exigerSignaturesLe = null; }
+    oublierJournaux(this); await this.synchroniser();
+    await this.tracer('SIGNATURES_EXIGEES', { libelle: 'signature des saisies exigée : les saisies non signées sont écartées' });
+    return this.controle && this.controle.etat && this.controle.etat.saisiesSignees;
   };
 
   /** Comptes actifs dont le trousseau est incomplet : [{ id, nom, cles }] (administrateur, coffre version 2). */
@@ -1152,7 +1369,9 @@
     var r = await T.migrerCoffre(coffre, this.cleV1, this.comptes, { modules: modulesDeclares(), adminId: this.utilisateur.id, motDePasseAdmin: motDePasse, codeSecours: code, provisoire: C.nouveauMotDePasseProvisoire, id: nouvelId, aDroit: aDroitPour(this), ancre: ancre });
     var provisoires = r.provisoires.map(function (p) { p.compte.mdpProvisoire = true; return { nom: p.compte.nom, login: p.compte.login, motDePasse: p.motDePasse, roles: p.compte.roles, services: p.compte.services || [], finValidite: p.compte.finValidite || '' }; });
     r.coffre.comptes = await chiffrerComptes(r.trousseau[T.PLATEFORME], this.comptes);
-    var etat = await A.signer(cles, r.trousseau, r.coffre, this.comptes, { n: 1, par: this.utilisateur.id });
+    var sigM = SG() ? await SG().publiqueAgent(r.privee8) : null, infoM = { n: 1, par: this.utilisateur.id };
+    if (sigM) { r.coffre.agents[this.utilisateur.id].sig = [{ p: sigM }]; infoM.signatures = { [this.utilisateur.id]: [sigM] }; infoM.admins = [this.utilisateur.id, T.SECOURS]; }
+    var etat = await A.signer(cles, r.trousseau, r.coffre, this.comptes, infoM);
     this.coffre = await this.dossier.ecrireCoffre(r.coffre, coffre.rev);
     T.effacer(this.trousseau);
     installerTrousseau(this, r.trousseau, r.privee8);
@@ -1337,7 +1556,7 @@
       var p = await C.nouvellePaire(), p8 = await C.exporterPrivee(p.privateKey);
       var emb = await C.emballerMotDePasse(C.paquet(p8, ancre), mdp, lui ? undefined : C.ITERATIONS_PROVISOIRE);
       emb.id = nouvelId(); emb.userId = c.id; emb.login = c.login;
-      nouvelles[c.id] = { publique: await C.exporterPublique(p.publicKey), emb: emb, p8: lui ? p8 : null };
+      nouvelles[c.id] = { publique: await C.exporterPublique(p.publicKey), emb: emb, p8: lui ? p8 : null, sig: SG() ? await SG().publiqueAgent(p8) : null };
       if (!lui) { p8.fill(0); provisoires.push({ nom: c.nom, login: c.login, motDePasse: mdp, roles: c.roles, services: c.services || [], finValidite: c.finValidite || '' }); }
     }
     await this.modifierCoffre(async function (cf, comptes) {
@@ -1348,6 +1567,7 @@
       cf.agents = { secours: cf.agents.secours }; cf.emballages = []; cf.enveloppes = [];
       Object.keys(nouvelles).forEach(function (id) {
         cf.agents[id] = { publique: nouvelles[id].publique }; cf.emballages.push(nouvelles[id].emb);
+        if (nouvelles[id].sig) { cf.agents[id].sig = [{ p: nouvelles[id].sig }]; retenirSignature(s, id, nouvelles[id].sig); }
         var c = comptes.filter(function (x) { return x.id === id; })[0];
         if (c && id !== moi) c.mdpProvisoire = true;
       });
@@ -1545,7 +1765,7 @@
   Session.prototype.enregistrer = async function (type, data, base, options) {
     if (options && options.journalReel && this.formation) {
       var at0 = new Date().toISOString(), by0 = this.utilisateur.id;
-      var trace = { v: 1, id: SIC.horodatageCompact(at0) + '_' + by0 + '_' + id8(), at: at0, by: by0, type: type, data: data, prec: null };
+      var trace = await signerSaisie(this, { v: 1, id: SIC.horodatageCompact(at0) + '_' + by0 + '_' + id8(), at: at0, by: by0, type: type, data: data, prec: null });
       await (await this.dossier.journal(SOCLE, true)).ecrireEvenement(this.cle, trace);   // journal du socle des données réelles
       return trace;
     }
@@ -1575,6 +1795,7 @@
       var pr = DLp.pourLeCompteDe(this.utilisateur, config(this), Date.now(), function (rs) { try { return moduleDe(type).droits.peut(rs, type, config(sv)); } catch (e) { return true; } });
       if (pr) evt.pour = pr.de;
     }
+    await signerSaisie(this, evt);
     await d.ecrireEvenement(j.cle, evt);
     j.connus.add(evt.id + '.enc');
     j.evts.push(evt);
@@ -2300,6 +2521,7 @@
       var parNom = {}; j.rejetes.forEach(function (x) { if (!lus[x.nom]) parNom[x.nom] = x; });
       r.rejetes.forEach(function (x) { var a = parNom[x.nom]; x.essais = (a && a.essais || 0) + 1; x.journal = j.nom; parNom[x.nom] = x; });
       j.rejetes = Object.keys(parNom).map(function (n) { return parNom[n]; });
+      r.evenements = await verifierLues(this, j, r.evenements);
       j.evts = j.evts.concat(r.evenements);
       nouveaux = nouveaux.concat(r.evenements);
     }
@@ -2384,6 +2606,7 @@
     var cle = await C.nouvelleCleDonnees();
     var at = new Date().toISOString();
     var lot = { v: 1, id: SIC.horodatageCompact(at) + '_' + this.utilisateur.id + '_' + id8(), at: at, by: this.utilisateur.id, type: 'LOT', data: { evenements: saisies, libelle: libelle || 'Jeu de formation' }, prec: null };
+    await signerSaisie(this, lot);
     await df.ecrireEvenement(cle, lot);
     var protege = C.b64(await C.chiffrerJSON(jeuModule(this), { k: await C.exporterCle(cle) }, 'formation'));   // sous la clé du module
     await this.modifierCoffre(async function (coffre) {
