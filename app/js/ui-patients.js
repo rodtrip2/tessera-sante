@@ -277,6 +277,9 @@
       // Données cliniques (phase 5) : accès restreint, bris de glace en cours
       var blocBris = !nouveau && U.accesClinique ? U.accesClinique.blocFiche((U.App.session.etat.patients && U.App.session.etat.patients[f.id]) || f, dessinerComplements) : null;
       if (blocBris) zoneComp.appendChild(blocBris);
+      // Données cliniques du séjour (phase 5) : feuille de staff et notes, ou accès restreint et bris de glace
+      var blocCl = !nouveau && U.clinique ? U.clinique.blocFiche((U.App.session.etat.patients && U.App.session.etat.patients[f.id]) || f, dessinerComplements, { sansRestreint: !!blocBris }) : null;
+      if (blocCl) zoneComp.appendChild(blocCl);
       // Valeur clinique masquée hors accès : la donnée n'est ni affichée ni modifiable
       champs = champs.filter(function (c) { return !c.clinique || nouveau || !U.accesClinique || U.accesClinique.ok(c, f.id); });
       // « Gérer les données ajoutées… » (0.20.0) : cadre pour ses services, administrateur, sans quitter la fiche

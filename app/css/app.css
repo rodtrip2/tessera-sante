@@ -1462,3 +1462,9 @@ tr.ligne-annulee td { text-decoration: line-through; color: var(--ink-2); }
 /* Données cliniques : accès restreint, bris de glace (0.68.0) */
 .ac-restreint { border: 1px dashed var(--line); border-radius: 8px; padding: 6px 10px; }
 .ac-bris { margin: 4px 0; }
+/* Données cliniques du séjour (0.69.0) */
+.cl-note { border-left: 3px solid var(--line); padding: 2px 8px; }
+.cl-precedent { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--card); }
+.cl-precedent p { margin: 2px 0; }
+.cl-staff td.cl-court { max-width: 22em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-cim { display: grid; grid-template-columns: 8em 1fr auto; gap: 6px; align-items: center; margin-bottom: 4px; }
