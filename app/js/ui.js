@@ -1056,6 +1056,11 @@
     if (ea && ea.attestateur && !s.formation && ea.anomalies.some(function (x) { return x.bloquante; })) zoneEntete.appendChild(h('div', { class: 'bandeau-secours', role: 'alert' },
       h('span', { text: 'Coffre modifié hors de l’outil ou restauré : aucune remise de clé avant réparation. ' }),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'securite'; rendreContenu(); } }, 'Voir')));
+    // Remises de clés et comptes demandés qui attendent la confirmation de l'administrateur (correctif du 15 novembre 2026)
+    var nAtt = (s.remisesAConfirmer ? s.remisesAConfirmer().length : 0) + (s.demandesComptesAConfirmer ? s.demandesComptesAConfirmer().length : 0);
+    if (nAtt && !s.apercu && !(App.onglet === 'admin' && App.sousOngletAdmin === 'comptes')) zoneEntete.appendChild(h('div', { class: 'bandeau-apercu', role: 'status' },
+      h('span', { text: 'Des clés ou des comptes attendent votre confirmation avant d’être remis.' }),
+      h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'comptes'; rendreContenu(); } }, 'Voir')));
     var nav = h('nav', { class: 'onglets', 'aria-label': 'Sections' });
     onglets().forEach(function (o) {
       if (!affichable(o[0])) return;
@@ -1288,13 +1293,53 @@
     var pAttestation = panneauAttestation(s);
     // -- Trousseaux incomplets (coffre version 2) : clés à réémettre
     var incomplets = s.trousseauxIncomplets ? s.trousseauxIncomplets() : [];
-    var pIncomplets = incomplets.length || s.erreurDroits ? h('section', { class: 'panneau' }, h('h2', { text: 'Clés à réémettre' }),
-      incomplets.length ? h('div', { class: 'alerte', text: incomplets.length + ' compte(s) n’ont pas toutes les clés auxquelles ils ont droit : ' + incomplets.map(function (x) { return x.nom; }).join(', ') + '.' }) : null,
+    // Remises à confirmer (correctif du 15 novembre 2026) : une clé nouvelle n'est remise d'office que si elle découle
+    // d'un acte de l'administrateur ; les autres, et les comptes d'intervenants demandés, attendent sa confirmation ici
+    var remises = s.remisesAConfirmer ? s.remisesAConfirmer() : [], demandes = s.demandesComptesAConfirmer ? s.demandesComptesAConfirmer() : [];
+    var LIB_MOTIF = { compte: 'rôles et services du compte', pret: 'prêt de droits', roleService: 'rôle selon le service' };
+    var parAgent = [];
+    remises.forEach(function (r) {
+      var a = parAgent.filter(function (x) { return x.id === r.id; })[0];
+      if (!a) parAgent.push(a = { id: r.id, nom: r.nom, lignes: [] });
+      a.lignes.push(r);
+    });
+    function motifs(lignes) {
+      var vus = [];
+      lignes.forEach(function (r) { var t = LIB_MOTIF[r.motif] + (r.detail ? ' (' + r.detail + ')' : ''); if (vus.indexOf(t) < 0) vus.push(t); });
+      return vus.join(' ; ');
+    }
+    async function remettre(liste) {
+      try { s.erreurDroits = null; var r = await s.confirmerRemises(liste); toast(r.change ? 'Clés remises.' : 'Aucune clé à remettre.'); rendreContenu(); } catch (err) { alert(err.message); }
+    }
+    var sansRemise = incomplets.filter(function (x) { return !parAgent.some(function (a) { return a.id === x.id; }); });
+    var pIncomplets = remises.length || demandes.length || sansRemise.length || s.erreurDroits ? h('section', { class: 'panneau' }, h('h2', { text: 'Clés à remettre' }),
+      remises.length ? [
+        h('div', { class: 'alerte', text: parAgent.length + ' compte(s) attendent votre confirmation pour recevoir des clés.' }),
+        h('p', { class: 'muted', text: 'Une clé nouvelle n’est remise d’office que si elle découle d’un changement que vous faites vous-même (compte créé ou modifié, réglage enregistré). Celles-ci découlent d’un réglage écrit par un autre agent (prêt de droits, rôle selon le service) ou trouvé à votre connexion. Vérifiez qui reçoit quoi ; en cas de doute, ne confirmez pas et consultez le journal.' }),
+        h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: 'Agent' }), h('th', { text: 'Clés' }), h('th', { text: 'D’après' }), h('th', { 'aria-label': 'Action' }))),
+          h('tbody', {}, parAgent.map(function (a) {
+            return h('tr', {}, h('td', { text: a.nom }), h('td', { text: a.lignes.map(function (r) { return r.libelle; }).join(', ') }), h('td', { text: motifs(a.lignes) }),
+              h('td', { class: 'actions-ligne' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { remettre(a.lignes); } }, 'Remettre')));
+          })))),
+        h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: function () { remettre(null); } }, 'Tout remettre'))] : null,
+      demandes.length ? [
+        h('div', { class: 'alerte', text: demandes.length + ' demande(s) de compte d’intervenant extérieur attendent votre confirmation.' }),
+        h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: 'Intervenant' }), h('th', { text: 'Demande' }), h('th', { text: 'Demandée par' }), h('th', { 'aria-label': 'Action' }))),
+          h('tbody', {}, demandes.map(function (d) {
+            return h('tr', {}, h('td', { text: d.nom + (d.login ? ' (' + d.login + ')' : '') }),
+              h('td', { text: (d.action === 'creer' ? 'création' : 'modification') + ' — ' + ((d.services || []).map(libService).join(', ') || 'aucun service') + (d.finValidite ? ' — jusqu’au ' + String(d.finValidite).split('-').reverse().join('/') : '') }),
+              h('td', { text: d.auteur }),
+              h('td', { class: 'actions-ligne' }, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
+                try { await s.confirmerDemandesComptes([d.id]); toast('Demande traitée.'); rendreContenu(); } catch (err) { alert(err.message); }
+              } }, d.action === 'creer' ? 'Créer le compte' : 'Appliquer')));
+          }))))] : null,
+      sansRemise.length ? h('div', { class: 'alerte', text: sansRemise.length + ' compte(s) n’ont pas toutes les clés auxquelles ils ont droit : ' + sansRemise.map(function (x) { return x.nom; }).join(', ') + '.' }) : null,
       s.erreurDroits ? h('div', { class: 'alerte', text: 'Dernière mise à jour des clés en échec : ' + s.erreurDroits }) : null,
-      h('p', { class: 'muted', text: 'Un compte réactivé reçoit sa clé personnelle à la réinitialisation de son mot de passe. Pour les autres, la réémission remet les clés manquantes selon les droits actuels.' }),
-      h('div', { class: 'actions' }, h('button', { class: 'btn primaire', onclick: async function () {
-        try { s.erreurDroits = null; var r = await s.appliquerDroits(); toast(r.change ? 'Clés réémises.' : 'Aucune clé à réémettre.'); rendreContenu(); } catch (err) { alert(err.message); }
-      } }, 'Réémettre les clés'))) : null;
+      sansRemise.length || s.erreurDroits ? [
+        h('p', { class: 'muted', text: 'Un compte réactivé reçoit sa clé personnelle à la réinitialisation de son mot de passe. Pour les autres, la réémission complète les clés qu’ils détiennent déjà.' }),
+        h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: async function () {
+          try { s.erreurDroits = null; var r = await s.appliquerDroits(); toast(r.change ? 'Clés réémises.' : 'Aucune clé à réémettre.'); rendreContenu(); } catch (err) { alert(err.message); }
+        } }, 'Réémettre les clés'))] : null) : null;
     // Comptes qui suivent un pôle et dont les services ne sont plus ceux du pôle (14 novembre 2026)
     var ecartsP = M.ecartsPoles(config(), s.comptes || []);
     var pPoles = ecartsP.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Comptes à mettre à jour selon leur pôle' }),

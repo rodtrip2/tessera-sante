@@ -867,6 +867,9 @@
     if (session.creerClesManquantes && !session.formation) {
       try {
         await session.creerClesManquantes();
+        // Jeu fictif écrit au nom « demo » : les remises qu'il fait naître sont confirmées d'emblée (correctif du 15 novembre 2026)
+        if (session.confirmerDemandesComptes) await session.confirmerDemandesComptes();
+        if (session.confirmerRemises) await session.confirmerRemises();
         var now = Date.now(), J = 864e5, at = function (h) { return new Date(now + h * 36e5).toISOString(); }, jC = function (n) { return SIC.model.dateLocaleISO(now + n * J); };
         var v = [
           { at: at(-30), by: 'demo', type: 'VALEUR', data: { entite: 'patient', id: 'P01', champ: 'vigilance-orga', op: { ajout: { id: 'nv1', texte: 'Ne pas programmer de sortie le jeudi, jour de visite (fictif)', importance: 'important' } } } },

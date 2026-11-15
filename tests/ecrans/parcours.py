@@ -1105,9 +1105,19 @@ with sync_playwright() as p:
     d.get_by_role('button', name='Prêter').click(); time.sleep(2)
     verifier(a.locator('table.table-prets tbody tr', has_text='Ide Deux').count() == 1, 'prêt de droits : le cadre prête son rôle à un collègue')
     a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
-    connecter(a, 'cadre', MDP)   # l'administrateur se connecte : compte créé, clés du prêt remises
+    connecter(a, 'cadre', MDP)   # l'administrateur se connecte : la demande de compte et les clés du prêt attendent sa confirmation (0.71.0)
     logins = a.evaluate("SIC.ui.App.session.comptes.filter(c => (c.roles || []).indexOf('INTERVENANT') >= 0).map(c => c.login)")
-    verifier(len(logins) == 1, 'intervenant extérieur : compte créé à la connexion de l’administrateur (' + ', '.join(logins) + ')')
+    rappel = a.locator('.bandeau-apercu', has_text='attendent votre confirmation')
+    verifier(len(logins) == 0 and rappel.count() == 1, 'intervenant extérieur : aucun compte créé d’office à la connexion de l’administrateur, rappel affiché')
+    rappel.locator('button', has_text='Voir').click(); time.sleep(1.2)
+    pr = a.locator('section.panneau', has=a.locator('h2', has_text='Clés à remettre'))
+    verifier(pr.count() == 1 and 'Bénévole Un (fictif)' in pr.inner_text(), 'clés à remettre : demande de compte du cadre listée, avec son auteur')
+    capture(a, 'cles-a-remettre')
+    pr.locator('button', has_text='Créer le compte').click(); time.sleep(3)
+    pr = a.locator('section.panneau', has=a.locator('h2', has_text='Clés à remettre'))
+    if pr.count() and pr.locator('button', has_text='Tout remettre').count(): pr.locator('button', has_text='Tout remettre').click(); time.sleep(3)   # clés du prêt du cadre
+    logins = a.evaluate("SIC.ui.App.session.comptes.filter(c => (c.roles || []).indexOf('INTERVENANT') >= 0).map(c => c.login)")
+    verifier(len(logins) == 1 and a.locator('h2', has_text='Clés à remettre').count() == 0, 'intervenant extérieur : compte créé après la confirmation de l’administrateur (' + ', '.join(logins) + ')')
     verifier(a.locator('.bandeau-pret').count() >= 1, 'prêts de démonstration : « Vous remplacez… », « Pendant votre absence… »')
     a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
     connecter(a, logins[0] if logins else 'x', mdpI)
@@ -1435,6 +1445,31 @@ with sync_playwright() as p:
     a.keyboard.press('Escape'); time.sleep(0.6)
     verifier(a.locator('.barre-modules button.bouton-module:not(.temporaire)', has_text=nom_mod).count() == 1, 'barre des modules : module épinglé de nouveau')
     capture(a, 'barre-modules')
+    # Remises de clés à confirmer (0.71.0) : un prêt de droits écrit depuis une autre session, sans contrôle et au nom du
+    # cadre, ne remet aucune clé ; l'administrateur le voit (rappel, panneau « Clés à remettre ») et confirme
+    for _ in range(3): a.keyboard.press('Escape'); time.sleep(0.3)
+    r = a.evaluate("""(async () => { const s = SIC.ui.App.session, M = SIC.model, sv = (s.etat.config.services || [])[0].code;
+      await s.creerComptes([{ nom: 'Cadre Essai (fictif)', login: 'cadre.essai', motDePasse: 'mot de passe cadre essai', roles: ['CADRE'], services: [sv] },
+        { nom: 'Agent Essai (fictif)', login: 'agent.essai', motDePasse: 'mot de passe agent essai', roles: [], services: [sv] }]);
+      const cadre = s.comptes.find(c => c.login === 'cadre.essai'), ag = s.comptes.find(c => c.login === 'agent.essai');
+      const autre = new SIC.Session(SIC.ui.App.dossier); await autre.chargerCoffre(); await autre.connexionMotDePasse('agent.essai', 'mot de passe agent essai');
+      const j = (n) => M.dateLocaleISO(Date.now() + n * 864e5), cfg = autre.etat.config.delegations || { prets: [] };
+      const pret = { id: 'pret-essai', de: cadre.id, a: ag.id, debut: j(-1), fin: j(20), roles: ['CADRE'], services: [sv], motif: 'essai (fictif)', par: cadre.id, le: new Date().toISOString() };
+      await autre.enregistrer('CONFIG', { cle: 'delegations', valeur: { prets: (cfg.prets || []).concat([pret]) } }, undefined, { sansControle: true, by: cadre.id });
+      autre.verrouiller();
+      await s.synchroniser(); await s.creerClesManquantes();
+      const cles = [...new Set(s.coffre.enveloppes.filter(e => e.pour === ag.id).map(e => e.cle))];
+      return { isocont: cles.indexOf('isocont') >= 0, attente: s.remisesAConfirmer().filter(x => x.id === ag.id && x.motif === 'pret').length }; })()""")
+    verifier(r['isocont'] is False and r['attente'] >= 1, 'remises de clés : prêt écrit au nom du cadre, aucune clé remise d’office (' + str(r) + ')')
+    fenetre(a, 'Isolement')
+    verifier(a.locator('.bandeau-apercu', has_text='attendent votre confirmation').count() == 1, 'remises de clés : rappel affiché à l’administrateur')
+    a.locator('.bandeau-apercu', has_text='attendent votre confirmation').locator('button', has_text='Voir').click(); time.sleep(1.2)
+    pr = a.locator('section.panneau', has=a.locator('h2', has_text='Clés à remettre'))
+    verifier(pr.count() == 1 and 'Agent Essai (fictif)' in pr.inner_text() and 'prêt de droits' in pr.inner_text(), 'remises de clés : panneau « Clés à remettre » (agent, clés, origine)')
+    capture(a, 'remises-cles')
+    pr.locator('button', has_text='Tout remettre').click(); time.sleep(3)
+    r2 = a.evaluate("""(() => { const s = SIC.ui.App.session; return { attente: s.remisesAConfirmer().length, trace: s.evts.filter(e => e.type === 'COMPTE' && e.data.action === 'REMISES_CLES').length }; })()""")
+    verifier(r2['attente'] == 0 and r2['trace'] >= 1 and a.locator('h2', has_text='Clés à remettre').count() == 0, 'remises de clés : confirmation, clés remises, trace au journal (' + str(r2) + ')')
     nav.close()
 
 if erreurs: print('\nErreurs du navigateur :'); [print('  ' + e) for e in erreurs[:20]]
