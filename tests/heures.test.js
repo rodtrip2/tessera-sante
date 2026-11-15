@@ -55,14 +55,14 @@ test('Déclaration, décision en récupération (en partie), récupération, sol
   const st = HS.reduire(evts);
   assert.equal(st.declarations.D2.retenues, 45);
   const so = HS.solde(st, 'i1', 2026);
-  assert.deepEqual([so.acquises, so.recuperees, so.demandees, so.corrections, so.calcule, so.solde, so.disponible], [135, 60, 30, 120, 75, 195, 165]);
+  // h+ 135 ; h− = récupération validée 60 ; différence 75, + correction 120 = 195 ; récupération demandée 30 : 165
+  assert.deepEqual([so.plus, so.moins, so.recuperees, so.demandees, so.corrections, so.calcule, so.solde, so.disponible, so.payees], [135, 60, 60, 30, 120, 75, 195, 165, 0]);
   assert.equal(HS.avisPour(st, 'i1', []).length, 3);
   assert.equal(HS.avisPour(st, 'i1', [st.avis[0].id]).length, 2);
   assert.deepEqual(HS.aValider(st, {}, comptes, cadre).map((x) => x.id), ['R2']);
   assert.deepEqual(HS.deAgent(st, 'i1', 2026).map((x) => x.id), ['R2', 'R1', 'D2', 'D1']);
-  // Récupération au-delà du disponible refusée
-  assert.throws(() => HS.controler('HEURES_RECUP', { id: 'R3', date: '2026-12-01', minutes: 200 }, { etat: st, config: {}, compte: ide }), /solde disponible/);
-  assert.doesNotThrow(() => HS.controler('HEURES_RECUP', { id: 'R3', date: '2026-12-01', minutes: 165 }, { etat: st, config: {}, compte: ide }));
+  // Récupération au-delà de la différence : acceptée (comptée en h−, imputée sur le temps de travail annuel)
+  assert.doesNotThrow(() => HS.controler('HEURES_RECUP', { id: 'R3', date: '2026-12-01', minutes: 600 }, { etat: st, config: {}, compte: ide }));
 });
 
 test('Contrôles : saisie, durée et horaires, motif, refus motivé, validateur, paiement et plafond, annulation, enregistrement', () => {
@@ -123,10 +123,10 @@ test('Droits pour soi, totaux, export, fonction soumise à avis livrée désacti
   assert.equal(HS.permisPourSoi('HEURES_DECISION', { declaration: 'D2', decision: 'recuperation' }, ide, { etat: st, config: {}, comptes }), false);
   assert.equal(HS.permisPourSoi('HEURES_DECLARATION', {}, cadre, { etat: st, config: {}, comptes }), false);
   const t = HS.totaux(st, 2026, ['U1']);
-  assert.deepEqual([t.agents.i1.recuperation, t.agents.c1.recuperation, t.mois['03'], t.mois['04'], t.motifs.rappel], [90, 30, 90, 30, 90]);
+  assert.deepEqual([t.agents.i1.plus, t.agents.c1.plus, t.mois['03'].plus, t.mois['04'].plus, t.motifs.rappel], [90, 30, 90, 30, 90]);
   const l = HS.lignesExport([st.declarations.D1, st.declarations.D2], {}, (x) => 'Unité ' + x);
   assert.equal(l.length, 3);
-  assert.deepEqual([l[1][1], l[1][2], l[1][4], l[1][8], l[1][9], l[1][10], l[1][11], l[2][11]], ['Unité U1', 'Heures en plus', '07:00', '+1 h 30', '1 h 30', 'Rappel sur un repos', 'Accepté en récupération', 'À valider']);
+  assert.deepEqual([l[1][1], l[1][2], l[1][4], l[1][8], l[1][9], l[1][10], l[1][11], l[2][11]], ['Unité U1', 'Heures en plus (h+)', '07:00', '+1 h 30', '1 h 30', 'Rappel sur un repos', 'Validées en h+', 'À valider']);
   assert.equal(V.etat({}, 'heures').etat, 'desactive');
   assert.equal(V.moduleAutorise('heures', {}), false);
   assert.equal(V.moduleAutorise('heures', { validations: { etats: { heures: { etat: 'accord', date: '2026-11-14', auteur: 'Directeur des soins (fictif)', dpoInforme: '2026-11-13' } } } }), true);
@@ -134,21 +134,21 @@ test('Droits pour soi, totaux, export, fonction soumise à avis livrée désacti
   assert.ok(HS.contrat.vues.onglets.find((o) => o.code === 'a-valider').droit.includes('HEURES_DECISION'));
 });
 
-test('Heures en moins : écart négatif, validées (déduites du solde) ou refusées, jamais payées ni en récupération', () => {
+test('Heures en moins : écart négatif, validées en h− ou refusées, jamais payées ni en h+', () => {
   assert.equal(HS.ecart('14:00', '21:00', '14:00', '19:30'), -90);
   assert.equal(HS.ecart('21:00', '07:00', '21:00', '08:00'), 60);
   assert.equal(HS.ecart('', '', '09:00', '12:00', true), 180);
   const st = HS.reduire([decl('i1', 'D1', '2026-11-02', 120), ev('c1', 'HEURES_DECISION', { declaration: 'D1', decision: 'recuperation' }), decl('i1', 'D2', '2026-11-03', -90, { motif: 'depart-agent' })]);
   assert.throws(() => HS.controler('HEURES_DECISION', { declaration: 'D2', decision: 'recuperation' }, { etat: st, config: {}, compte: cadre, comptes }), /Heures en moins/);
-  assert.throws(() => HS.controler('HEURES_DECISION', { declaration: 'D2', decision: 'deduit', minutes: 100 }, { etat: st, config: {}, compte: cadre, comptes }), /Durée retenue/);
+  assert.throws(() => HS.controler('HEURES_DECISION', { declaration: 'D2', decision: 'moins', minutes: 100 }, { etat: st, config: {}, compte: cadre, comptes }), /Durée retenue/);
   const st2 = HS.reduire([decl('i1', 'D1', '2026-11-02', 120), ev('c1', 'HEURES_DECISION', { declaration: 'D1', decision: 'recuperation' }), decl('i1', 'D2', '2026-11-03', -90, { motif: 'depart-agent' }),
-    ev('c1', 'HEURES_DECISION', { declaration: 'D2', decision: 'deduit' })]);
+    ev('c1', 'HEURES_DECISION', { declaration: 'D2', decision: 'moins' })]);
   assert.equal(st2.declarations.D2.retenues, 90);
   const so = HS.solde(st2, 'i1', 2026);
-  assert.deepEqual([so.acquises, so.enMoins, so.solde], [120, 90, 30]);
+  assert.deepEqual([so.plus, so.moins, so.solde], [120, 90, 30]);
   const t = HS.totaux(st2, 2026, null);
-  assert.deepEqual([t.agents.i1.deduit, t.mois['11']], [90, 30]);
-  assert.equal(HS.lignesExport([st2.declarations.D2], {}, null)[1][2], 'Heures en moins');
+  assert.deepEqual([t.agents.i1.moins, t.agents.i1.difference, t.mois['11'].plus, t.mois['11'].moins], [90, 30, 120, 90]);
+  assert.equal(HS.lignesExport([st2.declarations.D2], {}, null)[1][2], 'Heures en moins (h−)');
   assert.equal(HS.libMotif({}, { motif: '', motifLibre: 'Raison libre (fictif)' }), 'Raison libre (fictif)');
 });
 
@@ -157,4 +157,16 @@ test('Postes proposés en raccourci : réglage du service, de l’établissement
   assert.deepEqual(HS.postesDe(cfg, 'U1'), [{ libelle: 'Matin court', debut: '06:45', fin: '14:15' }]);
   assert.deepEqual(HS.postesDe(cfg, 'U2').map((p) => p.libelle), ['Journée']);
   assert.deepEqual(HS.postesDe({ periodes: cfg.periodes }, 'U1').map((p) => p.libelle), ['Matin']);
+});
+
+test('Soldes : h+ et h− (récupérations comprises), différence sur le temps de travail annuel, h+ payées comptées à part', () => {
+  const st = HS.reduire([decl('i1', 'D1', '2026-05-02', 180), ev('c1', 'HEURES_DECISION', { declaration: 'D1', decision: 'recuperation' }),
+    decl('i1', 'D2', '2026-05-03', 120), ev('c1', 'HEURES_DECISION', { declaration: 'D2', decision: 'paiement' }),
+    decl('i1', 'D3', '2026-05-04', -60, { motif: 'depart-agent' }), ev('c1', 'HEURES_DECISION', { declaration: 'D3', decision: 'moins' }),
+    ev('i1', 'HEURES_RECUP', { id: 'R1', date: '2026-05-10', minutes: 240, service: 'U1' }), ev('c1', 'HEURES_RECUP_DECISION', { recup: 'R1', decision: 'valide' })]);
+  const so = HS.solde(st, 'i1', 2026);
+  // h+ 180 ; h− 60 + 240 = 300 ; différence −120 (soustraite du temps de travail annuel) ; h+P 120 à part
+  assert.deepEqual([so.plus, so.moins, so.moinsDeclarees, so.recuperees, so.solde, so.payees], [180, 300, 60, 240, -120, 120]);
+  const t = HS.totaux(st, 2026, null);
+  assert.deepEqual([t.agents.i1.plus, t.agents.i1.moins, t.agents.i1.difference, t.agents.i1.payees, t.mois['05'].payees, t.motifs.recup], [180, 300, -120, 120, 120, -240]);
 });

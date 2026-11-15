@@ -7,7 +7,10 @@
  * des heures en plus (h+) ou en moins (h−) (correction du porteur du 15 novembre 2026). Motif d'une liste réglable ou
  * motif libre ; commentaire court, sans donnée clinique ni nom de patient. Il demande aussi ses récupérations. Le
  * validateur (règle des Congés) accepte les h+ en récupération ou en heures payées (si l'établissement l'autorise, dans
- * un plafond mensuel réglable), en partie, ou refuse avec un motif ; il valide les h− (déduites du solde) ou les refuse.
+ * un plafond mensuel réglable), en partie, ou refuse avec un motif ; il valide les h− ou les refuse. Soldes (précision du
+ * porteur du 15 novembre 2026) : solde des h+ et solde des h− (récupérations de temps de travail, y compris les
+ * récupérations demandées à l'avance) ; leur différence s'ajoute au temps de travail annuel ou s'en soustrait ; les h+
+ * payées (h+P) sont comptées à part et n'entrent pas dans le temps de travail annuel.
  * Les h+ payées impactent la paie : le validateur qui les accepte les saisit en priorité dans le logiciel de gestion du
  * temps (en tête de sa liste « À enregistrer », quel que soit le réglage de l'étape) ; pour le reste, les rôles choisis
  * confirment l'enregistrement. Le logiciel reste la référence (Tessera ne calcule pas la paie). Solde d'heures à récupérer par agent et par année, corrigé par le
@@ -22,7 +25,7 @@
 
   var TYPES = ['HEURES_DECLARATION', 'HEURES_DECISION', 'HEURES_RECUP', 'HEURES_RECUP_DECISION', 'HEURES_ENREGISTREE', 'HEURES_ANNULATION', 'HEURES_CORRECTION'];
   var JOUR = /^\d{4}-\d{2}-\d{2}$/, HEURE = /^([01]\d|2[0-3]):[0-5]\d$/;
-  var STATUTS = { demande: 'À valider', recuperation: 'Accepté en récupération', paiement: 'Accepté en heures payées', deduit: 'Heures en moins validées', valide: 'Récupération validée', refuse: 'Refusé', annule: 'Annulé' };
+  var STATUTS = { demande: 'À valider', recuperation: 'Validées en h+', paiement: 'Validées en h+ payées (h+P)', moins: 'Validées en h−', valide: 'Récupération validée', refuse: 'Refusé', annule: 'Annulé' };
   var MOTIFS_DEFAUT = [{ code: 'depassement', libelle: 'Dépassement d’horaire (prise en charge, transmissions)' }, { code: 'rappel', libelle: 'Rappel sur un repos' }, { code: 'reunion', libelle: 'Réunion' },
     { code: 'formation', libelle: 'Formation' }, { code: 'remplacement', libelle: 'Remplacement d’un agent absent' }, { code: 'accompagnement', libelle: 'Accompagnement ou transfert d’un patient' },
     { code: 'depart-agent', libelle: 'Départ anticipé ou arrivée tardive, à la demande de l’agent' }, { code: 'depart-service', libelle: 'Départ anticipé à la demande du service' }];
@@ -98,8 +101,8 @@
         break;
       case 'HEURES_DECISION':
         x = st.declarations[d.declaration];
-        if (!x || x.statut !== 'demande' || (x.minutes < 0 ? ['deduit', 'refuse'] : ['recuperation', 'paiement', 'refuse']).indexOf(d.decision) < 0) break;
-        // Durée retenue : en valeur absolue (h+ acceptées, h− déduites), au plus l'écart déclaré
+        if (!x || x.statut !== 'demande' || (x.minutes < 0 ? ['moins', 'refuse'] : ['recuperation', 'paiement', 'refuse']).indexOf(d.decision) < 0) break;
+        // Durée retenue : en valeur absolue (h+ ou h− validées), au plus l'écart déclaré
         x.statut = d.decision; x.retenues = d.decision === 'refuse' ? 0 : Math.max(0, Math.min(Math.abs(x.minutes), Math.abs(Math.round(+d.minutes)) || Math.abs(x.minutes))); x.motifDecision = texte(d.motif, 200); x.decidePar = e.by; x.decideLe = e.at;
         if (x.agent !== e.by) st.avis.push({ id: e.id, agent: x.agent, objet: x.id, statut: d.decision, le: e.at, motif: texte(d.motif, 200) });
         break;
@@ -115,7 +118,7 @@
         break;
       case 'HEURES_ENREGISTREE':
         x = st.declarations[d.objet] || st.recups[d.objet];
-        if (x && ['recuperation', 'paiement', 'deduit', 'valide'].indexOf(x.statut) >= 0 && !x.gtt) x.gtt = { par: e.by, nom: texte(d.nom, 80), le: e.at };
+        if (x && ['recuperation', 'paiement', 'moins', 'valide'].indexOf(x.statut) >= 0 && !x.gtt) x.gtt = { par: e.by, nom: texte(d.nom, 80), le: e.at };
         break;
       case 'HEURES_CORRECTION':
         if (!d.agent || !/^\d{4}$/.test(String(d.annee))) break;
@@ -129,21 +132,23 @@
   function tous(st) { var d = (st && st.declarations) || {}, r = (st && st.recups) || {}; return Object.keys(d).map(function (k) { return d[k]; }).concat(Object.keys(r).map(function (k) { return r[k]; })); }
   function deAgent(st, agent, an) { return tous(st).filter(function (x) { return x.agent === agent && (!an || String(x.date).slice(0, 4) === String(an)); }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.le).localeCompare(String(a.le)); }); }
   /**
-   * Solde d'heures à récupérer d'un agent pour une année (minutes) : h+ acceptées en récupération − h− validées −
-   * récupérations validées (− demandées, pour le disponible) + corrections du validateur.
-   * { acquises, enMoins, recuperees, demandees, corrections, calcule, solde, disponible }.
+   * Soldes d'un agent pour une année (minutes, précision du porteur du 15 novembre 2026) :
+   * - plus : h+ validées (temps de travail) ; payees : h+P, comptées à part, hors temps de travail annuel ;
+   * - moins : h− validées, déclarées (moinsDeclarees) ou récupérations validées (recuperees) ;
+   * - calcule = plus − moins ; solde = calcule + corrections du validateur : différence ajoutée au temps de travail
+   *   annuel (positive) ou soustraite (négative) ; disponible = solde − récupérations demandées, pas encore validées.
    */
   function solde(st, agent, an) {
-    var l = deAgent(st, agent, an), acq = 0, moins = 0, rec = 0, dem = 0;
+    var l = deAgent(st, agent, an), plus = 0, moinsD = 0, rec = 0, dem = 0, pay = 0;
     l.forEach(function (x) {
-      if (x.genre === 'declaration' && x.statut === 'recuperation') acq += x.retenues || 0;
-      if (x.genre === 'declaration' && x.statut === 'deduit') moins += x.retenues || 0;
+      if (x.genre === 'declaration' && x.statut === 'recuperation') plus += x.retenues || 0;
+      if (x.genre === 'declaration' && x.statut === 'paiement') pay += x.retenues || 0;
+      if (x.genre === 'declaration' && x.statut === 'moins') moinsD += x.retenues || 0;
       if (x.genre === 'recup' && x.statut === 'valide') rec += x.minutes;
       if (x.genre === 'recup' && x.statut === 'demande') dem += x.minutes;
     });
-    var cor = ((st && st.corrections && st.corrections[agent + '|' + an]) || []).reduce(function (s, c) { return s + c.minutes; }, 0);
-    var calc = acq - moins - rec;
-    return { acquises: acq, enMoins: moins, recuperees: rec, demandees: dem, corrections: cor, calcule: calc, solde: calc + cor, disponible: calc + cor - dem };
+    var cor = ((st && st.corrections && st.corrections[agent + '|' + an]) || []).reduce(function (s, c) { return s + c.minutes; }, 0), calc = plus - moinsD - rec;
+    return { plus: plus, moins: moinsD + rec, moinsDeclarees: moinsD, recuperees: rec, demandees: dem, payees: pay, corrections: cor, calcule: calc, solde: calc + cor, disponible: calc + cor - dem };
   }
   /** Heures payées acceptées pour un agent sur un mois (AAAA-MM), en minutes. */
   function payeesDuMois(st, agent, mois, sauf) { return tous(st).filter(function (x) { return x.genre === 'declaration' && x.agent === agent && x.statut === 'paiement' && String(x.date).slice(0, 7) === mois && x.id !== sauf; }).reduce(function (s, x) { return s + (x.retenues || 0); }, 0); }
@@ -155,23 +160,28 @@
   function aEnregistrer(st, config, roles, services, moi) {
     var conf = confirmeGtt(config, roles);
     return tous(st).filter(function (x) {
-      if (x.gtt || ['recuperation', 'paiement', 'deduit', 'valide'].indexOf(x.statut) < 0) return false;
+      if (x.gtt || ['recuperation', 'paiement', 'moins', 'valide'].indexOf(x.statut) < 0) return false;
       if (x.statut === 'paiement' && moi && x.decidePar === moi) return true;
       return conf && (!services || !x.service || services.indexOf(x.service) >= 0);
     }).map(function (x) { return Object.assign({}, x, { prioritaire: x.statut === 'paiement' }); })
       .sort(function (a, b) { return (b.prioritaire ? 1 : 0) - (a.prioritaire ? 1 : 0) || String(a.date).localeCompare(String(b.date)); });
   }
-  /** Totaux d'une année : par agent, par mois et par motif (minutes acceptées, déclarations seulement). */
+  /**
+   * Totaux d'une année : par agent { plus, moins, difference, payees }, par mois { plus, moins, payees } et par motif
+   * (h+ et h+P en positif, h− en négatif). Les récupérations validées comptent en h−.
+   */
   function totaux(st, an, services) {
     var r = { agents: {}, mois: {}, motifs: {} };
     tous(st).forEach(function (x) {
-      if (x.genre !== 'declaration' || ['recuperation', 'paiement', 'deduit'].indexOf(x.statut) < 0 || String(x.date).slice(0, 4) !== String(an)) return;
-      if (services && x.service && services.indexOf(x.service) < 0) return;
-      var a = r.agents[x.agent] = r.agents[x.agent] || { agent: x.agent, nom: x.nom, recuperation: 0, paiement: 0, deduit: 0 };
-      a[x.statut] += x.retenues || 0;
-      var v = (x.statut === 'deduit' ? -1 : 1) * (x.retenues || 0), mo = String(x.date).slice(5, 7), k = x.motifLibre ? 'libre:' + x.motifLibre : x.motif;
-      r.mois[mo] = (r.mois[mo] || 0) + v;
-      r.motifs[k] = (r.motifs[k] || 0) + v;
+      if (String(x.date).slice(0, 4) !== String(an) || (services && x.service && services.indexOf(x.service) < 0)) return;
+      var genre = x.genre === 'recup' ? (x.statut === 'valide' ? 'moins' : null) : x.statut === 'recuperation' ? 'plus' : x.statut === 'paiement' ? 'payees' : x.statut === 'moins' ? 'moins' : null;
+      if (!genre) return;
+      var v = x.genre === 'recup' ? x.minutes : x.retenues || 0, mo = String(x.date).slice(5, 7);
+      var a = r.agents[x.agent] = r.agents[x.agent] || { agent: x.agent, nom: x.nom, plus: 0, moins: 0, payees: 0, difference: 0 };
+      a[genre] += v; a.difference = a.plus - a.moins;
+      var m = r.mois[mo] = r.mois[mo] || { plus: 0, moins: 0, payees: 0 }; m[genre] += v;
+      if (x.genre === 'declaration') { var k = x.motifLibre ? 'libre:' + x.motifLibre : x.motif; r.motifs[k] = (r.motifs[k] || 0) + (genre === 'moins' ? -v : v); }
+      else r.motifs['recup'] = (r.motifs['recup'] || 0) - v;
     });
     return r;
   }
@@ -179,7 +189,7 @@
     var ls = libService || function (x) { return x; };
     return [['Agent', 'Service', 'Nature', 'Date', 'Prévu, début', 'Prévu, fin', 'Effectué, début', 'Effectué, fin', 'Écart déclaré', 'Durée retenue', 'Motif', 'État', 'Enregistrée dans le logiciel']].concat(liste.map(function (x) {
       var dc = x.genre === 'declaration';
-      return [x.nom, ls(x.service), !dc ? 'Récupération' : x.minutes < 0 ? 'Heures en moins' : 'Heures en plus', x.date, dc ? (x.repos ? 'repos' : x.prevuDebut) : '', dc ? x.prevuFin : '', x.debut, x.fin,
+      return [x.nom, ls(x.service), !dc ? 'Récupération (h−)' : x.statut === 'paiement' ? 'Heures en plus payées (h+P)' : x.minutes < 0 ? 'Heures en moins (h−)' : 'Heures en plus (h+)', x.date, dc ? (x.repos ? 'repos' : x.prevuDebut) : '', dc ? x.prevuFin : '', x.debut, x.fin,
         dc ? (x.minutes > 0 ? '+' : '') + hm(x.minutes) : hm(x.minutes), dc && x.retenues !== null ? hm(x.retenues) : '', dc ? libMotif(config, x) : '', STATUTS[x.statut], x.gtt ? String(x.gtt.le).slice(0, 10) : ''];
     }));
   }
@@ -208,7 +218,7 @@
       if (!(min >= 1 && min <= 24 * 60)) throw new Error('Indiquez une durée entre 1 minute et 24 heures.');
       if (d.debut && duree(d.debut, d.fin) !== min) throw new Error('La durée ne correspond pas aux horaires.');
       if (String(d.commentaire || '').length > 200) throw new Error('Commentaire trop long (200 caractères au plus).');
-      if (moi) { var s = solde(st, moi.id, String(d.date).slice(0, 4)); if (min > s.disponible) throw new Error('Récupération supérieure à votre solde disponible (' + hm(Math.max(0, s.disponible)) + ').'); }
+      // Pas de blocage sur le solde : une récupération compte en h− ; la différence h+ − h− s'impute sur le temps de travail annuel
       return;
     }
     if (type === 'HEURES_CORRECTION') {
@@ -227,7 +237,7 @@
       if (d.decision === 'refuse' && !texte(d.motif, 200)) throw new Error('Indiquez le motif du refus.');
       if (type === 'HEURES_RECUP_DECISION' && ['valide', 'refuse'].indexOf(d.decision) < 0) throw new Error('Décision inconnue.');
       if (type === 'HEURES_DECISION') {
-        if ((x.minutes < 0 ? ['deduit', 'refuse'] : ['recuperation', 'paiement', 'refuse']).indexOf(d.decision) < 0) throw new Error(x.minutes < 0 ? 'Heures en moins : à valider (déduites du solde) ou à refuser.' : 'Décision inconnue.');
+        if ((x.minutes < 0 ? ['moins', 'refuse'] : ['recuperation', 'paiement', 'refuse']).indexOf(d.decision) < 0) throw new Error(x.minutes < 0 ? 'Heures en moins : à valider (h−) ou à refuser.' : 'Décision inconnue.');
         var ret = d.minutes === undefined ? Math.abs(x.minutes) : Math.abs(Math.round(+d.minutes));
         if (d.decision !== 'refuse' && !(ret >= 1 && ret <= Math.abs(x.minutes))) throw new Error('Durée retenue : entre 1 minute et l’écart déclaré.');
         if (d.decision === 'paiement') {
@@ -243,7 +253,7 @@
       return;
     }
     if (type === 'HEURES_ENREGISTREE') {
-      if (['recuperation', 'paiement', 'deduit', 'valide'].indexOf(x.statut) < 0) throw new Error('Seule une saisie acceptée s’enregistre dans le logiciel.');
+      if (['recuperation', 'paiement', 'moins', 'valide'].indexOf(x.statut) < 0) throw new Error('Seule une saisie acceptée s’enregistre dans le logiciel.');
       if (x.gtt) throw new Error('Déjà enregistrée.');
       var parSoi = x.statut === 'paiement' && moi && x.decidePar === moi.id;   // h+ payées : saisies par le validateur qui les a acceptées
       if (!o.etapeGtt && !parSoi) throw new Error('Étape non utilisée par l’établissement.');
