@@ -169,6 +169,7 @@
         conges: { etat: 'accord', date: jourIso(-10), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-12) },
         'donnee-clinique': { etat: 'desactive', date: jourIso(-5), auteur: '', reference: 'En attente de l’analyse d’impact (fictif)' },
         formations: { etat: 'accord', date: jourIso(-3), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
+        entretiens: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
         heures: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
         'mesure-usage': { etat: 'accord', date: jourIso(-7), auteur: 'Cadre supérieur de santé (fictif)', reference: 'Agents informés en réunion d’équipe (fictif)' }
       } });
@@ -902,6 +903,14 @@
           await envSoi('demo-b', 'tenue', 'L');
           var noms = dispo(['e-m.U1']);
           if (noms.length) lotE.push({ at: at(-30), by: 'demo', type: 'COORDONNEES_MEDECIN', data: { medecin: 'm-arnaud', perso: await session.chiffrerEnveloppe('medecin:m-arnaud', noms, { tel: '06 00 00 00 10' }) } });
+          // Entretiens des agents (lot F, 15 novembre 2026) : entretien de suivi non partagé, recadrage retiré du droit d'accès,
+          // entretien du cadre connecté mené par le cadre supérieur (fictif), partagé avec lui et à signer
+          if (EQ.clesEntretien && dispo(['t-a.' + moiT.id]).length) {
+            var ent = async function (by, h0, id, c) { var noms = dispo(EQ.clesEntretien(by, c)); if (noms.indexOf('t-a.' + (by === 'demo-cs' ? moiT.id : by)) < 0) return; lotE.push({ at: at(h0 * 24), by: by, type: 'ENTRETIEN_AGENT', data: { id: id, env: await session.chiffrerEnveloppe('entretien:' + id, noms, c), signataire: c.signatureDemandee ? c.agent : '' } }); };
+            await ent(moiT.id, -40, 'EN-DEMO1', EQ.contenuEntretien({ agent: 'demo-a', nomAgent: 'Agent A (fictif)', nomAuteur: moiT.nom || '', date: jC(-40), type: 'integration', compteRendu: 'Fin de la période d’intégration (fictif). Points forts : relation avec les patients, transmissions. Point à travailler : organisation de la distribution des traitements.', suites: 'Point dans trois mois (fictif).' }));
+            await ent(moiT.id, -12, 'EN-DEMO2', EQ.contenuEntretien({ agent: 'demo-c', nomAgent: 'Agent C (fictif)', nomAuteur: moiT.nom || '', date: jC(-12), type: 'recadrage', presents: 'Cadre supérieur de santé (fictif)', compteRendu: 'Retards répétés à la prise de poste (fictif). Rappel des horaires et de l’organisation des transmissions. Un collègue a dû rester après son poste.', suites: 'Nouveau point dans un mois (fictif).', horsDroitAcces: true, motifHorsDroitAcces: 'Mentionne un autre agent (fictif)' }));
+            await ent('demo-cs', -3, 'EN-DEMO3', EQ.contenuEntretien({ agent: moiT.id, nomAgent: moiT.nom || 'Cadre (fictif)', nomAuteur: 'Cadre supérieur de santé (fictif)', date: jC(-3), type: 'suivi', compteRendu: 'Entretien de suivi de la prise de fonction (fictif) : projets du service, organisation des plannings, besoins de formation.', suites: 'Formation au management à prévoir (fictif).', partageAgent: true, signatureDemandee: true }));
+          }
           await session.enregistrerLot(lotE, { libelle: 'Fiches fictives de l’équipe', by: 'demo', sansControle: true });
         }
         // Documents (0.34.0) : chaque document a sa propre clé, créée avant ses versions chiffrées. Règlement de salle validé

@@ -986,13 +986,16 @@
     // Onglets affichés : réglage des rôles (Rôles et accès), journal selon son niveau, administration pour l'administrateur
     // Onglets réservés à un droit (ex. « Tâches du service » : régler les tâches), déclarés par le module affiché
     var droitOnglet = {};
-    SIC.modules.onglets(s.moduleAffiche()).forEach(function (o) { if (o.droit) droitOnglet[o.code] = o.droit; });
+    // Onglets d'une fonction soumise à avis (ex. « Entretiens » de l'Équipe) : `visible(config)` déclaré par le module
+    var visibleOnglet = {};
+    SIC.modules.onglets(s.moduleAffiche()).forEach(function (o) { if (o.droit) droitOnglet[o.code] = o.droit; if (typeof o.visible === 'function') visibleOnglet[o.code] = o.visible; });
     function affichable(o) {
       if (App.fenetre === 'aujourdhui') return o === 'aujourdhui';
       if (o === 'aujourdhui') return false;
       if (estOngletAdmin(o)) return estAdmin;
       if (o === 'validations') return !!(SIC.ui.validations && SIC.ui.validations.consultable());
       if (o === 'usage') return !!(SIC.ui.usage && SIC.ui.usage.consultable());
+      if (visibleOnglet[o] && !visibleOnglet[o](config())) return false;
       if (droitOnglet[o] && !estAdmin && ![].concat(droitOnglet[o]).some(function (t) { return s.peut(t); })) return false;
       if (o === 'journal') return nivJournal !== 'aucun' && !anonyme;
       if (anonyme) return o === 'registre';
