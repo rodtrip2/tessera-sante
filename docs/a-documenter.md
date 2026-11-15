@@ -974,3 +974,7 @@ Décisions du porteur du 15 novembre 2026 : entretiens lus par **le cadre de l'a
 | Soumis à avis | Fonction « entretiens » de l'onglet Validations (délégué à la protection des données, ressources humaines, représentants du personnel), **livrée désactivée** | `validations.js` |
 | Démonstration, tests, parcours | Entretien d'intégration, recadrage retiré du droit d'accès, entretien du cadre connecté mené par le cadre supérieur (fictif) à signer ; `tests/entretiens.test.js` (chiffrement de bout en bout : auteur, supérieur, agent, autre cadre, administrateur) ; parcours | `demo.js` |
 | À valider | Ressources humaines et délégué : frontière avec le dossier administratif de l'agent, durée de conservation, inscription au registre ; responsable de la sécurité informatique : métadonnées en clair ; export du droit d'accès des agents |
+
+## Évolutions futures mises à jour (15 novembre 2026, sans changement de version)
+
+Décisions du porteur du 15 novembre 2026 : fichiers joints et photos des demandes de travaux (D) **retirés de la phase 4**, remis à « Plus tard » ; **export du droit d'accès des agents** ajouté aux évolutions futures (lot F). Fichier : `docs/evolutions-futures.md`.
