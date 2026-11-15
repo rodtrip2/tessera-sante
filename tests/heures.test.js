@@ -170,3 +170,10 @@ test('Soldes : h+ et h− (récupérations comprises), différence sur le temps 
   const t = HS.totaux(st, 2026, null);
   assert.deepEqual([t.agents.i1.plus, t.agents.i1.moins, t.agents.i1.difference, t.agents.i1.payees, t.mois['05'].payees, t.motifs.recup], [180, 300, -120, 120, 120, -240]);
 });
+
+test('Fin d’année : différence remise à zéro, sans report sur l’année suivante', () => {
+  const st = HS.reduire([decl('i1', 'D1', '2026-12-20', 180), ev('c1', 'HEURES_DECISION', { declaration: 'D1', decision: 'recuperation' }),
+    ev('c1', 'HEURES_CORRECTION', { agent: 'i1', annee: '2026', minutes: 60, motif: 'Reprise (fictif)' }), decl('i1', 'D2', '2027-01-05', -60, { motif: 'depart-agent' }), ev('c1', 'HEURES_DECISION', { declaration: 'D2', decision: 'moins' })]);
+  assert.equal(HS.solde(st, 'i1', 2026).solde, 240);
+  assert.equal(HS.solde(st, 'i1', 2027).solde, -60);
+});

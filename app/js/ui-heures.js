@@ -157,7 +157,7 @@
         ['Récupérations demandées, à valider', HS.hm(so.demandees)], ['h+ payées (h+P), comptées à part', HS.hm(so.payees)]].map(function (x) {
         return h('div', { class: 'hs-case' + (x[2] ? ' ' + x[2] : '') }, h('small', { class: 'muted', text: x[0] }), h('b', { text: x[1] }));
       })),
-      h('small', { class: 'muted', text: 'La différence entre h+ et h− s’ajoute au temps de travail annuel ou s’en soustrait ; les h+ payées n’y entrent pas. Le logiciel de gestion du temps de l’établissement reste la référence ; ces soldes ne sont qu’une indication.' }),
+      h('small', { class: 'muted', text: 'La différence entre h+ et h− s’ajoute au temps de travail annuel ou s’en soustrait ; elle est remise à zéro en fin d’année (pas de report). Les h+ payées n’y entrent pas. Le logiciel de gestion du temps de l’établissement reste la référence ; ces soldes ne sont qu’une indication.' }),
       l.length ? tableau(l, [['Date', quand], ['Nature', nature], ['Écart', signe], ['État', badge],
         ['Message', function (x) { return x.motifDecision || ''; }], ['Logiciel', function (x) { return x.gtt ? 'enregistrée' : ''; }]],
         function (x) { return x.statut === 'demande' && !lecture() ? h('button', { class: 'btn petit', type: 'button', onclick: function () { simple('HEURES_ANNULATION', { objet: x.id, service: x.service }, 'Demande annulée.'); } }, 'Annuler') : null; })
