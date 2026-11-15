@@ -157,8 +157,11 @@
     }
     return true;
   }
-  /** Contrôle d'un changement du réglage `comptesDemandes` : demandes ajoutées par le cadre, annulées par leur auteur. */
-  function controlerDemandes(ancien, nouveau, auteur, comptes) {
+  /**
+   * Contrôle d'un changement du réglage `comptesDemandes` : demandes ajoutées par le cadre, annulées par leur auteur.
+   * `maintenant` : date du changement ; `lecture` : contrôle à la lecture (le compte créé depuis ne compte pas comme doublon).
+   */
+  function controlerDemandes(ancien, nouveau, auteur, comptes, maintenant, lecture) {
     if (!nouveau || !Array.isArray(nouveau.demandes)) return false;
     if (estAdmin(auteur)) return true;
     var avant = {};
@@ -170,7 +173,7 @@
         vus[x.id] = 1;
         if (JSON.stringify(avant[x.id]) === JSON.stringify(x)) return;
         var d = demande(x);
-        if (!avant[x.id]) { if (d.etat !== 'attente' || d.par !== auteur.id) throw new Error('Demande nouvelle en attente seulement.'); controlerDemande(d, auteur, comptes); return; }
+        if (!avant[x.id]) { if (d.etat !== 'attente' || d.par !== auteur.id) throw new Error('Demande nouvelle en attente seulement.'); controlerDemande(d, auteur, lecture ? (comptes || []).filter(function (c) { return c.login !== d.login; }) : comptes, maintenant); return; }
         var a = demande(avant[x.id]);
         // Seule l'annulation d'une demande en attente, par son auteur, est permise au cadre
         if (!(a.etat === 'attente' && d.etat === 'annulee' && a.par === auteur.id && JSON.stringify(Object.assign({}, a, { etat: 'annulee' })) === JSON.stringify(Object.assign({}, d)))) throw new Error('Changement non permis.');

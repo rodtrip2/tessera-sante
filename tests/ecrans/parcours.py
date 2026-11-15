@@ -1504,6 +1504,17 @@ with sync_playwright() as p:
     a.locator('.bandeau-secours', has_text='écartée').locator('button', has_text='Voir').click(); time.sleep(1.2)
     ps = a.locator('section.panneau', has=a.locator('h2', has_text='Signature des saisies'))
     verifier(ps.count() == 1 and 'écrite au nom d’un autre agent' in ps.inner_text() and 'Signature exigée depuis' in ps.inner_text(), 'signature des saisies : panneau (exigence, saisie écartée, motif)')
+    # Contrôle des droits à la lecture (0.73.0) : un réglage signé par un agent sans ce droit n'est pas appliqué, et signalé
+    r6 = a.evaluate("""(async () => { const s = SIC.ui.App.session;
+      const autre = new SIC.Session(SIC.ui.App.dossier); await autre.chargerCoffre(); await autre.connexionMotDePasse('agent.essai', 'mot de passe agent essai');
+      await autre.enregistrer('CONFIG', { cle: 'etablissement', valeur: 'Hors droit (fictif)' }, undefined, { sansControle: true });
+      autre.verrouiller(); await s.synchroniser();
+      return { etab: s.etat.config.etablissement, horsDroit: s.reglagesHorsDroit().map(x => x.cle) }; })()""")
+    verifier(r6['etab'] != 'Hors droit (fictif)' and r6['horsDroit'] == ['etablissement'], 'droits à la lecture : réglage écrit sans en avoir le droit non appliqué (' + str(r6) + ')')
+    SIC = a.evaluate("(() => { SIC.ui.rendreContenu(); return 1; })()"); time.sleep(1.2)
+    ps = a.locator('section.panneau', has=a.locator('h2', has_text='Signature des saisies'))
+    if ps.count() and 'sans en avoir le droit' not in ps.inner_text(): ps.locator('h2').first.click(); time.sleep(0.6)
+    verifier(ps.count() == 1 and 'sans en avoir le droit' in ps.inner_text(), 'droits à la lecture : réglage listé dans le panneau « Signature des saisies »')
     capture(a, 'signatures-saisies')
     nav.close()
 
