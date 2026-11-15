@@ -941,3 +941,16 @@ Correction du porteur du 15 novembre 2026 : l'agent déclare l'**horaire prévu*
 | Heures payées prioritaires | En tête de la liste « À enregistrer » du validateur qui les a acceptées, badge « Prioritaire : paie », information rouge dans « Aujourd'hui », message à la décision ; le validateur peut les confirmer même si l'étape est désactivée ou si son rôle n'est pas parmi ceux qui confirment (les médecins chefs et le directeur des soins reçoivent ce droit) | `aEnregistrer(…, moi)`, `controler` |
 | Démonstration, tests, parcours | Jeu revu (prévu / effectué, repos, motif libre, h− à valider et déduites, h+ payées à saisir en priorité) ; tests ; parcours : raccourci de poste, écart, motif libre, h− validées, priorité des heures payées | `demo.js`, `tests/heures.test.js`, `tests/ecrans/parcours.py` |
 | À valider | Ressources humaines : traitement des heures en moins (déduction du solde, ou autre règle) ; postes et horaires de référence du service |
+
+## Version 0.65.2 (branche `heures-soldes`, 15 novembre 2026) : soldes h+, h− et h+P
+
+Précision du porteur du 15 novembre 2026 : les **h− ne sont pas déduites de la paie**, ce sont des récupérations de temps de travail. On tient le **solde des h−** et le **solde des h+** ; leur **différence s'ajoute au temps de travail annuel ou s'en soustrait**. Les **h+ payées (« h+P »)** sont comptées à part et n'entrent pas dans le temps de travail annuel. (Remplace la formulation « déduites du solde » de la 0.65.1.)
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Soldes de l'agent | Solde des h+, solde des h− (dont récupérations validées), corrections du cadre, **différence sur le temps de travail annuel** (+ en vert, − en rouge), récupérations demandées, **h+P comptées à part** ; `solde()` renvoie { plus, moins, moinsDeclarees, recuperees, demandees, payees, corrections, calcule, solde, disponible } | `module-heures.js`, `ui-heures.js`, `app.css` |
+| Décisions | h+ « Valider en h+ » (temps de travail annuel) ou « Valider en h+ payées » (h+P, hors temps de travail annuel) ; h− « Valider en h− » (statut `moins`, ex-`deduit`) | — |
+| Récupérations | Comptent en h− ; plus de blocage sur le solde (la différence peut devenir négative, imputée sur le temps de travail annuel) ; la différence actuelle est affichée à la demande | `controler` |
+| Totaux | Par agent : h+, h− (dont récupérations), différence, h+P ; par mois : lignes h+, h−, h+P ; par motif, récupérations comprises | `totaux()` |
+| Export | Nature : « Heures en plus (h+) », « Heures en plus payées (h+P) », « Heures en moins (h−) », « Récupération (h−) » | `lignesExport()` |
+| À valider | Ressources humaines : faut-il limiter les récupérations au solde (aujourd'hui non bloquant) ; remise à zéro ou report de la différence en fin d'année |

@@ -18,10 +18,11 @@
   function fr(iso) { return iso ? String(iso).split('-').reverse().join('/') : ''; }
   function services() { return U.services().map(function (x) { return x.code; }); }
   function libMotif(x) { return HS.libMotif(cfg(), x); }
-  var CLASSE = { demande: 'warn', recuperation: 'ok', paiement: 'ok', deduit: 'ok', valide: 'ok', refuse: 'bad', annule: '' };
+  var CLASSE = { demande: 'warn', recuperation: 'ok', paiement: 'ok', moins: 'ok', valide: 'ok', refuse: 'bad', annule: '' };
   function hmm(min) { var a = Math.abs(min); return Math.floor(a / 60) + ':' + String(a % 60).padStart(2, '0'); }
+  function diff(m) { return (m > 0 ? '+' : '') + HS.hm(m); }
   function signe(x) { return x.genre === 'declaration' ? (x.minutes > 0 ? '+' : '') + HS.hm(x.minutes) : HS.hm(x.minutes); }
-  function nature(x) { return x.genre === 'recup' ? 'Récupération' : (x.minutes < 0 ? 'Heures en moins' : 'Heures en plus') + ' — ' + libMotif(x); }
+  function nature(x) { return x.genre === 'recup' ? 'Récupération (h−)' : (x.minutes < 0 ? 'Heures en moins (h−)' : x.statut === 'paiement' ? 'Heures en plus payées (h+P)' : 'Heures en plus (h+)') + ' — ' + libMotif(x); }
   function vus() { return (s().preferences && s().preferences.heuresVus) || []; }
   async function marquerVus(ids) { try { await s().enregistrerPreference('heuresVus', vus().concat(ids).slice(-300)); } catch (e) { /* sans conséquence */ } }
   function quand(x) { return fr(x.date) + (x.prevuDebut || x.repos ? ' — prévu ' + (x.repos ? 'repos' : x.prevuDebut + '–' + x.prevuFin + (x.poste ? ' (' + x.poste + ')' : '')) + ', effectué ' + x.debut + '–' + x.fin : x.debut ? ' ' + x.debut + '–' + x.fin : ''); }
@@ -90,7 +91,7 @@
     U.modale('Demander une récupération', h('div', { class: 'pile' },
       h('div', { class: 'grille-3' }, h('label', {}, 'Date', date), h('label', {}, 'De (facultatif)', debut), h('label', {}, 'À (facultatif)', fin)),
       h('label', { class: 'en-ligne' }, 'Durée (heures:minutes)', dureeCh),
-      h('p', { class: 'muted', text: 'Solde disponible : ' + HS.hm(Math.max(0, so.disponible)) + '.' }),
+      h('p', { class: 'muted', text: 'La récupération compte en heures en moins (h−). Différence actuelle h+ − h− (récupérations déjà demandées comprises) : ' + diff(so.disponible) + '.' }),
       h('label', {}, 'Commentaire (facultatif)', com)),
       [{ texte: 'Annuler' }, { texte: 'Demander', classe: 'primaire', action: async function () {
         var min = HS.lireDuree(dureeCh.value);
@@ -104,14 +105,14 @@
   function decider(x, decision) {
     var o = HS.options(cfg()), recup = x.genre === 'recup', moins = !recup && x.minutes < 0, motif = h('input', { type: 'text', maxlength: 200, 'aria-label': 'Motif' });
     var ret = h('input', { type: 'text', value: hmm(x.minutes), class: 'champ-court', 'aria-label': 'Durée retenue' });
-    var choix = !recup && !moins && decision !== 'refuse' ? h('select', { 'aria-label': 'Acceptées en' }, [h('option', { value: 'recuperation', text: 'Récupération', selected: decision === 'recuperation' })].concat(o.paiement ? [h('option', { value: 'paiement', text: 'Heures payées', selected: decision === 'paiement' })] : [])) : null;
+    var choix = !recup && !moins && decision !== 'refuse' ? h('select', { 'aria-label': 'Validées en' }, [h('option', { value: 'recuperation', text: 'h+ (temps de travail annuel)', selected: decision === 'recuperation' })].concat(o.paiement ? [h('option', { value: 'paiement', text: 'h+ payées (h+P, hors temps de travail annuel)', selected: decision === 'paiement' })] : [])) : null;
     var avisPaie = h('p', { class: 'hs-paie', role: 'note', text: 'Heures payées : elles impactent la paie. Saisissez-les en priorité dans le logiciel de gestion du temps ; elles restent en tête de votre liste « À enregistrer » jusqu’à confirmation.', hidden: decision !== 'paiement' });
     if (choix) choix.addEventListener('change', function () { avisPaie.hidden = choix.value !== 'paiement'; });
     var titre = decision === 'refuse' ? 'Refuser' : recup ? 'Valider la récupération' : moins ? 'Valider les heures en moins' : 'Accepter les heures';
     U.modale(titre, h('div', { class: 'pile' }, h('p', { text: (x.nom || s().nomAuteur(x.agent)) + ' — ' + quand(x) }), h('p', { text: nature(x) + ' : ' + signe(x) }),
       x.commentaire ? h('p', { class: 'muted', text: 'Commentaire : ' + x.commentaire }) : null,
-      choix ? h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Acceptées en', choix), h('label', { class: 'en-ligne' }, 'Durée retenue', ret)) : null,
-      moins && decision !== 'refuse' ? h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Durée déduite du solde', ret)) : null,
+      choix ? h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Validées en', choix), h('label', { class: 'en-ligne' }, 'Durée retenue', ret)) : null,
+      moins && decision !== 'refuse' ? h('div', { class: 'actions gauche' }, h('label', { class: 'en-ligne' }, 'Durée validée en h−', ret)) : null,
       choix ? avisPaie : null,
       choix && o.plafondMensuel ? h('small', { class: 'muted', text: 'Plafond mensuel des heures payées : ' + HS.hm(o.plafondMensuel) + ' (déjà acceptées ce mois : ' + HS.hm(HS.payeesDuMois(st(), x.agent, String(x.date).slice(0, 7))) + ').' }) : null,
       h('label', {}, decision === 'refuse' ? 'Motif (obligatoire, communiqué à l’agent)' : 'Message à l’agent (facultatif)', motif)),
@@ -119,14 +120,14 @@
         if (recup) { await s().enregistrer('HEURES_RECUP_DECISION', { recup: x.id, decision: decision === 'refuse' ? 'refuse' : 'valide', motif: motif.value.trim(), service: x.service, nom: moi().nom || '' }); U.toast('Décision enregistrée.'); return; }
         var m = decision === 'refuse' ? 0 : HS.lireDuree(ret.value);
         if (decision !== 'refuse' && m === null) throw new Error('Durée retenue illisible (ex. 1:30).');
-        var dec = decision === 'refuse' ? 'refuse' : moins ? 'deduit' : choix.value;
+        var dec = decision === 'refuse' ? 'refuse' : moins ? 'moins' : choix.value;
         await s().enregistrer('HEURES_DECISION', { declaration: x.id, decision: dec, minutes: m, motif: motif.value.trim(), service: x.service, nom: moi().nom || '' });
-        U.toast(dec === 'paiement' ? 'Heures payées acceptées : à saisir en priorité dans le logiciel de gestion du temps (impact sur la paie).' : 'Décision enregistrée.');
+        U.toast(dec === 'paiement' ? 'h+ payées validées : à saisir en priorité dans le logiciel de gestion du temps (impact sur la paie).' : 'Décision enregistrée.');
       } }]);
   }
   function corriger(agent) {
     var so = HS.solde(st(), agent.id, annee), val = h('input', { type: 'text', placeholder: 'ex. 2:00 ou -1:30', class: 'champ-court', 'aria-label': 'Correction' }), motif = h('input', { type: 'text', maxlength: 200, 'aria-label': 'Motif' });
-    U.modale('Corriger le solde : ' + agent.nom, h('div', { class: 'pile' }, h('p', { text: 'Solde calculé ' + annee + ' : ' + HS.hm(so.calcule) + (so.corrections ? ' ; corrections déjà faites : ' + HS.hm(so.corrections) : '') + ' ; solde retenu : ' + HS.hm(so.solde) + '.' }),
+    U.modale('Corriger la différence h+ − h− : ' + agent.nom, h('div', { class: 'pile' }, h('p', { text: annee + ' : h+ ' + HS.hm(so.plus) + ', h− ' + HS.hm(so.moins) + ', différence calculée ' + diff(so.calcule) + (so.corrections ? ' ; corrections déjà faites : ' + diff(so.corrections) : '') + ' ; différence retenue : ' + diff(so.solde) + '.' }),
       h('label', { class: 'en-ligne' }, 'Correction (heures:minutes, négative avec « - »)', val), h('label', {}, 'Motif (ex. reprise du solde du logiciel de gestion du temps)', motif)),
       [{ texte: 'Annuler' }, { texte: 'Corriger', classe: 'primaire', action: async function () {
         var neg = /^\s*-/.test(val.value), m = HS.lireDuree(val.value.replace(/^\s*-/, ''));
@@ -151,10 +152,12 @@
         h('button', { class: 'btn petit', type: 'button', onclick: function () { annee--; U.rendreContenu(); } }, '◀'), h('button', { class: 'btn petit', type: 'button', onclick: function () { annee++; U.rendreContenu(); } }, '▶'),
         !lecture() && peut('HEURES_DECLARATION') ? h('button', { class: 'btn primaire', type: 'button', onclick: function () { modaleDeclaration(); } }, '+ Déclarer des heures en plus ou en moins') : null,
         !lecture() && peut('HEURES_RECUP') ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleRecup(); } }, '+ Demander une récupération') : null),
-      h('div', { class: 'hs-solde' }, [['Acquises en récupération', so.acquises], ['Heures en moins', -so.enMoins], ['Récupérées', so.recuperees], ['Demandées, à valider', so.demandees], ['Corrections du cadre', so.corrections], ['Solde', so.solde], ['Disponible', so.disponible]].map(function (x) {
-        return h('div', { class: 'hs-case' }, h('small', { class: 'muted', text: x[0] }), h('b', { text: HS.hm(x[1]) }));
+      h('div', { class: 'hs-solde' }, [['Solde des h+', HS.hm(so.plus)], ['Solde des h− (dont récupérations ' + HS.hm(so.recuperees) + ')', HS.hm(so.moins)],
+        ['Corrections du cadre', diff(so.corrections)], ['Différence sur le temps de travail annuel', diff(so.solde), so.solde < 0 ? 'bad' : so.solde > 0 ? 'ok' : ''],
+        ['Récupérations demandées, à valider', HS.hm(so.demandees)], ['h+ payées (h+P), comptées à part', HS.hm(so.payees)]].map(function (x) {
+        return h('div', { class: 'hs-case' + (x[2] ? ' ' + x[2] : '') }, h('small', { class: 'muted', text: x[0] }), h('b', { text: x[1] }));
       })),
-      h('small', { class: 'muted', text: 'Le logiciel de gestion du temps de l’établissement reste la référence ; le solde affiché ici n’est qu’une indication.' }),
+      h('small', { class: 'muted', text: 'La différence entre h+ et h− s’ajoute au temps de travail annuel ou s’en soustrait ; les h+ payées n’y entrent pas. Le logiciel de gestion du temps de l’établissement reste la référence ; ces soldes ne sont qu’une indication.' }),
       l.length ? tableau(l, [['Date', quand], ['Nature', nature], ['Écart', signe], ['État', badge],
         ['Message', function (x) { return x.motifDecision || ''; }], ['Logiciel', function (x) { return x.gtt ? 'enregistrée' : ''; }]],
         function (x) { return x.statut === 'demande' && !lecture() ? h('button', { class: 'btn petit', type: 'button', onclick: function () { simple('HEURES_ANNULATION', { objet: x.id, service: x.service }, 'Demande annulée.'); } }, 'Annuler') : null; })
@@ -174,18 +177,19 @@
         function (x) {
           if (lecture()) return null;
           if (x.genre === 'recup') return [h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { decider(x, 'valide'); } }, 'Valider'), h('button', { class: 'btn petit danger', type: 'button', onclick: function () { decider(x, 'refuse'); } }, 'Refuser')];
-          if (x.minutes < 0) return [h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { decider(x, 'deduit'); } }, 'Valider (déduites)'), h('button', { class: 'btn petit danger', type: 'button', onclick: function () { decider(x, 'refuse'); } }, 'Refuser')];
-          return [h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { decider(x, 'recuperation'); } }, 'En récupération'), o.paiement ? h('button', { class: 'btn petit', type: 'button', onclick: function () { decider(x, 'paiement'); } }, 'En heures payées') : null, h('button', { class: 'btn petit danger', type: 'button', onclick: function () { decider(x, 'refuse'); } }, 'Refuser')];
+          if (x.minutes < 0) return [h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { decider(x, 'moins'); } }, 'Valider en h−'), h('button', { class: 'btn petit danger', type: 'button', onclick: function () { decider(x, 'refuse'); } }, 'Refuser')];
+          return [h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { decider(x, 'recuperation'); } }, 'Valider en h+'), o.paiement ? h('button', { class: 'btn petit', type: 'button', onclick: function () { decider(x, 'paiement'); } }, 'Valider en h+ payées') : null, h('button', { class: 'btn petit danger', type: 'button', onclick: function () { decider(x, 'refuse'); } }, 'Refuser')];
         }) : h('p', { class: 'muted', text: 'Aucune demande à valider.' })),
       HS.confirmeGtt(cfg(), s().roles()) || ae.length ? h('section', { class: 'panneau' }, h('h2', { text: 'À enregistrer dans le logiciel de gestion du temps (' + ae.length + ')' }),
         ae.some(function (x) { return x.prioritaire; }) ? h('p', { class: 'hs-paie', text: 'Heures payées en tête : à saisir en priorité, elles impactent la paie.' }) : null,
         ae.length ? tableau(ae, [['Agent', function (x) { return x.nom || s().nomAuteur(x.agent); }], ['Date', quand],
-        ['Nature', function (x) { return x.prioritaire ? h('span', {}, h('span', { class: 'badge bad', text: 'Prioritaire : paie' }), ' ' + HS.STATUTS[x.statut]) : x.genre === 'recup' ? 'Récupération' : HS.STATUTS[x.statut]; }],
-        ['Durée', function (x) { return x.genre === 'recup' ? HS.hm(x.minutes) : (x.statut === 'deduit' ? '−' : '+') + HS.hm(x.retenues); }]],
+        ['Nature', function (x) { return x.prioritaire ? h('span', {}, h('span', { class: 'badge bad', text: 'Prioritaire : paie' }), ' ' + HS.STATUTS[x.statut]) : x.genre === 'recup' ? 'Récupération (h−)' : HS.STATUTS[x.statut]; }],
+        ['Durée', function (x) { return x.genre === 'recup' ? HS.hm(x.minutes) : (x.statut === 'moins' ? '−' : '+') + HS.hm(x.retenues); }]],
         function (x) { return lecture() ? null : h('button', { class: 'btn petit', type: 'button', onclick: function () { simple('HEURES_ENREGISTREE', { objet: x.id, service: x.service, nom: moi().nom || '' }, 'Enregistrée dans le logiciel de gestion du temps.'); } }, 'Enregistrée'); })
         : h('p', { class: 'muted', text: 'Rien à enregistrer.' })) : null,
       agents.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Soldes ' + annee + ' des agents' }), tableau(agents.map(function (a) { return { a: a, so: HS.solde(st(), a.id, annee) }; }),
-        [['Agent', function (x) { return x.a.nom; }], ['Calculé', function (x) { return HS.hm(x.so.calcule); }], ['Corrections', function (x) { return HS.hm(x.so.corrections); }], ['Solde', function (x) { return HS.hm(x.so.solde); }]],
+        [['Agent', function (x) { return x.a.nom; }], ['h+', function (x) { return HS.hm(x.so.plus); }], ['h−', function (x) { return HS.hm(x.so.moins); }], ['Corrections', function (x) { return diff(x.so.corrections); }],
+          ['Différence (temps de travail annuel)', function (x) { return diff(x.so.solde); }], ['h+P (à part)', function (x) { return HS.hm(x.so.payees); }]],
         function (x) { return lecture() || !peut('HEURES_CORRECTION') ? null : h('button', { class: 'btn petit', type: 'button', onclick: function () { corriger(x.a); } }, 'Corriger…'); })) : null);
   }
   function vueTotaux() {
@@ -198,9 +202,11 @@
     return h('div', {}, h('div', { class: 'barre' }, h('h1', { text: 'Totaux ' + annee }), h('div', { class: 'espace' }),
         h('button', { class: 'btn petit', type: 'button', onclick: function () { annee--; U.rendreContenu(); } }, '◀'), h('button', { class: 'btn petit', type: 'button', onclick: function () { annee++; U.rendreContenu(); } }, '▶'),
         h('button', { class: 'btn', type: 'button', onclick: exporter }, 'Exporter (CSV)')),
-      h('section', { class: 'panneau' }, h('h2', { text: 'Par agent (heures validées)' }), ags.length ? tableau(ags, [['Agent', function (x) { return x.nom; }], ['En récupération', function (x) { return HS.hm(x.recuperation); }], ['Payées', function (x) { return HS.hm(x.paiement); }], ['En moins', function (x) { return x.deduit ? '−' + HS.hm(x.deduit) : HS.hm(0); }]]) : h('p', { class: 'muted', text: 'Aucune heure acceptée.' })),
-      h('section', { class: 'panneau' }, h('h2', { text: 'Par mois' }), h('div', { class: 'table-wrap' }, h('table', {}, h('tr', {}, mois.map(function (m) { return h('th', { text: m }); })), h('tr', {}, mois.map(function (m, i) { return h('td', { text: HS.hm(t.mois[String(i + 1).padStart(2, '0')] || 0) }); }))))),
-      h('section', { class: 'panneau' }, h('h2', { text: 'Par motif' }), h('ul', { class: 'liste-simple' }, Object.keys(t.motifs).map(function (k) { return h('li', { text: (k.indexOf('libre:') === 0 ? k.slice(6) : libMotif({ motif: k })) + ' : ' + HS.hm(t.motifs[k]) }); }))));
+      h('section', { class: 'panneau' }, h('h2', { text: 'Par agent (heures validées, hors corrections)' }), ags.length ? tableau(ags, [['Agent', function (x) { return x.nom; }], ['h+', function (x) { return HS.hm(x.plus); }], ['h− (dont récupérations)', function (x) { return HS.hm(x.moins); }],
+        ['Différence (temps de travail annuel)', function (x) { return diff(x.difference); }], ['h+P (à part)', function (x) { return HS.hm(x.payees); }]]) : h('p', { class: 'muted', text: 'Aucune heure validée.' })),
+      h('section', { class: 'panneau' }, h('h2', { text: 'Par mois' }), h('div', { class: 'table-wrap' }, h('table', {}, h('tr', {}, [h('th')].concat(mois.map(function (m) { return h('th', { text: m }); }))),
+        [['h+', 'plus'], ['h−', 'moins'], ['h+P', 'payees']].map(function (l) { return h('tr', {}, [h('th', { text: l[0] })].concat(mois.map(function (m, i) { var v = t.mois[String(i + 1).padStart(2, '0')]; return h('td', { text: HS.hm(v ? v[l[1]] : 0) }); }))); })))),
+      h('section', { class: 'panneau' }, h('h2', { text: 'Par motif' }), h('ul', { class: 'liste-simple' }, Object.keys(t.motifs).map(function (k) { return h('li', { text: (k === 'recup' ? 'Récupérations' : k.indexOf('libre:') === 0 ? k.slice(6) : libMotif({ motif: k })) + ' : ' + diff(t.motifs[k]) }); }))));
   }
 
   // ------------------------------------------------------------ Réglages (administrateur)

@@ -775,7 +775,7 @@
       fi(-24 * 3, 'FI-8', 'FS-INC', moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE']);
       // Heures supplémentaires (lot C, 14 novembre 2026 ; horaire prévu et horaire effectué, 15 novembre 2026) : heures en
       // plus à valider, acceptées en récupération (dont une en partie) et à enregistrer, payées à saisir en priorité (paie),
-      // refusées, annulées ; heures en moins à valider et déduites ; motif libre ; récupérations validée et demandée ;
+      // refusées, annulées ; heures en moins à valider et validées ; motif libre ; récupérations validée et demandée ;
       // correction de solde ; heures du cadre à valider par le cadre supérieur
       var nH = 0;
       function mn(a) { return +a.slice(0, 2) * 60 + +a.slice(3, 5); }
@@ -802,7 +802,7 @@
       hs(-24 * 6, 'demo-d', 'Agent D (fictif)', ['IDE'], iso(-6), NUIT, ['19:00', '09:00'], 'remplacement', 'Remplacement d’un collègue absent (fictif)');
       hs(-24 * 4, 'demo-d', 'Agent D (fictif)', ['IDE'], iso(-4), MAT, ['07:00', '15:00'], 'formation', '', [['HEURES_ANNULATION', {}, 'demo-d']]);
       hs(-24 * 5, 'demo-c', 'Agent C (fictif)', ['IDE'], iso(-5), APM, ['14:00', '19:00'], 'depart-agent', 'Rendez-vous personnel (fictif)');
-      hs(-24 * 9, 'demo-b', 'Agent B (fictif)', ['AS'], iso(-9), MAT, ['07:00', '13:00'], 'depart-service', 'Effectif suffisant (fictif)', [['HEURES_DECISION', { decision: 'deduit', minutes: 60 }]]);
+      hs(-24 * 9, 'demo-b', 'Agent B (fictif)', ['AS'], iso(-9), MAT, ['07:00', '13:00'], 'depart-service', 'Effectif suffisant (fictif)', [['HEURES_DECISION', { decision: 'moins', minutes: 60 }]]);
       hs(-24 * 8, 'demo-c', 'Agent C (fictif)', ['IDE'], iso(-8), NUIT, ['21:00', '09:00'], 'libre:Accompagnement aux urgences pendant la nuit (fictif)', '', [['HEURES_DECISION', { decision: 'paiement', minutes: 120 }]]);
       ajouter(t(-24 * 30), 'HEURES_CORRECTION', { agent: 'demo-b', annee: String(Y), minutes: 150, motif: 'Reprise du solde du logiciel de gestion du temps (fictif)', service: U1, roles: ['AS'] }, moiC.id);
       if (moiC.id) hs(-24 * 2, moiC.id, moiC.nom || 'Cadre (fictif)', ['CADRE'], iso(-2), ['09:00', '17:00', 'Journée'], ['09:00', '19:00'], 'reunion', 'Commission (fictif)');
