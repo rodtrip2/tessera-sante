@@ -14,7 +14,7 @@ from playwright.sync_api import sync_playwright
 RACINE = pathlib.Path(__file__).resolve().parent.parent
 DOCS = RACINE / 'docs'
 KIT = RACINE / 'kit'
-EXCLUS = {'consignes-isocont', 'README'}  # documents de travail ou index, sans PDF
+EXCLUS = {'a-documenter', 'historique-decisions', 'consignes-isocont', 'README'}  # documents de travail ou index, sans PDF
 
 CSS = """
 @page { size: A4; margin: 18mm 16mm 18mm 16mm; }

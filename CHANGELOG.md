@@ -1,5 +1,162 @@
 # Journal des modifications — Tessera Santé
 
+## 0.70.0 — 15 novembre 2026 (version stable)
+
+Version stable rassemblant les développements 0.48 à 0.69 (plan d'action en cinq phases) et mise à jour de la documentation (demande du porteur du 15 novembre 2026).
+
+- Documentation : architecture, fiches projet et technique, `CLAUDE.md`, kit (guide utilisateur, éléments RGPD, README) et évolutions futures mis à jour ; détail des décisions des versions 0.21 à 0.69 gardé dans `docs/historique-decisions.md` ; journal des modifications complété ; PDF régénérés.
+- Publication : étiquette signée `v0.70.0` (version publiée à la racine du site ; précédente version stable : 0.47.0).
+
+## 0.69.0 — 15 novembre 2026
+
+- **Module Données cliniques** (phase 5) : feuille de staff clinique des patients hospitalisés (codes CIM en saisie libre, motif d'hospitalisation, projet thérapeutique, dépendance par les 6 variables AVQ du RIM-P cotées de 1 à 4, score de 6 à 24), fenêtre du séjour avec **rappel des codes CIM et de la dépendance du séjour précédent**, notes cliniques rattachées au séjour (retirées, jamais effacées) ; IDE, cadre et médecins par défaut, selon les réglages de l'établissement ; reprises dans l'export du droit d'accès ; fonction « dossier-clinique » soumise à avis, livrée désactivée.
+
+## 0.68.0 — 15 novembre 2026
+
+- **Accès réglable aux données cliniques** : rôles limités aux patients présents (valeurs masquées pour un patient sans séjour en cours dans leurs services) ; **bris de glace** justifié, jusqu'à la fin du poste, tracé au journal du module Patients, cadre du service et administrateur de garde informés, relecture mensuelle par le cadre et export pour le délégué à la protection des données ; fonction soumise à avis, livrée désactivée ; accès garanti par l'application et la traçabilité.
+
+## 0.67.0 — 15 novembre 2026
+
+- **Rôles selon le service** : rôles propres à un service pour un compte (ex. aide-soignant en Unité 1, IDE en Unité 2) ; chaque saisie contrôlée avec les rôles du service qu'elle concerne ; réglage par l'administrateur, et par le cadre pour ses agents (rôles de soins seulement) ; fenêtre « Rôles par service » (fiche du compte, annuaire de l'Équipe).
+
+## 0.66.0 — 15 novembre 2026
+
+- **Entretiens des agents** (Équipe) : suivi, recadrage, reprise, intégration ou type écrit par le cadre ; lus par le cadre seul, partagés à son choix avec des supérieurs et l'agent, signature de l'agent avec ses observations, retrait possible de l'export du droit d'accès ; contenu chiffré pour les seuls lecteurs ; fonction soumise à avis, livrée désactivée.
+
+## 0.65.0 à 0.65.3 — 14 et 15 novembre 2026
+
+- **Module Heures supplémentaires** : déclaration de l'horaire prévu (raccourcis des postes, repos pour un rappel) et de l'horaire effectué, écart en heures en plus ou en moins ; motif de la liste ou écrit par l'agent ; validation en h+ (temps de travail annuel), en h+ payées (h+P, à part, à saisir en priorité dans le logiciel de gestion du temps) ou en h− ; récupérations (jamais bloquées) ; soldes h+, h−, différence remise à zéro en fin d'année ; totaux et export ; fonction soumise à avis, livrée désactivée.
+
+## 0.64.0 — 14 novembre 2026
+
+- **Module Formations** : catalogue, inscriptions, décision du validateur (règle des Congés), liste d'attente et place libérée, étape « enregistrée dans le logiciel de gestion du temps », tableau annuel, départs affichés dans l'Agenda ; fonction soumise à avis, livrée désactivée.
+
+## 0.63.0 — 14 novembre 2026
+
+- **Formalités d'admission et de sortie** dans la fiche patient, par séjour (liste modifiable, alerte après 48 heures, réglable par formalité) ; désactivées par défaut.
+
+## 0.62.0 — 14 novembre 2026
+
+- **Droit d'accès** : chaque module déclare ses données (`interface.droitAcces`), reprises **y compris pour les modules arrêtés** ; Agenda et Suivi médical repris.
+
+## 0.61.0 — 14 novembre 2026
+
+- **Graphiques du tableur** (histogramme, courbes, secteurs), dessinés sans bibliothèque, imprimés avec la feuille.
+
+## 0.60.0 — 14 novembre 2026
+
+- Suivi des modifications étendu à la **mise en forme des paragraphes** (style, alignement, retrait, listes), repris à l'export et à l'import Word.
+
+## 0.59.0 — 14 novembre 2026
+
+- **Modèles remplis automatiquement** : champs entre doubles accolades (patient, séjour, mesure en cours, service, agent, date) remplacés à la création d'un document.
+
+## 0.57.0 et 0.58.0 — 14 novembre 2026
+
+- **Module Contrôles** : contrôle des CSI libres (check-list provisoire, second agent), passage de surveillance des CSI occupées une fois par poste, contrôle à la libération ; rappels à l'équipe puis alerte au cadre ; registre exportable ; demande de travaux préremplie après un écart ; durée de conservation fixée par l'établissement ; module désactivé par défaut (nouveau mécanisme du socle `inactifParDefaut`).
+
+## 0.56.0 — 14 novembre 2026
+
+- Délais du Suivi médical **par service**, réglables par le cadre et les médecins chefs (mécanisme `reglages.encadrement`) ; **compte qui suit un pôle** (cadre supérieur, médecin chef de pôle).
+
+## 0.55.0 — 14 novembre 2026
+
+- **Échanges d'agenda par fichier .ics** (export sans identité des patients, import en lecture seule, couche masquable) ; **boîtes aux lettres du service** dans l'annuaire, « Écrire à… » par la messagerie du poste (aucune connexion).
+
+## 0.54.0 — 14 novembre 2026
+
+- **Barre des modules** avec favoris par agent, proposés par rôle, et menu « Modules » (option de l'établissement, désactivée par défaut).
+
+## 0.53.0 — 14 novembre 2026
+
+- **Liens entre messages, documents et tâches** : « + Ma liste » partout, tâches rappelées sur l'élément.
+
+## 0.52.0 — 14 novembre 2026
+
+- **Classement personnel** des messages et des documents : favoris, étiquettes en couleur, dossiers ; étiquettes communes de l'établissement et des services.
+
+## 0.51.0 — 14 novembre 2026
+
+- **Recherche partout** étendue aux documents, médecins et psychologues, retours et tâches (seulement ce que l'agent peut déjà consulter).
+
+## 0.50.0 — 14 novembre 2026
+
+- Salles des présences médicales et des psychologues dans « Mon agenda » et « Aujourd'hui » ; colonne « Salle aujourd'hui » de la Vue d'ensemble.
+
+## 0.49.0 — 14 novembre 2026
+
+- **Contact d'un clic** dans l'Agenda, la Messagerie, les Salles et la Vue d'ensemble.
+
+## 0.48.0 — 14 novembre 2026
+
+- **Retours sur Tessera** (bouton « Signaler », suivi par le cadre et l'administrateur, export) ; **mesure d'usage anonyme** (fonction soumise à avis, désactivée par défaut).
+
+## 0.47.0 — 14 novembre 2026 (version stable précédente)
+
+- **Versions stable, bêta et développement** sur GitHub Pages (étiquettes signées), réglages du navigateur séparés, versions d'essai limitées à un dossier d'essai, bandeau.
+
+## 0.46.0 — 14 novembre 2026
+
+- **Onglet « Validations »** : fonctions soumises à avis rangées par interlocuteur, trois états (désactivé, accord hiérarchique, après avis), information du délégué à la protection des données exigée pour les données cliniques et du personnel, rappel au cadre et à la direction ; désactivation : données masquées et conservées.
+
+## 0.44.0 à 0.45.1 — 12 novembre 2026
+
+- **Module Congés** : souhaits et demandes, validateur selon le rôle, tableaux par service avec règles « au plus N agents », périodes (information, à éviter, bloquée, date limite de dépôt), types et droits proratisés à la quotité, récupérations de temps partiel (RTP), jours fériés selon le service et le rôle, absences reprises dans l'Agenda ; temps partiel masqué par défaut ; demandes tardives non prioritaires.
+- Comptes : trousseau affiché lisiblement ; parcours des écrans indépendant du jour.
+
+## 0.43.0 et 0.43.1 — 12 novembre 2026
+
+- **Design général** : rubriques repliables partout, administration découpée (Comptes, Rôles et accès, Sécurité et clés), fiche patient en onglets, consignes en un clic, **mise en marche et arrêt des modules** (rien n'est effacé ; Patients et Équipe indispensables).
+
+## 0.34.0 à 0.42.0 — 12 novembre 2026
+
+- **Module Documents** : documents texte (une clé par document, partage, versions, validation avec validation supplémentaire, modèles, rattachement, corbeille et effacement par destruction de la clé, transfert au cadre), **tableur** (formules en français, mise en forme conditionnelle, validation des saisies, filtres), **édition simultanée** et **suivi des modifications**, onglets, **exports** PDF, Word, RTF, Excel, CSV et **imports** Word, Excel, CSV, **images** et **masques de fond** (papier à en-tête).
+
+## 0.33.0 — 12 novembre 2026
+
+- **Rangement des saisies par jour** sur le partage (lecture des deux rangements).
+
+## 0.32.0 — 12 novembre 2026
+
+- **Droit d'accès des patients** : information d'un tiers, vérification élément par élément avant l'export ; **données réservées au pôle** du patient (une clé par pôle).
+
+## 0.31.0 — 12 novembre 2026
+
+- **Accès particuliers** : rôle « Intervenant extérieur » (comptes datés créés à la demande du cadre, charte de confidentialité), **prêt de droits** pendant une absence (« pour le compte de »).
+
+## 0.29.0 à 0.30.2 — 12 novembre 2026
+
+- **Chambres et lits** (un patient par lit, historique), **plan du service** (patients, CSI, pièces utilisées), **tableau de transmissions** imprimable (cases réglées par le cadre, consignes, prochains événements, tâches du poste).
+
+## 0.27.0 à 0.28.1 — 11 novembre 2026
+
+- **Module Équipe** : fiches des agents, coordonnées personnelles chiffrées avec accord, numéro personnel des médecins, référents par domaine, contact d'un clic ; pôles et **cadre supérieur de santé** ; rôles **médecin chef de service et de pôle**, **administrateur de garde** (identité réduite), **directeur des soins**, **médecin** ; données ajoutées des agents saisies par l'agent lui-même.
+
+## 0.26.0 à 0.26.5 — 11 novembre 2026
+
+- Tri des colonnes, filtre rapide, taille d'affichage et raccourcis clavier ; page d'accueil de l'administration ; **module Informations du service** ; **Mes tâches** (clé de liste tenue par le trousseau) ; page **Aujourd'hui**, recherche générale, annulation par l'auteur dans les deux minutes, formulaires plus courts.
+
+## 0.25.0 à 0.25.2 — 11 novembre 2026
+
+- **Module Salles et bureaux** (salles du service ou communes, prêts, fermetures, réservations, conflits et arbitrage, relevé « occupé ») et **planning des psychologues** ; salle fermée pendant des travaux.
+
+## 0.24.0 — 11 novembre 2026
+
+- Messagerie : **chiffrement réservé aux destinataires** (réglage à quatre positions, désactivé par défaut), consultation tracée par le cadre ou un auditeur.
+
+## 0.23.0 et 0.23.1 — 11 novembre 2026
+
+- **Module Messagerie** : destinataires (services, groupes, rôles, agents), accusés de lecture, réponses, archives, onglet Informations des modules, éléments rattachés, pièces jointes (désactivées par défaut), **sondages**.
+
+## 0.22.0 — 11 novembre 2026
+
+- **Module Demandes de travaux** : types, gravité, urgence, lieux, étapes jusqu'à la confirmation du cadre, chambre indisponible (option), bon imprimable, historique.
+
+## 0.21.0 à 0.21.2 — 11 novembre 2026
+
+- Agenda : « Quel(s) professionnel(s) ? » et « Quel(s) patient(s) ? » (inscriptions, invitations, liste d'attente), événements de plusieurs services, **étapes de validation des permissions** par mode d'hospitalisation, tâches suggérées, sorties envisagées ou actées, prise en charge par des professionnels ou structures extérieurs ; réglages par service ouverts au cadre ; parcours des écrans versionné.
+- Test de charge, tri mémorisé, lecture rapide et **recalcul incrémental** (jusqu'à 25 fois plus rapide sur un an d'historique).
+
 ## 0.20.0 — 9 novembre 2026
 
 Retours du porteur sur la 0.19.0 (décisions du 9 novembre 2026).

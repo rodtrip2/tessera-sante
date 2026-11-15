@@ -2,7 +2,7 @@
 
 *Tessera Santé — connexion, modules, fiche patient, agenda du service, journal. À lire en 15 minutes. Le module Isolement et contention a son propre guide (document 12) et un guide pratique illustré pour les IDE et AS (document 08).*
 
-Tessera ne remplace pas le dossier patient informatisé (DPI) : le dossier clinique y reste. **N'écrivez aucune donnée clinique dans Tessera** (motif d'un accompagnement, symptôme, traitement) : seulement ce qui sert à organiser et à tracer.
+Tessera ne remplace pas le dossier patient informatisé (DPI) : le dossier clinique y reste. **N'écrivez aucune donnée clinique dans Tessera**, sauf dans le module Données cliniques si votre établissement l'a activé (motif d'un accompagnement, symptôme, traitement) : seulement ce qui sert à organiser et à tracer.
 
 ## 1. Se connecter
 
@@ -129,6 +129,38 @@ Fenêtre *Vue d'ensemble* : un onglet par vue ouverte à votre rôle et à vos s
 - **Feuille du staff** (rôles réglés pour la vue, le cadre par défaut) : *Préparer la feuille*, complétez les cases pendant le staff, puis *Clore (instantané)* : la feuille est gardée telle quelle, dans l'onglet *Instantanés* (ouvrir, imprimer, annoter).
 - **Imprimer** (en couleur ou en noir et blanc : en noir et blanc, chaque couleur a son symbole repris dans la légende) et **Exporter** (tableur).
 
+## 5 quater. Outils communs (versions 0.21 à 0.70)
+
+- **Aujourd'hui** : fenêtre ouverte à la connexion — mon agenda du jour, mes tâches, ce qui m'attend dans les modules, mes salles.
+- **Rechercher** (bouton de l'en-tête ou Ctrl + K) : patients, événements, salles, documents, messages, agents… seulement ce que vous pouvez déjà consulter.
+- **Mes tâches** (fenêtre Agenda) : votre liste personnelle, lue par vous seul ; « + Ma liste » depuis un message, un document, un événement, une demande de travaux, une fiche patient.
+- **Annuler** : juste après une saisie, le message de confirmation propose « Annuler » ; vous pouvez annuler votre propre saisie dans les deux minutes.
+- **Tableaux** : clic sur un titre de colonne pour trier ; filtre rapide au-dessus des longs tableaux ; bouton « Aa » de l'en-tête : taille d'affichage et hauteur des lignes ; « ? » : raccourcis clavier.
+- **Barre des modules** : si l'établissement l'active, épinglez vos modules favoris ; les autres s'ouvrent par le menu « Modules ».
+- **Contact d'un clic** : un nom d'agent ouvre sa fiche de contact (numéro à copier, « Écrire »).
+- **Classer** messages et documents : étoile, étiquettes en couleur, dossiers ; votre classement n'est vu que par vous.
+- **Signaler** (en-tête) : un défaut ou une idée d'amélioration, sans donnée de patient ; votre cadre ou l'administrateur vous répond.
+- **Écrire à…** : ouvre la messagerie du poste avec le destinataire et l'objet préremplis ; Tessera n'envoie ni ne lit aucun courriel.
+- **Mon agenda vers Outlook ou Zimbra** : « Exporter vers mon agenda (.ics) » (sans identité des patients), « Importer mon agenda (.ics) » (affiché en pointillés, pour vous seul).
+
+## 5 quinquies. Modules ajoutés
+
+| Module | L'essentiel |
+| --- | --- |
+| **Demandes de travaux** | « + Demande » : type, gravité, urgence (immédiate : appelez aussi les services techniques au numéro affiché), lieu, description sans donnée de patient ; suivez l'état jusqu'à la confirmation du cadre ; bon imprimable. |
+| **Messagerie** | Écrivez à votre service, à un groupe, à un rôle ou à des agents ; « J'ai lu » quand c'est demandé ; réponses, sondages ; l'onglet *Informations* rappelle ce que les autres modules attendent de vous. Pas de donnée clinique. |
+| **Salles et bureaux** | Planning des salles du service, salles libres pour un créneau, réservation ou demande en cas de conflit (arbitrée par le cadre) ; « Occupé » : réservation d'un planning que vous ne lisez pas. |
+| **Informations du service** | Coordonnées, horaires, consignes et numéros utiles du service et de l'établissement, tenus par le cadre. |
+| **Équipe** | Annuaire, *Ma fiche* (vos coordonnées ; personnelles seulement avec votre accord), référents, messageries du service, prêts de droits pendant une absence ; *Entretiens* : ceux que votre cadre a partagés avec vous, à lire et signer si demandé (la signature ne vaut pas accord). |
+| **Documents** | Documents texte et tableurs, privés à leur création puis partagés avec qui vous choisissez ; enregistrés automatiquement, versions, validation par le cadre, modèles (champs remplis d'après le patient rattaché), suivi des modifications, exports et imports Word, Excel, PDF. |
+| **Congés** | *Mes congés* : souhaits et demandes (demi-journées), soldes indicatifs ; le validateur décide ; tableaux du service. Le logiciel de gestion du temps de l'établissement fait foi. |
+| **Contrôles** | À chaque poste : passage de surveillance des CSI occupées, contrôle des CSI libres (check-list, second agent qui confirme avec son propre compte), contrôle à la libération ; un écart demande un commentaire et peut ouvrir une demande de travaux. |
+| **Formations** | S'inscrire, suivre sa demande (validée, liste d'attente, refusée), se désister. |
+| **Heures supplémentaires** | Déclarer l'horaire prévu (boutons des postes, ou « Repos » pour un rappel) puis l'horaire effectué : Tessera calcule les heures en plus ou en moins ; motif de la liste ou écrit ; récupérations ; soldes h+, h−, différence sur le temps de travail annuel (remise à zéro en fin d'année), h+ payées à part. |
+| **Données cliniques** (si l'établissement les active) | *Feuille de staff clinique* : codes CIM, motif, projet thérapeutique, dépendance (6 variables AVQ, de 1 à 4) ; fenêtre du séjour avec le rappel du séjour précédent et les notes cliniques. Sans accès (rôle ou patient non présent) : « accès restreint » et, si votre rôle le permet, **bris de glace** justifié, tracé et relu par le cadre. Le DPI reste la référence. |
+
+Certaines fonctions (formations, heures supplémentaires, entretiens, données cliniques, bris de glace) n'apparaissent que si l'établissement les a activées après les avis prévus.
+
 ## 6. Isolement et contention
 
 Voir le guide du module (document 12) et le guide pratique des IDE et AS (document 08).
@@ -171,6 +203,12 @@ Sur l'écran de connexion, choisissez **Mode formation** au lieu de *Données r�
 - **Réglages de l'Agenda** (*Administration → Agenda du service → Réglages de l'agenda*) : désignation des patients, modification des éléments d'un autre service, ajustement des tâches du service, tâches récurrentes de l'équipe, modèles de check-lists et délais, types d'alertes (de l'établissement, ou propres à un service).
 - **Intégrité du coffre** (*Administration → Comptes et sécurité*, administrateur) : « Coffre attesté » en temps normal ; conduite à tenir en cas d'alerte ou de compromission : procédures de secours (document 04).
 - **Sauvegardes et exports**, dossier de secours, travail hors réseau, exports, export et import des réglages : guide d'installation (03), procédures de secours (04), documents 09 et 10.
+
+- **Validations** (*Administration → Validations*, administrateur ; le cadre et la direction consultent) : fonctions soumises à avis rangées par interlocuteur, trois états (désactivé, accord hiérarchique pour le pilote, après avis) avec date, auteur et référence ; données cliniques et du personnel : informer d'abord le délégué à la protection des données.
+- **Mise en marche et arrêt des modules** (accueil de l'administration, bouton ⏻) : rien n'est effacé ; Patients et Équipe ne s'arrêtent pas.
+- **Rôles par service** : depuis la fiche du compte (administrateur) ou l'annuaire de l'Équipe (cadre, pour ses agents : IDE, aide-soignant, secrétaire, intervenant) ; chaque saisie suit les droits du service concerné.
+- **Données cliniques** (*Administration → Patients → Données cliniques*) : rôles limités aux patients présents, rôles et durée du bris de glace ; relecture mensuelle des bris de glace dans la fenêtre Patients, onglet *Bris de glace* (export pour le délégué à la protection des données).
+- **Réglages par service ouverts au cadre** : organisation de l'agenda, demandes de travaux, messagerie, salles, chambres et plan du service, tableau de transmissions, formalités, contrôles, délais du Suivi médical (aussi pour les médecins chefs).
 
 ## 10. En cas de problème
 

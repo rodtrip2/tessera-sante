@@ -2,7 +2,7 @@
 
 Tout ce qu'il faut pour présenter, valider, installer et exploiter Tessera Santé dans un établissement de santé. Les documents existent en Markdown (modifiables) et en PDF (dossier [`pdf/`](pdf/) ; présentation et fiche technique : dossier [`docs/`](../docs/)).
 
-Tessera Santé réunit un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** activés service par service : **Patients** (fiche commune), **Isolement et contention** (Isocont), **Agenda du service**, **Véhicules de l'établissement**.
+Tessera Santé réunit un **socle commun** (connexion, comptes, services, droits, chiffrement, stockage, sauvegardes, journal) et des **modules** activés service par service : **Patients** (fiche commune), **Isolement et contention**, **Agenda du service**, **Véhicules**, **Suivi médical**, **Vue d'ensemble**, **Demandes de travaux**, **Messagerie**, **Salles et bureaux**, **Informations du service**, **Équipe**, **Documents**, **Congés**, **Contrôles**, **Retours sur Tessera**, **Formations**, **Heures supplémentaires** et **Données cliniques**. Les fonctions qui demandent un avis (données du personnel, données cliniques…) sont livrées **désactivées** ; l'onglet « Validations » de l'administration les range par interlocuteur.
 
 | Document | Pour qui | Usage |
 | --- | --- | --- |
@@ -22,9 +22,10 @@ Tessera Santé réunit un **socle commun** (connexion, comptes, services, droits
 ## Parcours de déploiement
 
 1. **Présenter** la fiche projet à la direction des soins, la fiche technique au service informatique et au responsable de la sécurité informatique, les éléments RGPD (05) au délégué à la protection des données.
-2. **Valider** : mode d'hébergement, modules ouverts et services concernés, registre des traitements (un traitement par module), analyse d'impact, statut du registre légal de l'isolement et de la contention.
+2. **Valider** (onglet « Validations » : une fonction soumise à avis s'active sur accord hiérarchique pour le pilote, après information du délégué à la protection des données pour les données cliniques et du personnel, puis après avis) : mode d'hébergement, modules ouverts et services concernés, registre des traitements (un traitement par module), analyse d'impact, statut du registre légal de l'isolement et de la contention.
 3. **Installer** selon le guide (03) et faire la recette.
 4. **Former** les équipes avec le guide utilisateur (06), le guide du module Isolement et contention (12) et le guide pratique des IDE et AS (08) ; imprimer les procédures de secours (04).
-5. **Piloter** dans une unité, puis étendre service par service et module par module.
+5. **Piloter** dans une unité, puis étendre service par service et module par module ; les agents font remonter défauts et idées par le bouton « Signaler ».
+6. **Mettre à jour** : une version stable est publiée par une étiquette signée `vX.Y.Z` ; fermer Tessera sur tous les postes, déposer la nouvelle version, rouvrir (tous les postes en même temps : le rangement des saisies peut changer d'une version à l'autre). Versions bêta et de développement : essais seulement, dans un dossier d'essai.
 
 Pour adapter les documents à votre établissement (référents, chemins du partage, adresse intranet), modifiez les fichiers Markdown puis régénérez les PDF : `python3 scripts/docs-pdf.py`.
