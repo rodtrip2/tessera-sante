@@ -239,7 +239,7 @@
       .forEach(function (x) { el(F, x[0], [x[0], x[1] || '']); });
     // Données ajoutées : la donnée entière marquée « tiers » ou « clinique », ou chaque note marquée « tiers »
     SIC.champs.definitions(U.config(), { tous: true, entite: 'patient' }).filter(function (c) { return c.type !== 'formule' && U.champs.lisible(c) && U.champs.valeurDe(c, 'patient', p.id, p) !== undefined; }).forEach(function (c) {
-      var v = U.champs.valeurDe(c, 'patient', p.id, p), motif = c.tiers ? 'tiers' : c.clinique ? 'clinique' : '';
+      var v = U.champs.valeurDe(c, 'patient', p.id, p, { sansAcces: true }), motif = c.tiers ? 'tiers' : c.clinique ? 'clinique' : '';
       if (c.type === 'notes') SIC.champs.notes(c, v, true).forEach(function (n) { el('Données ajoutées', c.libelle + ' — note du ' + U.date(Date.parse(n.le)), [c.libelle, U.date(Date.parse(n.le)) + ' : ' + n.texte + (n.retire ? ' (retirée le ' + U.date(Date.parse(n.retire.le)) + ')' : '')], motif || (n.tiers ? 'tiers' : '')); });
       else el('Données ajoutées', c.libelle, [c.libelle, SIC.champs.lib(c, v)], motif);
     });

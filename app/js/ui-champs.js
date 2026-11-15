@@ -16,7 +16,10 @@
 
   // ------------------------------------------------------------ Lecture et enregistrement d'une valeur
   /** Valeur d'une donnée pour une entité : fiche patient (COMPLEMENT) ou valeurs ajoutées (VALEUR). */
-  function valeurDe(champ, entite, id, fiche) {
+  function valeurDe(champ, entite, id, fiche, options) {
+    // Données cliniques (phase 5) : masquées hors accès (rôle limité aux patients présents, sans bris de glace en cours) ;
+    // `sansAcces` : export du droit d'accès du patient, qui les reprend toutes
+    if (champ && champ.clinique && entite === 'patient' && !(options && options.sansAcces) && U.accesClinique && !U.accesClinique.ok(champ, id, fiche)) return undefined;
     if (CH.typeSaisie(champ) === 'COMPLEMENT') {
       var f = fiche || (entite === 'patient' && session().etat && session().etat.patients && session().etat.patients[id]);
       return ((f && f.complements) || {})[champ.id];

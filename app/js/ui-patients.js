@@ -273,7 +273,12 @@
       U.vider(zoneComp); complements = {};
       // Données ajoutées des patients (0.13.0, mécanisme commun 0.18.0) : fiche (COMPLEMENT) et autres modules (VALEUR),
       // selon le service, le rôle et les clés détenues ; notes et check-lists enregistrées aussitôt
-      var champs = SIC.champs.definitions(U.config(), { entite: 'patient', service: sv.value }).filter(function (c) { return c.type !== 'formule' && U.champs.lisible(c); });
+      var champs = SIC.champs.definitions(U.config(), { entite: 'patient', service: sv.value }).filter(function (c) { return c.type !== 'formule' && (U.champs.lisible(c) || (!nouveau && U.accesClinique && U.accesClinique.lisibleParBris(c, f.id))); });
+      // Données cliniques (phase 5) : accès restreint, bris de glace en cours
+      var blocBris = !nouveau && U.accesClinique ? U.accesClinique.blocFiche((U.App.session.etat.patients && U.App.session.etat.patients[f.id]) || f, dessinerComplements) : null;
+      if (blocBris) zoneComp.appendChild(blocBris);
+      // Valeur clinique masquée hors accès : la donnée n'est ni affichée ni modifiable
+      champs = champs.filter(function (c) { return !c.clinique || nouveau || !U.accesClinique || U.accesClinique.ok(c, f.id); });
       // « Gérer les données ajoutées… » (0.20.0) : cadre pour ses services, administrateur, sans quitter la fiche
       var gerer = U.champs.boutonGerer('patient', dessinerComplements);
       if (!champs.length) { if (gerer) zoneComp.appendChild(h('div', { class: 'actions gauche' }, h('b', { text: 'Données ajoutées' }), gerer)); return; }
