@@ -953,6 +953,7 @@
   function rendreContenuBrut() {
     if (!zoneContenu || !document.body.contains(zoneContenu)) return;
     var s = App.session;
+    s.serviceCourant = App.service;   // rôles selon le service (phase 5) : rôles du service affiché
     var focus = document.activeElement && document.activeElement.closest && document.activeElement.closest('dialog');
     if (focus) return; // ne pas reconstruire derrière une fenêtre ouverte
     if (s.utilisateur && s.utilisateur.mdpProvisoire) return rendre();
@@ -1009,6 +1010,7 @@
     var mesSv = services();
     if (App.service !== '*' && !mesSv.some(function (x) { return x.code === App.service; })) App.service = '*';
     if (mesSv.length === 1) App.service = mesSv[0].code;
+    s.serviceCourant = App.service;
 
     // En-tête
     vider(zoneEntete);
@@ -1805,6 +1807,9 @@
       var finVal = h('input', { type: 'date', value: c.finValidite || '' });
       return modale('Compte — ' + c.nom, h('div', { class: 'pile' },
         h('div', {}, h('b', { text: 'Rôles' }), roles), h('div', {}, h('b', { text: 'Services affectés' }), svs),
+        // Rôles selon le service (phase 5) : réglage à part, pour un compte affecté à plusieurs services
+        SIC.ui.rolesServices && (c.services || []).length > 1 ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { SIC.ui.rolesServices.modale(c); } }, 'Rôles par service…'),
+          h('small', { class: 'muted', text: SIC.ui.rolesServices.resume(c) || 'Mêmes rôles dans tous ses services.' })) : null,
         h('label', { class: 'case' }, formation, h('span', { text: 'Accès au mode formation (choix proposé à la connexion)' })),
         h('label', { class: 'case' }, actif, h('span', { text: 'Compte actif (désactiver retire son mot de passe du coffre)' })),
         h('label', {}, 'Dernier jour d’accès (compte temporaire ; vide = sans limite)', finVal)), [

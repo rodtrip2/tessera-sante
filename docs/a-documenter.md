@@ -978,3 +978,17 @@ Décisions du porteur du 15 novembre 2026 : entretiens lus par **le cadre de l'a
 ## Évolutions futures mises à jour (15 novembre 2026, sans changement de version)
 
 Décisions du porteur du 15 novembre 2026 : fichiers joints et photos des demandes de travaux (D) **retirés de la phase 4**, remis à « Plus tard » ; **export du droit d'accès des agents** ajouté aux évolutions futures (lot F). Fichier : `docs/evolutions-futures.md`.
+
+## Version 0.67.0 (branche `roles-services`, 15 novembre 2026) : rôles selon le service (phase 5, lot E)
+
+Décisions du porteur du 15 novembre 2026 : avec « Tous les services », **les droits de chaque saisie sont ceux du service qu'elle concerne** (l'affichage cumule) ; réglage par **l'administrateur et le cadre du service** (le cadre ne donne pas un rôle supérieur au sien). Met à jour `CLAUDE.md` § 3 (« Rôle selon le service : prévu dans le modèle de données, écran plus tard ») et `docs/architecture.md` § 5, et retire ce point des évolutions futures (lot E).
+
+| Élément | Détail | Fichiers |
+| --- | --- | --- |
+| Réglage | `rolesServices` = { <compte>: { <service>: [rôles de service] } } (journal du socle, exclu de l'export des réglages, libellé du journal, jeu de formation) ; remplace les rôles de service du compte dans ce service seulement ; les rôles d'établissement (administrateur, directeur des soins, administrateur de garde) restent valables partout ; cadre supérieur : rôle Cadre ajouté | `roles-services.js`, `model.js`, `session.js`, `ui-isocont.js`, `demo.js` |
+| Droits | Rôles du service affiché (`session.serviceCourant`, tenu par l'interface) ; « Tous les services » : ensemble des rôles pour l'affichage ; à chaque saisie, contrôle avec les rôles du compte dans chacun des services visés (`saisies.cibles` du module) : « Votre rôle dans le service … ne permet pas cette action » ; contrôles des modules (`controler`) faits avec le compte, et les autres comptes, vus dans ce service | `session.js` (`controlerRolesService`, `controlerModule`, `compteEffectif`) |
+| Clés | Remises selon l'ensemble des rôles du compte (cloisonnement entre services par l'interface, décision antérieure) ; fenêtres des modules selon l'ensemble des rôles ; remise à la prochaine connexion d'un administrateur | `comptesPourClesAvec`, `modulesAccessibles` |
+| Qui règle | Administrateur : tous les rôles de service ; cadre : agents de ses services, rôles IDE, aide-soignant, secrétaire, intervenant, jamais les siens ni un réglage qui contient un rôle qu'il n'attribue pas | `RS.controler`, `permisPourSoi` (CONFIG `rolesServices`) |
+| Écrans | Fenêtre « Rôles par service » : depuis la fiche du compte (administrateur, compte de plusieurs services) et l'annuaire de l'Équipe (bouton, rôles propres rappelés au survol) | `ui-roles-services.js`, `ui.js`, `ui-equipe.js` |
+| Tests, parcours | `tests/roles-services.test.js` (logique ; saisie refusée dans l'Unité 1, permise dans l'Unité 2) ; parcours : réglage par l'annuaire | — |
+| Limites, à valider | Les boutons affichés avec « Tous les services » suivent l'ensemble des rôles (la saisie est refusée au besoin, avec un message clair) ; un prêt de droits vaut encore pour tous les services du délégataire ; avis du responsable de la sécurité informatique (le cadre change désormais, indirectement, la remise des clés de ses agents) |
