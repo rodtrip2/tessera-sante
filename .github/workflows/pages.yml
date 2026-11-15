@@ -8,6 +8,15 @@
 #   …/dev/        version de développement : état de la branche main, republié à chaque envoi
 # Aucune étape de construction : chaque version est la copie de son état du dépôt.
 #
+# Garde-fous (0.74.0, constat S2 de l'audit du 15 novembre 2026) :
+#   - rien n'est publié si les tests échouent ou si les empreintes ne décrivent pas l'application ;
+#   - une version stable ou bêta n'est retenue que si son commit porte une signature vérifiée par GitHub ;
+#   - quand la version stable ou bêta change, la publication attend l'approbation du porteur (environnement
+#     « publication-stable » : Settings → Environments → publication-stable → Required reviewers, à régler une fois
+#     par le porteur ; sans ce réglage, l'étape passe et le signale) ;
+#   - les actions sont désignées par l'empreinte de leur commit (une étiquette peut être déplacée), les droits du
+#     jeton sont donnés tâche par tâche.
+#
 # Mise en service (une seule fois, par le porteur) : Settings → Pages → Source « GitHub Actions », puis
 # Settings → Secrets and variables → Actions → Variables : PAGES_TROIS_VERSIONS = oui.
 # Tant que la variable n'existe pas, ce flux ne fait rien et la publication actuelle (branche main) continue.
@@ -21,22 +30,47 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  assembler:
+  # Tests et empreintes : bloquants pour toute publication
+  tests:
     if: ${{ vars.PAGES_TROIS_VERSIONS == 'oui' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4.4.0
+        with:
+          node-version: 20
+      - name: Tests unitaires
+        run: npm test
+      - name: Empreintes de l’application à jour
+        run: |
+          node scripts/empreintes.mjs
+          git diff --exit-code -- app/EMPREINTES-SHA256.txt
+
+  assembler:
+    needs: tests
+    runs-on: ubuntu-latest
+    outputs:
+      changement: ${{ steps.versions.outputs.changement }}
+      resume: ${{ steps.versions.outputs.resume }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Assembler les trois versions
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPOT: ${{ github.repository }}
+          SITE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
           set -euo pipefail
           git fetch --force --tags origin '+refs/heads/*:refs/remotes/origin/*'
@@ -55,7 +89,22 @@ jobs:
           if [ -n "$bb" ] && { [ -z "$beta" ] || plus_recent "$(ver "$bb")" "$(ver "$beta")"; }; then beta="$bb"; fi
           # Bêta retenue seulement si elle est plus récente que la stable
           if [ -z "$beta" ] || [ "$(ver "$beta")" = "$(ver "$stable")" ] || ! plus_recent "$(ver "$beta")" "$(ver "$stable")"; then beta="$stable"; fi
-          echo "Stable : $stable ($(ver "$stable")) ; bêta : $beta ($(ver "$beta")) ; développement : $dev ($(ver "$dev"))"
+          # Signature vérifiée par GitHub exigée pour la version stable et la version bêta
+          signe() { [ "$(gh api "repos/$DEPOT/commits/$(git rev-parse "$1^{commit}")" --jq '.commit.verification.verified')" = "true" ]; }
+          for v in "$stable" "$beta"; do
+            [ "$(git rev-parse "$v^{commit}")" = "$dev" ] && continue
+            signe "$v" || { echo "::error::Le commit de la version $(ver "$v") ($v) n'a pas de signature vérifiée : publication refusée."; exit 1; }
+          done
+          resume="Stable : $(ver "$stable") ($(git rev-parse --short "$stable^{commit}")) ; bêta : $(ver "$beta") ($(git rev-parse --short "$beta^{commit}")) ; développement : $(ver "$dev") ($(git rev-parse --short "$dev"))"
+          echo "$resume"
+          # La version stable ou bêta change-t-elle par rapport au site publié ? (site illisible : oui, par prudence)
+          publie=$(curl -fsS --max-time 20 "$SITE/versions-publiees.txt" || true)
+          attendu_s="stable=$stable $(ver "$stable")"; attendu_b="beta=$beta $(ver "$beta")"
+          if grep -qxF "$attendu_s" <<< "$publie" && grep -qxF "$attendu_b" <<< "$publie"; then changement=non; else changement=oui; fi
+          echo "changement=$changement" >> "$GITHUB_OUTPUT"
+          echo "resume=$resume" >> "$GITHUB_OUTPUT"
+          echo "### Versions à publier" >> "$GITHUB_STEP_SUMMARY"; echo "$resume" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version stable ou bêta modifiée : $changement" >> "$GITHUB_STEP_SUMMARY"
           rm -rf _site && mkdir -p _site/beta _site/dev
           git archive "$stable" | tar -x -C _site
           git archive "$beta" app index.html | tar -x -C _site/beta
@@ -63,19 +112,36 @@ jobs:
           rm -rf _site/.github _site/tests _site/scripts
           touch _site/.nojekyll
           printf 'stable=%s %s\nbeta=%s %s\ndev=%s %s\n' "$stable" "$(ver "$stable")" "$beta" "$(ver "$beta")" "$dev" "$(ver "$dev")" > _site/versions-publiees.txt
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b   # v5.0.0
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1
         with:
           path: _site
+
+  # Version stable ou bêta modifiée : approbation du porteur (relecteur obligatoire de l'environnement)
+  approbation:
+    needs: assembler
+    if: ${{ needs.assembler.outputs.changement == 'oui' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: publication-stable
+    steps:
+      - name: Publication approuvée
+        env:
+          RESUME: ${{ needs.assembler.outputs.resume }}
+        run: echo "Publication approuvée — $RESUME"
 
   # Publication dans une tâche à part (modèle de GitHub) : le site assemblé n'est lisible qu'une fois la tâche
   # précédente terminée
   publier:
-    needs: assembler
+    needs: [assembler, approbation]
+    if: ${{ always() && needs.assembler.result == 'success' && (needs.approbation.result == 'success' || needs.approbation.result == 'skipped') }}
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deploiement.outputs.page_url }}
     steps:
       - id: deploiement
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e   # v4.0.5
