@@ -159,35 +159,45 @@
       location.protocol !== 'file:';
   }
 
-  /** Enregistre une clé de sécurité et emballe la clé de données avec son secret PRF. */
-  async function emballerCleSecurite(cleDonnees, identifiant, libelle) {
+  /**
+   * Enregistre une clé de sécurité et tire sa clé d'emballage du secret PRF. `uv` : code de la clé exigé (0.75.0) — le
+   * secret PRF d'une clé n'est pas le même avec et sans vérification de l'utilisateur : le choix est gardé avec la clé.
+   * Retourne { idCredential, selPRF, sel, libelle, rpId, uv, k (clé d'emballage) }.
+   */
+  async function creerCleSecurite(identifiant, libelle, uv) {
     if (!webauthnDisponible()) throw new Error('Les clés de sécurité nécessitent une page servie en HTTPS (GitHub Pages ou intranet).');
     var selPRF = aleatoire(32);
     var cred = await navigator.credentials.create({
       publicKey: {
-        rp: { name: 'Suivi mesures iso/cont', id: location.hostname },
+        rp: { name: 'Tessera Santé', id: location.hostname },
         user: { id: aleatoire(16), name: identifiant, displayName: libelle || identifiant },
         challenge: aleatoire(32),
         pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-        authenticatorSelection: { authenticatorAttachment: 'cross-platform', userVerification: 'discouraged', residentKey: 'discouraged' },
+        authenticatorSelection: { authenticatorAttachment: 'cross-platform', userVerification: uv ? 'required' : 'discouraged', residentKey: 'discouraged' },
         extensions: { prf: {} }
       }
     });
     var ext = cred.getClientExtensionResults();
     if (!ext.prf || ext.prf.enabled === false) throw new Error("Cette clé ou ce navigateur ne prend pas en charge l'extension PRF (YubiKey 5, firmware 5.2 ou plus, Chrome ou Edge récents).");
     var idCred = new Uint8Array(cred.rawId);
-    var prf = await evaluerPRF([idCred], selPRF);
+    var prf = await evaluerPRF([idCred], selPRF, null, uv);
     var sel = aleatoire(16);
-    var k = await cleDepuisPRF(prf.secret, sel);
-    return { methode: 'cle', idCredential: b64(idCred), selPRF: b64(selPRF), sel: b64(sel), libelle: libelle || 'Clé de sécurité', rpId: location.hostname, cle: await emballer(cleDonnees, k) };
+    return { idCredential: b64(idCred), selPRF: b64(selPRF), sel: b64(sel), libelle: libelle || 'Clé de sécurité', rpId: location.hostname, uv: !!uv, k: await cleDepuisPRF(prf.secret, sel) };
+  }
+  /** Enregistre une clé de sécurité et emballe la clé de données avec son secret PRF. */
+  async function emballerCleSecurite(cleDonnees, identifiant, libelle, uv) {
+    var f = await creerCleSecurite(identifiant, libelle, uv);
+    var emb = { methode: 'cle', idCredential: f.idCredential, selPRF: f.selPRF, sel: f.sel, libelle: f.libelle, rpId: f.rpId, cle: await emballer(cleDonnees, f.k) };
+    if (f.uv) emb.uv = true;
+    return emb;
   }
 
-  async function evaluerPRF(idsCredentials, selPRF, parCredential) {
+  async function evaluerPRF(idsCredentials, selPRF, parCredential, uv) {
     var opts = {
       challenge: aleatoire(32),
       rpId: location.hostname,
       allowCredentials: idsCredentials.map(function (id) { return { type: 'public-key', id: id }; }),
-      userVerification: 'discouraged',
+      userVerification: uv ? 'required' : 'discouraged',
       extensions: { prf: parCredential ? { evalByCredential: parCredential } : { eval: { first: selPRF } } }
     };
     var a = await navigator.credentials.get({ publicKey: opts });
@@ -195,20 +205,48 @@
     if (!r.prf || !r.prf.results || !r.prf.results.first) throw new Error("La clé n'a pas renvoyé de secret PRF.");
     return { idCredential: new Uint8Array(a.rawId), secret: new Uint8Array(r.prf.results.first) };
   }
+  /**
+   * Fait évaluer l'une des clés décrites (`cles` : [{ idCredential, selPRF, sel, rpId, uv }]) : { cle (la description
+   * retenue), k (clé d'emballage) }. Les clés enregistrées avec le code et sans le code ne s'évaluent pas ensemble :
+   * `uvPrefere` choisit le groupe quand les deux existent.
+   */
+  async function evaluerCles(cles, uvPrefere) {
+    if (!webauthnDisponible()) throw new Error('Les clés de sécurité nécessitent une page servie en HTTPS.');
+    var utilisables = cles.filter(function (e) { return e.rpId === location.hostname; });
+    if (!utilisables.length) throw new Error("Aucune clé de sécurité n'est enregistrée pour cette adresse (" + location.hostname + ').');
+    var avec = utilisables.filter(function (e) { return e.uv; }), sans = utilisables.filter(function (e) { return !e.uv; });
+    var uv = avec.length && (uvPrefere || !sans.length), groupe = uv ? avec : sans;
+    var parCred = {};
+    groupe.forEach(function (e) { parCred[e.idCredential.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')] = { first: deb64(e.selPRF) }; });
+    var res = await evaluerPRF(groupe.map(function (e) { return deb64(e.idCredential); }), null, parCred, uv);
+    var idB64 = b64(res.idCredential);
+    var cle = groupe.filter(function (e) { return e.idCredential === idB64; })[0];
+    if (!cle) throw new Error('Clé non reconnue.');
+    return { cle: cle, k: await cleDepuisPRF(res.secret, deb64(cle.sel)) };
+  }
 
   /** Déverrouille avec l'une des clés de sécurité enregistrées (liste d'emballages 'cle'). */
-  async function deballerCleSecurite(emballages, brut) {
-    if (!webauthnDisponible()) throw new Error('Les clés de sécurité nécessitent une page servie en HTTPS.');
-    var utilisables = emballages.filter(function (e) { return e.rpId === location.hostname; });
-    if (!utilisables.length) throw new Error("Aucune clé de sécurité n'est enregistrée pour cette adresse (" + location.hostname + ').');
-    var parCred = {};
-    utilisables.forEach(function (e) { parCred[e.idCredential.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')] = { first: deb64(e.selPRF) }; });
-    var res = await evaluerPRF(utilisables.map(function (e) { return deb64(e.idCredential); }), null, parCred);
-    var idB64 = b64(res.idCredential);
-    var emb = utilisables.filter(function (e) { return e.idCredential === idB64; })[0];
-    if (!emb) throw new Error('Clé non reconnue.');
-    var k = await cleDepuisPRF(res.secret, deb64(emb.sel));
-    return { cle: await deballer(emb.cle, k, brut), emballage: emb };
+  async function deballerCleSecurite(emballages, brut, uvPrefere) {
+    var r = await evaluerCles(emballages, uvPrefere);
+    return { cle: await deballer(r.cle.cle, r.k, brut), emballage: r.cle };
+  }
+
+  // ------------------------------------------------ Second facteur : mot de passe et clé de sécurité (0.75.0)
+  /**
+   * Ajoute à un emballage par mot de passe une seconde enveloppe, fermée par la clé de sécurité (`facteur` : résultat de
+   * `creerCleSecurite` ou d'`evaluerCles`) : il faut la clé pour atteindre l'enveloppe du mot de passe, puis le mot de
+   * passe pour l'ouvrir. Sans la clé, aucun essai de mot de passe n'est possible, même avec une copie du coffre.
+   */
+  async function surEmballer(emb, facteur) {
+    var d = facteur.cle || facteur;
+    emb.cle = b64(await chiffrerOctets(facteur.k, deb64(emb.cle), 'emballage double'));
+    emb.cle2 = { idCredential: d.idCredential, selPRF: d.selPRF, sel: d.sel, libelle: d.libelle || 'Clé de sécurité', rpId: d.rpId, uv: !!d.uv };
+    return emb;
+  }
+  /** Ouvre un emballage à deux enveloppes : `k` clé d'emballage tirée de la clé de sécurité, puis le mot de passe. */
+  async function deballerDouble(emb, k, motDePasse, brut) {
+    var interne = await dechiffrerOctets(k, deb64(emb.cle), 'emballage double');
+    return deballerMotDePasse({ sel: emb.sel, iterations: emb.iterations, cle: b64(interne) }, motDePasse, brut);
   }
 
   // ------------------------------------------------ Trousseau (étape 4 du plan d'architecture)
@@ -375,7 +413,7 @@
     chiffrerJSON: chiffrerJSON, dechiffrerJSON: dechiffrerJSON, cleUsagePersonnel: cleUsagePersonnel,
     emballerMotDePasse: emballerMotDePasse, deballerMotDePasse: deballerMotDePasse,
     nouveauCodeSecours: nouveauCodeSecours, nouveauMotDePasseProvisoire: nouveauMotDePasseProvisoire, ITERATIONS_PROVISOIRE: ITERATIONS_SECOURS, emballerCodeSecours: emballerCodeSecours, deballerCodeSecours: deballerCodeSecours,
-    webauthnDisponible: webauthnDisponible, emballerCleSecurite: emballerCleSecurite, deballerCleSecurite: deballerCleSecurite,
+    webauthnDisponible: webauthnDisponible, emballerCleSecurite: emballerCleSecurite, deballerCleSecurite: deballerCleSecurite, creerCleSecurite: creerCleSecurite, evaluerCles: evaluerCles, surEmballer: surEmballer, deballerDouble: deballerDouble, cleDepuisPRF: cleDepuisPRF,
     empreinte: empreinte, ITERATIONS_MDP: ITERATIONS_MDP,
     chiffrerOctets: chiffrerOctets, dechiffrerOctets: dechiffrerOctets, generationFichier: generationFichier,
     nouvellePaire: nouvellePaire, exporterPublique: exporterPublique, importerPublique: importerPublique,

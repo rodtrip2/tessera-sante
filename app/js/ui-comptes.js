@@ -94,7 +94,7 @@
           h('tr', {}, h('th', { text: 'Services' }), h('td', { text: libServices(c.roles, c.services) })),
           SIC.model.optionsAffichage(U.config()).contact ? h('tr', {}, h('th', { text: 'En cas de difficulté' }), h('td', { text: SIC.model.optionsAffichage(U.config()).contact })) : null,
           c.finValidite ? h('tr', {}, h('th', { text: 'Accès jusqu’au' }), h('td', { text: c.finValidite.split('-').reverse().join('/') + ' inclus' })) : null)),
-        h('p', { text: 'À votre première connexion, vous devrez remplacer ce mot de passe par un mot de passe personnel d’au moins 12 caractères. Détruisez ensuite cette fiche.' }));
+        h('p', { text: 'À votre première connexion, vous devrez remplacer ce mot de passe par un mot de passe personnel : une phrase d’au moins 7 mots, ou 14 caractères mêlant trois sortes de caractères (majuscules, minuscules, chiffres, caractères spéciaux), ou 12 caractères mêlant les quatre. Détruisez ensuite cette fiche.' }));
     }));
   }
 

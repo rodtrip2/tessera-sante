@@ -222,6 +222,7 @@
     if (!App.session.coffre) return racine.appendChild(App.anomalie ? ecranAnomalie() : ecranInitialisation());
     if (!App.session.cle) return racine.appendChild(ecranConnexion());
     if (App.session.utilisateur && App.session.utilisateur.mdpProvisoire) return racine.appendChild(ecranMotDePasseObligatoire());
+    if (!App.session.formation && App.session.secondFacteurAEnregistrer && App.session.secondFacteurAEnregistrer()) return racine.appendChild(ecranSecondFacteur());
     racine.appendChild(ecranApplication());
     vueAffichee = null;
     rendreContenu();   // une fois la page insérée dans le document
@@ -344,7 +345,7 @@
     var form = h('form', { class: 'pile', onsubmit: async function (ev) {
       ev.preventDefault(); erreurDans(zoneErr, null);
       try {
-        if (mdp.value.length < 12) throw new Error('Le mot de passe doit comporter au moins 12 caractères.');
+        SIC.motsDePasse.verifier(mdp.value, { login: login.value, nom: nom.value });
         if (mdp.value !== mdp2.value) throw new Error('Les deux mots de passe ne correspondent pas.');
         bouton.disabled = true; bouton.textContent = 'Chiffrement en cours…';
         var code = await App.session.initialiser({ nom: nom.value, login: login.value, motDePasse: mdp.value });
@@ -356,7 +357,8 @@
       h('p', { class: 'muted', text: 'Dossier : ' + App.dossier.nom + '. Ce compte sera cadre de santé et administrateur ; les deux rôles pourront être séparés ensuite.' }),
       zoneErr,
       h('div', { class: 'grille-2' }, h('label', {}, 'Nom affiché', nom), h('label', {}, 'Identifiant', login)),
-      h('div', { class: 'grille-2' }, h('label', {}, 'Mot de passe (12 caractères minimum)', mdp), h('label', {}, 'Confirmation', mdp2)),
+      h('div', { class: 'grille-2' }, h('label', {}, 'Mot de passe', mdp), h('label', {}, 'Confirmation', mdp2)),
+      h('small', { class: 'muted', text: SIC.motsDePasse.consigne() }),
       h('label', { class: 'case' }, demo, h('span', {}, 'Charger des données fictives de démonstration')),
       h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: changerDossier }, 'Changer de dossier'), bouton));
     return h('div', { class: 'ecran' }, h('div', { class: 'carte' }, marque(), form, SIC.ui.sauvegarde.blocRestaurationCopie(demarrerSession)));
@@ -439,18 +441,52 @@
       h('h1', { text: 'Choisissez votre mot de passe' }),
       h('p', { text: 'Bonjour ' + App.session.utilisateur.nom + '. Vous vous êtes connecté avec un mot de passe provisoire : vous devez le remplacer par un mot de passe personnel avant de continuer.' }),
       zoneErr,
-      h('label', {}, 'Nouveau mot de passe (12 caractères minimum)', a),
+      h('label', {}, 'Nouveau mot de passe', a),
       h('label', {}, 'Confirmation', b),
-      h('small', { class: 'muted', text: 'Conseil : une courte phrase facile à retenir, par exemple quatre mots séparés par des espaces. Ne la notez pas près du poste.' }),
+      h('small', { class: 'muted', text: consigneMotDePasse() + ' Conseil : une phrase facile à retenir, de sept mots ou plus. Ne la notez pas près du poste.' }),
       h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: function () { App.mdpProvisoireSaisi = null; verrouiller(); } }, 'Se déconnecter'), bouton));
     setTimeout(function () { a.focus(); }, 30);
     return h('div', { class: 'ecran-pile' }, SIC.ui.formation.bandeau(), h('div', { class: 'ecran' }, h('div', { class: 'carte' }, marque(etablissement() || App.dossier.nom), form)));
   }
 
-  function verifierNouveauMotDePasse(a, b) {
-    if (a.length < 12) throw new Error('Le mot de passe doit comporter au moins 12 caractères.');
-    if (a !== b) throw new Error('Les deux saisies diffèrent.');
-    if (/^(.)\1+$/.test(a)) throw new Error('Ce mot de passe est trop simple.');
+  /** Règle des mots de passe de l'établissement (0.75.0) : consigne affichée, contrôle d'un nouveau mot de passe. */
+  function regleMotDePasse() { var s = App.session; return s && s.politiqueConnexion ? s.politiqueConnexion().regleMdp : 'renforcee'; }
+  function consigneMotDePasse() { return SIC.motsDePasse.consigne(regleMotDePasse()); }
+  function verifierNouveauMotDePasse(a, b, compte) {
+    var u = compte || App.session.utilisateur || {};
+    SIC.motsDePasse.verifier(a, { login: u.login, nom: u.nom, etablissement: App.session.etat ? etablissement() : '' }, regleMotDePasse());
+    if (b !== undefined && a !== b) throw new Error('Les deux saisies diffèrent.');
+  }
+
+  /**
+   * Second facteur exigé pour le rôle de l'agent (0.75.0) : il associe une clé de sécurité à son mot de passe avant tout
+   * accès. La connexion demandera ensuite la clé, puis le mot de passe.
+   */
+  function ecranSecondFacteur() {
+    var zoneErr = h('div'), s = App.session, dispo = C.webauthnDisponible();
+    var mdp = h('input', { type: 'password', required: true, autocomplete: 'current-password' });
+    var lib = h('input', { type: 'text', maxlength: 60, value: 'Clé de sécurité' });
+    var bouton = h('button', { class: 'btn primaire', type: 'submit', disabled: !dispo }, 'Enregistrer ma clé et continuer');
+    var form = h('form', { class: 'pile', onsubmit: async function (ev) {
+      ev.preventDefault(); erreurDans(zoneErr, null);
+      try {
+        if (!mdp.value) throw new Error('Saisissez votre mot de passe.');
+        bouton.disabled = true; bouton.textContent = 'Présentez votre clé…';
+        await s.activerSecondFacteur(mdp.value, lib.value.trim() || 'Clé de sécurité');
+        toast('Clé de sécurité associée à votre mot de passe.');
+        rendre();
+      } catch (e) { bouton.disabled = false; bouton.textContent = 'Enregistrer ma clé et continuer'; erreurDans(zoneErr, e); }
+    } },
+      h('h1', { text: 'Associez une clé de sécurité' }),
+      h('p', { text: 'Bonjour ' + s.utilisateur.nom + '. L’établissement demande, pour votre rôle, une connexion par le mot de passe et une clé de sécurité (YubiKey ou équivalent). Branchez votre clé, puis saisissez votre mot de passe : la clé vous sera demandée à chaque connexion' + (s.politiqueConnexion().codeCle ? ', avec son code' : '') + '.' }),
+      dispo ? null : h('div', { class: 'alerte', text: 'Les clés de sécurité nécessitent une page servie en HTTPS : ouvrez l’outil par son adresse habituelle, ou adressez-vous à l’administrateur.' }),
+      zoneErr,
+      h('label', {}, 'Votre mot de passe', mdp),
+      h('label', {}, 'Nom de la clé (pour la reconnaître)', lib),
+      h('small', { class: 'muted', text: 'Clé perdue ou oubliée : l’administrateur réinitialise votre mot de passe ; vous associerez une nouvelle clé à la connexion suivante.' }),
+      h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: function () { verrouiller(); } }, 'Se déconnecter'), bouton));
+    setTimeout(function () { mdp.focus(); }, 30);
+    return h('div', { class: 'ecran-pile' }, SIC.ui.formation.bandeau(), h('div', { class: 'ecran' }, h('div', { class: 'carte' }, marque(App.session.etat ? etablissement() || App.dossier.nom : App.dossier.nom), form)));
   }
 
   /**
@@ -958,6 +994,7 @@
     var focus = document.activeElement && document.activeElement.closest && document.activeElement.closest('dialog');
     if (focus) return; // ne pas reconstruire derrière une fenêtre ouverte
     if (s.utilisateur && s.utilisateur.mdpProvisoire) return rendre();
+    if (!s.formation && s.secondFacteurAEnregistrer && s.secondFacteurAEnregistrer() && !document.querySelector('.ecran-pile')) return rendre();
     // Journaux en cours de relecture (clés reçues, jeu de formation ouvert ou fermé) : attente, puis affichage
     if (!s.etat) {
       vider(zoneContenu).appendChild(h('div', { class: 'panneau vide', text: 'Lecture des données en cours…' }));
@@ -1238,13 +1275,26 @@
     var a = h('input', { type: 'password', autocomplete: 'new-password' }), b = h('input', { type: 'password', autocomplete: 'new-password' });
     var s = App.session, mesCles = (s.coffre.emballages || []).filter(function (e) { return e.methode === 'cle' && e.userId === s.utilisateur.id; }).length;
     var avis = s.coffre.version === 2 && mesCles ? h('p', { class: 'alerte', text: 'Votre clé personnelle sera renouvelée : vos clés de sécurité (' + mesCles + ') seront retirées et seront à réenregistrer.' }) : null;
-    modale('Changer mon mot de passe', h('div', { class: 'pile' }, avis, h('label', {}, 'Nouveau mot de passe (12 caractères minimum)', a), h('label', {}, 'Confirmation', b)), [
+    var double = !!s.connexionDouble, cleDispo = s.coffre.version === 2 && !s.formation && C.webauthnDisponible() && s.utilisateur.id !== 'secours';
+    if (double) avis = h('p', { class: 'info', text: 'Votre connexion demande le mot de passe et votre clé de sécurité : la clé vous sera demandée pour enregistrer le nouveau mot de passe.' });
+    var boutons = [
       { texte: 'Annuler' },
       { texte: 'Changer', classe: 'primaire', action: async function () {
         verifierNouveauMotDePasse(a.value, b.value);
         await App.session.changerMonMotDePasse(a.value);
         toast('Mot de passe modifié.');
-      } }], { focus: a });
+      } }];
+    // Second facteur (0.75.0) : associer une clé de sécurité au mot de passe (ou la remplacer), avec ce nouveau mot de passe
+    if (cleDispo) boutons.splice(1, 0, { texte: double ? 'Changer, avec une nouvelle clé' : 'Changer et associer une clé de sécurité', action: async function () {
+      verifierNouveauMotDePasse(a.value, b.value);
+      var lib = prompt('Branchez la clé de sécurité à associer à votre mot de passe.\nNom de cette clé :', 'Clé de sécurité');
+      if (lib === null) return false;
+      await App.session.activerSecondFacteur(a.value, lib);
+      toast('Mot de passe modifié ; la connexion demandera votre clé de sécurité, puis votre mot de passe.');
+    } });
+    modale('Changer mon mot de passe', h('div', { class: 'pile' }, avis, h('label', {}, 'Nouveau mot de passe', a), h('label', {}, 'Confirmation', b),
+      h('small', { class: 'muted', text: consigneMotDePasse() }),
+      cleDispo && !double ? h('small', { class: 'muted', text: 'Second facteur : en associant une clé de sécurité, la connexion demandera la clé puis le mot de passe ; sans la clé, le mot de passe seul n’ouvrira plus rien.' }) : null), boutons, { focus: a });
   }
 
   // ================================================================ Administration
@@ -1295,7 +1345,7 @@
           } catch (err) { alert(err.message); }
         } }, 'Revenir à la clé unique…')));
     }
-    var pAttestation = panneauAttestation(s), pSignatures = panneauSignatures(s);
+    var pAttestation = panneauAttestation(s), pSignatures = panneauSignatures(s), pConnexion = panneauConnexion(s);
     // -- Trousseaux incomplets (coffre version 2) : clés à réémettre
     var incomplets = s.trousseauxIncomplets ? s.trousseauxIncomplets() : [];
     // Remises à confirmer (correctif du 15 novembre 2026) : une clé nouvelle n'est remise d'office que si elle découle
@@ -1641,7 +1691,7 @@
         // Comptes et sécurité découpé en trois rubriques (0.43.0, demande du porteur du 12 novembre 2026 : pages trop longues)
         : [['comptes', 'Comptes', [pIncomplets, pPoles, comptes].filter(Boolean)],
           ['roles', 'Rôles et accès', [SIC.ui.roles.panneau()]],
-          ['securite', 'Sécurité et clés', [pAttestation, pSignatures, pTrousseau, deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
+          ['securite', 'Sécurité et clés', [pAttestation, pConnexion, pSignatures, pTrousseau, deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
           ['services', 'Établissement et services', [pServices, pModulesServices, panneauBarre()].concat(pModule.services)],
           ['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
           ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos, SIC.ui.version.panneau(), demo]]],
@@ -1669,6 +1719,44 @@
       var cmd = replierPanneaux(actif[2], 'admin|' + App.onglet + '|' + actif[0], 2);
       return h('div', {}, h('h1', { text: titre }), liste.length > 1 ? nav : null, h('div', { class: 'contenu-sous-onglet' }, cmd, actif[2]));
     }
+  }
+
+  // ------------------------------------------------------------ Règles de connexion (0.75.0)
+  /**
+   * Panneau « Connexion » (administrateur) : règle des mots de passe, rôles tenus au mot de passe et à une clé de
+   * sécurité, code de la clé exigé. Les règles sont inscrites dans le coffre attesté.
+   */
+  function panneauConnexion(s) {
+    var at = s.etatAttestation && s.etatAttestation();
+    if (!at || !at.attestateur || s.formation || !s.politiqueConnexion) return null;
+    var p = s.politiqueConnexion(), MP = SIC.motsDePasse;
+    var selRegle = h('select', { 'aria-label': 'Règle des mots de passe' }, Object.keys(MP.REGLES).map(function (k) { return h('option', { value: k, text: MP.REGLES[k], selected: p.regleMdp === k }); }));
+    var tous = h('input', { type: 'checkbox', checked: p.secondFacteur[0] === '*', 'aria-label': 'Second facteur exigé pour tous les comptes' });
+    var cases = droits().rolesConfig(config()).map(function (r) { return { r: r.code, cb: h('input', { type: 'checkbox', checked: p.secondFacteur.indexOf(r.code) >= 0, 'aria-label': 'Second facteur exigé : ' + r.libelle }), lib: r.libelle }; });
+    function maj() { cases.forEach(function (x) { x.cb.disabled = tous.checked; }); }
+    tous.addEventListener('change', maj); maj();
+    var code = h('input', { type: 'checkbox', checked: p.codeCle, 'aria-label': 'Code de la clé de sécurité exigé' });
+    var etat = s.etatSecondFacteur().filter(function (x) { return x.exige || x.double; }), manquent = etat.filter(function (x) { return x.exige && !x.double; });
+    return h('section', { class: 'panneau pile' }, h('h2', { text: 'Connexion : mots de passe et second facteur' }),
+      h('p', { class: 'muted', text: 'Le coffre est sur le partage : qui peut le copier peut essayer des mots de passe sans limite. La règle renforcée suit la recommandation de la CNIL pour un mot de passe employé seul. Les mots de passe déjà choisis restent valables jusqu’à leur changement.' }),
+      h('label', {}, 'Règle des nouveaux mots de passe', selRegle),
+      h('small', { class: 'muted', text: MP.consigne(p.regleMdp) }),
+      h('fieldset', {}, h('legend', { text: 'Mot de passe et clé de sécurité exigés pour' }),
+        h('div', { class: 'actions gauche' }, h('label', { class: 'case' }, tous, h('span', { text: 'Tous les comptes' })), cases.map(function (x) { return h('label', { class: 'case' }, x.cb, h('span', { text: x.lib })); })),
+        h('small', { class: 'muted', text: 'Un agent concerné associe sa clé (YubiKey ou équivalent) à sa prochaine connexion ; ensuite la connexion demande la clé puis le mot de passe, et le mot de passe seul n’ouvre plus rien, même sur une copie du coffre. Clé perdue : réinitialisez son mot de passe. Prévoyez une clé par agent concerné et une page servie en HTTPS. Le compte de secours garde son code.' })),
+      h('label', { class: 'case' }, code, h('span', { text: 'Exiger le code de la clé de sécurité (code PIN) à chaque usage' })),
+      h('small', { class: 'muted', text: 'Une clé enregistrée sans son code ne s’ouvre pas avec, et inversement : après un changement de ce réglage, les clés déjà enregistrées gardent leur mode jusqu’à leur réenregistrement.' }),
+      etat.length ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Compte', 'Second facteur exigé', 'Clé associée au mot de passe'].map(function (x) { return h('th', { text: x }); }))),
+        h('tbody', {}, etat.map(function (x) { return h('tr', {}, h('td', { text: x.nom }), h('td', { text: x.exige ? 'oui' : 'non' }), h('td', {}, h('span', { class: 'badge' + (x.exige && !x.double ? ' warn' : ''), text: x.double ? 'oui' : 'pas encore' }))); })))) : null,
+      manquent.length ? h('small', { class: 'muted', text: manquent.length + ' compte(s) concerné(s) associeront leur clé à leur prochaine connexion.' }) : null,
+      h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function (ev) {
+        var v = { regleMdp: selRegle.value, secondFacteur: tous.checked ? ['*'] : cases.filter(function (x) { return x.cb.checked; }).map(function (x) { return x.r; }), codeCle: code.checked };
+        var moi = v.secondFacteur.length && (v.secondFacteur[0] === '*' || (s.utilisateur.roles || []).some(function (r) { return v.secondFacteur.indexOf(r) >= 0; })) && !s.connexionDouble;
+        if (moi && !C.webauthnDisponible()) return alert('Votre propre compte serait concerné, mais cette page ne permet pas d’enregistrer une clé de sécurité (HTTPS nécessaire) : vous ne pourriez plus continuer. Ouvrez l’outil par son adresse HTTPS pour régler ce point.');
+        if (moi && !confirm('Votre propre compte est concerné : vous devrez associer une clé de sécurité à votre mot de passe aussitôt après l’enregistrement. Ayez votre clé sous la main.\n\nEnregistrer ?')) return;
+        var b = ev.currentTarget; b.disabled = true;
+        try { await s.reglerConnexion(v); toast('Règles de connexion enregistrées.'); rendre(); } catch (err) { alert(err.message); b.disabled = false; }
+      } }, 'Enregistrer les règles de connexion')));
   }
 
   // ------------------------------------------------------------ Signature des saisies (0.72.0)
@@ -1954,7 +2042,7 @@
       { texte: 'Annuler' },
       { texte: 'Créer le compte', classe: 'primaire', action: async function () {
         if (!nom.value.trim()) throw new Error('Indiquez le nom.');
-        if (mdp.value.length < 12) throw new Error('Mot de passe provisoire : 12 caractères minimum.');
+        if (mdp.value !== genere) verifierNouveauMotDePasse(mdp.value, undefined, { login: login.value, nom: nom.value });
         var r = roles.valeur();
         var c2 = { nom: nom.value, login: login.value || SIC.comptes.identifiantDepuisNom(nom.value), motDePasse: mdp.value, roles: r, services: svs.valeur(r), aleatoire: mdp.value === genere, formation: accesForm.checked, finValidite: finVal.value };
         await s.creerCompte(c2);
@@ -1972,7 +2060,7 @@
       h('label', {}, 'Mot de passe provisoire', mdp)), [
       { texte: 'Annuler' },
       { texte: c.actif ? 'Réinitialiser' : 'Réactiver', classe: 'primaire', action: async function () {
-        if (mdp.value.length < 12) throw new Error('Mot de passe provisoire : 12 caractères minimum.');
+        if (mdp.value !== genere) verifierNouveauMotDePasse(mdp.value, undefined, c);
         if (!c.actif) await App.session.modifierRoles(c.id, c.roles, true, c.services || []);
         await App.session.reinitialiserMotDePasse(c.id, mdp.value, { aleatoire: mdp.value === genere });
         var fiche = { nom: c.nom, login: c.login, motDePasse: mdp.value, roles: c.roles, services: c.services || [] };

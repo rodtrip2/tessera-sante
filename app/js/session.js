@@ -423,12 +423,41 @@
     var n = Math.max(prec ? prec.n : 0, s.controle && s.controle.etat ? s.controle.etat.n : 0, nVu(s, coffre), nMin || 0) + 1;
     var info = { n: n, par: s.utilisateur ? s.utilisateur.id : null };
     await infoSignatures(s, coffre, cles, info, s.controle && s.controle.etat);
+    // Règles de connexion : celles que l'administrateur vient de régler, sinon celles de l'état attesté précédent — jamais
+    // celles lues dans le coffre (un fichier modifié hors de l'outil ne lève pas l'exigence du second facteur)
+    var cx = s.connexionEnAttente || (s.controle && s.controle.etat && s.controle.etat.connexion) || null;
+    if (cx) info.connexion = coffre.connexion = normaliserConnexion(cx); else delete coffre.connexion;
     return A.signer(cles, trousseau, coffre, s.comptes, info);
   }
+  // --- Connexion : règle des mots de passe, second facteur, code de la clé (0.75.0, constat S3 de l'audit) ---
+  var CONNEXION_DEFAUT = { regleMdp: 'renforcee', secondFacteur: [], codeCle: false };
+  function normaliserConnexion(v) {
+    v = v && typeof v === 'object' ? v : {};
+    var l = Array.isArray(v.secondFacteur) ? v.secondFacteur.filter(function (r, i, a) { return typeof r === 'string' && /^[A-Z_*]{1,40}$/.test(r) && a.indexOf(r) === i; }) : [];
+    return { regleMdp: v.regleMdp === 'simple' ? 'simple' : 'renforcee', secondFacteur: l.indexOf('*') >= 0 ? ['*'] : l.sort(), codeCle: v.codeCle === true };
+  }
+  /** Règles de connexion en vigueur : celles de l'état attesté (à défaut, avant la connexion, celles du coffre). */
+  function politique(s) {
+    var etat = s.controle && s.controle.etat;
+    return normaliserConnexion(etat ? etat.connexion : s.coffre && s.coffre.connexion);
+  }
+  /**
+   * Ouvre l'un des emballages par mot de passe (`embs`, d'un même compte) : enveloppe simple, ou à deux enveloppes
+   * (clé de sécurité demandée d'abord). Retourne { secret, emb } ou null si le mot de passe n'ouvre rien.
+   */
+  async function ouvrirParMotDePasse(s, embs, motDePasse, brut) {
+    var simples = embs.filter(function (e) { return !e.cle2; }), doubles = embs.filter(function (e) { return e.cle2; });
+    for (var i = 0; i < simples.length; i++) { try { return { secret: await C.deballerMotDePasse(simples[i], motDePasse, brut), emb: simples[i] }; } catch (e) { /* suivant */ } }
+    if (!doubles.length) return null;
+    var r = await C.evaluerCles(doubles.map(function (e) { return Object.assign({ embId: e.id }, e.cle2); }), politique(s).codeCle);
+    var emb = doubles.filter(function (e) { return e.id === r.cle.embId; })[0];
+    try { return { secret: await C.deballerDouble(emb, r.k, motDePasse, brut), emb: emb, k: r.k }; } catch (e) { return null; }
+  }
+
   /** Réemballe l'emballage de connexion avec l'ancre (emballage d'avant 0.5.0, ou attestation tout juste établie). */
   async function ancrerEmballage(s, emb, secret) {
     var ancre = await ancreSession(s);
-    if (!ancre || !s.privee8 || !emb) return;
+    if (!ancre || !s.privee8 || !emb || emb.cle2) return;
     var neuf = emb.methode === 'secours' ? await C.emballerCodeSecours(C.paquet(s.privee8, ancre), secret) : await C.emballerMotDePasse(C.paquet(s.privee8, ancre), secret, emb.iterations);
     await s.modifierCoffre(async function (coffre) {
       var e = coffre.emballages.filter(function (x) { return x.id === emb.id; })[0];
@@ -864,12 +893,11 @@
     login = login.trim().toLowerCase();
     var embs = this.coffre.emballages.filter(function (e) { return e.methode === 'mdp' && e.login === login; });
     if (!embs.length) throw new Error('Identifiant ou mot de passe incorrect.');
-    var secret = null, trouve = null;
-    for (var i = 0; i < embs.length && !secret; i++) {
-      try { secret = await C.deballerMotDePasse(embs[i], motDePasse, v2(this)); trouve = embs[i]; } catch (e) { secret = null; }
-    }
-    if (!secret) throw new Error('Identifiant ou mot de passe incorrect.');
+    var o = await ouvrirParMotDePasse(this, embs, motDePasse, v2(this));
+    if (!o) throw new Error('Identifiant ou mot de passe incorrect.');
+    var secret = o.secret, trouve = o.emb;
     if (v2(this)) await ouvrirAvecPrivee(this, trouve.userId, secret); else trousseauV1(this, secret);
+    this.connexionDouble = !!trouve.cle2;
     await lireComptes(this);
     var u = this.comptes.filter(function (c) { return c.id === trouve.userId; })[0];
     if (!u || !u.actif) { this.verrouiller(); throw new Error('Ce compte est désactivé.'); }
@@ -883,7 +911,8 @@
 
   Session.prototype.connexionCleSecurite = async function () {
     var embs = this.coffre.emballages.filter(function (e) { return e.methode === 'cle'; });
-    var r = await C.deballerCleSecurite(embs, v2(this));
+    var r = await C.deballerCleSecurite(embs, v2(this), politique(this).codeCle);
+    this.connexionDouble = false;
     if (v2(this)) await ouvrirAvecPrivee(this, r.emballage.userId || T.SECOURS, r.cle); else trousseauV1(this, r.cle);
     await lireComptes(this);
     var u = this.comptes.filter(function (c) { return c.id === r.emballage.userId; })[0];
@@ -920,8 +949,7 @@
       if (login) {
         login = login.trim().toLowerCase();
         var embs = s.coffre.emballages.filter(function (e) { return e.methode === 'mdp' && e.login === login; });
-        var ouvert = null, trouve = null;
-        for (var i = 0; i < embs.length && !ouvert; i++) { try { ouvert = await C.deballerMotDePasse(embs[i], secret, v2(s)); trouve = embs[i]; } catch (e) { ouvert = null; } }
+        var o = await ouvrirParMotDePasse(s, embs, secret, v2(s)), ouvert = o && o.secret, trouve = o && o.emb;
         if (!ouvert) throw new Error('Identifiant ou mot de passe incorrect.');
         if (v2(s)) await ouvrirAvecPrivee(s, trouve.userId, ouvert); else trousseauV1(s, ouvert);
         await lireComptes(s);
@@ -942,7 +970,7 @@
     this.clesMessages = null;   // clés des messages chiffrés ouverts (messagerie, 0.24.0)
     this.trousseau = null; this.privee8 = null; this.cleV1 = null; this.moduleChoisi = undefined;
     A.effacerCles(this.attest); this.attest = null; this.ancre = null; this.controle = null;
-    this.cle = null; this.utilisateur = null; this.comptes = [];
+    this.cle = null; this.utilisateur = null; this.comptes = []; this.connexionDouble = false;
     this.donnees = null; this.cleDonnees = null; this.formation = false; oublierJournaux(this); this.preferences = null;
     this.apercu = null;
   };
@@ -1094,6 +1122,16 @@
     // Changement par l'agent : nouvelle clé personnelle à chaque fois (un ancien mot de passe resté dans l'historique
     // du coffre n'ouvre plus qu'une clé sans enveloppe) ; ses clés de sécurité, liées à l'ancienne clé, sont retirées.
     var nouvellePaire = v2(this);
+    // Second facteur (0.75.0) : clé de sécurité nouvelle (`options.secondFacteur` : { libelle }), ou clé déjà associée au
+    // compte, redemandée pour refermer la seconde enveloppe sur le nouveau mot de passe. Préparé avant l'écriture du coffre.
+    var facteur = null;
+    if (v2(this) && !provisoire && this.utilisateur.id !== 'secours' && !(options && options.sansSecondFacteur)) {
+      if (options && options.secondFacteur) facteur = await C.creerCleSecurite(this.utilisateur.login, options.secondFacteur.libelle, politique(this).codeCle);
+      else {
+        var doubles = (this.coffre.emballages || []).filter(function (e) { return e.methode === 'mdp' && e.userId === userId && e.cle2; });
+        if (doubles.length) facteur = await C.evaluerCles(doubles.map(function (e) { return e.cle2; }), politique(this).codeCle);
+      }
+    }
     var emb = v2(this) ? (nouvellePaire ? null : await C.emballerMotDePasse(s.privee8, motDePasse, it)) : await C.emballerMotDePasse(s.cleV1, motDePasse, it);
     await this.modifierCoffre(async function (coffre, comptes) {
       var c = comptes.filter(function (x) { return x.id === userId; })[0];
@@ -1123,6 +1161,7 @@
         }
         if (provisoire) a.privee8.fill(0); else s.priveeEnAttente = a.privee8;   // installée après l'écriture du coffre
         emb = a.emballage;
+        if (facteur) await C.surEmballer(emb, facteur);
         coffre.agents[userId] = preuves ? { publique: a.publique, preuves: preuves } : { publique: a.publique };
         if (sigs.length) coffre.agents[userId].sig = sigs;
         coffre.emballages = coffre.emballages.filter(function (e) { return e.userId !== userId; });   // clés de sécurité de l'ancienne paire
@@ -1132,8 +1171,9 @@
       coffre.emballages.push(emb);
       c.mdpProvisoire = provisoire;
     }, options && options.reparation ? { reparation: ['agents'] } : undefined);
+    if (!provisoire && v2(this)) this.connexionDouble = !!facteur;
     var c3 = this.comptes.filter(function (x) { return x.id === userId; })[0];
-    await this.tracer(userId === this.utilisateur.id ? 'MDP_CHANGE' : 'MDP_REINIT', { login: c3 ? c3.login : userId });
+    await this.tracer(userId === this.utilisateur.id ? 'MDP_CHANGE' : 'MDP_REINIT', { login: c3 ? c3.login : userId, secondFacteur: facteur ? true : undefined });
   };
 
   Session.prototype.changerMonMotDePasse = function (motDePasse) {
@@ -1295,6 +1335,47 @@
     return res;
   };
 
+  // --- Connexion (0.75.0) : règles de l'établissement, second facteur ---
+  /** Règles de connexion en vigueur : { regleMdp: 'renforcee' | 'simple', secondFacteur: [rôles, ou '*'], codeCle }. */
+  Session.prototype.politiqueConnexion = function () { return politique(this); };
+  /** Le second facteur (mot de passe et clé de sécurité) est-il exigé pour ce compte, d'après ses rôles ? */
+  Session.prototype.secondFacteurExigePour = function (compte) {
+    var l = politique(this).secondFacteur, roles = (compte && compte.roles) || [];
+    return !!compte && compte.id !== 'secours' && (l.indexOf('*') >= 0 || roles.some(function (r) { return l.indexOf(r) >= 0; }));
+  };
+  /** La session doit-elle enregistrer une clé de sécurité avant de continuer ? (rôle concerné, connexion par mot de passe seul) */
+  Session.prototype.secondFacteurAEnregistrer = function () {
+    return v2(this) && !!this.utilisateur && !!this.privee8 && !this.connexionDouble && this.secondFacteurExigePour(this.utilisateur);
+  };
+  /** Comptes actifs tenus au mot de passe et à une clé : [{ id, nom, login, exige, double }] (administrateur). */
+  Session.prototype.etatSecondFacteur = function () {
+    var s = this, embs = (this.coffre && this.coffre.emballages) || [];
+    return (this.comptes || []).filter(function (c) { return c.actif !== false; }).map(function (c) {
+      return { id: c.id, nom: c.nom, login: c.login, exige: s.secondFacteurExigePour(c), double: embs.some(function (e) { return e.methode === 'mdp' && e.userId === c.id && e.cle2; }) };
+    });
+  };
+  /**
+   * Associe une clé de sécurité au mot de passe de la session : la connexion demandera désormais les deux. La clé
+   * personnelle est renouvelée (l'ancien emballage, resté dans l'historique du coffre, n'ouvre plus rien) ; les clés de
+   * sécurité qui ouvraient seules la session sont retirées. `motDePasse` : le mot de passe actuel, ou un nouveau.
+   */
+  Session.prototype.activerSecondFacteur = async function (motDePasse, libelle) {
+    if (!v2(this) || this.formation) throw new Error('Disponible sur les données réelles, coffre au format du trousseau.');
+    if (this.utilisateur.id === 'secours') throw new Error('Le compte de secours garde son code.');
+    await this.reinitialiserMotDePasse(this.utilisateur.id, motDePasse, { secondFacteur: { libelle: String(libelle || 'Clé de sécurité').slice(0, 60) } });
+    await this.tracer('SECOND_FACTEUR', { libelle: 'clé de sécurité associée au mot de passe (connexion à deux facteurs)' });
+  };
+  /** Règle les règles de connexion de l'établissement (administrateur) : inscrites dans le coffre attesté et au journal. */
+  Session.prototype.reglerConnexion = async function (v) {
+    if (!gardien(this)) throw new Error('Réservé à un administrateur, sur les données réelles.');
+    var n = normaliserConnexion(v), avant = politique(this);
+    if (JSON.stringify(n) === JSON.stringify(avant)) return n;
+    this.connexionEnAttente = n;
+    try { await this.modifierCoffre(async function () { /* règles inscrites à la signature de l'état */ }); } finally { this.connexionEnAttente = null; }
+    await this.tracer('CONNEXION_REGLES', { regles: n, libelle: 'règles de connexion : mot de passe ' + (n.regleMdp === 'simple' ? 'simple' : 'renforcé') + ' ; second facteur ' + (n.secondFacteur.length ? 'exigé (' + (n.secondFacteur[0] === '*' ? 'tous' : n.secondFacteur.join(', ')) + ')' : 'non exigé') + ' ; code de la clé ' + (n.codeCle ? 'exigé' : 'non exigé') });
+    return n;
+  };
+
   // --- Signature des saisies (0.72.0) : état et exigence ---
   /** Saisies écartées à la lecture : [{ journal, id, at, by, sg, type, raison, libelle }] (plus récentes d'abord). */
   Session.prototype.saisiesEcartees = function () {
@@ -1410,7 +1491,10 @@
     var s = this;
     var secret = v2(this) ? this.privee8 : this.cleV1;   // partie privée de l'agent (ou de la clé de secours en déblocage)
     if (!secret) throw new Error('Session sans clé personnelle ouverte : reconnectez-vous.');
-    var emb = await C.emballerCleSecurite(v2(this) ? C.paquet(secret, await ancreSession(this)) : secret, this.utilisateur.login, libelle);
+    var soi = this.utilisateur.id !== 'secours';
+    // Compte tenu au mot de passe et à la clé : une clé qui ouvrirait seule la session n'est pas permise
+    if (soi && v2(this) && (this.connexionDouble || this.secondFacteurExigePour(this.utilisateur))) throw new Error('Votre compte se connecte par le mot de passe et une clé de sécurité : une clé qui ouvrirait seule la session n’est pas permise. Pour changer de clé, passez par « Changer mon mot de passe ».');
+    var emb = await C.emballerCleSecurite(v2(this) ? C.paquet(secret, await ancreSession(this)) : secret, this.utilisateur.login, libelle, politique(this).codeCle);
     emb.id = 'k' + id8(); emb.userId = this.utilisateur.id === 'secours' ? null : this.utilisateur.id;
     await this.modifierCoffre(async function (coffre) { coffre.emballages.push(emb); });
     await this.tracer('CLE_AJOUT', { libelle: emb.libelle, rpId: emb.rpId });
@@ -1428,10 +1512,11 @@
       if (emb.userId !== this.utilisateur.id) throw new Error('Pour retirer la clé de sécurité d’un autre agent, réinitialisez son mot de passe : ses clés de sécurité sont alors retirées et sa clé personnelle renouvelée.');
       if (!motDePasse) throw new Error('Votre mot de passe est nécessaire pour renouveler votre clé personnelle.');
       var mien = this.coffre.emballages.filter(function (e) { return e.methode === 'mdp' && e.userId === s.utilisateur.id; });
-      var ok = false;
-      for (var i = 0; i < mien.length && !ok; i++) { try { await C.deballerMotDePasse(mien[i], motDePasse, true); ok = true; } catch (e) { /* suivant */ } }
-      if (!ok) throw new Error('Mot de passe incorrect.');
-      await this.reinitialiserMotDePasse(this.utilisateur.id, motDePasse);   // nouvelle paire, clés de sécurité retirées
+      var om = await ouvrirParMotDePasse(this, mien, motDePasse, true);
+      if (!om) throw new Error('Mot de passe incorrect.');
+      om.secret.fill(0);
+      if (emb.cle2 && this.secondFacteurExigePour(this.utilisateur)) throw new Error('Votre rôle exige le mot de passe et une clé de sécurité : enregistrez d’abord une autre clé (« Changer mon mot de passe »), elle remplacera celle-ci.');
+      await this.reinitialiserMotDePasse(this.utilisateur.id, motDePasse, { sansSecondFacteur: true });   // nouvelle paire, clés de sécurité retirées
       await this.tracer('CLE_RETRAIT', { id: idEmb });
       return;
     }
@@ -1544,9 +1629,10 @@
     if (!attestateur(this) || this.formation) throw new Error('Réservé à un administrateur, sur les données réelles.');
     var s = this, moi = this.utilisateur.id, secours = moi === 'secours';
     if (!secours) {
-      var mien = this.coffre.emballages.filter(function (e) { return e.methode === 'mdp' && e.userId === moi; }), ok = false;
-      for (var i = 0; i < mien.length && !ok; i++) { try { (await C.deballerMotDePasse(mien[i], motDePasse || '', true)).fill(0); ok = true; } catch (e) { /* suivant */ } }
-      if (!ok) throw new Error('Mot de passe incorrect.');
+      var mien = this.coffre.emballages.filter(function (e) { return e.methode === 'mdp' && e.userId === moi; });
+      var om = await ouvrirParMotDePasse(this, mien, motDePasse || '', true);
+      if (!om) throw new Error('Mot de passe incorrect.');
+      om.secret.fill(0);
     }
     var cles = await A.creerCles(), ancre = await C.ancreDe(cles.publique), code = C.nouveauCodeSecours();
     var h = await historiqueAttestations(this, await this.dossier.lireCoffre());

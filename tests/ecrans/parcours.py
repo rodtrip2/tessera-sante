@@ -16,7 +16,7 @@ p_args.add_argument('--url', default='http://localhost:8765/app/')
 p_args.add_argument('--captures', default='')
 ARGS = p_args.parse_args()
 erreurs, echecs = [], []
-MDP = 'motdepasse-demo'
+MDP = 'Carotte-Verte-Demo-27'
 
 def verifier(condition, libelle):
     print(('  ok  ' if condition else ' ÉCHEC ') + libelle)
@@ -1121,7 +1121,7 @@ with sync_playwright() as p:
     verifier(a.locator('.bandeau-pret').count() >= 1, 'prêts de démonstration : « Vous remplacez… », « Pendant votre absence… »')
     a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
     connecter(a, logins[0] if logins else 'x', mdpI)
-    pw = a.locator('input[type=password]'); pw.nth(0).fill('benevole mot de passe'); pw.nth(1).fill('benevole mot de passe')
+    pw = a.locator('input[type=password]'); pw.nth(0).fill('Girafe-Bleue-Marche-42'); pw.nth(1).fill('Girafe-Bleue-Marche-42')
     a.locator('button.primaire').last.click(); time.sleep(5)
     if a.locator('button', has_text='Données réelles').count(): a.locator('button', has_text='Données réelles').first.click(); time.sleep(2)
     verifier(a.locator('.charte').count() == 1, 'intervenant extérieur : charte de confidentialité à la première connexion')
@@ -1525,6 +1525,23 @@ with sync_playwright() as p:
       return { annule: !!s.etat.annules[cible.id], plus: s.saisiesHorsDroit().length - avant, types: s.saisiesHorsDroit().map(x => x.type) }; })()""")
     verifier(r7['annule'] is False and r7['plus'] == 1 and 'ANNULATION' in r7['types'], 'droits à la lecture : annulation écrite sans en avoir le droit sans effet (' + str(r7) + ')')
     capture(a, 'signatures-saisies')
+    # Connexion (0.75.0) : règle des mots de passe, second facteur exigé pour l'administrateur, code de la clé exigé ;
+    # clé de sécurité simulée par le navigateur (authentificateur virtuel avec l'extension PRF)
+    pc = a.locator('section.panneau', has=a.locator('h2', has_text='Connexion : mots de passe et second facteur'))
+    verifier(pc.count() == 1, 'connexion : panneau des règles de connexion (administrateur)')
+    verifier(a.evaluate("SIC.motsDePasse.refus('motdepasse-demo') !== '' && SIC.motsDePasse.refus('" + MDP + "') === ''"), 'connexion : règle renforcée des mots de passe')
+    cdp = ctx.new_cdp_session(a); cdp.send('WebAuthn.enable')
+    cdp.send('WebAuthn.addVirtualAuthenticator', {'options': {'protocol': 'ctap2', 'ctap2Version': 'ctap2_1', 'transport': 'usb', 'hasResidentKey': False, 'hasUserVerification': True, 'isUserVerified': True, 'hasPrf': True, 'automaticPresenceSimulation': True}})
+    moi = a.evaluate("""(async () => { const s = SIC.ui.App.session; await s.reglerConnexion({ regleMdp: 'renforcee', secondFacteur: ['ADMIN'], codeCle: true }); SIC.ui.rendreContenu(); return s.utilisateur.login; })()"""); time.sleep(1.5)
+    verifier(a.locator('h1', has_text='Associez une clé de sécurité').count() == 1, 'second facteur : écran d’association de la clé, avant tout accès')
+    capture(a, 'second-facteur')
+    a.locator('input[type=password]').first.fill(MDP); a.get_by_role('button', name='Enregistrer ma clé et continuer').click(); time.sleep(8)
+    r8 = a.evaluate("""(() => { const s = SIC.ui.App.session; return { double: s.connexionDouble, aFaire: s.secondFacteurAEnregistrer(), embs: s.coffre.emballages.filter(e => e.userId === s.utilisateur.id).map(e => [e.methode, !!e.cle2, !!(e.cle2 && e.cle2.uv)]) }; })()""")
+    verifier(r8['double'] and not r8['aFaire'] and r8['embs'] == [['mdp', True, True]], 'second facteur : clé associée au mot de passe, code exigé (' + str(r8) + ')')
+    a.get_by_role('button', name='Verrouiller').click(); time.sleep(1)
+    connecter(a, moi, MDP); time.sleep(4)
+    r9 = a.evaluate("""(() => { const s = SIC.ui.App.session; return { ouvert: !!s.cle, double: !!s.connexionDouble, ecartees: s.saisiesEcartees().length }; })()""")
+    verifier(r9['ouvert'] and r9['double'], 'second facteur : reconnexion par la clé puis le mot de passe (' + str(r9) + ')')
     nav.close()
 
 if erreurs: print('\nErreurs du navigateur :'); [print('  ' + e) for e in erreurs[:20]]

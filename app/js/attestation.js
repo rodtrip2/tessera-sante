@@ -122,6 +122,8 @@
     if (info.signatures) etat.signatures = info.signatures;
     if (info.admins) etat.admins = info.admins;
     if (info.saisiesSignees) etat.saisiesSignees = info.saisiesSignees;
+    // Règles de connexion (0.75.0) : règle des mots de passe, second facteur exigé, code de la clé exigé
+    if (info.connexion) etat.connexion = info.connexion;
     var texte = canonique(etat);
     coffre.attestation = {
       publique: cles.publique, temoin: cles.temoin,
