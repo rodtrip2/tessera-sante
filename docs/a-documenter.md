@@ -954,3 +954,7 @@ Précision du porteur du 15 novembre 2026 : les **h− ne sont pas déduites de 
 | Totaux | Par agent : h+, h− (dont récupérations), différence, h+P ; par mois : lignes h+, h−, h+P ; par motif, récupérations comprises | `totaux()` |
 | Export | Nature : « Heures en plus (h+) », « Heures en plus payées (h+P) », « Heures en moins (h−) », « Récupération (h−) » | `lignesExport()` |
 | À valider | Ressources humaines : faut-il limiter les récupérations au solde (aujourd'hui non bloquant) ; remise à zéro ou report de la différence en fin d'année |
+
+## Version 0.65.3 (branche `heures-annee`, 15 novembre 2026)
+
+Décisions du porteur du 15 novembre 2026 : les récupérations **ne sont pas bloquées** par le solde ; la différence h+ − h− est **remise à zéro en fin d'année** (année civile, sans report). Soldes calculés par année (corrections comprises), mention à l'écran « Mes heures » ; test ajouté. Points « À valider » de la 0.65.2 tranchés.

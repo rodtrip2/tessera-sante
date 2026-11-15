@@ -137,6 +137,8 @@
    * - moins : h− validées, déclarées (moinsDeclarees) ou récupérations validées (recuperees) ;
    * - calcule = plus − moins ; solde = calcule + corrections du validateur : différence ajoutée au temps de travail
    *   annuel (positive) ou soustraite (négative) ; disponible = solde − récupérations demandées, pas encore validées.
+   * Année civile, sans report : la différence est remise à zéro en fin d'année (décision du porteur du 15 novembre 2026) ;
+   * les récupérations ne sont jamais bloquées par le solde.
    */
   function solde(st, agent, an) {
     var l = deAgent(st, agent, an), plus = 0, moinsD = 0, rec = 0, dem = 0, pay = 0;
