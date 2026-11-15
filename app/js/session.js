@@ -807,7 +807,7 @@
 
   function oublierJournaux(s) {
     s.epoque = (s.epoque || 0) + 1;
-    s.journauxActifs = null; s.evts = []; s.rejetes = []; s.etat = null; s.integrite = null;
+    s.journauxActifs = null; s.evts = []; s.rejetes = []; s.etat = null; s.integrite = null; s.exclus = null;
   }
 
   Session.prototype.sur = function (fn) { this.auditeurs.push(fn); };
@@ -2466,7 +2466,7 @@
     if (!s.histoComptes) {
       var h = {}, etat = s.controle && s.controle.etat, admins = etat && Array.isArray(etat.admins) ? etat.admins : null;
       var parLogin = {}; (s.comptes || []).forEach(function (c) { parLogin[c.login] = c.id; });
-      var noter = function (e, x) { var id = parLogin[x.login]; if (id && Array.isArray(x.roles)) (h[id] = h[id] || []).push({ at: e.at, roles: SIC.model && SIC.model.rolesComplets ? SIC.model.rolesComplets(x.roles) : x.roles, services: x.services, actif: x.actif }); };
+      var noter = function (e, x) { var id = parLogin[x.login]; if (id && Array.isArray(x.roles)) (h[id] = h[id] || []).push({ creation: e.data.action !== 'ROLES', at: e.at, roles: SIC.model && SIC.model.rolesComplets ? SIC.model.rolesComplets(x.roles) : x.roles, services: x.services, actif: x.actif }); };
       (s.evts || []).forEach(function (e) {
         if (e.type !== 'COMPTE' || !e.data || !e.sig) return;
         var sg = e.sg || e.by;
@@ -2477,8 +2477,9 @@
       Object.keys(h).forEach(function (id) { h[id].sort(function (a, b) { return String(a.at).localeCompare(String(b.at)); }); });
       s.histoComptes = h;
     }
-    var l = s.histoComptes[cpt.id] || [], r = null;
+    var l = (cpt && s.histoComptes[cpt.id]) || [], r = null;
     for (var i = 0; i < l.length && String(l[i].at) <= String(at); i++) r = l[i];
+    if (!r && l.length && l[0].creation) r = l[0];   // date antérieure à la création (horloge d'un poste) : rôles de la création
     if (!r) return cpt;
     return Object.assign({}, cpt, { roles: r.roles, services: Array.isArray(r.services) ? r.services : cpt.services, actif: r.actif === undefined ? true : r.actif !== false });
   }
@@ -2487,9 +2488,78 @@
     var res = [];
     (s.comptes || []).forEach(function (c) {
       var x = compteA(s, c, at), l = s.histoComptes[c.id];
-      if (x === c && l && l.length && String(l[0].at) > String(at)) return;   // créé après la date
+      if (l && l.length && l[0].creation && String(l[0].at) > String(at)) return;   // créé après la date
       res.push(x);
     });
+    return res;
+  }
+  // --- Contrôle des droits à la lecture, autres saisies (0.74.0) : annulations, lots, saisies des modules ---
+  /** Réglages en vigueur à une date, d'après l'historique des réglages appliqués (état du module principal). */
+  var cumulsConfig = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function rangConfig(tl, at) {
+    var lo = 0, hi = tl.length;
+    while (lo < hi) { var mi = (lo + hi) >> 1; if (String(tl[mi].at) <= String(at)) lo = mi + 1; else hi = mi; }
+    return lo;
+  }
+  function configA(s, tl, rang) {
+    var c = cumulsConfig && cumulsConfig.get(tl);
+    if (!c) { c = [Object.assign({}, moduleActif().reglages.defaut)]; if (cumulsConfig) cumulsConfig.set(tl, c); }
+    while (c.length <= rang) { var x = tl[c.length - 1], n = Object.assign({}, c[c.length - 1]); n[x.cle] = x.valeur; c.push(n); }
+    return c[rang];
+  }
+  var TOLERANCE_HORLOGE = 15 * 60 * 1000;   // écart d'horloge entre postes : droits reçus peu après la date indiquée
+  /**
+   * La saisie signée était-elle permise à son signataire ? Mêmes règles qu'à l'écriture, au niveau du rôle : administrateur
+   * attesté ; rôles du compte à la date de la saisie (prêts en cours et rôles par service compris) selon les droits du
+   * module et les réglages de cette date ; saisie permise « pour soi » par le module. Prudence : ce qui ne peut pas être
+   * rejoué à la lecture est accepté (permission qui dépend de l'état du module à l'époque — types déclarés par le module,
+   * `pourSoiSelonEtat` —, données ajoutées, traces des comptes, erreur d'un contrôle).
+   */
+  function autoriseSaisieLue(s, e, tl, at, index) {
+    var type = e.type, data = e.data || {};
+    if (type === 'CONFIG' || type === 'COMPTE' || type === 'VALEUR') return true;   // réglages : contrôlés à leur application
+    var sg = e.sg || e.by, etat = s.controle && s.controle.etat, brut = (s.comptes || []).filter(function (c) { return c.id === sg; })[0];
+    if (etat && Array.isArray(etat.admins) ? etat.admins.indexOf(sg) >= 0 : !!(brut && (brut.roles || []).indexOf('ADMIN') >= 0)) return true;
+    if (!brut) return false;
+    var cpt = compteA(s, brut, at);
+    if (cpt.actif === false) return false;
+    var cfg = configA(s, tl, rangConfig(tl, at)), t = Date.parse(at) || Date.now(), DL = socle('delegations', './delegations.js'), RS = socle('rolesServices', './roles-services.js');
+    var x = DL ? DL.appliquer(cpt, cfg, t) : cpt, roles = RS && RS.aDesRoles(cfg, x) ? RS.rolesTous(x, cfg) : (x.roles || []), m = moduleDe(type);
+    var peut = function (ty) { try { return !!moduleDe(ty).droits.peut(roles, ty, cfg); } catch (er) { return true; } };
+    if (peut(type)) return true;
+    // Annulation immédiate de sa propre saisie (deux minutes à l'écriture ; marge pour l'écart d'horloge)
+    if (type === 'ANNULATION' && data.immediate === true && data.cible) {
+      var v = index()[data.cible];
+      return !v || (v.by === e.by && !NON_ANNULABLES_AUTEUR[v.type] && Date.parse(e.at) - Date.parse(v.at) < DELAI_ANNULATION_AUTEUR + TOLERANCE_HORLOGE);
+    }
+    // La fiche suit le patient transféré (écrite par l'écran du transfert, sans le droit de corriger les fiches)
+    if (type === 'PATIENT' && Object.keys(data).sort().join() === 'patientId,service' && peut('TRANSFERT')) return true;
+    var d = SIC.modules && SIC.modules.moduleDuType ? SIC.modules.moduleDuType(type) : null, mp = d && d.saisies && d.saisies.permisPourSoi ? d : m, sa = mp.saisies || {};
+    if (!sa.permisPourSoi) return false;
+    if (!Array.isArray(sa.pourSoiSelonEtat) || sa.pourSoiSelonEtat.indexOf(type) >= 0) return true;
+    try { return !!sa.permisPourSoi(type, data, cpt, { config: cfg, etat: null, peut: peut, comptes: comptesA(s, at) }); } catch (er) { return true; }
+  }
+  /** Saisies (hors réglages) écrites sans en avoir le droit : { id: saisie }. Verdicts gardés tant que rien ne les change. */
+  var verdictsLus = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function saisiesHorsDroit(s) {
+    var res = {};
+    if (s.formation || !v2(s) || !s.etat || !verdictsLus) return res;
+    var tl = s.etat.histoConfig || [], ep = (s.coffre && s.coffre.rev) + '|' + ((s.controle && s.controle.etat && s.controle.etat.n) || 0), idx = null;
+    var index = function () { if (!idx) { idx = {}; s.evts.forEach(function (x) { idx[x.id] = x; }); } return idx; };
+    compteA(s, {}, '');   // historique des comptes prêt
+    ep += '|' + Object.keys(s.histoComptes).reduce(function (n, k) { return n + s.histoComptes[k].length; }, 0);
+    for (var i = 0; i < s.evts.length; i++) {
+      var e = s.evts[i];
+      if (!e.sig || e.type === 'CONFIG' || e.type === 'COMPTE' || e.type === 'VALEUR') continue;
+      var r = rangConfig(tl, e.at), cle = ep + '|' + r + '|' + (r ? tl[r - 1].id : ''), v = verdictsLus.get(e);
+      if (!v || v.cle !== cle) {
+        var ok = autoriseSaisieLue(s, e, tl, e.at, index);
+        // Écart d'horloge entre postes : permis d'après les droits d'un quart d'heure avant ou après la date indiquée
+        for (var k = 0; !ok && k < 2; k++) ok = autoriseSaisieLue(s, e, tl, new Date((Date.parse(e.at) || 0) + (k ? -1 : 1) * TOLERANCE_HORLOGE).toISOString(), index);
+        v = { cle: cle, ok: ok }; verdictsLus.set(e, v);
+      }
+      if (!v.ok) res[e.id] = e;
+    }
     return res;
   }
   Session.prototype.recalculer = function (info) {
@@ -2497,8 +2567,27 @@
     this.histoComptes = null;
     var Mo = SIC.model && SIC.model.definirControleConfig ? SIC.model : null;
     if (Mo) Mo.definirControleConfig(function (st, e) { return autoriseConfigLue(s0, st, e); });
-    try { recalculerEtats(this); } finally { if (Mo) Mo.definirControleConfig(null); }
+    try {
+      // Les saisies hors droit sont retirées avant le calcul (une annulation hors droit n'annule rien) ; leur retrait
+      // peut changer les réglages en vigueur : deux reprises au plus
+      for (var tour = 0; tour < 3; tour++) {
+        var ex = this.exclus || {}, n = Object.keys(ex).length;
+        recalculerEtats(this, n ? this.evts.filter(function (e) { return !ex[e.id]; }) : this.evts);
+        var neuf = saisiesHorsDroit(this), cles = Object.keys(neuf);
+        if (cles.length === n && cles.every(function (k) { return ex[k]; })) break;
+        this.exclus = neuf;
+      }
+    } finally { if (Mo) Mo.definirControleConfig(null); }
     this.notifier(info);
+  };
+  /**
+   * Saisies signées écrites sans en avoir le droit, non appliquées : [{ id, at, by, sg, type, cle, journal }] (réglages
+   * et autres saisies, plus récentes d'abord).
+   */
+  Session.prototype.saisiesHorsDroit = function () {
+    var res = this.reglagesHorsDroit().map(function (x) { return Object.assign({ type: 'CONFIG' }, x); }), ex = this.exclus || {};
+    Object.keys(ex).forEach(function (k) { var e = ex[k]; res.push({ id: e.id, at: e.at, by: e.by, sg: e.sg || null, type: e.type, cle: null }); });
+    return res.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
   };
   /** Réglages écrits par un agent qui n'avait pas le droit de les écrire : [{ id, at, by, sg, cle }] (plus récents d'abord). */
   Session.prototype.reglagesHorsDroit = function () {
@@ -2506,19 +2595,19 @@
     ((this.etat && this.etat.horsDroit) || []).forEach(function (e) { if (vus[e.id]) return; vus[e.id] = 1; res.push({ id: e.id, at: e.at, by: e.by, sg: e.sg || null, cle: (e.data || {}).cle }); });
     return res.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
   };
-  function recalculerEtats(sess) {
-    N.suivre(sess.evts);   // journal de la session : recalcul incrémental des modules (0.21.2)
-    sess.etat = moduleActif().saisies.reduire(sess.evts);
+  function recalculerEtats(sess, evts) {
+    N.suivre(evts);   // journal de la session : recalcul incrémental des modules (0.21.2)
+    sess.etat = moduleActif().saisies.reduire(evts);
     // Autres modules affichés dont la session détient la clé : leur propre état (étape 6)
     var s = sess, etats = {};
     etats[idModule()] = sess.etat;
     if (SIC.modules && SIC.modules.affiches) SIC.modules.affiches().forEach(function (m) {
-      if (m !== moduleActif() && aCle(s, m.id)) etats[m.id] = m.saisies.reduire(s.evts);
+      if (m !== moduleActif() && aCle(s, m.id)) etats[m.id] = m.saisies.reduire(evts);
     });
     // Module Patients (module de référence, sans fenêtre de module) : son état complet, pour ce que les fiches fournies
     // ne portent pas (répertoire de la prise en charge, 0.21.0)
     var mp = SIC.modules && SIC.modules.obtenir ? SIC.modules.obtenir('patients') : null;
-    if (mp && !etats.patients && aCle(s, 'patients')) etats.patients = mp.saisies.reduire(s.evts);
+    if (mp && !etats.patients && aCle(s, 'patients')) etats.patients = mp.saisies.reduire(evts);
     // Identité des patients réduite aux initiales (0.27.3 : administrateur de garde par défaut, réglable par rôle) :
     // états d'affichage recopiés avec les fiches réduites ; le journal et les états d'origine ne changent pas
     var cpt = sess.utilisateur && sess.compteEffectif ? sess.compteEffectif() : null;

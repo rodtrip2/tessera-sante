@@ -117,3 +117,88 @@ test('Contrôle avec les comptes et la date du réglage : compte d’intervenant
   assert.deepEqual(ad2.reglagesHorsDroit(), [], 'demande et rôle par service restent permis');
   assert.deepEqual(ad2.etat.config.rolesServices, { [id('ide')]: { A: ['AS'] } });
 });
+
+// ---------------------------------------------------------------- Autres saisies (0.74.0)
+require('../app/js/module-agenda.js');
+const mesure = (id, service) => ({ mesureId: id, patientId: 'P1', service, typeMesure: 'isolement', debut: Date.now() - 36e5, lieu: 'CSI (fictif)', csi: true });
+async function equipe2() {
+  const e = await equipe();
+  await e.admin.creerComptes([{ nom: 'Secrétaire A (fictif)', login: 'sec', motDePasse: 'mot de passe sec', roles: ['SECRETAIRE'], services: ['A'] },
+    { nom: 'AS A (fictif)', login: 'as', motDePasse: 'mot de passe as', roles: ['AS'], services: ['A'] }]);
+  await e.admin.enregistrer('PATIENT', { patientId: 'P1', nom: 'DUPONT (fictif)', prenom: 'Jean', naissance: '1980-01-01', service: 'A' });
+  await e.admin.confirmerRemises();
+  return e;
+}
+
+test('Saisie d’un module écrite sans le rôle qui la permet : non appliquée, signalée ; les saisies permises restent', async () => {
+  const { racine } = await equipe2();
+  const ide = await co(racine, 'ide', 'mot de passe ide');
+  await ide.enregistrer('MESURE_DEBUT', mesure('M1', 'A'));
+  const as = await co(racine, 'as', 'mot de passe as');
+  await assert.rejects(as.enregistrer('PATIENT', { patientId: 'P2', nom: 'FORGÉ (fictif)', prenom: 'X', service: 'A' }), /rôle/);
+  await as.enregistrer('PATIENT', { patientId: 'P2', nom: 'FORGÉ (fictif)', prenom: 'X', service: 'A' }, undefined, { sansControle: true });
+  assert.ok(!as.etat.patients.P2, 'pas appliquée sur le poste de l’auteur');
+  // La fiche suit le patient transféré : écrite par l'écran du transfert sans le droit de corriger les fiches
+  await as.enregistrer('PATIENT', { patientId: 'P1', service: 'B' }, undefined, { sansControle: true });
+  const ad = await co(racine, 'admin', 'mot de passe solide');
+  assert.ok(ad.etat.mesures.M1, 'mesure de l’IDE appliquée');
+  assert.ok(!ad.etat.patients.P2);
+  assert.equal(ad.etat.patients.P1.service, 'B');
+  assert.deepEqual(ad.saisiesHorsDroit().map((x) => x.type), ['PATIENT']);
+  assert.deepEqual(ad.saisiesEcartees(), []);
+});
+
+test('Annulation écrite sans en avoir le droit : n’annule rien ; annulation immédiate de sa propre saisie : permise', async () => {
+  const { racine, admin } = await equipe2();
+  const ide = await co(racine, 'ide', 'mot de passe ide');
+  const m1 = await ide.enregistrer('MESURE_DEBUT', mesure('M1', 'A'));
+  const m2 = await ide.enregistrer('MESURE_DEBUT', mesure('M2', 'A'));
+  await ide.enregistrer('ANNULATION', { cible: m2.id, immediate: true });   // la sienne, dans les deux minutes
+  const reglage = admin.evts.find((e) => e.type === 'CONFIG' && e.data.cle === 'services');
+  const as = await co(racine, 'as', 'mot de passe as');
+  await as.enregistrer('ANNULATION', { cible: m1.id, motif: 'forgée (fictif)' }, undefined, { sansControle: true });
+  await as.enregistrer('ANNULATION', { cible: reglage.id, motif: 'forgée (fictif)' }, undefined, { sansControle: true });
+  await as.enregistrer('ANNULATION', { cible: m1.id, immediate: true }, undefined, { sansControle: true });   // pas la sienne
+  const ad = await co(racine, 'admin', 'mot de passe solide');
+  assert.ok(ad.etat.mesures.M1, 'la mesure n’est pas annulée');
+  assert.ok(!ad.etat.mesures.M2, 'annulation immédiate par l’auteur appliquée');
+  assert.equal(ad.etat.config.services.length, 2, 'le réglage n’est pas annulé');
+  assert.equal(ad.saisiesHorsDroit().filter((x) => x.type === 'ANNULATION').length, 3);
+});
+
+test('Droits à la date de la saisie : rôle retiré ensuite, rôle reçu ensuite', async () => {
+  const { racine, id } = await equipe2();
+  const ide = await co(racine, 'ide', 'mot de passe ide');
+  await ide.enregistrer('MESURE_DEBUT', mesure('M1', 'A'));
+  const sec = await co(racine, 'sec', 'mot de passe sec');
+  await sec.enregistrer('MESURE_DEBUT', mesure('M9', 'A'), undefined, { sansControle: true, at: new Date(Date.now() - 36e5).toISOString() });   // une heure avant le changement de rôle
+  const ad = await co(racine, 'admin', 'mot de passe solide');
+  await ad.modifierRoles(id('ide'), ['SECRETAIRE'], true, ['A']);          // l'IDE change de fonction
+  await ad.modifierRoles(id('sec'), ['IDE'], true, ['A']);                 // la secrétaire devient IDE après coup
+  const ad2 = await co(racine, 'admin', 'mot de passe solide');
+  assert.ok(ad2.etat.mesures.M1, 'saisie permise à l’époque : gardée');
+  assert.ok(!ad2.etat.mesures.M9, 'saisie hors droit à l’époque : toujours refusée');
+  assert.deepEqual(ad2.saisiesHorsDroit().map((x) => x.type), ['MESURE_DEBUT']);
+});
+
+test('Agenda : sa propre absence permise, celle d’un autre non ; lot écrit par un agent qui n’importe pas', async () => {
+  const { racine, id } = await equipe2();
+  const sans = await co(racine, 'sec', 'mot de passe sec');
+  const jourISO = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const abs = (agent, i) => ({ id: 'AB' + i, agent, du: jourISO(1), au: jourISO(2), categorie: 'conge' });
+  await sans.enregistrer('ABSENCE', abs(id('sec'), 1), undefined, { sansControle: true });
+  await sans.enregistrer('ABSENCE', abs(id('ide'), 2), undefined, { sansControle: true });
+  await sans.enregistrer('LOT', { evenements: [{ type: 'PATIENT', data: { patientId: 'P7', nom: 'LOT (fictif)', prenom: 'X', service: 'A' } }], libelle: 'forgé (fictif)' }, undefined, { sansControle: true });
+  const ad = await co(racine, 'admin', 'mot de passe solide');
+  assert.deepEqual(ad.saisiesHorsDroit().map((x) => x.type).sort(), ['ABSENCE', 'LOT']);
+  assert.ok(!ad.etat.patients.P7);
+});
+
+test('Contrat des modules : tout module qui permet des saisies « pour soi » déclare celles qui dépendent de l’état', () => {
+  ['agenda', 'conges', 'equipe', 'heures', 'documents', 'formations', 'salles', 'travaux', 'suivi', 'vue', 'vehicules', 'patients'].forEach((n) => {
+    try { require('../app/js/module-' + n + '.js'); } catch (e) { /* dépendances de l'interface absentes sous Node */ }
+  });
+  SIC.modules.liste().forEach((m) => {
+    if (m.saisies && m.saisies.permisPourSoi) assert.ok(Array.isArray(m.saisies.pourSoiSelonEtat), m.id + ' : `pourSoiSelonEtat` à déclarer');
+  });
+});

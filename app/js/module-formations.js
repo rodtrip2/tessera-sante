@@ -223,7 +223,7 @@
     icone: 'FO',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: function (st, e) { return cibles(st, e); } },
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['FORMATION_DECISION', 'FORMATION_DESISTEMENT', 'FORMATION_ENREGISTREE'], services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [] },
     vues: { onglets: [{ code: 'ouvertes', libelle: 'Formations ouvertes' }, { code: 'miennes', libelle: 'Mes inscriptions' }, { code: 'decider', libelle: 'Inscriptions à décider', droit: ['FORMATION_DECISION', 'FORMATION_ENREGISTREE'] }, { code: 'tableau', libelle: 'Tableau annuel' }] },
     migrations: [],

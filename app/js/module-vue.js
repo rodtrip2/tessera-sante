@@ -501,7 +501,7 @@
     icone: 'VE',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: function () { return []; }, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi },
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: function () { return []; }, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, pourSoiSelonEtat: [] },
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { vuesEnsemble: controlerCadre } },
     // Un onglet par vue (décision du porteur) : liste remplie par l'interface selon les vues de l'agent (ui-vue.js)
     vues: { onglets: [{ code: 'vues', libelle: 'Vues' }] },

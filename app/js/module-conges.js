@@ -559,7 +559,7 @@
     icone: 'CG',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: cibles },
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['CONGE_ANNULATION'], services: cibles },
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { conges: controlerCadre } },
     vues: { onglets: [{ code: 'mes-conges', libelle: 'Mes congés' }, { code: 'tableau', libelle: 'Tableau du service' }, { code: 'a-valider', libelle: 'À valider', droit: 'CONGE_DECISION' }, { code: 'reglages', libelle: 'Tableaux et périodes', droit: ['TABLEAU_CONGES', 'DROITS_CONGES'] }] },
     migrations: [],

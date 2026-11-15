@@ -717,7 +717,7 @@
     icone: 'DO',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: function (st, e) { return cibles(st, e); } },
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['DOC_EXPORT', 'DOC_VERSION', 'DOC_PARTAGE', 'DOC_CORBEILLE', 'DOC_STATUT', 'DOC_EFFACE', 'DOC_VALIDATION', 'DOC_OPTIONS', 'DOC_IMAGE'], services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { masquesDocuments: controlerMasques } },
     vues: { onglets: [{ code: 'documents', libelle: 'Documents' }, { code: 'modeles', libelle: 'Modèles' }, { code: 'a-valider', libelle: 'À valider', droit: 'DOC_VALIDATION' }, { code: 'corbeille', libelle: 'Corbeille' }, { code: 'masques', libelle: 'Masques', droit: 'DOC_VALIDATION' }] },
     migrations: [],

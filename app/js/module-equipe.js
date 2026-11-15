@@ -266,7 +266,7 @@
     icone: 'EQ',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, services: cibles },
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, controler: controler, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['ENTRETIEN_AGENT_SIGNATURE'], services: cibles },
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { boitesMail: controlerBoites } },
     vues: { onglets: [{ code: 'annuaire', libelle: 'Annuaire' }, { code: 'referents', libelle: 'Référents' }, { code: 'ma-fiche', libelle: 'Ma fiche' }, { code: 'entretiens', libelle: 'Entretiens', visible: fonctionActive }, { code: 'prets', libelle: 'Prêts de droits' }, { code: 'medecins', libelle: 'Médecins', droit: 'COORDONNEES_MEDECIN' }] },
     migrations: [],

@@ -1515,6 +1515,15 @@ with sync_playwright() as p:
     ps = a.locator('section.panneau', has=a.locator('h2', has_text='Signature des saisies'))
     if ps.count() and 'sans en avoir le droit' not in ps.inner_text(): ps.locator('h2').first.click(); time.sleep(0.6)
     verifier(ps.count() == 1 and 'sans en avoir le droit' in ps.inner_text(), 'droits à la lecture : réglage listé dans le panneau « Signature des saisies »')
+    # Autres saisies (0.74.0) : une annulation écrite sans en avoir le droit n'annule rien (agent sans rôle, dont le prêt
+    # a été refusé ; l'agent du premier prêt, confirmé, a reçu le rôle de cadre et annulerait de plein droit)
+    r7 = a.evaluate("""(async () => { const s = SIC.ui.App.session, cible = s.evts.find(e => e.type === 'CONFIG' && !e.lot);
+      const avant = s.saisiesHorsDroit().length;
+      const autre = new SIC.Session(SIC.ui.App.dossier); await autre.chargerCoffre(); await autre.connexionMotDePasse('agent.refus', 'mot de passe agent refus');
+      await autre.enregistrer('ANNULATION', { cible: cible.id, motif: 'hors droit (fictif)' }, undefined, { sansControle: true });
+      autre.verrouiller(); await s.synchroniser();
+      return { annule: !!s.etat.annules[cible.id], plus: s.saisiesHorsDroit().length - avant, types: s.saisiesHorsDroit().map(x => x.type) }; })()""")
+    verifier(r7['annule'] is False and r7['plus'] == 1 and 'ANNULATION' in r7['types'], 'droits à la lecture : annulation écrite sans en avoir le droit sans effet (' + str(r7) + ')')
     capture(a, 'signatures-saisies')
     nav.close()
 
