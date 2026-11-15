@@ -300,7 +300,8 @@
     comptesDemandes: { demandes: [] },    // comptes d'intervenants extérieurs demandés par le cadre (0.31.0)
     charteIntervenants: { texte: '', version: 0 },   // charte de confidentialité des intervenants extérieurs (0.31.0)
     poles: [],             // pôles : regroupements de services (0.27.2)
-    rolesServices: {},     // rôles selon le service : { compte: { service: [rôles de service] } } (phase 5, 15 novembre 2026)
+    rolesServices: {},
+    accesClinique: {},     // accès aux données cliniques : { '*': { presents: [rôles], bris: { roles, duree } }, <service>: ... } (phase 5)     // rôles selon le service : { compte: { service: [rôles de service] } } (phase 5, 15 novembre 2026)
     comptesPoles: {},      // comptes qui suivent un pôle : { compte: pôle } (14 novembre 2026)
     infos: {},             // informations du service : pièces jointes (désactivées par défaut), taille maximale (0.26.2)
     salles: {},            // salles et bureaux : plage affichée, horaires des demi-journées des présences, par service (0.25.0)
@@ -2137,6 +2138,7 @@
     { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
     { code: 'affichage', libelle: 'Points de vigilance, écran de connexion (contact, consigne, logo), barre des modules', cles: ['vigilance', 'affichage', 'barreModules'] },
     { code: 'boitesMail', libelle: 'Messageries du service : boîtes aux lettres et webmail', cles: ['boitesMail'] },
+    { code: 'accesClinique', libelle: 'Données cliniques : rôles limités aux patients présents, bris de glace (rôles, durée)', cles: ['accesClinique'] },
     { code: 'heures', libelle: 'Heures supplémentaires : motifs, heures payées et plafond, enregistrement dans le logiciel de gestion du temps', cles: ['heures'] },
     { code: 'formations', libelle: 'Formations : étape d’enregistrement dans le logiciel de gestion du temps, rôles qui la confirment', cles: ['formations'] },
     { code: 'formalites', libelle: 'Formalités d’admission et de sortie : activation, liste, délais', cles: ['formalites'] },

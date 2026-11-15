@@ -71,6 +71,18 @@
       case 'FORMALITE':
         if (FO && st.fiches[id]) FO.appliquer(st.fiches[id], e);
         break;
+      // Bris de glace (phase 5, 15 novembre 2026) : lecture temporaire des données cliniques d'un patient, justifiée
+      case 'BRIS_GLACE':
+        if (!d.id || (st.bris || (st.bris = {}))[d.id]) break;
+        st.bris[d.id] = { id: d.id, agent: e.by, nom: String(d.nom || '').slice(0, 80), roles: Array.isArray(d.roles) ? d.roles.slice(0, 10) : [], patientId: id, service: d.service || '', justification: String(d.justification || '').slice(0, 500),
+          debut: d.debut || e.at, fin: d.fin, le: e.at, relu: null };
+        break;
+      case 'BRIS_GLACE_FIN':
+        if (st.bris && st.bris[d.bris] && st.bris[d.bris].agent === e.by) st.bris[d.bris].clos = e.at;
+        break;
+      case 'BRIS_GLACE_RELU':
+        if (st.bris && st.bris[d.bris] && !st.bris[d.bris].relu) st.bris[d.bris].relu = { par: e.by, le: e.at, commentaire: String(d.commentaire || '').slice(0, 300) };
+        break;
       case 'PRISE_EN_CHARGE':
         // Intervenant rattaché à la fiche d'un patient, avec un commentaire propre à ce patient ; `retire` le détache
         var pp = st.fiches[id];
@@ -146,7 +158,27 @@
    * Saisie d'une donnée complémentaire permise selon les rôles réglés pour cette donnée (et non selon les accès des
    * modules) : le module Patients la contrôle lui-même. ctx : { config, peut }.
    */
+  function AC() { return (typeof self !== 'undefined' && self.SIC && self.SIC.accesClinique) || require('./acces-clinique.js'); }
+  function RS() { return (typeof self !== 'undefined' && self.SIC && self.SIC.rolesServices) || null; }
+  function rolesDans(compte, config, service) { var r = RS(); return r ? r.rolesDans(compte, config, service) : (compte.roles || []); }
+  /** Contrôles propres au module (bris de glace seulement ; les autres saisies sont contrôlées par les modules qui en dépendent). */
+  function controler(type, d, ctx) {
+    var cfg = (ctx && ctx.config) || {}, c = ctx && ctx.compte, st = (ctx && ctx.etat) || {};
+    if (type === 'BRIS_GLACE') { AC().controlerBris(d, { config: cfg, compte: c ? Object.assign({}, c, { roles: rolesDans(c, cfg, d.service) }) : null }); return; }
+    if (type === 'BRIS_GLACE_FIN') { var b0 = (st.bris || {})[d.bris]; if (!b0) throw new Error('Bris de glace introuvable.'); if (c && b0.agent !== c.id) throw new Error('Seul l’agent met fin à son bris de glace.'); return; }
+    if (type === 'BRIS_GLACE_RELU') {
+      var b = (st.bris || {})[d.bris];
+      if (!b) throw new Error('Bris de glace introuvable.');
+      if (b.relu) throw new Error('Déjà relu.');
+      var r = c ? rolesDans(c, cfg, b.service) : [];
+      if (c && r.indexOf('ADMIN') < 0 && !(r.indexOf('CADRE') >= 0 && (c.services || []).indexOf(b.service) >= 0)) throw new Error('Seul le cadre du service du patient relit les bris de glace.');
+    }
+  }
   function permisPourSoi(type, data, compte, ctx) {
+    // Bris de glace : permis selon le réglage de l'établissement (rôles), pas selon les accès des modules
+    if ((type === 'BRIS_GLACE' || type === 'BRIS_GLACE_FIN' || type === 'BRIS_GLACE_RELU') && compte && data && ctx) {
+      try { controler(type, data, { config: ctx.config, compte: compte, etat: ctx.etat }); return true; } catch (e) { return false; }
+    }
     // Formalités : tout agent qui saisit le mode d'hospitalisation ou les séjours (IDE, AS, secrétaire, cadre par défaut)
     if (type === 'FORMALITE' && compte && data && ctx) {
       if (!(ctx.peut && (ctx.peut('MODE_HOSPI') || ctx.peut('SEJOUR')))) return false;
@@ -179,7 +211,7 @@
   function cadreCapacites(ancien, nouveau, compte) { var K = (typeof self !== 'undefined' && self.SIC && self.SIC.capacites) || require('./capacites.js'); return K.controlerCadre(ancien, nouveau, compte); }
 
   function reduire(evts) {
-    return N.reduire(evts, { cle: 'patients', etat: function () { return { fiches: {}, fusions: {}, intervenants: {} }; }, appliquer: appliquer });
+    return N.reduire(evts, { cle: 'patients', etat: function () { return { fiches: {}, fusions: {}, intervenants: {}, bris: {} }; }, appliquer: appliquer });
   }
 
   /** Séjour en cours d'une fiche (le dernier sans date de sortie), ou null. */
@@ -227,9 +259,10 @@
 
     acces: [],                  // les saisies de la fiche sont permises par les accès des modules qui en dépendent
     saisies: {
-      types: ['PATIENT', 'MODE_HOSPI', 'FUSION', 'SEJOUR', 'COMPLEMENT', 'INTERVENANT', 'PRISE_EN_CHARGE', 'FORMALITE'],
+      types: ['PATIENT', 'MODE_HOSPI', 'FUSION', 'SEJOUR', 'COMPLEMENT', 'INTERVENANT', 'PRISE_EN_CHARGE', 'FORMALITE', 'BRIS_GLACE', 'BRIS_GLACE_FIN', 'BRIS_GLACE_RELU'],
       champ: function () { return null; },   // conflits : comme dans Isocont, aucune saisie de la fiche n'en crée
       permisPourSoi: permisPourSoi,
+      controler: controler,
       reduire: reduire
     },
     // Réglages que le cadre écrit pour ses services (contrôle appelé par la session avant l'enregistrement)
@@ -246,7 +279,7 @@
 
   registre.declarer(contrat);
   var api = { TYPES_CHAMP: TYPES_CHAMP, champsComplementaires: champsComplementaires, peutVoirChamp: peutVoirChamp, peutSaisirChamp: peutSaisirChamp, valeurChamp: valeurChamp, libValeurChamp: libValeurChamp, libelleClinique: libelleClinique, permisPourSoi: permisPourSoi,
-    contrat: contrat, reduire: reduire, fiches: fiches, valeurAu: valeurAu, sejourEnCours: sejourEnCours, optionsFiche: optionsFiche, SEXES: SEXES };
+    contrat: contrat, reduire: reduire, controler: controler, fiches: fiches, valeurAu: valeurAu, sejourEnCours: sejourEnCours, optionsFiche: optionsFiche, SEXES: SEXES };
   if (typeof self !== 'undefined' && self.SIC) self.SIC.patients = api;
   return api;
 });

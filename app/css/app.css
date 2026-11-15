@@ -1459,3 +1459,6 @@ tr.ligne-annulee td { text-decoration: line-through; color: var(--ink-2); }
 .hs-case.bad b { color: var(--bad); }
 /* Entretiens des agents (0.66.0) : texte du compte rendu, retours à la ligne gardés */
 .en-texte { white-space: pre-wrap; margin: 4px 0 8px; }
+/* Données cliniques : accès restreint, bris de glace (0.68.0) */
+.ac-restreint { border: 1px dashed var(--line); border-radius: 8px; padding: 6px 10px; }
+.ac-bris { margin: 4px 0; }

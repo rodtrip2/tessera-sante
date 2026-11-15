@@ -990,6 +990,7 @@
     // Onglets d'une fonction soumise à avis (ex. « Entretiens » de l'Équipe) : `visible(config)` déclaré par le module
     var visibleOnglet = {};
     SIC.modules.onglets(s.moduleAffiche()).forEach(function (o) { if (o.droit) droitOnglet[o.code] = o.droit; if (typeof o.visible === 'function') visibleOnglet[o.code] = o.visible; });
+    if (App.fenetre === 'patients' && SIC.modules.obtenir('patients')) SIC.modules.obtenir('patients').vues.onglets.forEach(function (o) { if (typeof o.visible === 'function') visibleOnglet[o.code] = o.visible; });
     function affichable(o) {
       if (App.fenetre === 'aujourdhui') return o === 'aujourdhui';
       if (o === 'aujourdhui') return false;

@@ -1376,6 +1376,31 @@ with sync_playwright() as p:
     dl.get_by_role('button', name='Enregistrer').click(); time.sleep(1.5)
     verifier(a.evaluate("(() => { const s = SIC.ui.App.session, c = s.comptes.find(x => x.login === 'as.deux'), cfg = SIC.ui.config(); return SIC.rolesServices.rolesDans(c, cfg, 'U2').join(',') + '|' + SIC.rolesServices.rolesDans(c, cfg, 'U1').join(','); })()") == 'IDE|AS', 'rôles selon le service : IDE dans l’Unité 2, aide-soignant dans l’Unité 1')
     verifier('Unité 2' in (a.locator('tr', has_text='Agent deux services').get_by_role('button', name='Rôles par service').get_attribute('title') or ''), 'rôles selon le service : rôles propres rappelés dans l’annuaire')
+    # Données cliniques : accès limité aux patients présents et bris de glace (phase 5, 15 novembre 2026)
+    for _ in range(3): a.keyboard.press('Escape'); time.sleep(0.3)
+    a.evaluate("""async () => { const cfg = SIC.ui.config(), et = JSON.parse(JSON.stringify((cfg.validations || {}).etats || {}));
+      et['donnee-clinique'] = { etat: 'accord', date: '2026-11-15', auteur: 'Directeur des soins (fictif)', reference: 'Pilote (fictif)', dpoInforme: '2026-11-14' };
+      et['bris-de-glace'] = { etat: 'accord', date: '2026-11-15', auteur: 'Directeur des soins (fictif)', reference: 'Pilote (fictif)', dpoInforme: '2026-11-14' };
+      const ch = JSON.parse(JSON.stringify(cfg.champsAjoutes || [])); if (!ch.find(c => c.id === 'projet-soins')) ch.push({ id: 'projet-soins', libelle: 'Projet de soins (fictif)', type: 'texte', entite: 'patient', module: 'patients', clinique: true, lecture: ['CADRE', 'MEDECIN'] });
+      await SIC.ui.enregistrerConfig([['validations', { etats: et }], ['champsAjoutes', ch], ['accesClinique', { '*': { presents: ['CADRE', 'IDE'], bris: { roles: ['IDE', 'AS', 'CADRE'], duree: 'poste' } } }]]);
+      await SIC.ui.App.session.creerClesManquantes(); }""")
+    time.sleep(3)
+    pid = a.evaluate("(() => { const ps = SIC.ui.App.session.etat.patients; return Object.keys(ps).find(k => (ps[k].sejours||[]).length && (ps[k].sejours||[]).every(s => s.sortie)) || null; })()")
+    a.evaluate("SIC.ui.fichePatient.modale(SIC.ui.App.session.etat.patients['%s'])" % pid); time.sleep(1.5)
+    d = a.locator('dialog[open]'); d.get_by_role('tab', name='Données ajoutées').click(); time.sleep(0.5)
+    verifier(d.locator('.ac-restreint').count() == 1 and d.get_by_text('Projet de soins (fictif)').count() == 0, 'données cliniques : masquées pour un patient sorti (rôle limité aux patients présents)')
+    d.get_by_role('button', name='Bris de glace…').click(); time.sleep(0.8)
+    d2 = a.locator('dialog[open]').last; d2.locator('textarea').fill('Appel de la famille, besoin du projet de soins (fictif)'); d2.get_by_role('button', name='Confirmer le bris de glace').click(); time.sleep(2)
+    d = a.locator('dialog[open]')
+    verifier(d.locator('.ac-bris').count() == 1 and d.get_by_text('Projet de soins (fictif)').count() == 1, 'bris de glace : justifié, données cliniques lisibles jusqu’à la fin du poste')
+    a.keyboard.press('Escape'); time.sleep(0.5); a.keyboard.press('Escape'); time.sleep(0.5)
+    fenetre(a, 'Patients')
+    a.locator('nav.onglets button', has_text='Bris de glace').first.click(); time.sleep(1.2)
+    rl = a.locator('section.panneau', has=a.locator('h2', has_text='Relecture du mois'))
+    verifier(rl.locator('tr', has_text='Appel de la famille').locator('.badge', has_text='à relire').count() == 1, 'bris de glace : liste du mois à relire par le cadre')
+    rl.locator('tr', has_text='Appel de la famille').first.get_by_role('button', name='Relire').click(); time.sleep(0.6)
+    a.locator('dialog[open]').get_by_role('button', name='Marquer relu').click(); time.sleep(1.5)
+    verifier(a.locator('section.panneau', has=a.locator('h2', has_text='Relecture du mois')).locator('.badge', has_text='relu le').count() == 1, 'bris de glace : relu par le cadre')
     # Messageries du service sans connexion (lot A)
     for _ in range(3): a.keyboard.press('Escape'); time.sleep(0.3)
     fenetre(a, 'Équipe')
