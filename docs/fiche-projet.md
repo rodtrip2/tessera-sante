@@ -7,11 +7,11 @@
 | En bref | |
 | --- | --- |
 | **Objet** | Réunir dans un seul outil, avec **une seule connexion**, ce dont un service a besoin au quotidien et que le dossier patient informatisé (DPI) ne couvre pas : le suivi légal des mesures d'isolement et de contention et l'agenda du service. Ces modules s'appuient sur une **fiche patient commune** : la liste des patients du service est disponible dans le DPI, mais Tessera en a besoin pour relier ses modules entre eux. |
-| **Cinq modules** | **Patients** (fiche commune), **Isolement et contention** (Isocont), **Agenda du service**, **Véhicules de l'établissement**, **Suivi médical**. D'autres pourront s'ajouter, chacun après validation. |
+| **Modules** | **Patients** (fiche commune), **Isolement et contention** (Isocont), **Agenda du service**, **Véhicules**, **Suivi médical**, **Vue d'ensemble** ; pour l'organisation : **Demandes de travaux**, **Messagerie**, **Salles et bureaux**, **Informations du service**, **Équipe**, **Documents**, **Congés**, **Contrôles** des chambres de soins intensifs, **Formations**, **Heures supplémentaires**, **Retours sur Tessera** ; **Données cliniques** du séjour (désactivées par défaut). L'établissement choisit ce qu'il ouvre, service par service. |
 | **Pour qui** | Infirmiers, aides-soignants, secrétariat médical, cadres de santé ; direction des soins pour le pilotage et le rapport annuel. |
 | **Coût** | Aucun coût de licence. Développement réalisé par le porteur sur son temps personnel. Mise en place : quelques heures du service informatique (DSI ou direction du numérique, selon l'établissement), une formation courte des équipes. |
 | **Où sont les données** | Dans un dossier du réseau de l'établissement, chiffrées. Rien n'est envoyé à l'extérieur. |
-| **Ce que l'outil ne fait pas** | Il ne remplace ni le DPI, ni la prescription médicale, ni la surveillance clinique, ni les transmissions. Il ne contient aucune donnée clinique. |
+| **Ce que l'outil ne fait pas** | Il ne remplace ni le DPI, ni la prescription médicale, ni la surveillance clinique, ni les transmissions. Les données cliniques (feuille de staff, notes) ne sont activées que si l'établissement le décide, fonction par fonction, après les avis prévus ; le DPI reste la référence clinique. |
 
 ## 1. Contexte
 
@@ -34,7 +34,7 @@ Tessera Santé est une plateforme composée d'un **socle commun** et de **module
 | --- | --- |
 | Une seule connexion | Un identifiant et un mot de passe (ou une clé de sécurité) ouvrent tous les modules auxquels l'agent a droit. |
 | Modules par service | L'établissement choisit quels modules sont ouverts dans quel service. |
-| Droits par rôle | Dans chaque module, l'agent ne voit et ne fait que ce que son rôle permet. Un agent pourra, si besoin, avoir un rôle différent selon le service. |
+| Droits par rôle | Dans chaque module, l'agent ne voit et ne fait que ce que son rôle permet. Un agent peut avoir un rôle différent selon le service (ex. aide-soignant dans une unité, IDE dans une autre). |
 | Modules qui communiquent | Un module affiche une information calculée par un autre : par exemple, les échéances JLD dans l'agenda du service. |
 | Administration unique | Un onglet général pour les éléments communs, un onglet par module. |
 | Ouverture | La fiche patient et le socle ne supposent pas la psychiatrie : d'autres disciplines pourront utiliser la plateforme. |
@@ -120,6 +120,25 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 - **Largeur des colonnes** réglable dans tous les tableaux : la liste des patients la garde avec l'affichage, Isolement et contention avec le réglage du cadre ou de l'administrateur, les autres tableaux pour chaque agent.
 - **Données ajoutées depuis les fiches** du patient, du médecin et de l'agent ; données du personnel protégées par une clé propre et réservées au cadre par défaut ; **liste commune des psychologues** sur le modèle de celle des médecins.
 
+## 5 sexies. Modules ajoutés du 11 au 15 novembre 2026
+
+| Module | Pour les équipes |
+| --- | --- |
+| Demandes de travaux | Signaler un problème (type, gravité, urgence, lieu), suivre la demande jusqu'à la confirmation du cadre, imprimer le bon. |
+| Messagerie | Messages au service, à un groupe, à un rôle ou à des agents ; accusés de lecture, réponses, sondages ; chiffrement réservé aux destinataires en option. |
+| Salles et bureaux | Réserver une salle, voir les salles libres, arbitrer les conflits ; planning des psychologues. |
+| Informations du service | Page tenue par le cadre : coordonnées, horaires, consignes, numéros utiles. |
+| Équipe | Annuaire, fiches des agents, référents par domaine, prêts de droits pendant une absence ; entretiens des agents menés par le cadre (soumis à avis). |
+| Documents | Documents texte et tableurs chiffrés, partagés avec qui l'on choisit, versions, validation, modèles remplis automatiquement, travail à plusieurs, imports et exports Office. |
+| Congés | Souhaits et demandes, validation, tableaux du service avec règles d'effectif, droits et soldes indicatifs. |
+| Contrôles | Contrôle des chambres de soins intensifs (CSI) libres et passage de surveillance à chaque poste, registre (désactivé par défaut). |
+| Formations, heures supplémentaires | Inscriptions et décisions ; heures en plus ou en moins d'après l'horaire prévu, récupérations, heures payées à saisir en priorité dans le logiciel de gestion du temps (soumis à avis). |
+| Données cliniques | Feuille de staff clinique (codes CIM, motif, projet thérapeutique, dépendance), notes du séjour, rappel du séjour précédent ; accès limité, bris de glace tracé (désactivé par défaut, soumis à avis). |
+
+Pour tous : page « Aujourd'hui », recherche générale, Mes tâches, barre des modules avec favoris, bouton « Signaler » pour faire remonter un défaut ou une idée.
+
+**Fonctions soumises à avis** : une fonction qui demande l'avis du délégué à la protection des données, du responsable de la sécurité informatique, des ressources humaines, de la direction des soins ou des représentants du personnel est développée mais livrée désactivée ; l'onglet « Validations » de l'administration les range par interlocuteur, avec trois états (désactivé, accord hiérarchique pour le pilote, après avis). Pendant le pilote, les données cliniques et du personnel demandent au moins d'avoir informé le délégué à la protection des données.
+
 ## 5 ter. Groupes d'agents
 
 En plus de leur affectation aux services, les agents peuvent être réunis par le cadre en groupes (équipe de jour, équipe de nuit, groupe de travail), y compris avec des agents d'autres services, dont le cadre est alors informé ; une tâche ou une alerte de l'agenda peut être adressée à un groupe.
@@ -132,7 +151,10 @@ En plus de leur affectation aux services, les agents peuvent être réunis par l
 | Secrétaire | Fiches patient (selon le réglage), envois et suivi JLD, décomptes. |
 | Cadre de santé | Organisation du service, corrections tracées, registre, statistiques. |
 | Administrateur | Comptes, services, modules ouverts par service, rôles, paramétrage, imports, clés de secours. Rôle cumulable avec celui de cadre, mais séparable. |
-| Psychiatres | Non utilisateurs à ce stade : décision et prescription restent dans le DPI. |
+| Cadre supérieur de santé | Tout ce que fait le cadre, pour les services de son pôle. |
+| Médecin, médecins chefs | Salles, messages, alertes, leurs présences ; lecture des tableaux de bord de leur service ou pôle ; données cliniques du séjour si l'établissement les active. Décision et prescription restent dans le DPI. |
+| Directeur des soins, administrateur de garde | Lecture de tous les services (identité des patients en initiales pour l'administrateur de garde). |
+| Intervenant extérieur | Compte daté, limité aux activités de l'agenda où il est inscrit. |
 | Service informatique | Dossier réseau, publication de l'application, sauvegardes, postes. |
 | Délégué à la protection des données (DPO, référent RGPD) | Registre des traitements, analyse d'impact. |
 
@@ -163,7 +185,7 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 
 ## 9. État d'avancement
 
-- **Socle commun, modules Patients, Isolement et contention, Agenda, Véhicules, Suivi médical et Vue d'ensemble** : développés et vérifiés par des tests automatiques (version 0.20.0), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
+- **Socle commun et les dix-huit modules** : développés et vérifiés par près de 500 tests automatiques et un parcours complet des écrans (version stable 0.70.0 du 15 novembre 2026), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
 - **Kit de déploiement** : guide d'installation, procédures de secours, éléments RGPD (un traitement par module), guides utilisateur et guide pratique illustré, imports (dossier `kit/` du dépôt).
 
 ## 10. Démarche
@@ -184,7 +206,7 @@ Formation : 20 à 30 minutes par agent, avec un **mode formation** sur données 
 | Risque | Parade |
 | --- | --- |
 | Maintenance dépendante d'une seule personne | Logiciel libre, documenté et testé, repris par toute équipe ou tout autre établissement. |
-| Extension sans limite du périmètre | Chaque nouveau module validé avant développement ; aucune donnée clinique. |
+| Extension sans limite du périmètre | Chaque nouveau module validé avant développement ; fonctions sensibles livrées désactivées et soumises à avis (onglet « Validations »). |
 | Confusion avec le DPI | Périmètre écrit et rappelé : le DPI reste la référence clinique. |
 | Charge de saisie | Import de la liste des patients du DPI ; saisie limitée à ce que le DPI ne fournit pas. |
 | Perte des moyens de déverrouillage | Clés matérielles d'administration dont une au coffre, code de secours papier scellé, procédure testée chaque année. |
