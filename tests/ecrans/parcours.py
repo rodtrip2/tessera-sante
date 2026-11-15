@@ -1445,22 +1445,22 @@ with sync_playwright() as p:
     a.keyboard.press('Escape'); time.sleep(0.6)
     verifier(a.locator('.barre-modules button.bouton-module:not(.temporaire)', has_text=nom_mod).count() == 1, 'barre des modules : module épinglé de nouveau')
     capture(a, 'barre-modules')
-    # Remises de clés à confirmer (0.71.0) : un prêt de droits écrit depuis une autre session, sans contrôle et au nom du
-    # cadre, ne remet aucune clé ; l'administrateur le voit (rappel, panneau « Clés à remettre ») et confirme
+    # Remises de clés à confirmer (0.71.0) : un prêt de droits écrit par le cadre depuis une autre session ne remet aucune
+    # clé ; l'administrateur le voit (rappel, panneau « Clés à remettre ») et confirme
     for _ in range(3): a.keyboard.press('Escape'); time.sleep(0.3)
     r = a.evaluate("""(async () => { const s = SIC.ui.App.session, M = SIC.model, sv = (s.etat.config.services || [])[0].code;
       await s.creerComptes([{ nom: 'Cadre Essai (fictif)', login: 'cadre.essai', motDePasse: 'mot de passe cadre essai', roles: ['CADRE'], services: [sv] },
         { nom: 'Agent Essai (fictif)', login: 'agent.essai', motDePasse: 'mot de passe agent essai', roles: [], services: [sv] }]);
       const cadre = s.comptes.find(c => c.login === 'cadre.essai'), ag = s.comptes.find(c => c.login === 'agent.essai');
-      const autre = new SIC.Session(SIC.ui.App.dossier); await autre.chargerCoffre(); await autre.connexionMotDePasse('agent.essai', 'mot de passe agent essai');
+      const autre = new SIC.Session(SIC.ui.App.dossier); await autre.chargerCoffre(); await autre.connexionMotDePasse('cadre.essai', 'mot de passe cadre essai');
       const j = (n) => M.dateLocaleISO(Date.now() + n * 864e5), cfg = autre.etat.config.delegations || { prets: [] };
       const pret = { id: 'pret-essai', de: cadre.id, a: ag.id, debut: j(-1), fin: j(20), roles: ['CADRE'], services: [sv], motif: 'essai (fictif)', par: cadre.id, le: new Date().toISOString() };
-      await autre.enregistrer('CONFIG', { cle: 'delegations', valeur: { prets: (cfg.prets || []).concat([pret]) } }, undefined, { sansControle: true, by: cadre.id });
+      await autre.enregistrer('CONFIG', { cle: 'delegations', valeur: { prets: (cfg.prets || []).concat([pret]) } });
       autre.verrouiller();
       await s.synchroniser(); await s.creerClesManquantes();
       const cles = [...new Set(s.coffre.enveloppes.filter(e => e.pour === ag.id).map(e => e.cle))];
       return { isocont: cles.indexOf('isocont') >= 0, attente: s.remisesAConfirmer().filter(x => x.id === ag.id && x.motif === 'pret').length }; })()""")
-    verifier(r['isocont'] is False and r['attente'] >= 1, 'remises de clés : prêt écrit au nom du cadre, aucune clé remise d’office (' + str(r) + ')')
+    verifier(r['isocont'] is False and r['attente'] >= 1, 'remises de clés : prêt écrit par le cadre, aucune clé remise d’office (' + str(r) + ')')
     fenetre(a, 'Isolement')
     verifier(a.locator('.bandeau-apercu', has_text='attendent votre confirmation').count() == 1, 'remises de clés : rappel affiché à l’administrateur')
     a.locator('.bandeau-apercu', has_text='attendent votre confirmation').locator('button', has_text='Voir').click(); time.sleep(1.2)
@@ -1470,6 +1470,41 @@ with sync_playwright() as p:
     pr.locator('button', has_text='Tout remettre').click(); time.sleep(3)
     r2 = a.evaluate("""(() => { const s = SIC.ui.App.session; return { attente: s.remisesAConfirmer().length, trace: s.evts.filter(e => e.type === 'COMPTE' && e.data.action === 'REMISES_CLES').length }; })()""")
     verifier(r2['attente'] == 0 and r2['trace'] >= 1 and a.locator('h2', has_text='Clés à remettre').count() == 0, 'remises de clés : confirmation, clés remises, trace au journal (' + str(r2) + ')')
+    # Refus (0.72.0) : un second prêt du cadre est refusé par le bouton « Refuser » ; le prêt est annulé et marqué refusé,
+    # visible dans la table des prêts (cadre, agents)
+    r3 = a.evaluate("""(async () => { const s = SIC.ui.App.session, M = SIC.model, sv = (s.etat.config.services || [])[0].code;
+      await s.creerComptes([{ nom: 'Agent Refus (fictif)', login: 'agent.refus', motDePasse: 'mot de passe agent refus', roles: [], services: [sv] }]);
+      const cadre = s.comptes.find(c => c.login === 'cadre.essai'), ag = s.comptes.find(c => c.login === 'agent.refus');
+      const autre = new SIC.Session(SIC.ui.App.dossier); await autre.chargerCoffre(); await autre.connexionMotDePasse('cadre.essai', 'mot de passe cadre essai');
+      const j = (n) => M.dateLocaleISO(Date.now() + n * 864e5), cfg = autre.etat.config.delegations || { prets: [] };
+      const pret = { id: 'pret-refus', de: cadre.id, a: ag.id, debut: j(-1), fin: j(20), roles: ['CADRE'], services: [sv], motif: 'refus (fictif)', par: cadre.id, le: new Date().toISOString() };
+      await autre.enregistrer('CONFIG', { cle: 'delegations', valeur: { prets: (cfg.prets || []).concat([pret]) } });
+      autre.verrouiller(); await s.synchroniser(); await s.creerClesManquantes();
+      return s.remisesAConfirmer().filter(x => x.id === ag.id).length; })()""")
+    fenetre(a, 'Isolement')
+    a.locator('.bandeau-apercu', has_text='attendent votre confirmation').locator('button', has_text='Voir').click(); time.sleep(1.2)
+    pr = a.locator('section.panneau', has=a.locator('h2', has_text='Clés à remettre'))
+    verifier(r3 >= 1 and pr.locator('tr', has_text='Agent Refus (fictif)').locator('button', has_text='Refuser').count() == 1, 'remises de clés : bouton « Refuser » proposé (' + str(r3) + ')')
+    pr.locator('tr', has_text='Agent Refus (fictif)').locator('button', has_text='Refuser').click(); time.sleep(3)
+    r4 = a.evaluate("""(() => { const s = SIC.ui.App.session, p = s.etat.config.delegations.prets.find(x => x.id === 'pret-refus'); return { attente: s.remisesAConfirmer().length, refuse: !!(p && p.annule && p.refuse), trace: s.evts.filter(e => e.type === 'COMPTE' && e.data.action === 'REMISES_REFUSEES').length }; })()""")
+    verifier(r4['attente'] == 0 and r4['refuse'] and r4['trace'] == 1, 'remises de clés : refus, prêt annulé et marqué refusé, trace au journal (' + str(r4) + ')')
+    fenetre(a, 'Équipe', False); a.locator('nav.onglets button', has_text='Prêts de droits').click(); time.sleep(1)
+    verifier(a.locator('table.table-prets tr', has_text='Agent Refus (fictif)').filter(has_text='Refusé par l’administrateur').count() == 1, 'prêts de droits : prêt refusé signalé dans la table')
+    capture(a, 'prets-refuse')
+    # Signature des saisies (0.72.0) : un réglage écrit au nom du cadre par un autre agent, sans passer par l'écran, est
+    # écarté à la lecture ; l'administrateur en est averti (rappel, panneau « Signature des saisies »)
+    r5 = a.evaluate("""(async () => { const s = SIC.ui.App.session, cadre = s.comptes.find(c => c.login === 'cadre.essai');
+      const autre = new SIC.Session(SIC.ui.App.dossier); await autre.chargerCoffre(); await autre.connexionMotDePasse('agent.essai', 'mot de passe agent essai');
+      await autre.enregistrer('CONFIG', { cle: 'etablissement', valeur: 'Établissement forgé (fictif)' }, undefined, { sansControle: true, by: cadre.id });
+      autre.verrouiller(); await s.synchroniser();
+      return { etab: s.etat.config.etablissement, ecartees: s.saisiesEcartees().map(x => x.raison), exigee: !!s.etatSignatures().exigee }; })()""")
+    verifier(r5['etab'] != 'Établissement forgé (fictif)' and r5['ecartees'] == ['au-nom-d-un-autre'] and r5['exigee'], 'signature des saisies : réglage écrit au nom du cadre écarté (' + str(r5) + ')')
+    fenetre(a, 'Isolement')
+    verifier(a.locator('.bandeau-secours', has_text='écartée').count() == 1, 'signature des saisies : rappel affiché à l’administrateur')
+    a.locator('.bandeau-secours', has_text='écartée').locator('button', has_text='Voir').click(); time.sleep(1.2)
+    ps = a.locator('section.panneau', has=a.locator('h2', has_text='Signature des saisies'))
+    verifier(ps.count() == 1 and 'écrite au nom d’un autre agent' in ps.inner_text() and 'Signature exigée depuis' in ps.inner_text(), 'signature des saisies : panneau (exigence, saisie écartée, motif)')
+    capture(a, 'signatures-saisies')
     nav.close()
 
 if erreurs: print('\nErreurs du navigateur :'); [print('  ' + e) for e in erreurs[:20]]

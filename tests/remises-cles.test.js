@@ -31,6 +31,7 @@ globalThis.SIC.trousseau = require('../app/js/trousseau.js');
 require('../app/js/store.js');
 require('../app/js/session.js');
 const { Dossier, Session } = globalThis.SIC;
+const DLm = require('../app/js/delegations.js');
 
 const jour = (n) => { const d = new Date(Date.now() + n * 864e5); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const detient = (s, login, cle) => { const c = s.comptes.find((x) => x.login === login); return (s.coffre.enveloppes || []).some((e) => e.pour === c.id && e.cle === cle); };
@@ -51,16 +52,25 @@ async function equipe() {
   const id = (login) => admin.comptes.find((c) => c.login === login).id;
   return { racine, admin, id };
 }
-/** Faux prêt des droits du cadre, écrit par l'IDE sans passer par les contrôles de l'écran, au nom du cadre. */
+/**
+ * Prêt des droits du cadre à l'IDE, écrit par le cadre lui-même (réglage permis, signé) : depuis 0.72.0 une saisie
+ * forgée au nom du cadre est écartée à la lecture (voir signatures-saisies.test.js) ; la remise des clés attend quand
+ * même la confirmation de l'administrateur (défense en profondeur, 0.71.0).
+ */
 async function forgerPret(racine, id) {
-  const ide = await co(racine, 'ide.b1', 'mot de passe ide b1');
-  const pret = { id: 'pret-forge', de: id('cadre'), a: id('ide.b1'), debut: jour(-1), fin: jour(30), roles: ['CADRE'], services: ['A'], motif: 'forgé (fictif)', par: id('cadre'), le: new Date().toISOString() };
-  await assert.rejects(ide.enregistrer('CONFIG', { cle: 'delegations', valeur: { prets: [pret] } }), /rôle/);   // l'écran refuse
-  await ide.enregistrer('CONFIG', { cle: 'delegations', valeur: { prets: [pret] } }, undefined, { sansControle: true, by: id('cadre') });
-  return ide;
+  const cadre = await co(racine, 'cadre', 'mot de passe cadre');
+  const pret = { id: 'pret-forge', de: id('cadre'), a: id('ide.b1'), debut: jour(-1), fin: jour(30), roles: ['CADRE'], services: ['A'], motif: 'prêt (fictif)', par: id('cadre'), le: new Date().toISOString() };
+  await cadre.enregistrer('CONFIG', { cle: 'delegations', valeur: { prets: [pret] } });
+  return cadre;
+}
+/** Rôle IDE dans le service A pour le compte sans rôle, réglé par le cadre (permis, signé). */
+async function roleParCadre(racine, id) {
+  const cadre = await co(racine, 'cadre', 'mot de passe cadre');
+  await cadre.enregistrer('CONFIG', { cle: 'rolesServices', valeur: { [id('sans')]: { A: ['IDE'] } } });
+  return cadre;
 }
 
-test('Prêt de droits forgé : aucune clé remise à la connexion de l’administrateur ; remise listée, puis confirmée et tracée', async () => {
+test('Prêt de droits du cadre : aucune clé remise à la connexion de l’administrateur ; remise listée, puis confirmée et tracée', async () => {
   const { racine, admin, id } = await equipe();
   assert.equal(detient(admin, 'ide.b1', 'isocont'), false);
   await forgerPret(racine, id);
@@ -103,10 +113,9 @@ test('Acte de l’administrateur : ses propres changements remettent les clés ;
   assert.equal(cadre.detientCle('isocont'), true);
 });
 
-test('Rôle selon le service forgé : la remise attend, avec son motif', async () => {
+test('Rôle selon le service réglé par le cadre : la remise attend, avec son motif', async () => {
   const { racine, id } = await equipe();
-  const sans = await co(racine, 'sans', 'mot de passe sans');
-  await sans.enregistrer('CONFIG', { cle: 'rolesServices', valeur: { [id('sans')]: { A: ['IDE'] } } }, undefined, { sansControle: true, by: id('cadre') });
+  await roleParCadre(racine, id);
   const ad = await co(racine, 'admin', 'mot de passe solide');
   assert.equal(detient(ad, 'sans', 'isocont'), false);
   assert.ok(ad.remisesAConfirmer().some((r) => r.login === 'sans' && r.cle === 'isocont' && r.motif === 'roleService'));
@@ -130,9 +139,74 @@ test('Compte d’intervenant demandé : créé seulement après la confirmation 
 
 test('Agent dont une clé attend : il change son mot de passe sans erreur, et ne gagne pas la clé', async () => {
   const { racine, id } = await equipe();
-  const ide = await forgerPret(racine, id);
+  await forgerPret(racine, id);
+  const ide = await co(racine, 'ide.b1', 'mot de passe ide b1');
   await co(racine, 'admin', 'mot de passe solide');
   await ide.changerMonMotDePasse('mot de passe personnel b1');
   const ide2 = await co(racine, 'ide.b1', 'mot de passe personnel b1');
   assert.equal(ide2.detientCle('isocont'), false);
+});
+
+test('Refus de l’administrateur : le prêt est annulé et marqué refusé, visible du cadre ; aucune clé', async () => {
+  const { racine, id } = await equipe();
+  await forgerPret(racine, id);
+  const ad = await co(racine, 'admin', 'mot de passe solide');
+  const att = ad.remisesAConfirmer();
+  assert.ok(att.length);
+  assert.equal(await ad.refuserRemises(att, 'prêt inconnu du cadre (fictif)'), true);
+  assert.equal(ad.remisesAConfirmer().length, 0, 'plus rien n’attend');
+  assert.equal(detient(ad, 'ide.b1', 'isocont'), false);
+  const p = DLm.prets(ad.etat.config).find((d) => d.id === 'pret-forge');
+  assert.ok(p.annule && p.refuse && p.refuseLe, 'prêt annulé et marqué refusé');
+  assert.equal(p.refusMotif, 'prêt inconnu du cadre (fictif)');
+  assert.ok(ad.evts.some((e) => e.type === 'COMPTE' && e.data.action === 'REMISES_REFUSEES'), 'refus inscrit au journal');
+  // Le cadre voit le refus ; plus aucune clé en attente pour l'IDE
+  const cadre = await co(racine, 'cadre', 'mot de passe cadre');
+  assert.ok(DLm.prets(cadre.etat.config).find((d) => d.id === 'pret-forge').refuse);
+  assert.equal(cadre.remisesEnAttenteDe(id('ide.b1')).length, 0);
+});
+
+test('Refus d’un rôle selon le service : plus proposé, visible du cadre, puis levée du refus', async () => {
+  const { racine, admin, id } = await equipe();
+  await roleParCadre(racine, id);
+  const ide = await co(racine, 'ide.b1', 'mot de passe ide b1');
+  const ad = await co(racine, 'admin', 'mot de passe solide');
+  const att = ad.remisesAConfirmer().filter((r) => r.login === 'sans');
+  assert.ok(att.length && att.every((r) => r.motif === 'roleService'));
+  await ad.refuserRemises(att, '');
+  assert.equal(ad.remisesAConfirmer().filter((r) => r.login === 'sans').length, 0);
+  assert.equal(ad.remisesRefusees().length, att.length);
+  // « Tout remettre » ne remet pas une clé refusée
+  await ad.confirmerRemises();
+  assert.equal(detient(ad, 'sans', 'isocont'), false);
+  // Le cadre voit le refus pour ce compte
+  const cadre = await co(racine, 'cadre', 'mot de passe cadre');
+  const vu = cadre.remisesEnAttenteDe(id('sans'));
+  assert.ok(vu.length && vu.every((r) => r.refus && r.motif === 'roleService'));
+  // Un agent ne peut pas écrire le réglage des refus par l'écran
+  await assert.rejects(ide.enregistrer('CONFIG', { cle: 'remisesRefusees', valeur: { liste: [] } }));
+  // Levée du refus : la remise attend de nouveau, puis est confirmée
+  await ad.leverRefusRemises(att);
+  assert.equal(ad.remisesAConfirmer().filter((r) => r.login === 'sans').length, att.length);
+  await ad.confirmerRemises();
+  assert.equal(detient(ad, 'sans', 'isocont'), true);
+  void admin;
+});
+
+test('Cadre informé : la clé du remplaçant attend la confirmation ; demande d’intervenant refusée avec son motif', async () => {
+  const { racine, id } = await equipe();
+  const cadre = await co(racine, 'cadre', 'mot de passe cadre');
+  // Prêt légitime du cadre à l'IDE B2 (ses propres droits)
+  await cadre.enregistrer('CONFIG', { cle: 'delegations', valeur: { prets: [{ id: 'pret-ok', de: id('cadre'), a: id('ide.b2'), debut: jour(0), fin: jour(10), roles: ['CADRE'], services: ['A'], par: id('cadre'), le: new Date().toISOString() }] } });
+  const vu = cadre.remisesEnAttenteDe(id('ide.b2'));
+  assert.ok(vu.some((r) => r.motif === 'pret' && r.prets.includes('pret-ok') && !r.refus), 'le cadre voit la clé en attente');
+  await cadre.demanderCompteIntervenant({ nom: 'Bénévole (fictif)', login: 'benevole', type: 'benevole', services: ['A'], finValidite: jour(30), motDePasse: 'mot de passe provisoire' });
+  const ad = await co(racine, 'admin', 'mot de passe solide');
+  const d = ad.demandesComptesAConfirmer();
+  assert.equal(d.length, 1);
+  await ad.refuserDemandesComptes([d[0].id], 'compte non prévu (fictif)');
+  assert.equal(ad.demandesComptesAConfirmer().length, 0);
+  assert.ok(!ad.comptes.some((c) => c.login === 'benevole'));
+  const x = DLm.demandes(ad.etat.config)[0];
+  assert.equal(x.etat, 'refusee'); assert.equal(x.message, 'compte non prévu (fictif)'); assert.equal(x.emb, null);
 });

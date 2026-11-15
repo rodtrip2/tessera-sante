@@ -326,6 +326,28 @@
     }
     throw new Error('Paire de clés impossible à tirer.');
   }
+  /**
+   * Paire de signature ECDSA P-256 tirée d'un secret (signature des saisies, 0.72.0) : la partie privée se recalcule à
+   * partir du secret (clé personnelle de l'agent), rien n'est stocké. Retourne { prive8 (PKCS #8, à effacer), publique }.
+   */
+  async function paireSignatureDepuisOctets(octets, contexte) {
+    for (var i = 0; i < 8; i++) {
+      var d = await deriverOctets(octets, 'Tessera signature ' + contexte + (i ? ':' + i : '')), h = hex(d);
+      if (h === '0'.repeat(64) || h >= ORDRE_P256) continue;
+      var der = new Uint8Array(PKCS8_P256.length + 32); der.set(PKCS8_P256); der.set(d, PKCS8_P256.length); d.fill(0);
+      return { prive8: der, publique: await publiqueDePrivee(der, 'ECDSA') };
+    }
+    throw new Error('Paire de signature impossible à tirer.');
+  }
+  /** Vérification de signature avec les clés publiques gardées en mémoire (lecture de nombreuses saisies). */
+  var clesVerif = new Map();
+  async function verifierSignatureRapide(publique, texte, signature) {
+    try {
+      var k = clesVerif.get(publique);
+      if (!k) { k = await subtle.importKey('raw', deb64(publique), ECDSA, false, ['verify']); if (clesVerif.size > 500) clesVerif.clear(); clesVerif.set(publique, k); }
+      return await subtle.verify(SIGN, k, deb64(signature), enc.encode(texte));
+    } catch (e) { return false; }
+  }
   /** Ancre : empreinte de la clé publique d'attestation, gardée dans chaque emballage (protégée par le mot de passe). */
   async function ancreDe(publique) { return hex(await sha256(deb64(publique))); }
   var MAGIC_ANCRE = enc.encode('ANC1');
@@ -359,7 +381,7 @@
     nouvellePaire: nouvellePaire, exporterPublique: exporterPublique, importerPublique: importerPublique,
     exporterPrivee: exporterPrivee, importerPrivee: importerPrivee, envelopper: envelopper, ouvrirEnveloppe: ouvrirEnveloppe,
     nouvelleMaitresse: nouvelleMaitresse, octetsGeneration: octetsGeneration, importerCleOctets: importerCleOctets,
-    sha256: sha256, concat: concat, nouvellePaireSignature: nouvellePaireSignature, signer: signer, verifierSignature: verifierSignature,
+    sha256: sha256, concat: concat, nouvellePaireSignature: nouvellePaireSignature, signer: signer, verifierSignature: verifierSignature, paireSignatureDepuisOctets: paireSignatureDepuisOctets, verifierSignatureRapide: verifierSignatureRapide,
     deriverOctets: deriverOctets, hmac: hmac, secretPartage: secretPartage, ancreDe: ancreDe, publiqueDePrivee: publiqueDePrivee, paireDepuisOctets: paireDepuisOctets, paquet: paquet, ouvrirPaquet: ouvrirPaquet
   };
 });

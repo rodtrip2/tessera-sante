@@ -94,6 +94,7 @@ input[type=text], input[type=password], input[type=datetime-local], input[type=d
 .erreur { background: var(--bad-soft); color: var(--bad); padding: 8px 12px; border-radius: var(--radius); font-size: .9rem; }
 .info { background: var(--accent-soft); padding: 8px 12px; border-radius: var(--radius); font-size: .9rem; }
 .alerte { background: var(--warn-soft); color: var(--warn); padding: 8px 12px; border-radius: var(--radius); font-size: .9rem; }
+.alerte-texte { color: var(--warn); font-weight: 600; }
 
 /* ---------- Structure de l'application */
 .entete { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }

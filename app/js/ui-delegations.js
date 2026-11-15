@@ -38,7 +38,12 @@
     return DL.prets(cfg()).filter(function (d) { return estAdmin() || d.de === moi().id || d.a === moi().id || (estCadre() && d.services.some(function (x) { return mes.indexOf(x) >= 0; })); })
       .sort(function (a, b) { return b.debut.localeCompare(a.debut); });
   }
-  function etatPret(d) { var j = aujourdhui(); return d.annule ? 'annulé' : d.fin < j ? 'terminé' : d.debut > j ? 'à venir' : 'en cours'; }
+  function etatPret(d) { var j = aujourdhui(); return d.refuse ? 'refusé' : d.annule ? 'annulé' : d.fin < j ? 'terminé' : d.debut > j ? 'à venir' : 'en cours'; }
+  /** Clés du délégataire qui attendent la confirmation de l'administrateur pour ce prêt (0.72.0). */
+  function clesEnAttente(d) {
+    try { return (s().remisesEnAttenteDe ? s().remisesEnAttenteDe(d.a) : []).filter(function (r) { return r.motif === 'pret' && r.prets.indexOf(d.id) >= 0 && !r.refus; }); } catch (e) { return []; }
+  }
+  function jourHeure(iso) { return iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : ''; }
   function peutGerer(d) { try { DL.controlerPret(d, moi(), comptes()); return true; } catch (e) { return false; } }
   function modalePret() {
     var admin = estAdmin(), cadre = estCadre(), mes = moi().services || [];
@@ -82,7 +87,7 @@
           services: cbS.filter(function (c) { return c.checked; }).map(function (c) { return c.value; }), motif: motif.value.trim(), par: moi().id, le: new Date().toISOString() };
         DL.controlerPret(DL.pret(d), moi(), comptes());
         await enregistrerPrets(pretsBruts().concat([d]));
-        U.toast('Droits prêtés à ' + nom(d.a) + ' du ' + jourFr(d.debut) + ' au ' + jourFr(d.fin) + '.');
+        U.toast('Droits prêtés à ' + nom(d.a) + ' du ' + jourFr(d.debut) + ' au ' + jourFr(d.fin) + '.' + (admin ? '' : ' L’accès aux données sera ouvert quand l’administrateur aura confirmé la remise des clés.'));
       } }], { large: true });
   }
   async function annulerPret(d) {
@@ -98,7 +103,9 @@
         var e = etatPret(d);
         return h('tr', { class: e === 'en cours' ? 'pret-en-cours' : (e === 'annulé' || e === 'terminé' ? 'muted' : '') },
           h('td', { text: nom(d.de) }), h('td', { text: nom(d.a) }), h('td', { text: d.roles.map(libRole).join(', ') }), h('td', { text: d.services.map(U.libService).join(', ') || '—' }),
-          h('td', { text: jourFr(d.debut) }), h('td', { text: jourFr(d.fin) }), h('td', {}, h('span', { class: 'badge', text: e }), d.motif ? h('div', {}, h('small', { class: 'muted', text: d.motif })) : null),
+          h('td', { text: jourFr(d.debut) }), h('td', { text: jourFr(d.fin) }), h('td', {}, h('span', { class: 'badge', text: e }), d.motif ? h('div', {}, h('small', { class: 'muted', text: d.motif })) : null,
+            d.refuse ? h('div', {}, h('small', { class: 'alerte-texte', text: 'Refusé par l’administrateur le ' + jourHeure(d.refuseLe) + (d.refusMotif ? ' : ' + d.refusMotif : '') + '.' })) : null,
+            e === 'en cours' && clesEnAttente(d).length ? h('div', {}, h('small', { class: 'muted', text: 'Clés en attente de la confirmation de l’administrateur : ' + clesEnAttente(d).map(function (r) { return r.libelle; }).join(', ') + '.' })) : null),
           h('td', { class: 'actions-ligne' }, (e === 'en cours' || e === 'à venir') && peutGerer(d) && !s().apercu ? h('button', { class: 'btn petit', type: 'button', onclick: function () { annulerPret(d); } }, e === 'à venir' ? 'Annuler' : 'Mettre fin') : null));
       }))));
   }
@@ -116,9 +123,16 @@
     if (!moi() || s().apercu) return null;
     var recus = DL.actifs(cfg(), moi().id, Date.now()), j = aujourdhui();
     var revenus = DL.prets(cfg()).filter(function (d) { var f = DL.jourISO(Date.now() - 8 * 864e5); return d.de === moi().id && !d.annule && d.fin < j && d.fin >= f; }).filter(function (d) { try { return !localStorage.getItem(cleVu(d)); } catch (e) { return true; } });
-    if (!recus.length && !revenus.length) return null;
+    // Prêts refusés par l'administrateur depuis moins de huit jours : montrés à l'agent absent, au remplaçant et à l'auteur du prêt
+    var refuses = DL.prets(cfg()).filter(function (d) { return d.refuse && (d.de === moi().id || d.a === moi().id || d.par === moi().id) && d.refuseLe && Date.now() - Date.parse(d.refuseLe) < 8 * 864e5; })
+      .filter(function (d) { try { return !localStorage.getItem(cleVu(d) + ':refus'); } catch (e) { return true; } });
+    if (!recus.length && !revenus.length && !refuses.length) return null;
     return h('div', { class: 'pile' },
-      recus.map(function (d) { return h('div', { class: 'info bandeau-pret' }, h('b', { text: 'Vous remplacez ' + nom(d.de) }), ' jusqu’au ' + jourFr(d.fin) + ' : ' + d.roles.map(libRole).join(', ') + (d.services.length ? ' (' + d.services.map(U.libService).join(', ') + ')' : '') + '. Vos saisies faites à ce titre portent « pour le compte de ' + nom(d.de) + ' ».'); }),
+      recus.map(function (d) { return h('div', { class: 'info bandeau-pret' }, h('b', { text: 'Vous remplacez ' + nom(d.de) }), ' jusqu’au ' + jourFr(d.fin) + ' : ' + d.roles.map(libRole).join(', ') + (d.services.length ? ' (' + d.services.map(U.libService).join(', ') + ')' : '') + '. Vos saisies faites à ce titre portent « pour le compte de ' + nom(d.de) + ' ».' + (clesEnAttente(d).length ? ' Les données de ' + clesEnAttente(d).map(function (r) { return r.libelle; }).join(', ') + ' vous seront ouvertes quand l’administrateur aura confirmé la remise des clés.' : '')); }),
+      refuses.map(function (d) {
+        return h('div', { class: 'alerte bandeau-pret' }, h('b', { text: 'Prêt refusé' }), ' : l’administrateur a refusé le prêt des droits de ' + nom(d.de) + ' à ' + nom(d.a) + ' (' + jourFr(d.debut) + ' – ' + jourFr(d.fin) + ')' + (d.refusMotif ? ' — ' + d.refusMotif : '') + '. ',
+          h('button', { class: 'btn petit', type: 'button', onclick: function () { try { localStorage.setItem(cleVu(d) + ':refus', '1'); } catch (e) { /* */ } U.rendreContenu(); } }, 'Vu'));
+      }),
       revenus.map(function (d) {
         var n = (s().evts || []).filter(function (e) { return e.pour === moi().id && e.by === d.a; }).length;
         return h('div', { class: 'info bandeau-pret' }, h('b', { text: 'Pendant votre absence' }), ', ' + nom(d.a) + ' vous a remplacé(e) du ' + jourFr(d.debut) + ' au ' + jourFr(d.fin) + (n ? ' : ' + n + ' saisie' + (n > 1 ? 's' : '') + ' pour votre compte (journal).' : '.') + ' ',

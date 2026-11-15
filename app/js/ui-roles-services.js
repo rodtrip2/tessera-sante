@@ -38,6 +38,12 @@
         ok.length ? zone : null,
         horsChoix.length ? h('small', { class: 'muted', text: 'Comprend un rôle attribué par l’administrateur seulement (' + libRoles(horsChoix) + ') : modification réservée à l’administrateur.' }) : null));
     });
+    // Information du cadre (0.72.0) : clés en attente de l'administrateur, ou refusées, pour ce compte
+    var attente = [];
+    try { attente = (s().remisesEnAttenteDe ? s().remisesEnAttenteDe(compte.id) : []).filter(function (r) { return r.motif === 'roleService'; }); } catch (e) { attente = []; }
+    var enAtt = attente.filter(function (r) { return !r.refus; }), ref = attente.filter(function (r) { return r.refus; });
+    if (enAtt.length) corps.appendChild(h('p', { class: 'info', text: 'Clés en attente de la confirmation de l’administrateur : ' + enAtt.map(function (r) { return r.libelle; }).join(', ') + '. Les rôles sont enregistrés ; l’accès à ces données sera ouvert après sa confirmation.' }));
+    if (ref.length) corps.appendChild(h('p', { class: 'alerte', text: 'Remise refusée par l’administrateur : ' + ref.map(function (r) { return r.libelle + (r.refus.raison ? ' (' + r.refus.raison + ')' : ''); }).join(', ') + '.' }));
     corps.appendChild(h('small', { class: 'muted', text: (a.roles.indexOf('ADMIN') >= 0 ? '' : 'En tant que cadre, vous attribuez dans vos services les rôles IDE, aide-soignant, secrétaire et intervenant ; les autres rôles sont attribués par l’administrateur. ') + 'Les clés suivent l’ensemble des rôles du compte ; elles sont remises par un administrateur, qui confirme le changement à sa prochaine connexion (aussitôt s’il l’enregistre lui-même).' }));
     U.modale('Rôles par service — ' + compte.nom, corps, [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: async function () {
       var v = { rolesServices: RS.normaliser(U.config().rolesServices) };
@@ -49,7 +55,7 @@
       });
       RS.controler(U.config().rolesServices, v.rolesServices, a, s().comptes || []);
       await U.enregistrerConfig([['rolesServices', v.rolesServices]]);
-      U.toast('Rôles par service enregistrés.');
+      U.toast('Rôles par service enregistrés.' + (a.roles.indexOf('ADMIN') >= 0 ? '' : ' Les accès nouveaux aux données seront ouverts après confirmation par l’administrateur.'));
     } }]);
   }
   /** Rôles propres d'un compte, en clair (ex. « Unité 2 : Cadre de santé »), ou chaîne vide. */

@@ -118,6 +118,10 @@
       empreintes: empreintes, maitresses: maitresses, comptes: await macComptes(cles, comptes)
     };
     if (Object.keys(publiques).length) etat.publiques = publiques;   // absent sans clé de messagerie : état inchangé
+    // Signature des saisies (0.72.0) : clés de signature attestées, comptes administrateurs, exigence de signature
+    if (info.signatures) etat.signatures = info.signatures;
+    if (info.admins) etat.admins = info.admins;
+    if (info.saisiesSignees) etat.saisiesSignees = info.saisiesSignees;
     var texte = canonique(etat);
     coffre.attestation = {
       publique: cles.publique, temoin: cles.temoin,

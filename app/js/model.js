@@ -298,6 +298,7 @@
     chambres: {},          // chambres et lits par service, CSI, autres pièces, plan (0.29.0)
     delegations: { prets: [] },           // prêts de droits pendant une absence (0.31.0, delegations.js)
     comptesDemandes: { demandes: [] },    // comptes d'intervenants extérieurs demandés par le cadre (0.31.0)
+    remisesRefusees: { liste: [] },       // remises de clés refusées par l'administrateur (0.72.0, session.js)
     charteIntervenants: { texte: '', version: 0 },   // charte de confidentialité des intervenants extérieurs (0.31.0)
     poles: [],             // pôles : regroupements de services (0.27.2)
     rolesServices: {},
@@ -2155,7 +2156,7 @@
   ];
   // Prêts de droits et demandes de comptes (0.31.0) : propres aux agents de l'établissement, jamais exportés ;
   // fonctions soumises à avis (13 novembre 2026) : décisions et avis propres à chaque établissement
-  var REGLAGES_EXCLUS = { compteursRegistre: 1, registreFige: 1, derniersClasseur: 1, registreFigeMesures: 1, rapportsAnnuels: 1, miroir: 1, delegations: 1, comptesDemandes: 1, validations: 1, comptesPoles: 1, rolesServices: 1 };
+  var REGLAGES_EXCLUS = { compteursRegistre: 1, registreFige: 1, derniersClasseur: 1, registreFigeMesures: 1, rapportsAnnuels: 1, miroir: 1, delegations: 1, comptesDemandes: 1, remisesRefusees: 1, validations: 1, comptesPoles: 1, rolesServices: 1 };
   var REGLAGES_SUPPLEMENTAIRES = { imagesDecompte: {} };   // paramètres sans valeur par défaut dans CONFIG_DEFAUT
 
   function groupeDeCle(cle) { return GROUPES_REGLAGES.filter(function (g) { return g.cles.indexOf(cle) >= 0; })[0] || null; }

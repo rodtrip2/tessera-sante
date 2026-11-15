@@ -1056,6 +1056,11 @@
     if (ea && ea.attestateur && !s.formation && ea.anomalies.some(function (x) { return x.bloquante; })) zoneEntete.appendChild(h('div', { class: 'bandeau-secours', role: 'alert' },
       h('span', { text: 'Coffre modifié hors de l’outil ou restauré : aucune remise de clé avant réparation. ' }),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'securite'; rendreContenu(); } }, 'Voir')));
+    // Saisies écartées à la lecture (signature des saisies, 0.72.0) : rappel à l'administrateur
+    var nEc = ea && ea.attestateur && !s.formation && s.saisiesEcartees ? s.saisiesEcartees().length : 0;
+    if (nEc && !s.apercu && !(App.onglet === 'admin' && App.sousOngletAdmin === 'securite')) zoneEntete.appendChild(h('div', { class: 'bandeau-secours', role: 'alert' },
+      h('span', { text: nEc + ' saisie(s) écartée(s) : non signée(s), altérée(s) ou écrite(s) au nom d’un autre agent. ' }),
+      h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'securite'; rendreContenu(); } }, 'Voir')));
     // Remises de clés et comptes demandés qui attendent la confirmation de l'administrateur (correctif du 15 novembre 2026)
     var nAtt = (s.remisesAConfirmer ? s.remisesAConfirmer().length : 0) + (s.demandesComptesAConfirmer ? s.demandesComptesAConfirmer().length : 0);
     if (nAtt && !s.apercu && !(App.onglet === 'admin' && App.sousOngletAdmin === 'comptes')) zoneEntete.appendChild(h('div', { class: 'bandeau-apercu', role: 'status' },
@@ -1290,7 +1295,7 @@
           } catch (err) { alert(err.message); }
         } }, 'Revenir à la clé unique…')));
     }
-    var pAttestation = panneauAttestation(s);
+    var pAttestation = panneauAttestation(s), pSignatures = panneauSignatures(s);
     // -- Trousseaux incomplets (coffre version 2) : clés à réémettre
     var incomplets = s.trousseauxIncomplets ? s.trousseauxIncomplets() : [];
     // Remises à confirmer (correctif du 15 novembre 2026) : une clé nouvelle n'est remise d'office que si elle découle
@@ -1311,15 +1316,23 @@
     async function remettre(liste) {
       try { s.erreurDroits = null; var r = await s.confirmerRemises(liste); toast(r.change ? 'Clés remises.' : 'Aucune clé à remettre.'); rendreContenu(); } catch (err) { alert(err.message); }
     }
-    var sansRemise = incomplets.filter(function (x) { return !parAgent.some(function (a) { return a.id === x.id; }); });
-    var pIncomplets = remises.length || demandes.length || sansRemise.length || s.erreurDroits ? h('section', { class: 'panneau' }, h('h2', { text: 'Clés à remettre' }),
+    // Refus (0.72.0) : un prêt refusé est annulé ; les autres remises refusées ne sont plus proposées jusqu'à la levée du refus
+    async function refuser(liste, qui) {
+      var raison = prompt('Refuser la remise des clés à ' + qui + ' ?\nMotif montré au cadre (facultatif, court, sans donnée de patient) :', '');
+      if (raison === null) return;
+      try { await s.refuserRemises(liste, raison); toast('Remise refusée.'); rendreContenu(); } catch (err) { alert(err.message); }
+    }
+    var refusees = s.remisesRefusees ? s.remisesRefusees() : [];
+    var sansRemise = incomplets.filter(function (x) { return !parAgent.some(function (a) { return a.id === x.id; }) && !refusees.some(function (r) { return r.id === x.id; }); });
+    var pIncomplets = remises.length || demandes.length || refusees.length || sansRemise.length || s.erreurDroits ? h('section', { class: 'panneau' }, h('h2', { text: 'Clés à remettre' }),
       remises.length ? [
         h('div', { class: 'alerte', text: parAgent.length + ' compte(s) attendent votre confirmation pour recevoir des clés.' }),
         h('p', { class: 'muted', text: 'Une clé nouvelle n’est remise d’office que si elle découle d’un changement que vous faites vous-même (compte créé ou modifié, réglage enregistré). Celles-ci découlent d’un réglage écrit par un autre agent (prêt de droits, rôle selon le service) ou trouvé à votre connexion. Vérifiez qui reçoit quoi ; en cas de doute, ne confirmez pas et consultez le journal.' }),
         h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: 'Agent' }), h('th', { text: 'Clés' }), h('th', { text: 'D’après' }), h('th', { 'aria-label': 'Action' }))),
           h('tbody', {}, parAgent.map(function (a) {
             return h('tr', {}, h('td', { text: a.nom }), h('td', { text: a.lignes.map(function (r) { return r.libelle; }).join(', ') }), h('td', { text: motifs(a.lignes) }),
-              h('td', { class: 'actions-ligne' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { remettre(a.lignes); } }, 'Remettre')));
+              h('td', { class: 'actions-ligne' }, h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { remettre(a.lignes); } }, 'Remettre'),
+                h('button', { class: 'btn petit danger', type: 'button', onclick: function () { refuser(a.lignes, a.nom); } }, 'Refuser')));
           })))),
         h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: function () { remettre(null); } }, 'Tout remettre'))] : null,
       demandes.length ? [
@@ -1331,7 +1344,22 @@
               h('td', { text: d.auteur }),
               h('td', { class: 'actions-ligne' }, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
                 try { await s.confirmerDemandesComptes([d.id]); toast('Demande traitée.'); rendreContenu(); } catch (err) { alert(err.message); }
-              } }, d.action === 'creer' ? 'Créer le compte' : 'Appliquer')));
+              } }, d.action === 'creer' ? 'Créer le compte' : 'Appliquer'),
+                h('button', { class: 'btn petit danger', type: 'button', onclick: async function () {
+                  var raison = prompt('Refuser la demande concernant ' + d.nom + ' ?\nMotif montré au cadre (facultatif, court) :', '');
+                  if (raison === null) return;
+                  try { await s.refuserDemandesComptes([d.id], raison); toast('Demande refusée.'); rendreContenu(); } catch (err) { alert(err.message); }
+                } }, 'Refuser')));
+          }))))] : null,
+      refusees.length ? [
+        h('h3', { text: 'Remises refusées' }),
+        h('p', { class: 'muted', text: 'Ces clés restent dues d’après les réglages, mais vous en avez refusé la remise. Levez le refus pour qu’elles attendent de nouveau votre confirmation.' }),
+        h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: 'Agent' }), h('th', { text: 'Clé' }), h('th', { text: 'Refusée le' }), h('th', { text: 'Motif' }), h('th', { 'aria-label': 'Action' }))),
+          h('tbody', {}, refusees.map(function (r) {
+            return h('tr', {}, h('td', { text: r.nom }), h('td', { text: r.libelle }), h('td', { text: String(r.refus.le || '').slice(0, 10).split('-').reverse().join('/') }), h('td', { text: r.refus.raison || '—' }),
+              h('td', { class: 'actions-ligne' }, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
+                try { await s.leverRefusRemises([r]); toast('Refus levé.'); rendreContenu(); } catch (err) { alert(err.message); }
+              } }, 'Lever le refus')));
           }))))] : null,
       sansRemise.length ? h('div', { class: 'alerte', text: sansRemise.length + ' compte(s) n’ont pas toutes les clés auxquelles ils ont droit : ' + sansRemise.map(function (x) { return x.nom; }).join(', ') + '.' }) : null,
       s.erreurDroits ? h('div', { class: 'alerte', text: 'Dernière mise à jour des clés en échec : ' + s.erreurDroits }) : null,
@@ -1613,7 +1641,7 @@
         // Comptes et sécurité découpé en trois rubriques (0.43.0, demande du porteur du 12 novembre 2026 : pages trop longues)
         : [['comptes', 'Comptes', [pIncomplets, pPoles, comptes].filter(Boolean)],
           ['roles', 'Rôles et accès', [SIC.ui.roles.panneau()]],
-          ['securite', 'Sécurité et clés', [pAttestation, pTrousseau, deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
+          ['securite', 'Sécurité et clés', [pAttestation, pSignatures, pTrousseau, deblocage, SIC.ui.verrou.panneau(), SIC.ui.formation.sectionAdmin()].filter(Boolean)],
           ['services', 'Établissement et services', [pServices, pModulesServices, panneauBarre()].concat(pModule.services)],
           ['sauvegardes', 'Sauvegardes et exports', [SIC.ui.sauvegarde.panneau(), SIC.ui.miroir.panneau(), pExports].concat(pModule.sauvegardes, [SIC.ui.reglages.panneau()])],
           ['apropos', 'À propos', [SIC.ui.apropos.panneau(), infos, SIC.ui.version.panneau(), demo]]],
@@ -1641,6 +1669,38 @@
       var cmd = replierPanneaux(actif[2], 'admin|' + App.onglet + '|' + actif[0], 2);
       return h('div', {}, h('h1', { text: titre }), liste.length > 1 ? nav : null, h('div', { class: 'contenu-sous-onglet' }, cmd, actif[2]));
     }
+  }
+
+  // ------------------------------------------------------------ Signature des saisies (0.72.0)
+  var LIB_TYPE_ECART = { CONFIG: 'réglage', ANNULATION: 'annulation', LOT: 'import ou lot', COMPTE: 'trace de compte' };
+  /**
+   * Panneau « Signature des saisies » (administrateur) : exigence, comptes sans clé attestée, clés non vérifiées,
+   * saisies écartées à la lecture (masquées, jamais supprimées), et exigence à décider pour un coffre d'avant 0.72.0.
+   */
+  function panneauSignatures(s) {
+    var e = s.etatSignatures && s.etatSignatures(), at = s.etatAttestation && s.etatAttestation();
+    if (!e || !at || !at.attestateur || s.formation) return null;
+    var ec = s.saisiesEcartees(), nomDe = function (id) { return id ? s.nomAuteur(id) : '—'; };
+    return h('section', { class: 'panneau' }, h('h2', { text: 'Signature des saisies' }),
+      h('p', { class: 'muted', text: 'Chaque saisie est signée par la clé de son auteur, tirée de sa clé personnelle et attestée dans le coffre. Une saisie non signée, altérée, ou écrite au nom d’un autre agent est écartée à la lecture sur tous les postes : elle est masquée, jamais supprimée, et listée ici.' }),
+      e.exigee ? h('p', { text: 'Signature exigée depuis le ' + dateIso(e.exigee) + '.' })
+        : h('div', { class: 'alerte', text: 'Signature pas encore exigée (coffre créé avant la version 0.72.0) : les saisies non signées restent acceptées' + (e.anciennes ? ' (' + e.anciennes + ' lue(s) sur ce poste)' : '') + '.' }),
+      !e.exigee && e.provisoires ? h('p', { class: 'muted', text: e.provisoires + ' saisie(s) signée(s) par une clé pas encore attestée : attestée à la connexion d’un administrateur.' }) : null,
+      e.comptesSansCle.length ? h('p', { class: 'muted', text: 'Comptes sans clé de signature attestée : ' + e.comptesSansCle.map(function (x) { return x.nom; }).join(', ') + '. La clé est inscrite à la prochaine connexion de l’agent, puis attestée à celle d’un administrateur (ou à la réinitialisation de son mot de passe).' }) : null,
+      e.nonVerifiees.length ? h('div', { class: 'alerte', text: 'Clé de signature ajoutée hors de l’outil, non attestée : ' + e.nonVerifiees.map(function (x) { return x.nom; }).join(', ') + '. Les saisies signées par cette clé sont écartées ; consultez le journal et, au besoin, réinitialisez le mot de passe du compte.' }) : null,
+      ec.length ? [
+        h('div', { class: 'alerte', text: ec.length + ' saisie(s) écartée(s) à la lecture.' }),
+        h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Date indiquée', 'Auteur indiqué', 'Signée par', 'Nature', 'Journal', 'Motif'].map(function (x) { return h('th', { text: x }); }))),
+          h('tbody', {}, ec.slice(0, 50).map(function (x) {
+            return h('tr', {}, h('td', { text: dateIso(x.at) }), h('td', { text: nomDe(x.by) }), h('td', { text: x.sg ? nomDe(x.sg) : '—' }), h('td', { text: LIB_TYPE_ECART[x.type] || 'saisie' }),
+              h('td', { text: x.journal === 'socle' ? 'commun' : ((SIC.modules.obtenir(x.journal) || {}).libelle || x.journal) }), h('td', { text: x.libelle }));
+          })))),
+        ec.length > 50 ? h('p', { class: 'muted', text: 'Les 50 plus récentes sont affichées.' }) : null] : h('p', { class: 'muted', text: 'Aucune saisie écartée.' }),
+      !e.exigee ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', disabled: e.comptesSansCle.length > 0, onclick: async function (ev) {
+        if (!confirm('Exiger la signature de toute saisie ?\n\nLes saisies non signées (écrites avant la version 0.72.0) seront écartées sur tous les postes : masquées, jamais supprimées. Ce choix est inscrit dans le coffre attesté et ne peut pas être retiré.')) return;
+        var b = ev.currentTarget; b.disabled = true;
+        try { await s.exigerSignatures(); toast('Signature des saisies exigée.'); rendreContenu(); } catch (err) { alert(err.message); b.disabled = false; }
+      } }, 'Exiger la signature des saisies')) : null);
   }
 
   /** Fenêtre de migration vers le trousseau : mot de passe de l'administrateur, code de secours actuel (facultatif). */
