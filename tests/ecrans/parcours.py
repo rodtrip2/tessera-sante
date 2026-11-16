@@ -1525,6 +1525,10 @@ with sync_playwright() as p:
       return { annule: !!s.etat.annules[cible.id], plus: s.saisiesHorsDroit().length - avant, types: s.saisiesHorsDroit().map(x => x.type) }; })()""")
     verifier(r7['annule'] is False and r7['plus'] == 1 and 'ANNULATION' in r7['types'], 'droits à la lecture : annulation écrite sans en avoir le droit sans effet (' + str(r7) + ')')
     capture(a, 'signatures-saisies')
+    # Délai de sept jours (0.76.0) : isolement long de démonstration (Unité 2), second maintien rendu avant la 192e heure
+    r10 = a.evaluate("""(() => { const s = SIC.ui.App.session, st = s.etat, m = Object.values(st.mesures).find(x => x.patientId === 'P04' && typeof x.fin !== 'number');
+      const j = SIC.model.suiviJLD(st, m, Date.now()); return { cycle: j.cycle, depuis: !!j.depuisDecision, ecart: Math.round((m.debut + 360 * 3600000 - j.decision.echeance) / 3600000), regle: SIC.model.optionsCas(st.config).septJours, msg: SIC.ui.cas.texteGreffe().indexOf('168 heures') > 0 }; })()""")
+    verifier(r10['cycle'] == 3 and r10['depuis'] and r10['ecart'] == 22 and r10['regle'] == 'decision' and r10['msg'], 'délai de sept jours : échéance depuis la décision du juge, message type au greffe (' + str(r10) + ')')
     # Connexion (0.75.0) : règle des mots de passe, second facteur exigé pour l'administrateur, code de la clé exigé ;
     # clé de sécurité simulée par le navigateur (authentificateur virtuel avec l'extension PRF)
     pc = a.locator('section.panneau', has=a.locator('h2', has_text='Connexion : mots de passe et second facteur'))

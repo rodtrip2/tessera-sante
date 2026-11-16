@@ -237,7 +237,7 @@
         h('thead', {}, h('tr', {}, ['Patient', 'Type', 'Lieu', 'Début', 'Durée', 'Cycle', 'Info avant', 'Saisine avant', 'Décision avant', 'Tiers', ''].map(function (t) { return h('th', { text: t }); }))),
         tbody)),
       legendeEcheances(),
-      h('p', { class: 'muted' }, h('small', { text: 'Les échéances sont calculées depuis le début de la mesure et le cumul des 15 jours précédents (même patient, même type), jamais depuis la date des décisions du juge.' })));
+      h('p', { class: 'muted' }, h('small', { text: 'Les échéances sont calculées depuis le début de la mesure et le cumul des 15 jours précédents (même patient, même type)' + (M.optionsCas(config()).septJours === 'decision' ? ' ; pour l’isolement, après deux décisions de maintien, le délai de sept jours est compté aussi depuis la précédente décision du juge et l’échéance la plus proche est retenue (art. L. 3222-5-1, II).' : ', jamais depuis la date des décisions du juge (réglage de l’établissement).') })));
   }
 
   // ---------------------------------------------------------------- JLD
@@ -252,7 +252,9 @@
       tbody.appendChild(h('tr', { class: 'en-cours' },
         h('td', {}, h('b', { text: nomPatient(x.m.patientId) }), h('br'), h('small', { text: libService(x.m.service) })),
         h('td', {}, badgeType(x.m.type), h('br'), h('small', { text: 'depuis ' + duree(M.dureeHeures(x.m, maintenant, config())) }), badgePause(x.m, maintenant) ? h('div', {}, badgePause(x.m, maintenant)) : null),
-        h('td', {}, String(x.j.cycle), x.j.rythmeLong ? h('div', {}, h('small', { text: 'rythme long' })) : null),
+        h('td', {}, String(x.j.cycle), x.j.rythmeLong ? h('div', {}, h('small', { text: 'rythme long' })) : null,
+          x.j.decisionManquante ? h('div', {}, h('small', { class: 'texte-bad', title: 'Délai de sept jours compté depuis la précédente décision du juge : saisissez-la avec son heure.', text: 'décision du cycle ' + (x.j.cycle - 1) + ' à saisir' })) : null,
+          x.j.depuisDecision ? h('div', {}, h('small', { title: 'Délai de sept jours compté depuis la décision du juge du ' + date(x.j.depuisDecision) + ' (art. L. 3222-5-1, II).', text: '7 j depuis la décision' })) : null),
         h('td', { class: 'nowrap', text: duree(x.j.cumulAvant) }),
         h('td', {}, cellEcheance(x.j.info)), h('td', {}, cellEcheance(x.j.saisine)), h('td', {}, cellEcheance(x.j.decision)),
         h('td', {}, tiersBadge(x.m), t ? null : h('div', {}, h('small', { class: 'aide-survol', title: TITRE_TIERS_JLD, text: x.j.info && x.j.info.statut !== 'na' && x.j.info.echeance ? 'Proche à informer avant le ' + court(x.j.info.echeance) + ', comme le juge' : 'Proche à informer, comme le juge' }))),
@@ -915,7 +917,8 @@
     var nature = h('select', {}, Object.keys(LIB_NATURE).map(function (k) { return h('option', { value: k, text: LIB_NATURE[k], selected: p && p.nature === k }); }));
     var quand = h('input', { type: 'datetime-local', value: versSaisie(maintenant) });
     var decision = h('select', {}, h('option', { value: 'MAINTIEN', text: 'Maintien de la mesure' }), h('option', { value: 'LEVEE', text: 'Levée de la mesure' }));
-    var blocDecision = h('label', {}, 'Décision du juge', decision);
+    var blocDecision = h('label', {}, 'Décision du juge', decision, M.optionsCas(config()).septJours === 'decision' && m.type === 'Isolement'
+      ? h('small', { class: 'muted', text: 'Indiquez l’heure portée sur l’ordonnance (à défaut, l’heure de sa réception, par exemple par courriel) : après deux décisions de maintien, le délai de sept jours court à partir de cette heure.' }) : null);
     var infoLevee = h('div', { class: 'info', hidden: true, text: 'La levée est un indicateur légal : la mesure reste en cours jusqu’au report de la décision médicale de fin. Aucune nouvelle mesure ne pourra être prise pendant 48 h, sauf éléments nouveaux (le JLD est alors informé sans délai).' });
     function maj() { blocDecision.hidden = nature.value !== 'DECISION'; infoLevee.hidden = blocDecision.hidden || decision.value !== 'LEVEE'; }
     nature.addEventListener('change', maj); decision.addEventListener('change', maj); maj();
@@ -948,6 +951,8 @@
     var corps = h('div', { class: 'pile' }, recapMesure(m, maintenant),
       h('div', { class: 'recap' },
         h('div', { text: 'Cycle JLD en cours : ' + j.cycle + (j.rythmeLong ? ' (rythme des mesures longues)' : '') + ' · cumul des 15 jours avant la mesure : ' + duree(j.cumulAvant) }),
+        j.depuisDecision ? h('div', { text: 'Délai de sept jours compté depuis la décision du juge du ' + date(j.depuisDecision) + ' : saisine avant le ' + date(j.saisine.echeance) + ', décision avant le ' + date(j.decision.echeance) + '.' }) : null,
+        j.decisionManquante ? h('div', { class: 'texte-bad', text: 'Décision du juge du cycle ' + (j.cycle - 1) + ' non saisie : les échéances sont calculées depuis le début de la mesure et peuvent être plus tardives que l’échéance légale. Saisissez la décision avec son heure (à défaut, l’heure de réception de l’ordonnance).' }) : null,
         h('div', { text: 'Mode d’hospitalisation retenu : ' + (M.modeRetenu(st(), m).mode || '—') }),
         m.debutInitial ? h('div', { text: 'Mesure débutée le ' + date(m.debutInitial) + (m.lieuInitial ? ' (' + m.lieuInitial + ')' : '') + ', arrivée dans le service le ' + date(m.debut) + ' : délais JLD et cumuls depuis la décision initiale, registre depuis l’arrivée.' }) : null,
         j.apresMainlevee ? h('div', { class: 'texte-bad', text: 'Mesure décidée moins de 48 h après la mainlevée ordonnée par le JLD le ' + date(j.apresMainlevee.date) + (M.optionsCas(config()).mainleveeInfoSansDelai ? ' : information du JLD due sans délai.' : '.') }) : null,
