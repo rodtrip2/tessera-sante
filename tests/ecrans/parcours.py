@@ -1418,11 +1418,28 @@ with sync_playwright() as p:
     a.locator('table.cl-staff tr', has_text='BRAVO').get_by_role('button', name='Ouvrir').click(); time.sleep(1)
     d = a.locator('dialog[open]')
     verifier(d.locator('.cl-precedent').count() == 1 and 'F31.1' in d.locator('.cl-precedent').inner_text(), 'données cliniques : codes CIM et dépendance du séjour précédent rappelés')
+    # Plusieurs codes CIM dans un seul champ (0.78.0) : séparés en lignes, code déjà présent non dupliqué
+    n_codes = d.locator('input[aria-label="Code CIM"]').count()
+    d.get_by_text('Saisir plusieurs codes à la fois').click()
+    d.locator('textarea[aria-label="Plusieurs codes CIM à la fois"]').fill('F10.2 Code fictif ; Z59.0\nD51.0 Anémie par carence en vitamine B12')
+    d.get_by_role('button', name='Séparer en codes').click(); time.sleep(0.5)
+    codes = [x.input_value() for x in d.locator('input[aria-label="Code CIM"]').all()]
+    verifier(all(c in codes for c in ['F10.2', 'Z59.0', 'D51.0']) and 'B12' not in codes and len(codes) == len(set(codes)), 'données cliniques : plusieurs codes CIM séparés en lignes (' + ', '.join(codes) + ')')
     d.locator('select[aria-label="Comportement"]').select_option('3'); d.get_by_role('button', name='Enregistrer la feuille de staff').click(); time.sleep(1.2)
     d.locator('textarea[aria-label="Nouvelle note clinique"]').fill('Note du parcours (fictif).'); d.get_by_role('button', name='Ajouter la note').click(); time.sleep(1.2)
     verifier(d.locator('.cl-note', has_text='Note du parcours').count() == 1, 'données cliniques : note clinique rattachée au séjour')
     a.keyboard.press('Escape'); time.sleep(0.5)
     verifier('10 / 24' in a.locator('table.cl-staff tr', has_text='BRAVO').inner_text(), 'données cliniques : cotation de la dépendance mise à jour')
+    # Graphiques en PDF (0.78.0) : graphique des statistiques exporté, au papier de l'établissement
+    for _ in range(3): a.keyboard.press('Escape'); time.sleep(0.3)
+    fenetre(a, 'Isolement et contention')
+    a.locator('nav.onglets button', has_text='Statistiques').click(); time.sleep(1.5)
+    a.evaluate("""() => { const s = SIC.ui.App.session, orig = s.exporter.bind(s); window.__exports = [];
+      s.exporter = async (c, n, o, opt) => { window.__exports.push({ c, n, debut: String.fromCharCode.apply(null, o.slice(0, 5)), taille: o.length }); return orig(c, n, o, opt); }; }""")
+    sec = a.locator('section.panneau', has=a.locator('h2', has_text='Répartition mensuelle'))
+    sec.get_by_role('button', name='Exporter en PDF').click(); time.sleep(1.5)
+    ex = a.evaluate('window.__exports')
+    verifier(len(ex) == 1 and ex[0]['debut'] == '%PDF-' and ex[0]['n'].startswith('graphique_mesures_par_mois') and ex[0]['taille'] > 1500, 'graphiques : export en PDF du graphique des statistiques (' + str(ex) + ')')
     # Messageries du service sans connexion (lot A)
     for _ in range(3): a.keyboard.press('Escape'); time.sleep(0.3)
     fenetre(a, 'Équipe')

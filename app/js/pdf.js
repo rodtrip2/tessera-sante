@@ -256,6 +256,134 @@
   };
 
   /** Octets du fichier PDF. */
+  // ------------------------------------------------------------ Graphiques vectoriels (0.78.0)
+  /**
+   * Couleur d'un dessin : [r, g, b] (0 à 1), « #rrggbb » ou « #rgb » ; null si absente ou « none ».
+   */
+  function couleurDessin(c) {
+    if (!c || c === 'none') return null;
+    if (Array.isArray(c)) return c.length >= 3 && c.slice(0, 3).every(function (v) { return typeof v === 'number' && isFinite(v); }) ? c.slice(0, 3).map(function (v) { return Math.min(1, Math.max(0, v)); }) : null;
+    var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(c).trim());
+    if (!m) return null;
+    var hx = m[1].length === 3 ? m[1].split('').map(function (x) { return x + x; }).join('') : m[1];
+    return [0, 2, 4].map(function (i) { return parseInt(hx.slice(i, i + 2), 16) / 255; });
+  }
+  /** Arc elliptique du SVG (point de départ, rayons, rotation, drapeaux, arrivée) en courbes de Bézier cubiques. */
+  function arcEnBeziers(x1, y1, rx, ry, phi, grand, sens, x2, y2) {
+    if (x1 === x2 && y1 === y2) return [];
+    rx = Math.abs(rx); ry = Math.abs(ry);
+    if (!rx || !ry) return [[x1, y1, x2, y2, x2, y2]];
+    var f = phi * Math.PI / 180, cf = Math.cos(f), sf = Math.sin(f);
+    var dx = (x1 - x2) / 2, dy = (y1 - y2) / 2, xp = cf * dx + sf * dy, yp = -sf * dx + cf * dy;
+    var lam = (xp * xp) / (rx * rx) + (yp * yp) / (ry * ry);
+    if (lam > 1) { var r = Math.sqrt(lam); rx *= r; ry *= r; }
+    var num2 = rx * rx * ry * ry - rx * rx * yp * yp - ry * ry * xp * xp, den = rx * rx * yp * yp + ry * ry * xp * xp;
+    var co = (grand === sens ? -1 : 1) * Math.sqrt(Math.max(0, num2 / den));
+    var cxp = co * rx * yp / ry, cyp = -co * ry * xp / rx;
+    var cx = cf * cxp - sf * cyp + (x1 + x2) / 2, cy = sf * cxp + cf * cyp + (y1 + y2) / 2;
+    function angle(ux, uy, vx, vy) { var a = Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy); return a; }
+    var t1 = angle(1, 0, (xp - cxp) / rx, (yp - cyp) / ry), dt = angle((xp - cxp) / rx, (yp - cyp) / ry, (-xp - cxp) / rx, (-yp - cyp) / ry);
+    if (!sens && dt > 0) dt -= 2 * Math.PI; else if (sens && dt < 0) dt += 2 * Math.PI;
+    var n = Math.max(1, Math.ceil(Math.abs(dt) / (Math.PI / 2))), d = dt / n, k = 4 / 3 * Math.tan(d / 4), res = [];
+    function pt(t) { var c = Math.cos(t), s = Math.sin(t); return [cx + rx * c * cf - ry * s * sf, cy + rx * c * sf + ry * s * cf, -rx * s * cf - ry * c * sf, -rx * s * sf + ry * c * cf]; }
+    for (var i = 0; i < n; i++) {
+      var a = pt(t1 + i * d), b = pt(t1 + (i + 1) * d);
+      res.push([a[0] + k * a[2], a[1] + k * a[3], b[0] - k * b[2], b[1] - k * b[3], b[0], b[1]]);
+    }
+    return res;
+  }
+  /** Tracé SVG (commandes M L H V C Q A Z, absolues ou relatives) en segments : [['M', x, y] | ['L', x, y] | ['C', x1, y1, x2, y2, x, y] | ['Z']]. */
+  function segmentsTrace(d) {
+    var jetons = String(d || '').match(/[MLHVCQAZmlhvcqaz]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/g) || [], i = 0, cmd = '', x = 0, y = 0, x0 = 0, y0 = 0, res = [];
+    function n() { var v = parseFloat(jetons[i++]); if (!isFinite(v)) throw new Error('trace'); return v; }
+    try {
+      while (i < jetons.length && res.length < 5000) {
+        if (/[A-Za-z]/.test(jetons[i])) cmd = jetons[i++];
+        else if (!cmd) break;
+        var rel = cmd === cmd.toLowerCase(), C2 = cmd.toUpperCase();
+        if (C2 === 'Z') { res.push(['Z']); x = x0; y = y0; cmd = ''; continue; }
+        if (C2 === 'M' || C2 === 'L') { var px = n(), py = n(); if (rel) { px += x; py += y; } x = px; y = py; if (C2 === 'M') { x0 = x; y0 = y; res.push(['M', x, y]); cmd = rel ? 'l' : 'L'; } else res.push(['L', x, y]); }
+        else if (C2 === 'H') { var hx = n(); x = rel ? x + hx : hx; res.push(['L', x, y]); }
+        else if (C2 === 'V') { var vy = n(); y = rel ? y + vy : vy; res.push(['L', x, y]); }
+        else if (C2 === 'C') { var c = [n(), n(), n(), n(), n(), n()]; if (rel) c = c.map(function (v, j) { return v + (j % 2 ? y : x); }); res.push(['C'].concat(c)); x = c[4]; y = c[5]; }
+        else if (C2 === 'Q') { var q = [n(), n(), n(), n()]; if (rel) q = q.map(function (v, j) { return v + (j % 2 ? y : x); }); res.push(['C', x + 2 / 3 * (q[0] - x), y + 2 / 3 * (q[1] - y), q[2] + 2 / 3 * (q[0] - q[2]), q[3] + 2 / 3 * (q[1] - q[3]), q[2], q[3]]); x = q[2]; y = q[3]; }
+        else if (C2 === 'A') {
+          var rx = n(), ry = n(), phi = n(), ga = n(), se = n(), ax = n(), ay = n();
+          if (rel) { ax += x; ay += y; }
+          arcEnBeziers(x, y, rx, ry, phi, ga ? 1 : 0, se ? 1 : 0, ax, ay).forEach(function (b) { res.push(['C'].concat(b)); });
+          x = ax; y = ay;
+        } else break;
+      }
+    } catch (e) { /* tracé incomplet : on garde ce qui a été lu */ }
+    return res;
+  }
+  /**
+   * Dessin vectoriel dans le flux, réduit à la largeur utile (ou `o.largeur`, en points) et à `o.hauteurMax` :
+   * `dessin` = { largeur, hauteur, elements: [{ e: 'rect' (x, y, w, h) | 'line' (x1, y1, x2, y2) | 'polyline' (pts, ferme)
+   * | 'circle' (cx, cy, r) | 'path' (d) | 'text' (x, y, t, taille, gras, ancre, couleur), fond, trait, ep, pointille }] },
+   * coordonnées du dessin vers le bas (comme le SVG). Couleurs : [r, g, b] ou « #rrggbb ».
+   */
+  Document.prototype.dessin = function (dessin, o) {
+    o = o || {};
+    var W = +dessin.largeur, H = +dessin.hauteur, self = this;
+    if (!(W > 0) || !(H > 0)) return;
+    // Textes qui débordent du cadre (police du PDF plus large que celle de l'écran) : cadre élargi pour les garder entiers
+    var gauche = 0, droite = W;
+    (dessin.elements || []).forEach(function (el) {
+      if (!el || el.e !== 'text' || !String(el.t || '').trim()) return;
+      var l = largeur(String(el.t), +el.taille || 10, !!el.gras), x = (+el.x || 0) - (el.ancre === 'middle' ? l / 2 : el.ancre === 'end' ? l : 0);
+      gauche = Math.min(gauche, x - 2); droite = Math.max(droite, x + l + 2);
+    });
+    W = droite - gauche;
+    var L = Math.min(o.largeur || this.largeurUtile, this.largeurUtile), k = Math.min(L / W, (o.hauteurMax || (this.F.h - this.mg.h - this.mg.b)) / H);
+    this.place(H * k + (o.avant || 0));
+    this.y -= o.avant || 0;
+    var x0 = this.mg.g + (this.largeurUtile - W * k) / 2 - gauche * k, y0 = this.y;
+    function X(v) { return num(x0 + (+v || 0) * k); }
+    function Y(v) { return num(y0 - (+v || 0) * k); }
+    function style(el, ferme) {
+      var fond = couleurDessin(el.fond), trait = couleurDessin(el.trait), op = 'q ';
+      if (fond) op += couleurDe(self, fond) + ' rg ';
+      if (trait) op += couleurDe(self, trait) + ' RG ' + num(Math.max(0.1, (+el.ep || 1) * k)) + ' w ' + (el.pointille ? '[' + num(3 * k) + ' ' + num(3 * k) + '] 0 d ' : '') + '1 J 1 j ';
+      return { debut: op, fin: (fond && trait ? (ferme ? 'B' : 'B') : fond ? 'f' : trait ? 'S' : 'n') + ' Q', vide: !fond && !trait };
+    }
+    (dessin.elements || []).slice(0, 20000).forEach(function (el) {
+      if (!el || typeof el !== 'object') return;
+      var s, corps = '';
+      if (el.e === 'text') {
+        var t = String(el.t == null ? '' : el.t);
+        if (!t.trim()) return;
+        var taille = Math.max(3, (+el.taille || 10) * k), gras = !!el.gras, l = largeur(t, taille, gras);
+        var x = x0 + (+el.x || 0) * k - (el.ancre === 'middle' ? l / 2 : el.ancre === 'end' ? l : 0);
+        self.page.ops.push(self.opTexte(x, y0 - (+el.y || 0) * k, t, taille, gras ? 'gras' : null, couleurDessin(el.couleur) || [0.2, 0.2, 0.2]));
+        return;
+      }
+      if (el.e === 'rect') { s = style(el, true); corps = X(el.x) + ' ' + num(y0 - ((+el.y || 0) + (+el.h || 0)) * k) + ' ' + num((+el.w || 0) * k) + ' ' + num((+el.h || 0) * k) + ' re '; }
+      else if (el.e === 'line') { s = style({ trait: el.trait || el.fond, ep: el.ep, pointille: el.pointille }); corps = X(el.x1) + ' ' + Y(el.y1) + ' m ' + X(el.x2) + ' ' + Y(el.y2) + ' l '; }
+      else if (el.e === 'polyline') {
+        var pts = (Array.isArray(el.pts) ? el.pts : String(el.pts || '').trim().split(/\s+/).map(function (p) { return p.split(',').map(Number); })).filter(function (p) { return p && isFinite(p[0]) && isFinite(p[1]); });
+        if (pts.length < 2) return;
+        s = style(el, el.ferme);
+        corps = pts.map(function (p, i) { return X(p[0]) + ' ' + Y(p[1]) + (i ? ' l ' : ' m '); }).join('') + (el.ferme ? 'h ' : '');
+      } else if (el.e === 'circle') {
+        var r = +el.r || 0, cx = +el.cx || 0, cy = +el.cy || 0, kk = 0.5523 * r;
+        if (!(r > 0)) return;
+        s = style(el, true);
+        corps = X(cx + r) + ' ' + Y(cy) + ' m '
+          + [[cx + r, cy + kk, cx + kk, cy + r, cx, cy + r], [cx - kk, cy + r, cx - r, cy + kk, cx - r, cy], [cx - r, cy - kk, cx - kk, cy - r, cx, cy - r], [cx + kk, cy - r, cx + r, cy - kk, cx + r, cy]]
+            .map(function (c) { return X(c[0]) + ' ' + Y(c[1]) + ' ' + X(c[2]) + ' ' + Y(c[3]) + ' ' + X(c[4]) + ' ' + Y(c[5]) + ' c '; }).join('') + 'h ';
+      } else if (el.e === 'path') {
+        var sg = segmentsTrace(el.d);
+        if (!sg.length) return;
+        s = style(el, true);
+        corps = sg.map(function (g) { return g[0] === 'Z' ? 'h ' : g[0] === 'C' ? X(g[1]) + ' ' + Y(g[2]) + ' ' + X(g[3]) + ' ' + Y(g[4]) + ' ' + X(g[5]) + ' ' + Y(g[6]) + ' c ' : X(g[1]) + ' ' + Y(g[2]) + (g[0] === 'M' ? ' m ' : ' l '); }).join('');
+      } else return;
+      if (s.vide) return;
+      self.page.ops.push(s.debut + corps + s.fin);
+    });
+    this.y -= H * k + (o.apres === undefined ? 6 : o.apres);
+  };
+
   Document.prototype.octets = function () {
     var self = this, objets = [], n = this.pages.length;
     function obj(contenu) { objets.push(contenu); return objets.length; }
@@ -318,5 +446,5 @@
     return res;
   };
 
-  return { Document: Document, largeur: largeur, couper: couper, infoJPEG: infoJPEG, MM: MM, A4: A4, definirTransformation: definirTransformation };
+  return { Document: Document, largeur: largeur, couper: couper, infoJPEG: infoJPEG, MM: MM, A4: A4, definirTransformation: definirTransformation, segmentsTrace: segmentsTrace, couleurDessin: couleurDessin };
 });

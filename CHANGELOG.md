@@ -1,5 +1,12 @@
 # Journal des modifications — Tessera Santé
 
+## 0.78.0 — 16 novembre 2026
+
+Demandes du porteur du 16 novembre 2026.
+- **Plusieurs codes CIM dans un seul champ** (feuille de staff des données cliniques) : « Saisir plusieurs codes à la fois », puis « Séparer en codes » ; chaque code (F20, F20.0, F200, F10.24, U07.1…) ouvre une ligne, le texte qui le suit devient son libellé ; séparateurs : point-virgule, virgule, retour à la ligne ; codes déjà présents non dupliqués (libellé complété s'il manquait) ; un code au milieu d'un libellé (« carence en vitamine B12 ») n'est pas séparé. Vérification par l'agent, puis enregistrement.
+- **Graphiques en PDF** : bouton « Exporter en PDF » sur le graphique des statistiques d'Isolement et contention, sur les deux graphiques de l'année d'un patient (document confidentiel) et sur chaque graphique du tableur ; graphique redessiné en vecteurs au papier de l'établissement, avec sa légende, couleurs du thème clair même en thème sombre, noir et blanc respecté ; fichier rangé dans le dossier des exports (catégorie « Graphiques »). Le PDF des statistiques contient désormais le graphique mensuel.
+- Frise de l'année d'un patient : légende des couleurs (isolement seul, contention).
+
 ## 0.77.2 — 16 novembre 2026
 
 Test de l'attestation rendu stable : il pouvait échouer par hasard quand les lettres « IDE » apparaissaient dans le texte chiffré (base64). Sans changement de l'application.

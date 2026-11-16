@@ -149,7 +149,7 @@
       r.appendChild(s('title', {}, (e.numero ? 'N° ' + e.numero + ' — ' : '') + e.categorie + ' — ' + U.lieu(M.LIB_CATEGORIES[e.categorie]) + ' — ' + courtJour(e.debut) + ' → ' + (e.fin === null ? 'en cours' : courtJour(e.fin)) + ' (' + fd(e.dureeHeures) + ')'));
       svg.appendChild(r);
     });
-    return h('figure', { class: 'figure' }, svg, h('figcaption', {}, 'Frise de l’année : chaque entrée du registre à sa date (survoler pour le détail).'));
+    return h('figure', { class: 'figure' }, svg, h('figcaption', {}, h('span', { class: 'puce iso' }), ' Isolement seul (A, B)  ', h('span', { class: 'puce cont' }), ' Contention (C, D, E) — chaque entrée du registre à sa date', h('span', { class: 'ecran-seul', text: ' (survoler pour le détail)' }), '.'));
   }
 
   /** Bloc « Année » de la fiche : totaux, histogramme mensuel et frise, avec choix de l'année. */
@@ -169,8 +169,12 @@
         h('div', { class: 'indicateur' }, h('div', { class: 'valeur' }, insecable(principal), ' ', h('span', { class: 'valeur-sec', text: '(' + insecable(autre) + ')' })), h('div', { class: 'libelle', text: 'Durée totale (' + pr.entrees.filter(function (e) { return e.anneeDebut === an; }).length + ' entrée(s))' })),
         h('div', { class: 'indicateur' }, h('div', { class: 'valeur', text: fd(pr.iso) }), h('div', { class: 'libelle', text: 'Isolement seul (A, B)' })),
         h('div', { class: 'indicateur' }, h('div', { class: 'valeur', text: fd(pr.cont) }), h('div', { class: 'libelle', text: 'Contention (C, D, E)' }))));
-      zone.appendChild(graphiqueMois(pr));
-      zone.appendChild(frise(pr));
+      var gm = graphiqueMois(pr), fr2 = frise(pr), qui = ((p.nom || '?') + ' ' + (p.prenom || '')).trim(), sv = svs.length === 1 ? svs[0] : null;
+      function optionsPdf(titre, nom) { return { titre: titre + ' — ' + qui, sousTitre: 'Année ' + an + ' — entrées du registre des services affichés', service: sv, confidentiel: true, nom: nom + '_' + (p.ipp || p.id) + '_' + an, categorie: 'graphiques' }; }
+      zone.appendChild(gm);
+      zone.appendChild(h('div', { class: 'figure-actions' }, U.graphiquePdf.bouton(gm, optionsPdf('Heures de mesure par mois', 'heures_par_mois'))));
+      zone.appendChild(fr2);
+      zone.appendChild(h('div', { class: 'figure-actions' }, U.graphiquePdf.bouton(fr2, optionsPdf('Frise de l’année', 'frise'))));
       zone.appendChild(h('small', { class: 'muted', text: 'Entrées du registre des services affichés. Les totaux comptent les entrées débutées dans l’année, comme les statistiques ; l’histogramme et la frise montrent les heures à leur date réelle'
         + (Math.abs(pr.heuresAnnee - pr.total) > 0.02 ? ' (' + fd(pr.heuresAnnee) + ' dans l’année civile ' + an + ', les entrées à cheval sur deux années comptant pour chacune leur part)' : '') + (M.optionsPauses(U.config()).deduireRegistre ? ' ; durées hors pauses.' : ' ; durées réelles, levées temporaires comprises.') }));
     }

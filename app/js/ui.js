@@ -571,7 +571,7 @@
       return null;
     }
   }
-  var LIB_CATEGORIES_EXPORT = { comptes: 'Comptes créés', decomptes: 'Décomptes JLD', registres: 'Registres', statistiques: 'Statistiques', communication: 'Registre pour communication', patients: 'Droit d’accès', archives: 'Archives annuelles', reglages: 'Réglages', agenda: 'Agendas exportés (.ics)' };
+  var LIB_CATEGORIES_EXPORT = { comptes: 'Comptes créés', decomptes: 'Décomptes JLD', registres: 'Registres', statistiques: 'Statistiques', graphiques: 'Graphiques', communication: 'Registre pour communication', patients: 'Droit d’accès', archives: 'Archives annuelles', reglages: 'Réglages', agenda: 'Agendas exportés (.ics)' };
   function typeFichier(nom) { return /\.pdf$/i.test(nom) ? 'application/pdf' : /\.csv$/i.test(nom) ? 'text/csv;charset=utf-8' : /\.json$/i.test(nom) ? 'application/json' : /\.ics$/i.test(nom) ? 'text/calendar;charset=utf-8' : 'application/octet-stream'; }
   function taille(o) { return o < 1024 ? o + ' o' : o < 1048576 ? Math.round(o / 1024) + ' Ko' : (o / 1048576).toFixed(1).replace('.', ',') + ' Mo'; }
 
