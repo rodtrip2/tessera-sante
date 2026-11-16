@@ -613,6 +613,13 @@
     return m.trim() + (taille != null ? ' (' + taille + ' octets)' : '');
   }
 
+  /** Applique `f` aux éléments par lots de `n` traités en parallèle (lots successifs). */
+  var LOT_LECTURE = 32;
+  async function parLots(liste, n, f) {
+    for (var i = 0; i < liste.length; i += n) await Promise.all(liste.slice(i, i + n).map(function (x) { return f(x); }));
+  }
+  Dossier.parLots = parLots;
+
   async function lireEvenement(cle, fichier) {
     var octets = new Uint8Array(await (await fichier.getFile()).arrayBuffer());
     var e = await C.dechiffrerJSON(cle, octets, 'evt:' + fichier.name);
@@ -665,16 +672,17 @@
           var snap = await dossier.lireInstantane(cle, cleMois);
           if (snap) snap.evenements.forEach(function (e) { duMois[e.id + '.enc'] = e; });
         }
-        for (var i = 0; i < fichiers.length; i++) {
-          var nom = fichiers[i].name;
-          if (duMois[nom] || connus.has(nom)) continue; // déjà lu (instantané ou session en cours)
-          try { duMois[nom] = await lireEvenement(cle, fichiers[i]); }
+        // Fichiers restants lus par lots en parallèle (le partage répond à plusieurs demandes à la fois ; test de charge
+        // du 16 novembre 2026) ; résultat et diagnostics identiques à une lecture une à une, dans l'ordre des fichiers
+        var aLire = fichiers.filter(function (x) { return !duMois[x.name] && !connus.has(x.name); }), echecs = [];
+        await parLots(aLire, LOT_LECTURE, async function (f) {
+          try { duMois[f.name] = await lireEvenement(cle, f); }
           catch (err) {
-            rejetsMois++;
-            var taille = null; try { taille = (await fichiers[i].getFile()).size; } catch (e2) { /* taille inconnue */ }
-            res.rejetes.push({ nom: nom, chemin: chemins[nom], raison: diagnosticLecture(err, taille), taille: taille });
+            var taille = null; try { taille = (await f.getFile()).size; } catch (e2) { /* taille inconnue */ }
+            echecs.push({ f: f, rejet: { nom: f.name, chemin: chemins[f.name], raison: diagnosticLecture(err, taille), taille: taille } });
           }
-        }
+        });
+        echecs.sort(function (a, b) { return aLire.indexOf(a.f) - aLire.indexOf(b.f); }).forEach(function (x) { rejetsMois++; res.rejetes.push(x.rejet); });
         // Un fichier illisible n'est pas marqué comme connu : il est relu à la synchronisation suivante
         // (un échec passager — réseau, fichier en cours de synchronisation — ne doit pas masquer une saisie).
         nouveaux.forEach(function (x) {
@@ -692,6 +700,26 @@
       }
     }
     }
+  };
+
+  /**
+   * Relit une saisie de ce journal par son nom (« <id>.enc ») : dossier du jour, dossier du mois (rangement d'avant
+   * 0.33.0), à défaut instantané du mois. Sert aux contenus allégés en mémoire (anciennes versions des documents).
+   */
+  Dossier.prototype.lireEvenementNom = async function (cle, nom) {
+    var m = /^(\d{4})(\d{2})(\d{2})T/.exec(nom || '');
+    if (!m) return null;
+    var chemins = [['evenements', m[1], m[2], m[3]], ['evenements', m[1], m[2]]];
+    for (var i = 0; i < chemins.length; i++) {
+      var dir = null;
+      try { dir = await this.sousDossier(chemins[i], false); } catch (e) { continue; }
+      var fh = null;
+      try { fh = await dir.getFileHandle(nom); } catch (e) { continue; }
+      return lireEvenement(cle, { name: nom, getFile: function () { return fh.getFile(); } });
+    }
+    var snap = await this.lireInstantane(cle, m[1] + '-' + m[2]);
+    var id = nom.replace(/\.enc$/, '');
+    return snap ? snap.evenements.filter(function (e) { return e.id === id; })[0] || null : null;
   };
 
   Dossier.prototype.lireInstantane = async function (cle, cleMois) {

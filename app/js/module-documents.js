@@ -477,8 +477,10 @@
         if (d.nom) st.docs[d.id].noms[e.by] = texte(d.nom, 80);
         break;
       case 'DOC_VERSION':
-        if (!x || x.efface || typeof d.ct !== 'string') break;
-        x.versions.push({ id: e.id, le: e.at, par: e.by, g: +d.g || 1, ct: d.ct, taille: d.ct.length, restauree: texte(d.restauree, 60), base: texte(d.base, 80) });   // base : version de départ (édition simultanée)
+        // Version allégée en mémoire (0.85.0, test de charge) : contenu laissé sur le partage, relu à la demande (`allege`)
+        var allegee = typeof d.ct !== 'string' && +d.ctTaille > 0;
+        if (!x || x.efface || (typeof d.ct !== 'string' && !allegee)) break;
+        x.versions.push({ id: e.id, le: e.at, par: e.by, g: +d.g || 1, ct: allegee ? null : d.ct, taille: allegee ? +d.ctTaille : d.ct.length, allege: allegee, restauree: texte(d.restauree, 60), base: texte(d.base, 80) });   // base : version de départ (édition simultanée)
         x.modifie = e.at;
         if (x.statut.statut === 'valide') x.statut = Object.assign({}, x.statut, { statut: 'modifie' });
         break;

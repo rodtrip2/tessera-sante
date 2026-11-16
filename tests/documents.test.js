@@ -390,3 +390,28 @@ test('Masques de fond : bibliothèque validée, établissement puis service de l
   assert.equal(DM.controlerMasques(a, Object.assign({}, a, { mqu2aaaa: undefined }), cadre), false);
   assert.equal(DM.controlerMasques(a, Object.assign({}, a, { mqxxxxxx: { nom: 'Étab', services: [], image: img } }), cadre), false);
 });
+
+test('Mémoire (0.85.0) : anciennes versions allégées à la lecture, relues sur le partage à la demande, signature vérifiée', async () => {
+  const { racine, id } = await equipe();
+  const a = await co(racine, 'ide.a', 'mot de passe ide a');
+  await a.creerCleDocument('DC0000000c', ['k-a.' + id('ide.a')]);
+  await a.enregistrer('DOC', { id: 'DC0000000c', modele: false, partage: [], services: [], depuis: '' });
+  const cts = [];
+  for (let i = 0; i < 5; i++) {
+    const v = await a.chiffrerDocument('DC0000000c', { meta: DM.meta({ titre: 'Version ' + i + ' (fictif)' }), contenu: contenu('texte ' + i) });
+    cts.push(v.ct);
+    await a.enregistrer('DOC_VERSION', { doc: 'DC0000000c', g: v.g, ct: v.ct });
+  }
+  // Nouvelle connexion : lecture du partage, les deux plus anciennes versions sont allégées
+  const a2 = await co(racine, 'ide.a', 'mot de passe ide a');
+  const vs = a2.etatModule('documents').docs.DC0000000c.versions;
+  assert.deepEqual(vs.map(v => v.allege), [true, true, false, false, false]);
+  assert.deepEqual(vs.map(v => v.taille), cts.map(c => c.length));
+  assert.equal(vs[0].ct, null);
+  assert.equal(vs[4].ct, cts[4]);
+  const e = await a2.relireSaisie(vs[0].id);
+  assert.equal(e.data.ct, cts[0]);
+  const o = await a2.dechiffrerDocument('DC0000000c', vs[0].g, e.data.ct);
+  assert.equal(o.meta.titre, 'Version 0 (fictif)');
+  assert.equal(await a2.relireSaisie('20990101T000000Z_inconnu_00000000'), null);
+});
