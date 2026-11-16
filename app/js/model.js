@@ -1407,9 +1407,27 @@
    * Professionnels (nom, fonction) ayant surveillé une CSI d'un service entre `debut` et `fin`, sans doublon.
    * Avec `lieu` : seuls ceux qui ont surveillé ce lieu (ou tous les lieux, faute de précision).
    */
+  /**
+   * Traces de surveillance rangées par service et par jour (index tenu à part de l'état, refait quand la liste change) :
+   * le registre n'examine que les jours couverts par chaque entrée (test de charge du 16 novembre 2026 : sans index, le
+   * registre d'un service parcourait toutes les traces de tous les services pour chaque entrée).
+   */
+  var INDEX_PROS = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function indexProfessionnels(st) {
+    var liste = st.professionnels || [], x = INDEX_PROS && INDEX_PROS.get(liste);
+    if (x && x.n === liste.length) return x.parService;
+    var parService = {};
+    liste.forEach(function (p) { var sv = parService[p.service] = parService[p.service] || {}; (sv[p.date] = sv[p.date] || []).push(p); });
+    if (INDEX_PROS) INDEX_PROS.set(liste, { n: liste.length, parService: parService });
+    return parService;
+  }
   function professionnelsDetailSur(st, service, debut, fin, lieu) {
     var pros = [], vus = {}, periodes = periodesDe(st.config, service);
-    st.professionnels.forEach(function (p) {
+    var parJour = indexProfessionnels(st)[service] || {}, candidats = [];
+    // Une période peut déborder sur le lendemain (nuit) : jours de la veille du début jusqu'au jour de la fin
+    for (var t = debut - J, n = 0; n < 400 && dateLocaleISO(t) <= dateLocaleISO(fin); t += J, n++) candidats = candidats.concat(parJour[dateLocaleISO(t)] || []);
+    if (n >= 400) candidats = st.professionnels;   // entrée de plus d'un an : parcours complet
+    candidats.forEach(function (p) {
       if (p.service !== service) return;
       if (lieu && p.lieux && p.lieux.length && p.lieux.indexOf(lieu) < 0) return;
       var per = periodes.filter(function (q) { return q.code === p.periode; })[0];
@@ -1476,6 +1494,8 @@
    * `depuis` : seules les saisies faites depuis cet instant.
    */
   function decalagesRegistre(st, service, annee, maintenant, depuis) {
+    // Aucune mesure du service saisie dans la période demandée : rien à chercher (appel fréquent : pastille, Aujourd'hui)
+    if (depuis && !Object.keys(st.mesures).some(function (k) { var m = st.mesures[k]; return m.service === service && (m.saisiLe || 0) >= depuis; })) return [];
     var reg = registre(st, service, annee, maintenant), parMesure = {};
     reg.forEach(function (e) { (parMesure[e.mesureId] = parMesure[e.mesureId] || []).push(e); });
     function saisi(e) { var m = st.mesures[e.mesureId]; return m ? (m.saisiLe || Date.parse(m.creeLe) || 0) : 0; }

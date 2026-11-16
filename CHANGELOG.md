@@ -1,5 +1,12 @@
 # Journal des modifications — Tessera Santé
 
+## 0.84.1 — 16 novembre 2026
+
+Test de charge (demande du porteur du 16 novembre 2026) : `docs/test-de-charge.md`, script `scripts/charge.cjs` étendu à tous les modules (plusieurs services, plusieurs années, chiffrement et signature réels, place occupée par blocs de 4 Ko, écriture réelle facultative).
+- **Registre** : traces de surveillance rangées par service et par jour ; le registre d'un service passe de 424 à 8 ms (un an d'activité), et ne ralentit plus avec le nombre de services.
+- **Alerte au cadre des numéros décalés** : résultat gardé tant que les données ne changent pas ; aucune recherche si aucune mesure n'a été saisie dans les 7 derniers jours.
+- Fiche technique : volumétrie mise à jour (300 Mo et 53 000 fichiers par service et par an).
+
 ## 0.84.0 — 16 novembre 2026
 
 Calcul pour le juge et registre (décisions du porteur du 16 novembre 2026, après vérification des textes et de la jurisprudence).

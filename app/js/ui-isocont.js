@@ -1797,10 +1797,13 @@
       + ' (' + x.numeros.join(', ') + ') : ' + x.decales.map(function (d) { return d.avant + ' → ' + d.apres; }).join(', ');
   }
   /** Informations du module (page Aujourd'hui) : saisies tardives des 7 derniers jours qui ont décalé des numéros. */
+  var cacheInfos = { st: null, le: 0, res: [] };
   function informationsIsocont() {
     var res = [];
     try {
       if (!encadreRegistre()) return res;
+      // Appel fréquent (pastille de la barre des modules, page Aujourd'hui) : résultat gardé tant que l'état ne change pas
+      if (cacheInfos.st === st() && Date.now() - cacheInfos.le < 60000) return cacheInfos.res;
       var maintenant = Date.now(), an = new Date(maintenant).getFullYear();
       services().forEach(function (sv) {
         [an - 1, an].forEach(function (a) {
@@ -1810,6 +1813,7 @@
           });
         });
       });
+      cacheInfos = { st: st(), le: Date.now(), res: res };
     } catch (e) { /* registre illisible : rien à signaler */ }
     return res;
   }
