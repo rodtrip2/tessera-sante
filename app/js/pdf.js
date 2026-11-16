@@ -41,8 +41,15 @@
     return [63, t[63 - 32]];   // « ? » pour un caractère non représentable
   }
 
+  // Transformation des textes du document (0.77.0) : désignation du juge de l'établissement (constat J1), posée par
+  // l'interface ; idempotente, appliquée à la mesure comme à l'écriture pour que les coupures restent justes
+  var transformer = null;
+  function definirTransformation(f) { transformer = typeof f === 'function' ? f : null; }
+  function tx(texte) { texte = String(texte === undefined || texte === null ? '' : texte); return transformer ? transformer(texte) : texte; }
+
   /** Largeur d'un texte en points. */
   function largeur(texte, taille, gras) {
+    texte = tx(texte);
     var s = 0;
     for (var i = 0; i < texte.length; i++) s += glyphe(texte[i], gras)[1];
     return s * taille / 1000;
@@ -50,6 +57,7 @@
 
   /** Texte codé pour un flux PDF (chaîne d'octets, parenthèses et barres obliques protégées). */
   function code(texte, gras) {
+    texte = tx(texte);
     var r = '';
     for (var i = 0; i < texte.length; i++) {
       var o = glyphe(texte[i], gras)[0];
@@ -60,6 +68,7 @@
 
   /** Coupe un texte en lignes d'au plus `max` points (respecte les retours à la ligne). */
   function couper(texte, taille, gras, max) {
+    texte = tx(texte);
     var res = [];
     String(texte == null ? '' : texte).split('\n').forEach(function (para) {
       var mots = para.split(/ +/), ligne = '';
@@ -309,5 +318,5 @@
     return res;
   };
 
-  return { Document: Document, largeur: largeur, couper: couper, infoJPEG: infoJPEG, MM: MM, A4: A4 };
+  return { Document: Document, largeur: largeur, couper: couper, infoJPEG: infoJPEG, MM: MM, A4: A4, definirTransformation: definirTransformation };
 });

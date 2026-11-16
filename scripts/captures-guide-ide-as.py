@@ -103,7 +103,7 @@ with sync_playwright() as p:
     shot(a.locator('dialog'), '19-exports')
     a.locator('dialog').get_by_role('button', name='Fermer').last.click(); time.sleep(0.5)
     # ---------------- JLD
-    a.locator('nav.onglets button', has_text='JLD').click(); time.sleep(1)
+    a.locator('nav.onglets button', has_text='Juge').click(); time.sleep(1)
     shot(a, '10-onglet-jld')
     a.locator('tr', has_text='HOTEL (fictif)').first.get_by_role('button', name='Saisir un envoi ou une décision').click(); time.sleep(0.8)
     d = a.locator('dialog'); print('jld labels:', d.locator('label').all_inner_texts()[:12])

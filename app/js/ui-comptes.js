@@ -114,13 +114,13 @@
         })))),
       h('div', { class: 'actions' },
         h('button', { class: 'btn', onclick: function () { U.imprimer(fiches(liste)); } }, 'Imprimer les fiches de remise'),
+        // Liste des comptes créés, sans les mots de passe (constat S8 de l'audit) : ceux-ci ne figurent que sur les fiches
+        // imprimées, remises en main propre ; un fichier sur le partage ou dans les téléchargements les garderait
         h('button', { class: 'btn', onclick: function () {
-          var lignes = [['Nom', 'Identifiant', 'Mot de passe provisoire', 'Rôles', 'Services']].concat(liste.map(function (c) { return [c.nom, c.login, c.motDePasse, libRoles(c.roles), libServices(c.roles, c.services)]; }));
-          var csv = '﻿' + lignes.map(function (l) { return l.map(function (x) { return '"' + String(x).replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
-          var a = h('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), download: 'comptes-mots-de-passe-provisoires.csv' });
-          document.body.appendChild(a); a.click(); a.remove();
-        } }, 'Exporter (CSV)')),
-      h('small', { class: 'muted', text: 'Un fichier exporté contient des mots de passe : supprimez-le dès que les fiches sont remises.' }),
+          var lignes = [['Nom', 'Identifiant', 'Rôles', 'Services']].concat(liste.map(function (c) { return [c.nom, c.login, libRoles(c.roles), libServices(c.roles, c.services)]; }));
+          U.exporter('comptes', 'comptes-crees-' + new Date().toISOString().slice(0, 10) + '.csv', SIC.csv.ecrire(lignes), 'text/csv;charset=utf-8', { service: null });
+        } }, 'Exporter la liste des comptes (CSV, sans les mots de passe)')),
+      h('small', { class: 'muted', text: 'Les mots de passe provisoires ne figurent que sur les fiches imprimées : aucun fichier ne les conserve.' }),
       h('label', { class: 'case' }, vus, h('span', { text: 'J’ai imprimé ou noté les mots de passe provisoires.' }))), [fermer]);
   };
 })();

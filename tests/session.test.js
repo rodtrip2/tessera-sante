@@ -421,7 +421,10 @@ test('Exports : purge selon la durée de conservation réglée, simulée puis ap
   await admin.exporter('registres', 'recent.csv', o, { sansTrace: true });
   // Le fichier « ancien » date de 100 jours
   racine.e.get('exports').e.get('Etablissement').e.get('registres').e.get('ancien.csv').getFile = async function () { return { size: 6, lastModified: Date.now() - 100 * 864e5, arrayBuffer: async () => o.buffer }; };
-  assert.deepEqual(await admin.purgerExports(), []);                               // aucune règle : rien
+  // Par défaut (0.77.0, constat S4) : purge après 31 jours ; « aucune purge » reste possible
+  assert.deepEqual((await admin.purgerExports({ simulation: true })).map((f) => f.chemin), [ancien]);
+  await admin.enregistrer('CONFIG', { cle: 'exports', valeur: { dossier: 'exports', conservationJours: 0 } });
+  assert.deepEqual(await admin.purgerExports(), []);                               // aucune purge réglée : rien
   await admin.enregistrer('CONFIG', { cle: 'exports', valeur: { dossier: 'exports', conservationJours: 92 } });
   assert.deepEqual((await admin.purgerExports({ simulation: true })).map((f) => f.chemin), [ancien]);
   assert.ok(racine.e.get('exports').e.get('Etablissement').e.get('registres').e.has('ancien.csv'));       // simulation : rien supprimé

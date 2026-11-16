@@ -182,6 +182,9 @@
     var w = await fh.createWritable();
     await w.write(octets);
     await w.close();
+    // Horloge du poste (0.77.0, constat S6 de l'audit) : date d'écriture du fichier donnée par le système de fichiers
+    // (serveur du partage), comparée à l'horloge du poste au même instant
+    try { var f = await fh.getFile(); if (typeof f.lastModified === 'number' && f.lastModified > 0) this.ecartHorloge = { ecart: Date.now() - f.lastModified, le: Date.now() }; } catch (e) { /* mesure facultative */ }
   };
 
   // ------------------------------------------------------------- Coffre

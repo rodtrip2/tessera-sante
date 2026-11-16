@@ -47,14 +47,36 @@
     });
   }
 
+  /**
+   * Garde des index (0.77.0, constat S10 de l'audit) : les états sont des objets indexés par des identifiants lus dans
+   * les saisies (patient, mesure, clé de réglage…). Un identifiant « __proto__ », « constructor » ou « prototype »
+   * modifierait le prototype de l'index au lieu d'y ranger une entrée : une saisie qui en porte un est écartée.
+   */
+  var RESERVES = { __proto__: null };
+  ['__proto__', 'constructor', 'prototype'].forEach(function (k) { RESERVES[k] = true; });
+  function identifiantSur(v) { return typeof v !== 'string' || RESERVES[v] !== true; }
+  function saisieSure(e) {
+    if (!e || typeof e !== 'object' || !identifiantSur(e.id) || !identifiantSur(e.type) || !identifiantSur(e.by)) return false;
+    var d = e.data;
+    if (!d || typeof d !== 'object') return true;
+    for (var k in d) {
+      if (!Object.prototype.hasOwnProperty.call(d, k)) continue;
+      if (RESERVES[k] === true) return false;
+      if ((k === 'id' || k === 'cle' || k === 'cible' || /Id$/.test(k)) && !identifiantSur(d[k])) return false;
+    }
+    return true;
+  }
+
   /** Un lot (import, données de démonstration) est un fichier unique contenant plusieurs saisies. */
   function deplier(evts) {
     var res = [];
     evts.forEach(function (e) {
+      if (!saisieSure(e)) return;
       if (e.type !== 'LOT') { res.push(e); return; }
       res.push(e);
       (e.data.evenements || []).forEach(function (s, i) {
-        res.push({ id: e.id + '.' + String(i).padStart(5, '0'), at: s.at || e.at, by: s.by || e.by, type: s.type, data: s.data, lot: e.id });
+        var x = { id: e.id + '.' + String(i).padStart(5, '0'), at: s.at || e.at, by: s.by || e.by, type: s.type, data: s.data, lot: e.id };
+        if (saisieSure(x)) res.push(x);
       });
     });
     return res;
@@ -274,7 +296,7 @@
   }
 
   return {
-    cloner: cloner, trierEvenements: trierEvenements, deplier: deplier, reduire: reduire, suivre: suivre, oublierEtats: oublierEtats, appliquerIntegrite: appliquerIntegrite,
+    cloner: cloner, trierEvenements: trierEvenements, deplier: deplier, saisieSure: saisieSure, reduire: reduire, suivre: suivre, oublierEtats: oublierEtats, appliquerIntegrite: appliquerIntegrite,
     detecterConflit: detecterConflit, cheminEvenement: cheminEvenement, filtrerIntegrite: filtrerIntegrite, annulabilite: annulabilite
   };
 });

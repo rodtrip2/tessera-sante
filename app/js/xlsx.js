@@ -14,9 +14,23 @@
 
   var dec = new TextDecoder();
 
-  async function inflate(octets) {
-    var flux = new Blob([octets]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-    return new Uint8Array(await new Response(flux).arrayBuffer());
+  // Plafonds de décompression (0.77.0, constat S10 de l'audit) : une archive piégée (« bombe de décompression ») qui
+  // gonflerait à plusieurs gigaoctets est refusée avant d'épuiser la mémoire du poste
+  var PLAFOND_FICHIER = 256 * 1024 * 1024, PLAFOND_TOTAL = 512 * 1024 * 1024, RAPPORT_MAX = 1000;
+  async function inflate(octets, attendu) {
+    var plafond = Math.min(PLAFOND_FICHIER, Math.max(1024 * 1024, octets.length * RAPPORT_MAX));
+    if (attendu > plafond) throw new Error('Classeur refusé : une partie se décompresserait en plus de ' + Math.round(plafond / 1048576) + ' Mo.');
+    var lecteur = new Blob([octets]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(), morceaux = [], total = 0;
+    for (;;) {
+      var r = await lecteur.read();
+      if (r.done) break;
+      total += r.value.length;
+      if (total > plafond) { try { await lecteur.cancel(); } catch (e) { /* flux déjà fermé */ } throw new Error('Classeur refusé : une partie se décompresse en plus de ' + Math.round(plafond / 1048576) + ' Mo (archive anormale).'); }
+      morceaux.push(r.value);
+    }
+    var res = new Uint8Array(total), p = 0;
+    morceaux.forEach(function (m) { res.set(m, p); p += m.length; });
+    return res;
   }
 
   /** Table des fichiers d'une archive ZIP : { nom: fonction async → Uint8Array }. */
@@ -27,22 +41,24 @@
       if (v.getUint32(i, true) === 0x06054b50) { fin = i; break; }
     }
     if (fin < 0) throw new Error("Ce fichier n'est pas un classeur Excel (.xlsx ou .xlsm).");
-    var n = v.getUint16(fin + 10, true), p = v.getUint32(fin + 16, true), fichiers = {};
+    var n = v.getUint16(fin + 10, true), p = v.getUint32(fin + 16, true), fichiers = Object.create(null), annonce = 0;
     for (var k = 0; k < n; k++) {
       if (v.getUint32(p, true) !== 0x02014b50) throw new Error('Archive endommagée.');
-      var methode = v.getUint16(p + 10, true), taille = v.getUint32(p + 20, true);
+      var methode = v.getUint16(p + 10, true), taille = v.getUint32(p + 20, true), tailleBrute = v.getUint32(p + 24, true);
+      annonce += tailleBrute;
+      if (annonce > PLAFOND_TOTAL) throw new Error('Classeur refusé : son contenu décompressé dépasserait ' + Math.round(PLAFOND_TOTAL / 1048576) + ' Mo.');
       var ln = v.getUint16(p + 28, true), le = v.getUint16(p + 30, true), lc = v.getUint16(p + 32, true);
       var local = v.getUint32(p + 42, true);
       var nom = dec.decode(u.subarray(p + 46, p + 46 + ln));
-      (function (methode, taille, local) {
+      (function (methode, taille, local, tailleBrute) {
         fichiers[nom] = async function () {
           var debut = local + 30 + v.getUint16(local + 26, true) + v.getUint16(local + 28, true);
           var brut = u.subarray(debut, debut + taille);
           if (methode === 0) return brut;
-          if (methode === 8) return inflate(brut);
+          if (methode === 8) return inflate(brut, tailleBrute);
           throw new Error('Compression non prise en charge (' + methode + ').');
         };
-      })(methode, taille, local);
+      })(methode, taille, local, tailleBrute);
       p += 46 + ln + le + lc;
     }
     return fichiers;
@@ -67,7 +83,8 @@
   }
 
   function colonne(ref) {
-    var c = 0, lettres = /^[A-Z]+/.exec(ref)[0];
+    var m = /^[A-Z]+/.exec(ref); if (!m) return -1;
+    var c = 0, lettres = m[0];
     for (var i = 0; i < lettres.length; i++) c = c * 26 + lettres.charCodeAt(i) - 64;
     return c - 1;
   }
@@ -76,6 +93,7 @@
     var lignes = [], reL = /<row\b([^>]*)>([\s\S]*?)<\/row>/g, mL;
     while ((mL = reL.exec(xml))) {
       var r = +attr(mL[1], 'r') - 1, ligne = [];
+      if (!(r >= 0 && r < 1048576)) continue;   // numéro de ligne hors des limites d'Excel : ignoré
       var reC = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g, mC;
       while ((mC = reC.exec(mL[2]))) {
         var ref = attr(mC[1], 'r'), t = attr(mC[1], 't'), corps = mC[2] || '', val = null;
@@ -85,7 +103,8 @@
         else if (t === 'str' || t === 'e') val = mv ? entites(mv[1]) : null;
         else if (t === 'b') val = mv ? mv[1] === '1' : null;
         else val = mv ? +mv[1] : null;
-        if (val !== null && val !== '') ligne[ref ? colonne(ref) : ligne.length] = val;
+        var col = ref ? colonne(ref) : ligne.length;
+        if (val !== null && val !== '' && col >= 0 && col < 16384) ligne[col] = val;   // 16 384 colonnes au plus (limite d'Excel)
       }
       lignes[r] = ligne;
     }

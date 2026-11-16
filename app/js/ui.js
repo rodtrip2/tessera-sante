@@ -11,6 +11,16 @@
   var H = R.H, J = R.J;
 
   // ================================================================ Outils
+  /**
+   * Désignation du juge de l'établissement (0.77.0, constat J1) appliquée aux textes affichés : « JLD » devient le
+   * libellé réglé (par défaut « juge »). Les valeurs des champs de saisie ne sont jamais modifiées.
+   */
+  function affiche(v) {
+    if (typeof v !== 'string' || (v.indexOf('JLD') < 0 && v.indexOf('tention') < 0)) return v;
+    var s = typeof App !== 'undefined' && App.session, cfg = s && s.etat ? s.etat.config : null;
+    return SIC.model && SIC.model.texteJuge ? SIC.model.texteJuge(v, cfg) : v;
+  }
+  if (SIC.pdf && SIC.pdf.definirTransformation) SIC.pdf.definirTransformation(affiche);   // PDF : même désignation du juge
   function h(tag, props) {
     var el = document.createElement(tag);
     props = props || {};
@@ -18,7 +28,8 @@
       var v = props[k];
       if (v === undefined || v === null || v === false) return;
       if (k === 'class') el.className = v;
-      else if (k === 'text') el.textContent = v;
+      else if (k === 'text') el.textContent = affiche(v);
+      else if (k === 'title' || k === 'aria-label' || k === 'placeholder') el.setAttribute(k, affiche(v));
       else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
       else if (k === 'value') el.value = v;
       else if (k === 'checked' || k === 'disabled' || k === 'selected' || k === 'required') el[k] = !!v;
@@ -30,7 +41,7 @@
   function ajouterEnfant(el, c) {
     if (c === null || c === undefined || c === false) return;
     if (Array.isArray(c)) { c.forEach(function (x) { ajouterEnfant(el, x); }); return; }
-    el.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+    el.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(affiche(String(c))) : c);
   }
   function vider(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 
@@ -532,6 +543,7 @@
   // ---------------------------------------------------------------- Minuteurs
   // ---------------------------------------------------------------- Exports
   function telechargerOctets(nom, octets, type) {
+    if (/\.csv$/i.test(nom) && SIC.csv) octets = SIC.csv.neutraliserOctets(typeof octets === 'string' ? new TextEncoder().encode(octets) : octets);
     var a = h('a', { href: URL.createObjectURL(new Blob([octets], { type: type || 'application/octet-stream' })), download: nom });
     document.body.appendChild(a); a.click(); a.remove();
   }
@@ -546,6 +558,8 @@
       if (!ordre) return null;
       if (ordre === 'ecran') contenu = SIC.tri.ordonnerCsv(contenu, App.trisActifs[0]);
     }
+    // CSV : désignation du juge de l'établissement (constat J1), cellules neutralisées contre l'injection de formule (S7)
+    if (typeof contenu === 'string' && /\.csv$/i.test(nom)) contenu = SIC.csv.neutraliser(affiche(contenu));
     var octets = typeof contenu === 'string' ? new TextEncoder().encode(contenu) : contenu;
     try {
       var chemin = await App.session.exporter(categorie, nom, octets, options);
@@ -557,7 +571,7 @@
       return null;
     }
   }
-  var LIB_CATEGORIES_EXPORT = { decomptes: 'Décomptes JLD', registres: 'Registres', statistiques: 'Statistiques', communication: 'Registre pour communication', patients: 'Droit d’accès', archives: 'Archives annuelles', reglages: 'Réglages', agenda: 'Agendas exportés (.ics)' };
+  var LIB_CATEGORIES_EXPORT = { comptes: 'Comptes créés', decomptes: 'Décomptes JLD', registres: 'Registres', statistiques: 'Statistiques', communication: 'Registre pour communication', patients: 'Droit d’accès', archives: 'Archives annuelles', reglages: 'Réglages', agenda: 'Agendas exportés (.ics)' };
   function typeFichier(nom) { return /\.pdf$/i.test(nom) ? 'application/pdf' : /\.csv$/i.test(nom) ? 'text/csv;charset=utf-8' : /\.json$/i.test(nom) ? 'application/json' : /\.ics$/i.test(nom) ? 'text/calendar;charset=utf-8' : 'application/octet-stream'; }
   function taille(o) { return o < 1024 ? o + ' o' : o < 1048576 ? Math.round(o / 1024) + ' Ko' : (o / 1048576).toFixed(1).replace('.', ',') + ' Mo'; }
 
@@ -1093,6 +1107,10 @@
     if (ea && ea.attestateur && !s.formation && ea.anomalies.some(function (x) { return x.bloquante; })) zoneEntete.appendChild(h('div', { class: 'bandeau-secours', role: 'alert' },
       h('span', { text: 'Coffre modifié hors de l’outil ou restauré : aucune remise de clé avant réparation. ' }),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'securite'; rendreContenu(); } }, 'Voir')));
+    // Horloge du poste (0.77.0, constat S6) : écart de plus de 5 minutes avec le serveur du partage, pour tous les agents
+    var eh = s.ecartHorlogeSignale ? s.ecartHorlogeSignale() : null;
+    if (eh && !s.apercu) zoneEntete.appendChild(h('div', { class: 'bandeau-secours', role: 'alert' },
+      h('span', { text: 'L’horloge de ce poste ' + (eh.minutes > 0 ? 'avance' : 'retarde') + ' d’environ ' + Math.abs(eh.minutes) + ' minutes sur celle du serveur de fichiers. Les heures des saisies et les échéances légales en dépendent : vérifiez l’heure saisie et prévenez le service informatique.' })));
     // Saisies écartées à la lecture (signature des saisies, 0.72.0) : rappel à l'administrateur
     var nEc = ea && ea.attestateur && !s.formation && s.saisiesEcartees ? s.saisiesEcartees().length + (s.saisiesHorsDroit ? s.saisiesHorsDroit().length : 0) : 0;
     if (nEc && !s.apercu && !(App.onglet === 'admin' && App.sousOngletAdmin === 'securite')) zoneEntete.appendChild(h('div', { class: 'bandeau-secours', role: 'alert' },
@@ -1636,6 +1654,7 @@
       h('label', {}, 'Sous-dossier (ex. « exports », « exports/unite-1 »)', tExports),
       h('label', {}, 'Chemin réseau du dossier des données (facultatif, pour l’accès direct depuis Windows)', tReseau),
       h('small', { class: 'muted', text: 'Ex. \\\\serveur\\partage\\TesseraSante ou Z:\\TesseraSante. La fenêtre « Exports » propose alors de copier le chemin du dossier de chaque service et explique comment créer un raccourci sur le bureau. Le navigateur ne connaît pas ce chemin : il est à recopier depuis l’Explorateur.' }),
+      h('div', { class: 'alerte', text: 'Les exports sont enregistrés en clair : quiconque accède au partage peut les ouvrir, sans le chiffrement qui protège les données de l’outil. Demandez au service informatique de réserver ce dossier aux agents concernés (droits du partage), gardez une durée de conservation courte et supprimez un export dès qu’il a servi.' }),
       h('label', {}, 'Durée de conservation des exports', selConservation), h('div', {}, h('b', {}, apercuPurge)),
       h('small', { class: 'muted', text: 'Purge automatique : à la première connexion de la journée sur chaque poste, les fichiers du dossier des exports plus anciens que cette durée (date d’enregistrement) sont supprimés, et la purge est inscrite au journal. La durée est à fixer avec le délégué à la protection des données ; elle ne concerne que les exports, jamais les données de l’outil ni le registre.' }),
       h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: async function () {
@@ -2428,7 +2447,7 @@
     rendreRepliable: rendreRepliable, replierVue: replierVue, controleRepli: controleRepli, deplier: deplier, replierPanneaux: replierPanneaux, ongletsLocaux: ongletsLocaux,
     h: h, vider: vider, date: date, court: court, duree: duree, relatif: relatif, versSaisie: versSaisie, depuisSaisie: depuisSaisie,
     ouvrirFenetre: ouvrirFenetre, toast: toast, modale: modale, imprimer: imprimer, imprimerPage: imprimerPage, impressionNB: impressionNB, erreurDans: erreurDans, fmtJour: fmtJour,
-    App: App, st: st, config: config, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
+    App: App, st: st, config: config, affiche: affiche, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, lignesDe: lignesDe, zoneTexte: zoneTexte, periodeDepuis: periodeDepuis, changerDossier: function () { return changerDossier(); },
     lieu: lieu, exporter: exporter, telechargerOctets: telechargerOctets, rendreContenu: rendreContenu, activerLargeurs: activerLargeurs, activerTris: activerTris, plusOptions: plusOptions, dernierChoix: dernierChoix, icone: icone, ongletsAdmin: function () { return App.fenetre === 'admin' ? onglets() : []; }, choisirOrdre: choisirOrdre, modaleAffichage: modaleAffichage, chambresTravaux: chambresTravaux,

@@ -1,5 +1,15 @@
 # Journal des modifications — Tessera Santé
 
+## 0.77.0 — 16 novembre 2026
+
+Points de l'audit réglés avant les données réelles (décision du porteur du 16 novembre 2026).
+- **Exports** : purgés après 31 jours par défaut (réglable) ; avertissement sur les fichiers en clair et les droits du dossier à réserver.
+- **Fichiers CSV** : une cellule qui serait lue comme une formule par le tableur (commençant par =, +, -, @) est neutralisée ; la liste des comptes créés ne contient plus les mots de passe provisoires, qui ne figurent que sur les fiches imprimées.
+- **Désignation du juge** : « juge » remplace l'ancien sigle dans les écrans, les CSV et les PDF (magistrat du siège du tribunal judiciaire depuis le 1er septembre 2024) ; réglable, sigle conservé au choix.
+- **Horloge du poste** : un écart de plus de 5 minutes avec le serveur du partage est signalé et tracé.
+- **Robustesse** : identifiants réservés écartés du journal, décompression des classeurs importés plafonnée.
+- Tests : `tests/avant-donnees-reelles.test.js`, `tests/horloge.test.js`.
+
 ## 0.76.0 — 16 novembre 2026
 
 - **Délai de sept jours depuis la décision du juge** (constat J2 de l'audit, décision du porteur du 16 novembre 2026). Pour un isolement, après deux décisions de maintien, les échéances sont désormais comptées aussi depuis la précédente décision du juge (168 heures, saisine 24 heures avant, article L. 3222-5-1, II, du code de la santé publique), et l'échéance la plus proche est retenue. Réglage par établissement dans *Cas particuliers* (méthode recommandée par défaut ; méthode du classeur V1.3 au choix), avec une note explicative. Si la décision n'est pas saisie, un avertissement s'affiche. La contention n'est pas concernée.
