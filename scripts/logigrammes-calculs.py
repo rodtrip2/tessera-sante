@@ -147,7 +147,7 @@ def logigramme_pauses():
     D.fleche([q1['b'], q2['h']], 'oui')
     n2 = D.boite(XS, 320, 320, 150, ['**Pause de la contention** : l’agent', 'précise « contention seule »', 'ou « isolement aussi » ;', '**pause de l’isolement** : contention', 'mise en pause aussi (case cochée', 'par défaut ; option : pause de', 'l’isolement seul interdite)'], 'note')
     D.fleche([q2['d'], n2['g']], 'oui')
-    e = D.boite(X, 470, 420, 82, ['Pause enregistrée : début, reprise prévue,', 'motif, psychiatre ;', '**la mesure continue** (pas de fin)'])
+    e = D.boite(X, 475, 420, 96, ['Pause enregistrée : début, reprise prévue,', 'motif, psychiatre ;', '**la mesure continue pour le juge**', '(au registre : fin de l’entrée en cours)'])
     D.fleche([q2['b'], e['h']], 'non')
     D.fleche([n2['b'], (XS, 420), (X + 20, 420), (X + 20, 429)])
     q3 = D.boite(X, 610, 300, 110, ['Le psychiatre', 'reprend la mesure ?'], 'question')
@@ -161,57 +161,56 @@ def logigramme_pauses():
     q5 = D.boite(X, 905, 320, 110, ['Réglage des pauses', 'de l’établissement'], 'question')
     D.fleche([q4['b'], q5['h']], 'oui')
     D.fleche([n4['b'], (XS, 850), (X + 20, 850), (X + 20, 850 + 0.1)])
-    r1 = D.boite(120, 1035, 220, 70, ['**Comptées** (défaut)', 'aucune échéance ne bouge'], 'resultat', 12)
-    r2 = D.boite(390, 1035, 260, 70, ['**Déduites des délais du juge**', 'échéances reportées ;', 'registre en durée réelle'], 'resultat', 12)
-    r3 = D.boite(700, 1035, 280, 70, ['**Déduites partout**', 'échéances, registre,', 'statistiques'], 'resultat', 12)
-    D.fleche([q5['g'], (120, 905), r1['h']])
-    D.fleche([q5['b'], (X, 980), (390, 980), r2['h']])
-    D.fleche([q5['d'], (700, 905), r3['h']])
+    r1 = D.boite(140, 1035, 250, 70, ['**Comptées** (défaut)', 'aucune échéance ne bouge'], 'resultat', 12)
+    r2 = D.boite(460, 1035, 290, 70, ['**Déduites des délais du juge**', 'cumul diminué,', 'échéances reportées'], 'resultat', 12)
+    r3 = D.boite(XS + 60, 1000, 260, 110, ['**Registre et statistiques**', 'dans tous les cas : la pause', '**arrête l’entrée, la reprise**', '**en ouvre une nouvelle**'], 'note', 12)
+    D.fleche([q5['g'], (140, 905), r1['h']])
+    D.fleche([q5['b'], (X, 980), (460, 980), r2['h']])
+    D.fleche([q5['d'], (XS + 60, 905), r3['h']])
     return D
 
 
 def logigramme_registre():
-    D = Dessin(940, 960, 'Inscription d’une mesure au registre')
+    D = Dessin(940, 1020, 'Inscription d’une mesure au registre')
+    o = 120
     a = D.boite(450, 45, 520, 64, ['Mesure (en cours ou terminée), période passée dans un service', '(un transfert ou des soins somatiques la découpent par service)'], 'debut')
-    q1 = D.boite(450, 175, 260, 100, ['Contention ?'], 'question')
-    D.fleche([a['b'], q1['h']])
+    p = D.boite(450, 165, 560, 96, ['**Retirer les pauses**', 'chaque pause arrête la mesure au sens du registre ;', 'chaque période active (du début ou d’une reprise', 'à une pause, un arrêt ou la fin) est inscrite séparément'])
+    D.fleche([a['b'], p['h']])
+    q1 = D.boite(450, 175 + o, 260, 100, ['Contention ?'], 'question')
+    D.fleche([p['b'], q1['h']])
     # Contention
-    qc = D.boite(690, 300, 240, 100, ['En CSI ?'], 'question')
-    D.fleche([q1['d'], (690, 175), qc['h']], 'oui')
-    rc = D.boite(860, 430, 130, 66, ['**C**', 'contention', 'en CSI'], 'resultat', 12)
-    D.fleche([qc['d'], (860, 300), rc['h']], 'oui')
-    qe = D.boite(620, 450, 220, 100, ['Exception', 'prévue ?'], 'question')
-    D.fleche([qc['b'], (690, 375), (620, 375), qe['h']], 'non')
-    re_ = D.boite(790, 585, 170, 70, ['**E**', 'hors espace', 'd’isolement, exception'], 'resultat', 12)
-    rd = D.boite(560, 585, 170, 70, ['**D**', 'hors espace', 'd’isolement'], 'resultat', 12)
-    D.fleche([qe['d'], (790, 450), re_['h']], 'oui')
-    D.fleche([qe['b'], (620, 530), (560, 530), rd['h']], 'non')
+    qc = D.boite(690, 300 + o, 240, 100, ['En CSI ?'], 'question')
+    D.fleche([q1['d'], (690, 175 + o), qc['h']], 'oui')
+    rc = D.boite(860, 430 + o, 130, 66, ['**C**', 'contention', 'en CSI'], 'resultat', 12)
+    D.fleche([qc['d'], (860, 300 + o), rc['h']], 'oui')
+    qe = D.boite(620, 450 + o, 220, 100, ['Exception', 'prévue ?'], 'question')
+    D.fleche([qc['b'], (690, 375 + o), (620, 375 + o), qe['h']], 'non')
+    re_ = D.boite(790, 585 + o, 170, 70, ['**E**', 'hors espace', 'd’isolement, exception'], 'resultat', 12)
+    rd = D.boite(560, 585 + o, 170, 70, ['**D**', 'hors espace', 'd’isolement'], 'resultat', 12)
+    D.fleche([qe['d'], (790, 450 + o), re_['h']], 'oui')
+    D.fleche([qe['b'], (620, 530 + o), (560, 530 + o), rd['h']], 'non')
     # Isolement
-    qi = D.boite(200, 300, 240, 100, ['En CSI ?'], 'question')
-    D.fleche([q1['g'], (200, 175), qi['h']], 'non (isolement)', 0.35, 'g')
-    rb = D.boite(60, 430, 110, 66, ['**B**', 'hors CSI'], 'resultat', 12)
-    D.fleche([qi['g'], (60, 300), rb['h']], 'non', 0.5, 'g')
-    e1 = D.boite(260, 445, 300, 82, ['Retirer les périodes où le patient', 'est sous contention en CSI', '(elles forment les entrées C)'])
-    D.fleche([qi['b'], (200, 378), (260, 378), e1['h']], 'oui')
-    q2 = D.boite(260, 610, 340, 140, ['Pauses déduites partout', 'et pause de la contention seule', '« en isolement seul » ?'], 'question', 12)
-    D.fleche([e1['b'], q2['h']])
-    n2 = D.boite(260, 765, 320, 82, ['Les pauses de la contention pendant', 'lesquelles l’isolement continue', 'redeviennent de l’isolement (A)'], 'note')
-    D.fleche([q2['b'], n2['h']], 'oui')
-    ra = D.boite(260, 900, 300, 64, ['**A** : une entrée par portion', 'd’isolement en CSI restante'], 'resultat', 12)
-    D.fleche([n2['b'], ra['h']])
-    D.fleche([q2['g'], (60, 610), (60, 900), ra['g']], 'non', 0.5, 'g')
-    n3 = D.boite(720, 815, 360, 210, ['**Numérotation** commune A à E,', 'dans l’ordre des fins, à la suite du', 'compteur du service ; année = année', 'du début de l’entrée ; une entrée en', 'cours n’a pas de numéro.', '**Durée** : réelle, ou hors pauses si', 'elles sont déduites partout (pour C,', 'option « dans l’entrée C » : seule la', 'pause commune est déduite).'], 'note', 12)
+    qi = D.boite(200, 300 + o, 240, 100, ['En CSI ?'], 'question')
+    D.fleche([q1['g'], (200, 175 + o), qi['h']], 'non (isolement)', 0.35, 'g')
+    rb = D.boite(60, 430 + o, 110, 66, ['**B**', 'hors CSI'], 'resultat', 12)
+    D.fleche([qi['g'], (60, 300 + o), rb['h']], 'non', 0.5, 'g')
+    e1 = D.boite(285, 460 + o, 320, 110, ['Retirer les périodes actives de', 'contention en CSI (entrées C) ;', 'une pause de la contention seule', 'reste donc de l’isolement'])
+    D.fleche([qi['b'], (200, 378 + o), (285, 378 + o), e1['h']], 'oui')
+    ra = D.boite(285, 630 + o, 300, 64, ['**A** : une entrée par portion', 'd’isolement en CSI restante'], 'resultat', 12)
+    D.fleche([e1['b'], ra['h']])
+    n3 = D.boite(720, 800 + o, 380, 170, ['**Numérotation**', 'commune A à E, dans l’ordre d’apparition', '(débuts), dès le début de l’entrée, à la suite', 'du compteur du service ; année = année', 'du début de l’entrée.', '**Durée**', 'réelle, celle de la période.'], 'note', 12)
+    n4 = D.boite(240, 800 + o, 380, 130, ['Exemple : isolement et contention', 'de 10 h à 18 h, contention arrêtée', 'de 12 h à 13 h :', '**C1 10 h – 12 h · A2 12 h – 13 h · C3 13 h – 18 h**'], 'note', 12)
     return D
 
 
 def frise():
-    """Exemple chiffré : isolement et contentions d'un même patient, entrées du registre selon le réglage des pauses."""
-    D = Dessin(1000, 480, 'Exemple : isolement avec contentions et pauses, entrées du registre')
+    """Exemple chiffré : isolement et contentions d'un même patient, entrées du registre."""
+    D = Dessin(1000, 340, 'Exemple : isolement avec contentions et pauses, entrées du registre')
     x0, ech = 225, 15.0   # 15 px par heure ; t = 0 : lundi 08:00
     def X(hh): return x0 + (hh - 8) * ech
     # graduations
     for hh, lib in [(8, 'lun 8 h'), (12, '12 h'), (18, '18 h'), (24, 'mar 0 h'), (30, '6 h'), (36, '12 h'), (48, 'mer 0 h'), (58, '10 h')]:
-        D.ligne(X(hh), 28, X(hh), 440, '#e2e6e3')
+        D.ligne(X(hh), 28, X(hh), 200, '#e2e6e3')
         D.texte(X(hh), 18, [lib], '#4b5651', 11)
     def barre(y, d, f, lib, couleur, pauses=()):
         D.rect(X(d), y, (f - d) * ech, 22, couleur)
@@ -227,21 +226,21 @@ def frise():
     D.texte(X(20.5), 38, ['pause de l’isolement (20 h – 21 h)'], '#2e5c9e', 10)
     def entrees(y, titre, liste):
         D.texte(x0 - 10, y + 11, titre, '#1d2320', 11, True, 'end')
+        bas = 0
         for num, d, f, h in liste:
             couleur = '#dbe7f7' if num[0] == 'A' else '#f6dcdb'
-            dy = 26 if num.endswith('*') else 0
-            num = num.rstrip('*')
-            D.rect(X(d) + 1, y + dy, (f - d) * ech - 2, 22 if not dy else 16, couleur, '#8a948f')
-            if dy:
-                D.texte(X(f) + 4, y + dy + 8, [f'{num} · {h} h (pause de la contention, l’isolement continue)'], '#1d2320', 10, False, 'start')
-            else:
+            D.rect(X(d) + 1, y, (f - d) * ech - 2, 22, couleur, '#8a948f')
+            if (f - d) * ech >= 60:
                 D.texte(X((d + f) / 2), y + 11, [f'{num} · {h} h'], '#1d2320', 11)
-    entrees(160, ['Registre : pauses comptées', 'ou déduites des délais du juge'], [('A1', 8, 12, 4), ('C2', 12, 18, 6), ('A3', 18, 26, 8), ('C4', 26, 30, 4), ('A5', 30, 58, 28)])
-    entrees(230, ['Pauses déduites partout,', 'pause de la contention seule', '« en isolement seul » (défaut)'], [('A1', 8, 12, 4), ('C3', 12, 18, 5), ('A2*', 14, 15, 1), ('A4', 18, 26, 7), ('C5', 26, 30, 4), ('A6', 30, 58, 28)])
-    entrees(320, ['Pauses déduites partout,', 'pause de la contention seule', '« dans l’entrée C »'], [('A1', 8, 12, 4), ('C2', 12, 18, 6), ('A3', 18, 26, 7), ('C4', 26, 30, 4), ('A5', 30, 58, 28)])
-    D.texte(20, 405, ['Durées en heures, telles qu’inscrites au registre (exemple fictif, lundi 8 h → mercredi 10 h).',
-                      'Ligne 2 : C3 (5 h) couvre 12 h – 18 h ; sa pause de 14 h à 15 h devient l’entrée A2 (1 h). A4 : 8 h moins la pause de l’isolement.',
-                      'Ligne 3 : la pause de la contention seule reste dans C2, sans déduction (6 h) ; seule une pause commune serait déduite.'], '#37403c', 11, False, 'start')
+            else:
+                # entrée courte : étiquette sous la barre, sur deux rangs alternés
+                yy = y + 36 + 14 * (bas % 2); bas += 1
+                D.ligne(X((d + f) / 2), y + 22, X((d + f) / 2), yy - 6, '#8a948f')
+                D.texte(X((d + f) / 2), yy, [f'{num} · {h} h'], '#1d2320', 10)
+    entrees(170, ['Registre, quel que soit', 'le réglage des pauses'], [('A1', 8, 12, 4), ('C2', 12, 14, 2), ('A3', 14, 15, 1), ('C4', 15, 18, 3), ('A5', 18, 20, 2), ('A6', 21, 26, 5), ('C7', 26, 30, 4), ('A8', 30, 58, 28)])
+    D.texte(20, 275, ['Durées en heures, telles qu’inscrites au registre (exemple fictif, lundi 8 h → mercredi 10 h). Numéros dans l’ordre d’apparition.',
+                      'Chaque pause arrête l’entrée : la pause de la contention seule (14 h – 15 h) est de l’isolement seul (A3), la contention reprend en C4 ;',
+                      'la pause de l’isolement (20 h – 21 h) ne forme aucune entrée et l’isolement reprend en A6. Total : 49 h.'], '#37403c', 11, False, 'start')
     return D
 
 

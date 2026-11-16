@@ -70,11 +70,10 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 - Par défaut, la durée des pauses reste **comptée** (calcul prudent : les échéances JLD ne bougent pas).
 - Options d'administration (*Administration → Règles et pauses*), toutes tracées au journal :
   - **activer / désactiver** la levée temporaire (désactivable seulement si les pauses ne sont pas déduites) ;
-  - **déduire la durée des pauses du cumul**, puis la **portée** : délais JLD seulement (registre et statistiques en durée réelle), ou **partout** ;
-  - si déduites partout, **pause de la contention seule** au registre : en isolement seul (entrée A supplémentaire, par défaut) ou laissée dans l'entrée C sans déduction ; une pause commune isolement + contention est toujours déduite ;
+  - **déduire la durée des pauses du cumul** : pour les délais JLD seulement (échéances, cumuls, décompte). La portée « partout » et le choix « pause de la contention seule au registre » ont été retirés en 0.83.0 (décision du porteur du 16 novembre 2026) : au registre, une pause est toujours un arrêt (§ 6) ;
   - **reprise automatique** à l'heure prévue (désactivée par défaut) ;
   - **seuils d'alerte et de refus réglables** (12 h et 48 h par défaut ; refus jamais au-delà de 48 h) ;
-  - colonne « Levées temporaires » au registre (option) ;
+  - colonne « Levée temporaire » au registre (option) : entrées arrêtées par une pause ou ouvertes par une reprise ;
   - **interdire la pause de l'isolement seul pendant une contention** (désactivé par défaut) : la contention est alors mise en pause aussi, ou terminée dans la même saisie.
 - Une pause sans reprise saisie n'est déduite que jusqu'à son heure de reprise prévue.
 - **Pause d'une contention pendant un isolement** : l'agent doit confirmer si elle concerne la contention seule ou aussi l'isolement. Pause d'un isolement avec contention en cours : la contention est mise en pause aussi (case cochée par défaut, alerte si décochée).
@@ -83,10 +82,12 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 ## 6. Registre
 
 - Conforme à l'article L. 3222-5-1 : **identifiant du patient (IPP) et âge**, mode d'hospitalisation, date et heure de début, durée, psychiatre, professionnels chargés de la surveillance (traçabilité des agents **par demi-journée / poste**, indispensable au registre).
-- Catégories A à E ; une contention en CSI couvre l'isolement qui l'accompagne (entrée C, isolement avant/après en A). Numérotation commune, dans l'ordre des fins, à la suite du dernier numéro du registre antérieur (compteur par service et par année).
+- Catégories A à E ; une contention en CSI couvre l'isolement qui l'accompagne (entrée C, isolement avant/après en A).
+- **Une pause est un arrêt au sens du registre** (décision du porteur du 16 novembre 2026), même si elle est comptée ou déduite pour le juge : l'entrée s'arrête au début de la pause, la reprise ouvre une nouvelle entrée. Pause de la contention seule, l'isolement continuant : entrée A pendant la pause. Exemple : isolement + contention de 10 h à 18 h, arrêt de la contention de 12 h à 13 h : C1 10 h – 12 h, A2 12 h – 13 h, C3 13 h – 18 h. Pause commune ou pause de l'isolement : aucune entrée pendant la pause.
+- **Numérotation** commune, **dans l'ordre d'apparition** (ordre des débuts), attribuée **dès le début de l'entrée**, à la suite du dernier numéro du registre antérieur (compteur par service et par année) ; une saisie tardive d'une mesure plus ancienne décale les numéros suivants (rappelé sous le registre). Détail et logigrammes : `kit/20-calculs-isolement-contention.md`.
 - Registre légal présenté seulement à la CDSP, au CGLPL et aux parlementaires.
 - **Version pour communication (CADA)** : options d'occultation (identifiant patient occulté ou remplacé par un numéro propre au document ; âge exact, tranche, mineur/majeur ou occulté ; dates ; psychiatre et soignants masqués, génériques ou numérotés — Psychiatre 1, IDE 1 ; lieu ; mode ; pauses). **Choix les plus protecteurs présélectionnés** (CE, 8 février 2023, n° 455887), avertissement sous chaque choix moins protecteur, édition tracée au journal avec la référence de la demande.
-- Note sous le registre indiquant toujours quelle durée est affichée (réelle ou hors pauses) et la signification des mentions particulières.
+- Note sous le registre rappelant qu'une pause arrête l'entrée et la règle de numérotation, et la signification des mentions particulières.
 
 ## 7. Décompte JLD (pièce jointe aux communications)
 

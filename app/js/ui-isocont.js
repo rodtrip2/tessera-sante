@@ -307,18 +307,16 @@
     entrees.forEach(function (e) { synthese[e.categorie]++; });
     var LIB_CAT = {}; Object.keys(M.LIB_CATEGORIES).forEach(function (k) { LIB_CAT[k] = lieu(M.LIB_CATEGORIES[k]); });
     var op = M.optionsPauses(config());
-    var colPauses = op.colonneRegistre && (op.active || entrees.some(function (e) { return e.pauses.length; }));
-    var libDuree = op.deduireRegistre ? 'Durée hors pauses' : 'Durée';
-    function heuresPauses(e) { return e.pauses.reduce(function (s, p) { return s + (p[1] - p[0]); }, 0) / H; }
-    function textePauses(e) { return e.pauses.length ? e.pauses.length + ' — ' + duree(heuresPauses(e)) : '—'; }
-    var notePauses = !op.active && !entrees.some(function (e) { return e.pauses.length; }) ? null
-      : op.deduireRegistre ? 'Durées hors levées temporaires : la durée des pauses décidées par le psychiatre est déduite (règle de l’établissement)' + (colPauses ? ' et indiquée dans la colonne « Levées temporaires ».' : '.')
-      : 'Durées réelles, de la décision de début à la décision de fin : les levées temporaires sont comprises' + (op.retrancher ? ' (elles ne sont déduites que pour les délais JLD)' : '') + (colPauses ? ' et indiquées dans la colonne « Levées temporaires ».' : '.');
+    var colPauses = op.colonneRegistre && entrees.some(function (e) { return e.pauseAvant || e.pauseApres; });
+    var libDuree = 'Durée';
+    function textePauses(e) { return [e.pauseAvant ? 'début : reprise après pause' : '', e.pauseApres ? 'fin : pause' : ''].filter(Boolean).join(' ; ') || '—'; }
+    var notePauses = 'Une entrée par période : une pause (levée temporaire) arrête la mesure au sens du registre et la reprise ouvre une nouvelle entrée'
+      + (op.retrancher ? ' (la durée des pauses n’est déduite que pour les délais du juge)' : '') + '. Numérotation dans l’ordre d’apparition, dès le début de l’entrée : une saisie tardive d’une mesure plus ancienne décale les numéros suivants.';
 
     function exporterCSV() {
-      var lignes = [['Numéro', 'Catégorie', 'Identifiant patient (IPP)', 'Âge', 'Début', 'Fin', libDuree + ' (h)'].concat(colPauses ? ['Levées temporaires (nombre)', 'Levées temporaires (h)'] : [], ["Mode d'hospitalisation", 'Lieu', 'Psychiatre', 'Professionnels chargés de la surveillance'])];
+      var lignes = [['Numéro', 'Catégorie', 'Identifiant patient (IPP)', 'Âge', 'Début', 'Fin', libDuree + ' (h)'].concat(colPauses ? ['Levée temporaire'] : [], ["Mode d'hospitalisation", 'Lieu', 'Psychiatre', 'Professionnels chargés de la surveillance'])];
       entrees.forEach(function (e) {
-        lignes.push([e.numero || 'en cours', LIB_CAT[e.categorie], e.ipp || '', e.age == null ? '' : e.age, date(e.debut), e.fin ? date(e.fin) : 'en cours', e.dureeHeures.toFixed(2).replace('.', ',')].concat(colPauses ? [e.pauses.length, heuresPauses(e).toFixed(2).replace('.', ',')] : [], [e.modeHospi, e.lieu, e.psychiatre, e.professionnels.join(', ')]));
+        lignes.push([e.numero || 'en cours', LIB_CAT[e.categorie], e.ipp || '', e.age == null ? '' : e.age, date(e.debut), e.fin ? date(e.fin) : 'en cours', e.dureeHeures.toFixed(2).replace('.', ',')].concat(colPauses ? [textePauses(e)] : [], [e.modeHospi, e.lieu, e.psychiatre, e.professionnels.join(', ')]));
       });
       if (notePauses) { lignes.push([]); lignes.push([notePauses]); }
       var csv = '\ufeff' + lignes.map(function (l) { return l.map(function (c) { return '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
@@ -332,7 +330,7 @@
       var doc = P.doc;
       if (notePauses) doc.paragraphe(notePauses, { taille: 8, rgb: [0.25, 0.25, 0.25], apres: 4 });
       SIC.ui.pdfEtab.section(doc, 'Synthèse par catégorie', ['Catégorie', 'Entrées'], Object.keys(synthese).map(function (k) { return [k + ' — ' + LIB_CAT[k], synthese[k]]; }), [80, 20], 8);
-      var entetes = ['N°', 'Cat.', 'IPP', 'Âge', 'Début', 'Fin', libDuree].concat(colPauses ? ['Levées temp.'] : [], ['Mode', 'Lieu', 'Psychiatre', 'Professionnels chargés de la surveillance']);
+      var entetes = ['N°', 'Cat.', 'IPP', 'Âge', 'Début', 'Fin', libDuree].concat(colPauses ? ['Levée temp.'] : [], ['Mode', 'Lieu', 'Psychiatre', 'Professionnels chargés de la surveillance']);
       var poids = [5, 4, 8, 4, 10, 10, 7].concat(colPauses ? [7] : [], [6, 7, 9, 18]);
       SIC.ui.pdfEtab.section(doc, 'Entrées du registre', entetes, entrees.map(function (e) {
         return [e.numero || 'en cours', e.categorie, e.ipp || '—', e.age == null ? '—' : e.age, date(e.debut), e.fin ? date(e.fin) : 'en cours', duree(e.dureeHeures)]
@@ -357,16 +355,16 @@
         return h('div', { class: 'indicateur' }, h('div', { class: 'valeur', text: synthese[k] }), h('div', { class: 'libelle', text: k + ' — ' + LIB_CAT[k] }));
       })),
       entrees.length ? h('div', { class: 'table-wrap' }, h('table', {},
-        h('thead', {}, h('tr', {}, ['N°', 'IPP', 'Âge', 'Début', 'Fin', libDuree].concat(colPauses ? ['Levées temporaires'] : [], ["Mode d'hosp.", 'Lieu', 'Psychiatre', 'Professionnels chargés de la surveillance']).map(function (t) { return h('th', { text: t }); }))),
+        h('thead', {}, h('tr', {}, ['N°', 'IPP', 'Âge', 'Début', 'Fin', libDuree].concat(colPauses ? ['Levée temporaire'] : [], ["Mode d'hosp.", 'Lieu', 'Psychiatre', 'Professionnels chargés de la surveillance']).map(function (t) { return h('th', { text: t }); }))),
         h('tbody', {}, entrees.map(function (e) {
           return h('tr', { class: e.fin ? '' : 'en-cours' },
-            h('td', {}, e.numero ? h('b', { text: e.numero }) : h('small', { text: 'en cours' }), e.fige ? h('div', {}, h('small', { class: 'badge', title: 'Mesure importée : catégorie et numéro d’origine conservés (classeur ou registre importé)', text: 'n° d’origine' })) : null),
+            h('td', {}, e.numero ? h('b', { text: e.numero }) : h('small', { text: 'en cours' }), !e.fin && e.numero ? h('div', {}, h('small', { text: 'en cours' })) : null, e.fige ? h('div', {}, h('small', { class: 'badge', title: 'Mesure importée : catégorie et numéro d’origine conservés (classeur ou registre importé)', text: 'n° d’origine' })) : null),
             h('td', { text: e.ipp || '—' }),
             h('td', { class: 'nowrap', text: e.age == null ? '—' : e.age + ' ans' }),
             h('td', { class: 'nowrap', text: date(e.debut) }),
             h('td', { class: 'nowrap', text: e.fin ? date(e.fin) : 'en cours' }),
             h('td', { class: 'nowrap', text: duree(e.dureeHeures) }),
-            colPauses ? h('td', { class: 'nowrap', title: e.pauses.map(function (p) { return date(p[0]) + ' → ' + date(p[1]); }).join('\n'), text: textePauses(e) }) : null,
+            colPauses ? h('td', { text: textePauses(e) }) : null,
             h('td', {}, e.modeHospi || '—', e.basculeMode ? h('span', { class: 'badge', title: 'Mode modifié dans les ' + (config().delaiModeHospiHeures == null ? 12 : config().delaiModeHospiHeures) + ' h suivant le début : le nouveau mode est retenu.', text: '*' }) : null),
             h('td', { text: e.lieu || '—' }),
             h('td', { text: e.psychiatre || '—' }),
@@ -1246,7 +1244,7 @@
   function resumePauses(v) {
     var o = M.optionsPauses({ pauses: v });
     return (o.active ? 'levée temporaire active' : 'levée temporaire désactivée') +
-      (o.retrancher ? ', pauses déduites ' + (o.portee === 'partout' ? 'partout' : 'pour les délais JLD seulement') : ', pauses comptées') +
+      (o.retrancher ? ', pauses déduites pour les délais du juge' : ', pauses comptées') +
       (o.repriseAuto ? ', reprise automatique' : '') + ', alerte ' + (o.alerteHeures ? 'au-delà de ' + o.alerteHeures + ' h' : 'désactivée') + ', refus à ' + o.refusHeures + ' h' +
       (o.colonneRegistre ? ', colonne au registre' : '');
   }
@@ -1256,13 +1254,11 @@
     var ouiNon = function (x) { return x ? 'oui' : 'non'; };
     var champs = [
       ['active', 'levée temporaire active', ouiNon], ['retrancher', 'pauses déduites', ouiNon],
-      ['portee', 'déduction', function (x) { return x === 'partout' ? 'partout' : 'délais JLD seulement'; }],
-      ['contentionSeule', 'pause de la contention seule au registre', function (x) { return x === 'contention' ? 'dans l’entrée C' : 'en isolement seul (A)'; }],
       ['verrouContention', 'pause de l’isolement seul interdite pendant une contention', ouiNon],
       ['colonneRegistre', 'colonne au registre', ouiNon], ['repriseAuto', 'reprise automatique', ouiNon],
       ['alerteHeures', 'alerte', function (x) { return x ? 'au-delà de ' + x + ' h' : 'aucune'; }], ['refusHeures', 'refus', function (x) { return 'à ' + x + ' h'; }]
     ];
-    var diff = champs.filter(function (c) { return a[c[0]] !== b[c[0]] && !(c[0] === 'portee' && !b.retrancher && !a.retrancher); })
+    var diff = champs.filter(function (c) { return a[c[0]] !== b[c[0]]; })
       .map(function (c) { return c[1] + ' : ' + c[2](a[c[0]]) + ' → ' + c[2](b[c[0]]); });
     return diff.length ? diff.join(' ; ') : 'aucun changement';
   }
@@ -1603,20 +1599,8 @@
     var op = M.optionsPauses(cfg);
     var cbActive = h('input', { type: 'checkbox', checked: op.active });
     var cbRetr = h('input', { type: 'checkbox', checked: op.retrancher });
-    var radPortee = function (v, texte) { var r = h('input', { type: 'radio', name: 'portee-pauses', value: v, checked: op.portee === v }); return h('label', { class: 'case' }, r, h('span', { text: texte })); };
     var blocPortee = h('div', { class: 'pile retrait' },
-      h('b', { text: 'Où déduire les pauses ?' }),
-      radPortee('jld', 'Pour les délais JLD seulement (échéances, cumuls sur 15 jours, décompte) : le registre et les statistiques gardent la durée réelle, levées temporaires comprises'),
-      radPortee('partout', 'Partout : délais JLD, et aussi registre anonymisé et statistiques (durées hors pauses)'));
-    var radCS = function (v, texte) { return h('label', { class: 'case' }, h('input', { type: 'radio', name: 'contention-seule', value: v, checked: op.contentionSeule === v }), h('span', { text: texte })); };
-    var blocCS = h('div', { class: 'pile retrait' },
-      h('b', { text: 'Registre : pause de la contention seule (le patient reste à l’isolement)' }),
-      radCS('isolement', 'Compter ce temps en isolement seul : il forme une entrée A supplémentaire (durée de l’isolement exacte, une entrée de plus)'),
-      radCS('contention', 'Le laisser dans l’entrée de contention (C), sans le déduire (pas d’entrée supplémentaire)'),
-      h('small', { class: 'muted', text: lieu('Une pause commune à la contention et à l’isolement (le patient quitte le lieu d’isolement) est toujours déduite.') }));
-    blocPortee.appendChild(blocCS);
-    function majCS() { blocCS.hidden = ((blocPortee.querySelector('input[name=portee-pauses]:checked') || {}).value) !== 'partout'; }
-    blocPortee.addEventListener('change', majCS); majCS();
+      h('small', { class: 'muted', text: 'La déduction ne vaut que pour les délais du juge (échéances, cumuls sur 15 jours, décompte). Au registre et dans les statistiques, une pause arrête toujours la mesure : la reprise ouvre une nouvelle entrée (lecture légale du registre, décision du porteur du 16 novembre 2026).' }));
     var cbCol = h('input', { type: 'checkbox', checked: op.colonneRegistre });
     var cbVerrou = h('input', { type: 'checkbox', checked: op.verrouContention });
     var cbAuto = h('input', { type: 'checkbox', checked: op.repriseAuto });
@@ -1627,7 +1611,7 @@
       h('label', { class: 'case' }, cbRetr, h('span', { text: 'Déduire la durée des pauses du cumul' })),
       h('div', { class: 'pile retrait' }, avertRetr, blocPortee, h('small', { class: 'muted', text: 'Une pause sans reprise saisie n’est déduite que jusqu’à son heure de reprise prévue.' })),
       h('label', { class: 'case' }, cbVerrou, h('span', { text: 'Interdire la pause de l’isolement seul quand une contention est en cours : la contention doit être mise en pause elle aussi, ou terminée dans la même saisie' })),
-      h('label', { class: 'case' }, cbCol, h('span', { text: 'Afficher les levées temporaires dans le registre anonymisé (colonne : nombre et durée), et dans son export' })),
+      h('label', { class: 'case' }, cbCol, h('span', { text: 'Afficher dans le registre anonymisé, et dans son export, les entrées qui s’arrêtent pour une pause ou commencent à une reprise (colonne « Levée temporaire »)' })),
       h('label', { class: 'case' }, cbAuto, h('span', { text: 'Reprise automatique à l’heure prévue (sans saisie de la reprise)' })),
       h('small', { class: 'muted', text: 'Sans reprise automatique, une reprise prévue dépassée et non saisie est signalée en rouge. Avec elle, la mesure reprend d’elle-même ; une reprise plus tôt que prévu se saisit avec le bouton Reprise, et un patient qui ne réintègre pas la mesure doit faire l’objet d’une fin de mesure.' }),
       h('div', { class: 'grille-2' },
@@ -1650,16 +1634,12 @@
         var a = +nAlerte.value, r = +nRefus.value;
         if (!isFinite(r) || r <= 0 || r > M.PAUSE_MAX_HEURES) throw new Error('Le seuil de refus doit être compris entre 0 et ' + M.PAUSE_MAX_HEURES + ' h.');
         if (!isFinite(a) || a < 0 || (a && a >= r)) throw new Error('Le seuil d’alerte doit être inférieur au seuil de refus (0 pour aucune alerte).');
-        var portee = (blocPortee.querySelector('input[name=portee-pauses]:checked') || {}).value || 'jld';
-        var contentionSeule = (blocCS.querySelector('input:checked') || {}).value || 'isolement';
         var avant = M.optionsPauses(cfg);
         var msgs = [];
         if (cbRetr.checked !== avant.retrancher) msgs.push(cbRetr.checked ? 'Déduire les pauses va reporter les échéances JLD de toutes les mesures concernées.' : 'Ne plus déduire les pauses va avancer les échéances JLD des mesures concernées.');
-        if (cbRetr.checked && portee !== avant.portee) msgs.push(portee === 'partout' ? 'Les durées du registre et des statistiques seront désormais hors pauses.' : 'Le registre et les statistiques reprendront les durées réelles.');
-        if (cbRetr.checked && portee === 'partout' && contentionSeule !== avant.contentionSeule) msgs.push(contentionSeule === 'isolement' ? 'Les pauses de contention seule formeront des entrées A au registre.' : 'Les pauses de contention seule resteront dans l’entrée C du registre.');
         if (cbActive.checked !== avant.active) msgs.push(cbActive.checked ? 'Le bouton « Pause » sera disponible dans la page des mesures.' : 'Le bouton « Pause » disparaîtra de la page des mesures.');
         if (msgs.length && !await SIC.ui.confirmer(msgs.join('\n') + '\nConfirmer ?')) return false;
-        await enregistrerConfig([['pauses', { active: cbActive.checked, retrancher: cbRetr.checked, portee: portee, contentionSeule: contentionSeule, verrouContention: cbVerrou.checked, colonneRegistre: cbCol.checked, repriseAuto: cbAuto.checked, alerteHeures: a, refusHeures: r }]]);
+        await enregistrerConfig([['pauses', { active: cbActive.checked, retrancher: cbRetr.checked, portee: 'jld', contentionSeule: 'isolement', verrouContention: cbVerrou.checked, colonneRegistre: cbCol.checked, repriseAuto: cbAuto.checked, alerteHeures: a, refusHeures: r }]]);
       }));
     majPauses();
 

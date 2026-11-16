@@ -100,7 +100,7 @@
     U.methode.lignesCSV(b.annee).forEach(function (l) { lignes.push(l); });
     // Détail pseudonymisé
     lignes.push([]); lignes.push(['Détail des entrées ' + b.annee + ' (pseudonymisé)']);
- lignes.push(['N°', 'Catégorie', 'Service', 'Début', 'Fin', M.optionsPauses(U.config()).deduireRegistre ? 'Durée hors pauses (h)' : 'Durée (h)', "Mode d'hospitalisation", 'Patient', 'Mineur']);
+ lignes.push(['N°', 'Catégorie', 'Service', 'Début', 'Fin', 'Durée (h)', "Mode d'hospitalisation", 'Patient', 'Mineur']);
     var pseudo = {}, k = 0, etat = U.st(), maintenant = Date.now();
     svs.forEach(function (sv) {
       M.registre(etat, sv, b.annee, maintenant).forEach(function (e) {
@@ -174,7 +174,7 @@
       h('div', { class: 'seulement-impression' }, h('h2', { text: (U.etablissement() ? U.etablissement() + ' — ' : '') + 'L’isolement et la contention en chiffres — ' + titreSv + ' — ' + annee })),
       h('p', { class: 'muted', text: titreSv + U.lieu('. Une mesure = une entrée du registre anonymisé terminée, comptée l’année de son début ; une contention en CSI couvre l’isolement qui l’accompagne.') + (b.enCours ? ' ' + b.enCours + ' entrée(s) encore en cours ne sont pas comptées.' : '') + (function () {
         var op = M.optionsPauses(etat.config);
-        return op.deduireRegistre ? ' Durées hors levées temporaires (pauses déduites, règle de l’établissement).' : op.active ? ' Durées réelles, levées temporaires comprises.' : '';
+        return op.active ? ' Une levée temporaire (pause) arrête la mesure : la reprise forme une nouvelle entrée.' : '';
       })() }),
       h('section', { class: 'panneau' }, h('h2', { text: 'L’isolement et la contention en chiffres' }),
         tableau(['Indicateur', String(a.annee), String(b.annee), 'Évolution'], lignesRapport(a, b).map(function (l) { return [l[0], l[3](l[1]), l[3](l[2]), evolution(l[1], l[2])]; })),

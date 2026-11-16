@@ -68,7 +68,7 @@ test('Import : mesures, patients, cycles JLD, tiers, professionnels, paramétrag
   // Contention hors CSI avec exception : catégorie E ; compteur = 12 − 2 mesures numérotées importées
   assert.equal(etat.config.compteursRegistre.UHP['2026'], 10);
   const reg = M.registre(etat, 'UHP', 2026, local(2026, 10, 6, 12));
-  assert.deepEqual(reg.map(e => e.numero), ['A11', 'E12', '']);
+  assert.deepEqual(reg.map(e => e.numero), ['A11', 'E12', 'A13']);
   assert.equal(etat.config.parametres.Isolement.seuilJaune, 8);
   assert.deepEqual(etat.config.decompte.UHP.masquer, ['N']);
   assert.equal(etat.professionnels[0].periode, 'MATIN');
@@ -123,7 +123,7 @@ test('Import : numérotation du classeur conservée, recalculée pour l’année
       { type: 'MESURE_DEBUT', data: { mesureId: 'N1', patientId: prep.evenements.find(e => e.type === 'PATIENT').data.patientId, service: 'UHP', typeMesure: 'Isolement', debut: local(2026, 10, 3, 8), csi: true } },
       { type: 'MESURE_FIN', data: { mesureId: 'N1', fin: local(2026, 10, 3, 12) } }] } }]);
   const reg = M.registre(st, 'UHP', 2026, maintenant);
-  assert.deepEqual(reg.map(e => [e.numero, e.fige]), [['A11', true], ['D12', true], ['A13', false], ['', false]]);
+  assert.deepEqual(reg.map(e => [e.numero, e.fige]), [['A11', true], ['D12', true], ['A13', false], ['A14', false]]);
   // Sans figer : l'outil recalcule (E12 au lieu de D12)
   const recalc = M.registre(M.reduire(st.journal.filter(e => e.id !== 'K2')), 'UHP', 2026, maintenant).map(e => e.numero);
   assert.ok(!recalc.includes('D12') && recalc.some(n => /^E/.test(n)));
@@ -148,9 +148,9 @@ test('Import : impact des trois choix de numérotation sur le registre et les st
   const imp = I.impactNumerotation(prep, cpt, 2026);
   assert.equal(imp.length, 1);
   const m = imp[0].modes;
-  assert.deepEqual(m.conserver.numeros, ['A11', 'D12']);
-  assert.deepEqual(m.tout.numeros, ['A11', 'E12']);
-  assert.deepEqual(m.annee.numeros, ['A11', 'E12']);                     // 2026 est l'année en cours
+  assert.deepEqual(m.conserver.numeros, ['A11', 'D12', 'A13']);
+  assert.deepEqual(m.tout.numeros, ['A11', 'E12', 'A13']);
+  assert.deepEqual(m.annee.numeros, ['A11', 'E12', 'A13']);                     // 2026 est l'année en cours
   assert.deepEqual([m.conserver.categories.D, m.conserver.categories.E], [1, 0]);
   assert.deepEqual([m.tout.categories.D, m.tout.categories.E], [0, 1]);
   assert.equal(m.conserver.entrees, 2); assert.equal(m.tout.dureeTotale, m.conserver.dureeTotale);

@@ -176,7 +176,7 @@
       zone.appendChild(fr2);
       zone.appendChild(h('div', { class: 'figure-actions' }, U.graphiquePdf.bouton(fr2, optionsPdf('Frise de l’année', 'frise'))));
       zone.appendChild(h('small', { class: 'muted', text: 'Entrées du registre des services affichés. Les totaux comptent les entrées débutées dans l’année, comme les statistiques ; l’histogramme et la frise montrent les heures à leur date réelle'
-        + (Math.abs(pr.heuresAnnee - pr.total) > 0.02 ? ' (' + fd(pr.heuresAnnee) + ' dans l’année civile ' + an + ', les entrées à cheval sur deux années comptant pour chacune leur part)' : '') + (M.optionsPauses(U.config()).deduireRegistre ? ' ; durées hors pauses.' : ' ; durées réelles, levées temporaires comprises.') }));
+        + (Math.abs(pr.heuresAnnee - pr.total) > 0.02 ? ' (' + fd(pr.heuresAnnee) + ' dans l’année civile ' + an + ', les entrées à cheval sur deux années comptant pour chacune leur part)' : '') + ' ; une pause arrête l’entrée, la reprise en ouvre une nouvelle.' }));
     }
     dessiner();
     return zone;
@@ -210,7 +210,7 @@
     ms.forEach(function (m) { var an = new Date(m.debut).getFullYear(), cle = m.service + '|' + an; if (!vus[cle]) { vus[cle] = 1; entrees = entrees.concat(M.registre(etat, m.service, an, maintenant).filter(function (e) { return e.patientId === p.id; })); } });
     entrees.sort(function (a, b) { return a.debut - b.debut; });
     var tableRegistre = entrees.length ? h('div', { class: 'table-wrap' }, h('table', {},
-      h('thead', {}, h('tr', {}, ['N° registre', 'Catégorie', 'Début', 'Fin', op.deduireRegistre ? 'Durée hors pauses' : 'Durée'].map(function (t) { return h('th', { text: t }); }))),
+      h('thead', {}, h('tr', {}, ['N° registre', 'Catégorie', 'Début', 'Fin', 'Durée'].map(function (t) { return h('th', { text: t }); }))),
       h('tbody', {}, entrees.map(function (e) {
         return h('tr', { class: e.fin === null ? 'en-cours' : '' },
           h('td', {}, e.numero ? h('b', { text: e.numero }) : h('small', { text: 'en cours' })),
@@ -228,7 +228,7 @@
       h('h3', { text: ms.length + ' mesure(s) — comptées comme le juge, isolement et contention séparément' }),
       tableMesures,
       h('h3', { text: 'Entrées du registre' }),
-      h('p', { class: 'muted' }, h('small', { text: U.lieu('Une contention en CSI et l’isolement qui l’accompagne forment une seule entrée C ; les portions d’isolement avant et après la contention forment des entrées A.') + (op.deduireRegistre ? (op.contentionSeule === 'isolement' ? ' Pauses déduites : une pause de la contention pendant laquelle l’isolement continue forme une entrée A.' : ' Pauses déduites : une pause de la contention seule reste dans l’entrée C.') : '') })),
+      h('p', { class: 'muted' }, h('small', { text: U.lieu('Une contention en CSI et l’isolement qui l’accompagne forment une seule entrée C ; les portions d’isolement avant et après la contention forment des entrées A.') + ' Une pause arrête l’entrée : la reprise en ouvre une nouvelle, et une pause de la contention pendant laquelle l’isolement continue forme une entrée A.' })),
       tableRegistre), [{ texte: 'Fermer' },
       U.App.session.peut('EXPORT_PATIENT') || U.App.session.peut('CONFIG') ? { texte: 'Exporter ses données (droit d’accès)', action: function () { U.qualite.exporterPatient(p); return false; } } : null].filter(Boolean), { large: true });
   }
