@@ -1510,3 +1510,11 @@ nav.onglets.onglets-groupes button { padding: 7px 9px; }
 .fenetre-tete:has(nav.onglets-groupes) .fenetre-titre { flex: 1 0 100%; border-bottom: 1px solid var(--line); }
 /* Lisibilité (0.81.0, constats E4 et E5) : petits textes à 12 px au moins */
 small { font-size: max(12px, .85em); }
+/* Liste des codes CIM importée : suggestions de la feuille de staff (0.82.0) */
+.cl-cim-bloc { margin-bottom: 4px; }
+.cl-cim-bloc .cl-cim { margin-bottom: 0; }
+.cl-cim-sugg { list-style: none; margin: 2px 0 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); max-height: 16rem; overflow-y: auto; }
+.cl-cim-sugg:empty { display: none; }
+.cl-cim-choix { display: block; width: 100%; text-align: left; padding: 6px 10px; background: none; border: 0; color: var(--ink); font: inherit; cursor: pointer; }
+.cl-cim-choix:hover, .cl-cim-choix:focus { background: var(--accent-soft); outline: none; }
+.cl-cim-note:empty { display: none; }

@@ -26,6 +26,23 @@
     var bris = {}; try { bris = (s().etatModule('patients') || {}).bris || {}; } catch (e) { bris = {}; }
     return AC.acces({ config: cfg(), roles: roles, lecteur: lect, present: present(f), service: f.service, bris: bris, agent: s().utilisateur.id, patientId: f.id, maintenant: Date.now() });
   }
+  // ------------------------------------------------------------ Liste des codes CIM importée (0.82.0)
+  var cacheCim = { piece: null, index: null, attente: null };
+  /** Index de la liste importée par l'établissement (promesse ; null si aucune liste ou fichier illisible). */
+  function listeCim() {
+    var r = st().referentiel;
+    if (!r || !r.piece) return Promise.resolve(null);
+    if (cacheCim.piece === r.piece && cacheCim.index) return Promise.resolve(cacheCim.index);
+    if (cacheCim.piece === r.piece && cacheCim.attente) return cacheCim.attente;
+    cacheCim.piece = r.piece; cacheCim.index = null;
+    cacheCim.attente = s().lirePiece('clinique', r.piece).then(function (o) {
+      if (!o) return null;
+      var d = JSON.parse(new TextDecoder().decode(o));
+      cacheCim.index = SIC.cim.indexer(d.codes || []);
+      return cacheCim.index;
+    }).catch(function () { return null; });
+    return cacheCim.attente;
+  }
   function disponible() { return !!SIC.modules.obtenir('clinique') && K.fonctionActive(cfg()) && s().detientCle('clinique'); }
   function libCim(l) { return (l || []).map(function (x) { return x.code + (x.libelle ? ' ' + x.libelle : ''); }).join(' ; '); }
   function libDep(avq) { var n = K.score(avq); return n === null ? (Object.keys(avq || {}).length ? 'incomplète' : '') : n + ' / 24'; }
@@ -40,13 +57,46 @@
     var x = K.sejour(st(), f.id, sj.id), sf = x.staff || { cim: [], motif: '', projet: '', avq: {} }, prec = K.precedent(st(), f, sj.id);
     var ecrit = a.raison !== 'bris' && peut('CLINIQUE_STAFF') && !s().apercu, note = a.raison !== 'bris' && peut('CLINIQUE_NOTE') && !s().apercu;
     // Codes CIM : lignes code + libellé, saisie libre
-    var zoneCim = h('div', { class: 'pile' }), lignes = [];
-    function ligneCim(v) {
-      var code = h('input', { type: 'text', maxlength: 12, class: 'champ-court', 'aria-label': 'Code CIM', value: v ? v.code : '', disabled: !ecrit, placeholder: 'F20.0' });
-      var lib = h('input', { type: 'text', maxlength: 120, 'aria-label': 'Libellé', value: v ? v.libelle : '', disabled: !ecrit, placeholder: 'Libellé (facultatif)' });
-      var l = { code: code, lib: lib }, el = h('div', { class: 'cl-cim' }, code, lib, ecrit ? h('button', { class: 'btn petit', type: 'button', title: 'Retirer', onclick: function () { lignes.splice(lignes.indexOf(l), 1); el.remove(); } }, '×') : null);
-      lignes.push(l); zoneCim.appendChild(el);
+    var zoneCim = h('div', { class: 'pile' }), lignes = [], idx = null, refCim = st().referentiel;
+    // Liste importée par l'établissement (0.82.0) : suggestions, libellé rempli d'office, code absent signalé
+    function verifierLigne(l) {
+      var v = l.code.value.trim(), t = idx && v ? SIC.cim.trouver(idx, v) : null;
+      l.note.textContent = '';
+      if (!idx || !v) return;
+      if (!t) { l.note.textContent = 'Code absent de la liste de l’établissement' + (refCim && refCim.version ? ' (version ' + refCim.version + ')' : '') + ' : vérifiez-le.'; return; }
+      if (l.code.value !== t.code) l.code.value = t.code;
+      if (!l.lib.value.trim()) l.lib.value = t.libelle;
+      if (t.type && SIC.cim.TYPES[t.type]) l.note.textContent = 'Code ' + SIC.cim.TYPES[t.type] + '.';
     }
+    function suggerer(l, saisie) {
+      l.sugg.replaceChildren();
+      var res = idx && ecrit ? SIC.cim.chercher(idx, saisie, 8) : [];
+      res.forEach(function (r) {
+        l.sugg.appendChild(h('li', {}, h('button', { type: 'button', class: 'cl-cim-choix', onclick: function () { l.code.value = r.code; l.lib.value = r.libelle; l.sugg.replaceChildren(); verifierLigne(l); l.code.focus(); },
+          onkeydown: function (ev) {
+            var b = ev.currentTarget.parentNode;
+            if (ev.key === 'ArrowDown' && b.nextSibling) { ev.preventDefault(); b.nextSibling.firstChild.focus(); }
+            if (ev.key === 'ArrowUp') { ev.preventDefault(); if (b.previousSibling) b.previousSibling.firstChild.focus(); else l.code.focus(); }
+            if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); l.sugg.replaceChildren(); l.code.focus(); }
+          } }, h('b', { text: r.code }), ' ' + r.libelle)));
+      });
+    }
+    function ligneCim(v) {
+      var code = h('input', { type: 'text', maxlength: 12, class: 'champ-court', 'aria-label': 'Code CIM', value: v ? v.code : '', disabled: !ecrit, placeholder: 'F20.0', autocomplete: 'off' });
+      var lib = h('input', { type: 'text', maxlength: 120, 'aria-label': 'Libellé', value: v ? v.libelle : '', disabled: !ecrit, placeholder: refCim ? 'Libellé (ou cherchez par mots)' : 'Libellé (facultatif)', autocomplete: 'off' });
+      var sugg = h('ul', { class: 'cl-cim-sugg', 'aria-label': 'Codes CIM proposés' }), note = h('small', { class: 'muted cl-cim-note', 'aria-live': 'polite' });
+      var l = { code: code, lib: lib, sugg: sugg, note: note }, el = h('div', { class: 'cl-cim-bloc' }, h('div', { class: 'cl-cim' }, code, lib, ecrit ? h('button', { class: 'btn petit', type: 'button', title: 'Retirer', onclick: function () { lignes.splice(lignes.indexOf(l), 1); el.remove(); } }, '×') : null), sugg, note);
+      code.addEventListener('input', function () { suggerer(l, code.value); });
+      lib.addEventListener('input', function () { if (!code.value.trim()) suggerer(l, lib.value); });
+      code.addEventListener('change', function () { verifierLigne(l); });
+      [code, lib].forEach(function (c) { c.addEventListener('keydown', function (ev) {
+        if (ev.key === 'ArrowDown' && sugg.firstChild) { ev.preventDefault(); sugg.firstChild.firstChild.focus(); }
+        if (ev.key === 'Escape' && sugg.firstChild) { ev.preventDefault(); ev.stopPropagation(); sugg.replaceChildren(); }
+      }); });
+      lignes.push(l); zoneCim.appendChild(el);
+      if (idx) verifierLigne(l);
+    }
+    if (refCim) listeCim().then(function (i) { idx = i; if (i) lignes.forEach(verifierLigne); });
     (sf.cim.length ? sf.cim : (ecrit ? [null] : [])).forEach(ligneCim);
     // Plusieurs codes dans un seul champ (0.78.0) : séparés en lignes, à vérifier avant d'enregistrer
     var saisieMulti = h('textarea', { rows: 2, maxlength: 4000, 'aria-label': 'Plusieurs codes CIM à la fois', placeholder: 'F20.0 Schizophrénie paranoïde ; F10.2 ; Z59.0 Sans abri' });
@@ -56,13 +106,14 @@
       var deja = {};
       lignes.forEach(function (l) { var c = l.code.value.trim().toUpperCase().replace(/[.+*†]/g, ''); if (c) deja[c] = l; });
       // Lignes vides retirées : les codes séparés prennent leur place
-      lignes.slice().forEach(function (l) { if (!l.code.value.trim() && !l.lib.value.trim()) { lignes.splice(lignes.indexOf(l), 1); l.code.parentNode.remove(); } });
+      lignes.slice().forEach(function (l) { if (!l.code.value.trim() && !l.lib.value.trim()) { lignes.splice(lignes.indexOf(l), 1); l.code.closest('.cl-cim-bloc').remove(); } });
       var ajoutes = 0, completes = 0;
       codes.forEach(function (c) {
         var l = deja[c.code.replace(/[.+*†]/g, '')];
         if (l) { if (c.libelle && !l.lib.value.trim()) { l.lib.value = c.libelle; completes++; } return; }
         ligneCim(c); ajoutes++;
       });
+      lignes.forEach(function (l) { if (idx) verifierLigne(l); });
       saisieMulti.value = '';
       U.toast(ajoutes + ' code(s) ajouté(s)' + (completes ? ', ' + completes + ' libellé(s) complété(s)' : '') + (codes.length > ajoutes + completes ? ', ' + (codes.length - ajoutes - completes) + ' déjà présent(s)' : '') + '. Vérifiez puis enregistrez la feuille de staff.');
     }
@@ -103,7 +154,7 @@
       prec ? h('div', { class: 'cl-precedent', role: 'note' }, h('b', { text: 'Séjour précédent (entrée le ' + fr(prec.sejour.entree) + ') — pour référence' }),
         h('p', { text: 'Codes CIM : ' + (libCim(prec.staff.cim) || '—') }), h('p', { text: 'Dépendance : ' + (libDep(prec.staff.avq) || '—') + (Object.keys(prec.staff.avq || {}).length ? ' (' + K.AVQ.map(function (v) { return v.libelle + ' ' + (prec.staff.avq[v.code] || '—'); }).join(', ') + ')' : '') })) : null,
       h('h3', { text: 'Feuille de staff' }),
-      h('div', {}, h('b', { text: 'Codes CIM (saisie libre)' }), zoneCim, ecrit ? h('button', { class: 'btn petit', type: 'button', onclick: function () { ligneCim(null); } }, '+ Code') : null, zoneMulti),
+      h('div', {}, h('b', { text: refCim ? 'Codes CIM (liste de l’établissement' + (refCim.version ? ', version ' + refCim.version : '') + ' ; saisie libre possible)' : 'Codes CIM (saisie libre)' }), zoneCim, ecrit ? h('button', { class: 'btn petit', type: 'button', onclick: function () { ligneCim(null); } }, '+ Code') : null, zoneMulti),
       h('label', {}, 'Motif d’hospitalisation', motif),
       h('label', {}, 'Projet thérapeutique', projet),
       h('fieldset', { class: 'hs-horaire' }, h('legend', { text: 'Dépendance — activités de la vie quotidienne (RIM-P)' }), h('div', { class: 'grille-2' }, sels.map(function (x) { return h('label', {}, x.v.libelle, x.sel); })), total),
@@ -153,7 +204,46 @@
       peutB ? h('button', { class: 'btn petit danger', type: 'button', onclick: function () { U.accesClinique.modaleBris(f, apres); } }, 'Bris de glace…') : null);
   }
 
+  // ------------------------------------------------------------ Administration : liste des codes CIM (0.82.0)
+  function panneauCim() {
+    var r = st().referentiel, peutImporter = peut('CLINIQUE_REFERENTIEL') && s().detientCle('clinique') && !s().apercu && !s().formation;
+    var etat = r ? h('p', {}, h('b', { text: 'Liste en service : ' }), (r.version ? 'version ' + r.version + ', ' : '') + r.nombre.toLocaleString('fr-FR') + ' codes (' + r.format + ', fichier « ' + r.nomFichier + ' »), importée le ' + fr(r.le) + '.')
+      : h('p', { class: 'muted', text: 'Aucune liste importée : les codes CIM se saisissent librement (code et libellé).' });
+    var apercu = h('div', { class: 'pile' });
+    var fichier = h('input', { type: 'file', accept: '.txt,.csv,.tsv,.json', 'aria-label': 'Fichier de la liste des codes CIM', disabled: !peutImporter, onchange: function () { preparer(fichier.files && fichier.files[0]); } });
+    async function preparer(f) {
+      apercu.replaceChildren();
+      if (!f) return;
+      var oct, res;
+      try { oct = new Uint8Array(await f.arrayBuffer()); res = SIC.cim.lire(oct); } catch (e) { SIC.ui.alerte('Liste des codes CIM : ' + e.message); return; }
+      var emp = C.hex(new Uint8Array(await crypto.subtle.digest('SHA-256', oct)));
+      var version = h('input', { type: 'text', maxlength: 40, 'aria-label': 'Version de la liste', value: res.version || '', placeholder: 'ex. 2026' });
+      var source = h('input', { type: 'text', maxlength: 200, 'aria-label': 'Origine du fichier', value: res.editeur || '', placeholder: 'ex. ATIH, CIM-10 FR à usage PMSI' });
+      apercu.append(h('p', {}, h('b', { text: res.nombre.toLocaleString('fr-FR') + ' codes reconnus' }), ' (' + res.format + ')' + (res.rejetes ? ', ' + res.rejetes + ' ligne(s) écartée(s)' : '') + (res.doublons ? ', ' + res.doublons + ' doublon(s) ignoré(s)' : '') + '.'),
+        h('ul', {}, res.codes.slice(0, 5).map(function (c) { return h('li', {}, h('b', { text: c[0] }), ' ' + c[1]); })),
+        h('label', {}, 'Version ', version), h('label', {}, 'Origine ', source),
+        h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function (ev) {
+          ev.currentTarget.disabled = true;
+          try {
+            var piece = await s().enregistrerPiece('clinique', new TextEncoder().encode(JSON.stringify({ codes: res.codes, version: version.value.trim() })));
+            await s().enregistrer('CLINIQUE_REFERENTIEL', { piece: piece, version: version.value.trim(), nombre: res.nombre, format: res.format, nomFichier: f.name, source: source.value.trim(), empreinte: emp });
+            U.toast('Liste des codes CIM en service : ' + res.nombre.toLocaleString('fr-FR') + ' codes.'); U.rendreContenu();
+          } catch (e) { SIC.ui.alerte(e.message); ev.currentTarget.disabled = false; }
+        } }, r ? 'Remplacer la liste en service' : 'Mettre la liste en service')));
+    }
+    return h('section', { class: 'panneau' }, h('h2', { text: 'Liste des codes CIM' }), etat,
+      h('p', { class: 'muted', text: 'Tessera ne fournit pas la liste : la CIM-10 (droits de l’Organisation mondiale de la santé) dans sa version française à usage PMSI est publiée par l’ATIH (Agence technique de l’information sur l’hospitalisation) et diffusée par l’Agence du numérique en santé, sous leurs conditions de licence, à respecter par l’établissement. Téléchargez le fichier officiel (nomenclature de l’ATIH, ou terminologie au format JSON du serveur multi-terminologies), puis importez-le ici : il est lu sur ce poste, chiffré par la clé du module Données cliniques et rangé dans le dossier de l’établissement ; rien n’est envoyé à l’extérieur.' }),
+      h('p', { class: 'muted', text: 'Une fois la liste en service, la feuille de staff propose les codes et libellés au fil de la saisie, remplit le libellé d’un code connu et signale un code absent de la liste ; la saisie libre reste possible. Mettez la liste à jour chaque année.' }),
+      peutImporter ? h('div', { class: 'pile' }, fichier, apercu,
+        r ? h('div', { class: 'actions' }, h('button', { class: 'btn petit danger', type: 'button', onclick: async function () {
+          if (!(await SIC.ui.confirmer('Retirer la liste des codes CIM ? Les codes déjà saisis restent ; la saisie redevient libre.'))) return;
+          try { await s().enregistrer('CLINIQUE_REFERENTIEL', { retirer: true }); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); }
+        } }, 'Retirer la liste')) : null)
+        : h('p', { class: 'muted', text: 'Import réservé à l’administrateur.' }));
+  }
+
   SIC.modules.completerInterface('clinique', {
+    admin: { onglets: function () { return [['clinique', 'Données cliniques', [panneauCim()]]]; } },
     vues: { staff: vueStaff },
     // Export du droit d'accès du patient : feuilles de staff et notes cliniques de ses séjours (notes retirées comprises)
     droitAcces: function (etat, p) {
@@ -165,9 +255,11 @@
       });
       return res;
     },
-    journal: { resume: function (e) { var d = e.data || {}, f = fiches()[d.patientId]; return (f ? nomP(f) : d.patientId) + ' — ' + ({ CLINIQUE_STAFF: 'feuille de staff', CLINIQUE_NOTE: 'note clinique', CLINIQUE_NOTE_RETRAIT: 'note retirée : ' + (d.motif || '') }[e.type] || e.type); },
-      action: function (e) { return { CLINIQUE_STAFF: 'Feuille de staff clinique', CLINIQUE_NOTE: 'Note clinique', CLINIQUE_NOTE_RETRAIT: 'Note clinique retirée' }[e.type] || e.type; },
-      libelleType: function (t) { return { CLINIQUE_STAFF: 'Feuille de staff clinique', CLINIQUE_NOTE: 'Note clinique', CLINIQUE_NOTE_RETRAIT: 'Note clinique retirée' }[t] || t; }, effetAnnulation: function () { return 'La saisie est retirée.'; } }
+    journal: { resume: function (e) { var d = e.data || {}, f = fiches()[d.patientId];
+      if (e.type === 'CLINIQUE_REFERENTIEL') return d.retirer ? 'Liste des codes CIM retirée' : 'Liste des codes CIM : ' + (d.version ? 'version ' + d.version + ', ' : '') + d.nombre + ' codes (« ' + d.nomFichier + ' »)';
+      return (f ? nomP(f) : d.patientId) + ' — ' + ({ CLINIQUE_STAFF: 'feuille de staff', CLINIQUE_NOTE: 'note clinique', CLINIQUE_NOTE_RETRAIT: 'note retirée : ' + (d.motif || '') }[e.type] || e.type); },
+      action: function (e) { return { CLINIQUE_STAFF: 'Feuille de staff clinique', CLINIQUE_NOTE: 'Note clinique', CLINIQUE_NOTE_RETRAIT: 'Note clinique retirée', CLINIQUE_REFERENTIEL: 'Liste des codes CIM' }[e.type] || e.type; },
+      libelleType: function (t) { return { CLINIQUE_STAFF: 'Feuille de staff clinique', CLINIQUE_NOTE: 'Note clinique', CLINIQUE_NOTE_RETRAIT: 'Note clinique retirée', CLINIQUE_REFERENTIEL: 'Liste des codes CIM' }[t] || t; }, effetAnnulation: function () { return 'La saisie est retirée.'; } }
   });
   U.clinique = { modaleSejour: modaleSejour, blocFiche: blocFiche, acces: acces };
 })();

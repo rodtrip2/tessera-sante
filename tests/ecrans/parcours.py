@@ -1428,6 +1428,14 @@ with sync_playwright() as p:
     d.get_by_role('button', name='Séparer en codes').click(); time.sleep(0.5)
     codes = [x.input_value() for x in d.locator('input[aria-label="Code CIM"]').all()]
     verifier(all(c in codes for c in ['F10.2', 'Z59.0', 'D51.0']) and 'B12' not in codes and len(codes) == len(set(codes)), 'données cliniques : plusieurs codes CIM séparés en lignes (' + ', '.join(codes) + ')')
+    # Liste des codes CIM de l'établissement (0.82.0, extrait fictif de la démonstration) : suggestions et libellé rempli
+    d.get_by_role('button', name='+ Code').click(); time.sleep(0.3)
+    cc = d.locator('input[aria-label="Code CIM"]').last
+    cc.fill('F31'); time.sleep(0.4)
+    sug = d.locator('.cl-cim-choix').all_inner_texts()
+    verifier(len(sug) >= 2 and all(x.startswith('F31') for x in sug), 'données cliniques : codes CIM proposés d’après la liste de l’établissement (' + ' | '.join(sug) + ')')
+    d.locator('.cl-cim-choix').first.click(); time.sleep(0.3)
+    verifier(cc.input_value().startswith('F31.') and 'démonstration' in d.locator('input[aria-label="Libellé"]').last.input_value(), 'données cliniques : code choisi dans la liste, libellé rempli')
     d.locator('select[aria-label="Comportement"]').select_option('3'); d.get_by_role('button', name='Enregistrer la feuille de staff').click(); time.sleep(1.2)
     d.locator('textarea[aria-label="Nouvelle note clinique"]').fill('Note du parcours (fictif).'); d.get_by_role('button', name='Ajouter la note').click(); time.sleep(1.2)
     verifier(d.locator('.cl-note', has_text='Note du parcours').count() == 1, 'données cliniques : note clinique rattachée au séjour')
