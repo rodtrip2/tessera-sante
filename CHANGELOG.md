@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.85.0 — 16 novembre 2026
+
+Les trois limites du test de charge (demande du porteur du 16 novembre 2026), sans changement des résultats :
+- **Connexion** : fichiers d'un mois lus par lots de 32 en parallèle ; signatures vérifiées par lots de 64 en parallèle (calcul deux fois plus court).
+- **Recalcul** : index des saisies, journal, annulations et maillons manquants calculés une fois pour tous les modules (au lieu d'une copie par module) ; tri plus rapide ; comparaison du journal et copie des fiches patient faites une fois par recalcul ; recalcul complet de garantie une fois par heure au lieu de chaque lecture complète (toutes les 10 minutes). 3 services sur 3 ans : 8,2 → 2,4 s ; après une saisie : 110 → 70 ms.
+- **Mémoire** : anciennes versions des documents (au-delà des 3 dernières, versions validées gardées) relues sur le partage à la demande, signature vérifiée (`Session.relireSaisie`, `Dossier.lireEvenementNom`). 3 services sur 3 ans : 1,8 → 0,5 Go.
+- Test de charge : contenus réalistes (mémoire), vérification par lots, recalcul de garantie mesuré ; rapport `docs/test-de-charge.md` complété (§ 3 bis).
+
 ## 0.84.1 — 16 novembre 2026
 
 Test de charge (demande du porteur du 16 novembre 2026) : `docs/test-de-charge.md`, script `scripts/charge.cjs` étendu à tous les modules (plusieurs services, plusieurs années, chiffrement et signature réels, place occupée par blocs de 4 Ko, écriture réelle facultative).

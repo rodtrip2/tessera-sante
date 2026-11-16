@@ -26,25 +26,36 @@
    * Les saisies d'un lot gardent le rang du lot.
    */
   function trierEvenements(evts) {
-    var parAt = {};
-    evts.forEach(function (e) { (parAt[e.at] = parAt[e.at] || {})[e.id] = e; });
-    var rangs = {};
-    function rang(e, n) {
-      if (rangs[e.id] !== undefined) return rangs[e.id];
-      var meme = parAt[e.at] || {}, r = 0;
-      if (n < 1000) {
-        if (e.lot && meme[e.lot]) r = rang(meme[e.lot], n + 1);
-        else if (e.prec && meme[e.prec]) r = rang(meme[e.prec], n + 1) + 1;
+    // Tri par horodatage d'abord (comparaison simple, tri stable) ; le rang du chaînage n'est calculé que pour les
+    // saisies de même horodatage (test de charge du 16 novembre 2026 : l'index de toutes les saisies par horodatage
+    // coûtait l'essentiel du tri). Résultat identique au tri complet sur (horodatage, rang, identifiant).
+    var res = evts.slice().sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : 0; });
+    for (var i = 0; i < res.length;) {
+      var j = i + 1;
+      while (j < res.length && res[j].at === res[i].at) j++;
+      if (j - i > 1) {
+        var groupe = res.slice(i, j), meme = {}, rangs = {};
+        groupe.forEach(function (e) { meme[e.id] = e; });
+        var rang = function (e, n) {
+          if (rangs[e.id] !== undefined) return rangs[e.id];
+          var r = 0;
+          if (n < 1000) {
+            if (e.lot && meme[e.lot]) r = rang(meme[e.lot], n + 1);
+            else if (e.prec && meme[e.prec]) r = rang(meme[e.prec], n + 1) + 1;
+          }
+          rangs[e.id] = r;
+          return r;
+        };
+        groupe.sort(function (a, b) {
+          var ra = rang(a, 0), rb = rang(b, 0);
+          if (ra !== rb) return ra - rb;
+          return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+        });
+        for (var k = 0; k < groupe.length; k++) res[i + k] = groupe[k];
       }
-      rangs[e.id] = r;
-      return r;
+      i = j;
     }
-    return evts.slice().sort(function (a, b) {
-      if (a.at !== b.at) return a.at < b.at ? -1 : 1;
-      var ra = rang(a, 0), rb = rang(b, 0);
-      if (ra !== rb) return ra - rb;
-      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-    });
+    return res;
   }
 
   /**
@@ -62,7 +73,9 @@
     for (var k in d) {
       if (!Object.prototype.hasOwnProperty.call(d, k)) continue;
       if (RESERVES[k] === true) return false;
-      if ((k === 'id' || k === 'cle' || k === 'cible' || /Id$/.test(k)) && !identifiantSur(d[k])) return false;
+      var v = d[k];
+      if (typeof v !== 'string' || RESERVES[v] !== true) continue;   // valeur ordinaire : rien à vérifier (cas courant)
+      if (k === 'id' || k === 'cle' || k === 'cible' || /Id$/.test(k)) return false;
     }
     return true;
   }
@@ -106,6 +119,7 @@
   var memoTri = { entree: null, n: 0, tries: null };
   function trierMemorise(evts) {
     var m = memoTri, tries = null;
+    if (m.entree === evts && evts.length === m.n && m.tries) return m.tries;   // même journal, déjà trié (chaque module le demande)
     if (m.entree && evts.length >= m.n && m.n > 0) {
       var prefixe = m.entree === evts || evts[0] === m.entree[0];
       for (var i = 0; prefixe && i < m.n; i++) if (evts[i] !== m.entree[i]) prefixe = false;
@@ -138,10 +152,72 @@
     st.manquantsAcquis = st.manquantsBruts.filter(function (x) { return acq[x.manque]; });
     st.manquants = st.manquantsBruts.filter(function (x) { return !acq[x.manque]; });
   }
+  // Comparaison des débuts de journal partagée entre modules (même journal précédent, même journal nouveau) : faite une
+  // fois par recalcul au lieu d'une fois par module (test de charge du 16 novembre 2026)
+  var memoPrefixe = { a: null, b: null, na: -1, nb: -1, ok: false };
+  function prefixe(a, na, b) {
+    if (memoPrefixe.a === a && memoPrefixe.b === b && memoPrefixe.na === na && memoPrefixe.nb === b.length) return memoPrefixe.ok;
+    var ok = true;
+    for (var i = 0; i < na; i++) if (b[i] !== a[i]) { ok = false; break; }
+    memoPrefixe = { a: a, b: b, na: na, nb: b.length, ok: ok };
+    return ok;
+  }
   function nouvellesSaisies(m, evts) {
     if (!m || !suivis || !suivis.has(evts) || !suivis.has(m.entree) || evts.length < m.n) return null;
-    for (var i = 0; i < m.n; i++) if (evts[i] !== m.entree[i]) return null;
+    if (!prefixe(m.entree, m.n, evts)) return null;
     return evts.slice(m.n);
+  }
+  /**
+   * Partie commune à tous les modules (test de charge du 16 novembre 2026) : index des saisies par identifiant, journal,
+   * annulations, maillons manquants du chaînage et saisies à appliquer ne dépendent que des saisies, pas du module. Ils
+   * sont calculés une fois par recalcul et partagés par les états de tous les modules (lecture seule) : avant, chacun des
+   * 18 modules en tenait sa propre copie (temps et mémoire multipliés d'autant).
+   */
+  var memoCommun = { tries: null, commun: null };
+  function communDe(tries) {
+    if (memoCommun.tries === tries) return memoCommun.commun;
+    var parId = {}, contre = {}, annules = {}, bruts = [], journal = [], applicables = [];
+    tries.forEach(function (e) {
+      parId[e.id] = e;
+      if (e.type === 'ANNULATION' && e.data && e.data.cible) (contre[e.data.cible] = contre[e.data.cible] || []).push(e);
+    });
+    // Annulations d'abord (elles neutralisent leur cible, quelle que soit leur date). Une annulation peut elle-même être
+    // annulée (« Rétablir ») : seule une annulation qui n'est pas neutralisée produit son effet.
+    var memo = {};
+    function effective(a, n) {
+      if (memo[a.id] !== undefined) return memo[a.id];
+      if (n > 50) return true;
+      var r = !(contre[a.id] || []).some(function (x) { return effective(x, n + 1); });
+      memo[a.id] = r;
+      return r;
+    }
+    tries.forEach(function (e) {
+      if (e.type === 'ANNULATION' && e.data && e.data.cible && effective(e, 0)) annules[e.data.cible] = e;
+    });
+    tries.forEach(function (e) {
+      // Chaînage : chaque saisie cite la précédente du même agent ; un maillon absent signale un fichier supprimé.
+      if (!e.lot && e.prec && !parId[e.prec]) bruts.push({ evt: e.id, manque: e.prec, by: e.by });
+      if (!e.lot) journal.push(e);
+      if (e.type === 'ANNULATION' || e.type === 'LOT' || annules[e.id] || (e.lot && annules[e.lot])) return;
+      applicables.push(e);
+    });
+    var c = { parId: parId, annules: annules, manquantsBruts: bruts, journal: journal, applicables: applicables, dernier: tries.length ? tries[tries.length - 1].at : '' };
+    memoCommun = { tries: tries, commun: c };
+    return c;
+  }
+  /**
+   * Suite commune d'un recalcul incrémental : journal prolongé et index complété une fois pour tous les modules (mêmes
+   * saisies nouvelles, même journal de départ).
+   */
+  var memoSuite = { base: null, cle: '', res: null };
+  function suiteCommune(base, tries) {
+    var cle = tries.length + '|' + (tries.length ? tries[0].id + '|' + tries[tries.length - 1].id : '');
+    if (memoSuite.base === base.journal && memoSuite.cle === cle) return memoSuite.res;
+    var parId = base.parId;
+    tries.forEach(function (e) { parId[e.id] = e; });   // ajout seulement : un état plus ancien reste juste
+    var res = { parId: parId, journal: base.journal.concat(tries.filter(function (e) { return !e.lot; })) };
+    memoSuite = { base: base.journal, cle: cle, res: res };
+    return res;
   }
   function poursuivre(m, nouvelles, def) {
     var dep = deplier(nouvelles), dernier = m.dernier;
@@ -149,12 +225,12 @@
     if (def.complet && def.complet(dep)) return null;
     var st = Object.assign({}, m.st), tries = trierEvenements(dep);
     if (def.rafraichir) def.rafraichir(st);
-    tries.forEach(function (e) { st.parId[e.id] = e; });
+    var sc = suiteCommune(st, tries);
+    st.parId = sc.parId; st.journal = sc.journal;
     var bruts = st.manquantsBruts.filter(function (x) { return !st.parId[x.manque]; });
     tries.forEach(function (e) { if (!e.lot && e.prec && !st.parId[e.prec]) bruts.push({ evt: e.id, manque: e.prec, by: e.by }); });
     st.manquantsBruts = bruts;
     tries.forEach(function (e) {
-      if (!e.lot) st.journal.push(e);
       if (e.type === 'LOT' || st.annules[e.id] || (e.lot && st.annules[e.lot])) return;
       def.appliquer(st, e);
     });
@@ -173,41 +249,16 @@
       }
     }
     var st = etatCommun(def.etat());
-    var tries = trierMemorise(evts);
-
-    // 1) Annulations d'abord (elles neutralisent leur cible, quelle que soit leur date). Une annulation peut
-    //    elle-même être annulée (« Rétablir ») : seule une annulation qui n'est pas neutralisée produit son effet.
-    var contre = {};
-    tries.forEach(function (e) {
-      st.parId[e.id] = e;
-      if (e.type === 'ANNULATION' && e.data && e.data.cible) (contre[e.data.cible] = contre[e.data.cible] || []).push(e);
-    });
-    var memo = {};
-    function effective(a, n) {
-      if (memo[a.id] !== undefined) return memo[a.id];
-      if (n > 50) return true;
-      var r = !(contre[a.id] || []).some(function (x) { return effective(x, n + 1); });
-      memo[a.id] = r;
-      return r;
-    }
-    tries.forEach(function (e) {
-      if (e.type === 'ANNULATION' && e.data && e.data.cible && effective(e, 0)) st.annules[e.data.cible] = e;
-    });
-
-    // Chaînage : chaque saisie cite la précédente du même agent ; un maillon absent signale un fichier supprimé.
-    tries.forEach(function (e) {
-      if (!e.lot && e.prec && !st.parId[e.prec]) st.manquants.push({ evt: e.id, manque: e.prec, by: e.by });
-    });
-
-    // 2) Application dans l'ordre chronologique de saisie.
-    tries.forEach(function (e) {
-      if (!e.lot) st.journal.push(e);
-      if (e.type === 'ANNULATION' || e.type === 'LOT' || st.annules[e.id] || (e.lot && st.annules[e.lot])) return;
-      def.appliquer(st, e);
-    });
-    st.manquantsBruts = st.manquants.slice();
+    var tries = trierMemorise(evts), c = communDe(tries);
+    // Index, annulations et journal communs à tous les modules (lecture seule)
+    st.parId = c.parId; st.annules = c.annules; st.journal = c.journal;
+    st.manquants = c.manquantsBruts.slice();
+    // Application dans l'ordre chronologique de saisie.
+    var appl = c.applicables, ap = def.appliquer;
+    for (var i = 0; i < appl.length; i++) ap(st, appl[i]);
+    st.manquantsBruts = c.manquantsBruts.slice();
     finirManquants(st);
-    if (cle && suivis && suivis.has(evts)) memoEtats[cle] = { entree: evts, n: evts.length, st: st, dernier: tries.length ? tries[tries.length - 1].at : '' };
+    if (cle && suivis && suivis.has(evts)) memoEtats[cle] = { entree: evts, n: evts.length, st: st, dernier: c.dernier };
     return st;
   }
 

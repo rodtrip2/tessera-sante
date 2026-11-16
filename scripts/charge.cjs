@@ -42,6 +42,8 @@ require(R + 'module-vue.js');
 ['messagerie', 'documents', 'conges', 'heures', 'formations', 'controles', 'travaux', 'salles', 'infos', 'equipe', 'retours', 'clinique']
   .forEach(m => require(R + 'module-' + m + '.js'));
 const M = SIC.model, C = SIC.crypto, SG = require(R + 'signatures.js'), N = require(R + 'noyau-journal.js');
+SIC.groupes = require(R + 'groupes.js'); SIC.noyauJournal = N; SIC.documents = require(R + 'module-documents.js');
+SIC.comptes = require(R + 'comptes.js'); SIC.trousseau = require(R + 'trousseau.js'); require(R + 'store.js'); require(R + 'session.js');
 
 const args = process.argv.slice(2), opt = n => args.indexOf(n) >= 0, val = n => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null; };
 const positionnels = args.filter((a, i) => !/^--/.test(a) && !/^--/.test(args[i - 1] || ''));
@@ -83,7 +85,10 @@ function ev(jour, type, data, by) {
 }
 function nb(moyenne, jour) { const base = Math.floor(moyenne), reste = moyenne - base; return base + (((jour * 7919 + seq * 31) % 1000) / 1000 < reste ? 1 : 0); }
 function iso(jour) { const d = new Date(t0 + jour * J); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-const contenu = n => 'x'.repeat(n);   // contenu chiffré (déjà base64 dans la saisie)
+// Contenu chiffré (déjà base64 dans la saisie) : chaînes distinctes, comme de vrais contenus chiffrés (une chaîne répétée
+// serait partagée en mémoire et fausserait la mesure)
+const POOL = require('node:crypto').randomBytes(3 * 1024 * 1024).toString('base64');
+const contenu = n => { const d = (seq * 7919) % (POOL.length - n); return (POOL.slice(d, d + n - 8) + seq.toString(36).padStart(8, '0')).split('').join(''); };
 
 function generer() {
   const evts = [], piecesOctets = [];
@@ -212,11 +217,17 @@ const MODULE_DE = {};
   }
   const ctx = { cles: { }, strict: true, admins: [], attestees: true };
   for (const x of signes) ctx.cles[x.e.by] = { cles: [paire.publique], enAttente: [] };
+  const lus = [];
   for (const x of signes) {
     let d = performance.now(); const e = await C.dechiffrerJSON(cle, x.octets, 'evt:' + x.e.id + '.enc'); tDechiffre += performance.now() - d;
     d = performance.now(); const v = await SG.verifierSaisie(e, ctx); tVerif += performance.now() - d; nLu++;
     if (v !== 'ok') throw new Error('Vérification de signature : ' + v);
+    lus.push(e);
   }
+  // Vérification par lots de 64 en parallèle (0.85.0, comme à la lecture du partage)
+  let dLots = performance.now();
+  for (let i = 0; i < lus.length; i += 64) await Promise.all(lus.slice(i, i + 64).map(e => SG.verifierSaisie(e, ctx)));
+  const msVerifLots = (performance.now() - dLots) / lus.length;
   let logique = 0, alloc = 0, logiqueHorsDocs = 0, allocHorsDocs = 0;
   const parModuleOctets = {};
   for (const t of Object.keys(parType)) {
@@ -243,13 +254,17 @@ const MODULE_DE = {};
   const msDech = tDechiffre / nLu, msVerif = tVerif / nLu;
   const recents = Math.round(evts.length / (JOURS / 30.4) * 1.5);   // mois en cours et moitié du précédent : fichiers lus un à un
   console.log('\nPremière lecture d\'un poste (hors accès au partage)');
-  console.log(`  déchiffrement d'une saisie : ${msDech.toFixed(3)} ms ; vérification de sa signature : ${msVerif.toFixed(3)} ms ; signature à l'écriture : ${(tSigne / nSigne).toFixed(2)} ms`);
-  const tPremiere = evts.length * (msDech * 0.3 + msVerif) / 1000;   // mois clos : instantanés (déchiffrement groupé, environ 3 fois moins cher par saisie)
+  console.log(`  déchiffrement d'une saisie : ${msDech.toFixed(3)} ms ; vérification de sa signature : ${msVerif.toFixed(3)} ms une à une, ${msVerifLots.toFixed(3)} ms par lots de 64 ; signature à l'écriture : ${(tSigne / nSigne).toFixed(2)} ms`);
+  const tPremiere = evts.length * (msDech * 0.3 + msVerifLots) / 1000;   // mois clos : instantanés (déchiffrement groupé, environ 3 fois moins cher par saisie)
+  const tPremiereAvant = evts.length * (msDech * 0.3 + msVerif) / 1000;
+  console.log(`  avant 0.85.0 (vérification une à une) : ~${tPremiereAvant.toFixed(1)} s`);
   console.log(`  toutes les saisies (${evts.length.toLocaleString('fr-FR')}) : ~${tPremiere.toFixed(1)} s de calcul ; fichiers lus un à un (mois récents) : ~${recents.toLocaleString('fr-FR')}`);
-  Object.assign(res, { msDechiffre: msDech, msVerif: msVerif, sPremiereLecture: tPremiere });
+  Object.assign(res, { msDechiffre: msDech, msVerif: msVerif, msVerifLots: msVerifLots, sPremiereLecture: tPremiere, sPremiereLectureAvant: tPremiereAvant });
 
   // ------------------------------------------------------------------ Reconstitution de l'état
   console.log('\nReconstitution de l\'état des modules');
+  // Contenus allégés en mémoire (0.85.0) : anciennes versions des documents laissées sur le partage
+  if (!opt('--sans-allegement')) SIC.Session.allegerContenus({ evts }, evts);
   if (global.gc) global.gc();
   const memAvant = process.memoryUsage().heapUsed;
   let totalMs = 0; const etats = {}, parModuleMs = {};
@@ -262,6 +277,10 @@ const MODULE_DE = {};
     const d0 = performance.now(); mods.forEach(m => m.saisies.reduire(evts)); pire = Math.max(pire, performance.now() - d0);
   }
   console.log('  ' + 'total après l\'arrivée d\'une saisie (recalcul incrémental)'.padEnd(66) + Math.round(pire).toString().padStart(8) + ' ms');
+  // Lecture complète toutes les 10 minutes : états oubliés, même journal (tri gardé)
+  N.oublierEtats(); let dP = performance.now(); mods.forEach(m => m.saisies.reduire(evts)); const periodique = performance.now() - dP;
+  console.log('  ' + 'total, recalcul complet de la lecture complète (toutes les 10 min)'.padEnd(66) + Math.round(periodique).toString().padStart(8) + ' ms');
+  res.msPeriodique = periodique;
   const copie = evts.slice().reverse(); let d1 = performance.now(); mods.forEach(m => m.saisies.reduire(copie));
   const sansTri = performance.now() - d1;
   console.log('  ' + 'total sans tri mémorisé (première lecture, ordre quelconque)'.padEnd(66) + Math.round(sansTri).toString().padStart(8) + ' ms');

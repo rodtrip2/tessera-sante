@@ -80,6 +80,7 @@
   function clesPropresDetenues(s) { return Object.keys(s.trousseau || {}).filter(function (n) { return /^d-/.test(n) && aCle(s, n); }).sort(); }
 
   var LECTURE_COMPLETE = 10 * 60000;   // lecture complète des journaux : à la connexion, puis toutes les 10 minutes
+  var RECALCUL_GARANTIE = 60 * 60000;  // recalcul complet de garantie : au plus une fois par heure (0.85.0)
   function nouveauJournal(nom, dossier, cle) { return { nom: nom, dossier: dossier, cle: cle, evts: [], connus: new Set(), rejetes: [], reperesLus: {} }; }
   /** Journaux du jeu de données actif. */
   /**
@@ -386,8 +387,15 @@
     j.ecartes = j.ecartes || []; j.statSig = j.statSig || { ok: 0, provisoire: 0, ancienne: 0 };
     if (j.ecartes.length && j.ctxEcartes !== c.cle) { evts = j.ecartes.map(function (x) { return x.evt; }).concat(evts); j.ecartes = []; }
     j.ctxEcartes = c.cle;
-    for (var i = 0; i < evts.length; i++) {
-      var r = await SG().verifierSaisie(evts[i], c.ctx);
+    // Vérification par lots de saisies traitées en parallèle (test de charge du 16 novembre 2026 : trois fois plus rapide
+    // sur deux cœurs, davantage sur un poste qui en a plus) ; résultat dans l'ordre des saisies, identique
+    var LOT = 64, resultats = new Array(evts.length);
+    for (var i = 0; i < evts.length; i += LOT) {
+      var lot = evts.slice(i, i + LOT), rs = await Promise.all(lot.map(function (e) { return SG().verifierSaisie(e, c.ctx); }));
+      for (var k = 0; k < rs.length; k++) resultats[i + k] = rs[k];
+    }
+    for (i = 0; i < evts.length; i++) {
+      var r = resultats[i];
       if (r === 'ok' || r === 'provisoire' || r === 'ancienne') { j.statSig[r]++; garde.push(evts[i]); }
       else j.ecartes.push({ evt: evts[i], raison: r });
     }
@@ -2792,7 +2800,12 @@
         // des fichiers des mois clos n'est relue qu'à la connexion puis toutes les LECTURE_COMPLETE millisecondes
         var complete = !j.lectureComplete || Date.now() - j.lectureComplete >= LECTURE_COMPLETE;
         r = await d.lireNouveaux(j.cle, j.connus, complete ? undefined : { recents: true });
-        if (complete && !r.interrompu) { j.lectureComplete = Date.now(); N.oublierEtats(); }   // recalcul complet ensuite
+        if (complete && !r.interrompu) {
+          j.lectureComplete = Date.now();
+          // Recalcul complet de garantie (0.85.0, test de charge) : au plus une fois par heure, et non plus à chaque lecture
+          // complète ; une saisie arrivée en retard, une annulation ou une correction de fiche le déclenchent toujours aussitôt
+          if (!this.recalculCompletLe || Date.now() - this.recalculCompletLe >= RECALCUL_GARANTIE) { this.recalculCompletLe = Date.now(); N.oublierEtats(); }
+        }
       } catch (e) { interruption = e; continue; }   // journal momentanément illisible : les autres sont lus quand même
       if (r.interrompu) interruption = new Error(r.interrompu);
       // Fichiers illisibles : liste tenue à jour à chaque lecture (un fichier relu avec succès en sort)
@@ -2811,10 +2824,65 @@
     this.derniereSynchro = Date.now();
     if (nouveaux.length || !this.etat) {
       this.evts = this.evts.concat(nouveaux);
+      allegerContenus(this, nouveaux);
       this.recalculer({ source: 'synchro', nouveaux: nouveaux.length });
     } else this.notifier({ source: 'synchro', nouveaux: 0 });
     return nouveaux.length;
   };
+
+  // ------------------------------------------- Contenus allégés en mémoire (0.85.0, test de charge du 16 novembre 2026)
+  /**
+   * Les anciennes versions des documents (chaque enregistrement est une version complète, jusqu'à 1,8 Mo) occupaient
+   * l'essentiel de la mémoire au bout de quelques années : seules les GARDER_VERSIONS dernières versions de chaque
+   * document et les versions validées gardent leur contenu en mémoire ; les autres sont relues sur le partage à la
+   * demande (`relireSaisie`), signature vérifiée. Rien ne change sur le partage.
+   */
+  var GARDER_VERSIONS = 3;
+  function allegerContenus(s, nouveaux) {
+    if (s.contenusAlleges && !(nouveaux || []).some(function (e) { return e.type === 'DOC_VERSION' || e.type === 'DOC_VALIDATION'; })) return;
+    s.contenusAlleges = true;
+    var parDoc = {}, valides = {};
+    s.evts.forEach(function (e) {
+      var d = e.data;
+      if (!d) return;
+      if (e.type === 'DOC_VERSION' && typeof d.doc === 'string') (parDoc[d.doc] = parDoc[d.doc] || []).push(e);
+      else if ((e.type === 'DOC_VALIDATION' || e.type === 'DOC_STATUT') && typeof d.version === 'string') valides[d.version] = true;
+    });
+    Object.keys(parDoc).forEach(function (k) {
+      var l = parDoc[k].sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : 0; });
+      for (var i = 0; i < l.length - GARDER_VERSIONS; i++) {
+        var e = l[i], d = e.data;
+        if (valides[e.id] || typeof d.ct !== 'string') continue;
+        var x = {};
+        Object.keys(d).forEach(function (c) { if (c !== 'ct') x[c] = d[c]; });
+        x.ctTaille = d.ct.length;
+        e.data = x;   // même objet dans tous les index de la session
+      }
+    });
+  }
+  /**
+   * Saisie relue sur le partage par son identifiant (contenu allégé en mémoire) : déchiffrée par la clé de son journal et
+   * signature vérifiée comme à la lecture ; null si absente, illisible ou écartée.
+   */
+  Session.prototype.relireSaisie = async function (id) {
+    var js = journaux(this);
+    for (var k = 0; k < js.length; k++) {
+      var j = js[k];
+      if (!j.evts.some(function (e) { return e.id === id; })) continue;
+      var d = await dossierJournal(this, j, false);
+      if (!d) return null;
+      var e = null;
+      try { e = await d.lireEvenementNom(j.cle, id + '.enc'); } catch (err) { return null; }
+      if (!e || e.id !== id) return null;
+      if (v2(this) && !this.formation && SG() && this.coffre) {
+        var c = await contexteSignatures(this), r = await SG().verifierSaisie(e, c.ctx);
+        if (!(r === 'ok' || r === 'provisoire' || r === 'ancienne')) return null;
+      }
+      return e;
+    }
+    return null;
+  };
+  Session.allegerContenus = allegerContenus;
 
   // ------------------------------------------- Dossier de secours (miroir) et déplacement
   /**

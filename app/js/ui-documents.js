@@ -29,7 +29,12 @@
   async function lireVersion(d, v) {
     if (!v) return null;
     if (cache[v.id] !== undefined) return cache[v.id];
-    var o = await s().dechiffrerDocument(d.id, v.g, v.ct);
+    var ct = v.ct;
+    if (!ct && v.allege) {   // ancienne version allégée en mémoire : relue sur le partage (0.85.0)
+      var e = await s().relireSaisie(v.id).catch(function () { return null; });
+      ct = e && e.data && typeof e.data.ct === 'string' ? e.data.ct : null;
+    }
+    var o = await s().dechiffrerDocument(d.id, v.g, ct);
     cache[v.id] = o ? { meta: DM.meta(o.meta), contenu: DM.contenu(o.contenu) } : null;
     return cache[v.id];
   }

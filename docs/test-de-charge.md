@@ -1,16 +1,16 @@
 # Tessera Santé — test de charge, espace disque et quotas
 
-*Test du 16 novembre 2026 (version 0.84.1), sur données fictives. Destinataires : porteur du projet, service informatique (DSI ou direction du numérique, selon l'établissement), responsable de la sécurité informatique (RSSI). Script : `scripts/charge.cjs`, relançable à volonté avec d'autres hypothèses.*
+*Test du 16 novembre 2026 (version 0.84.1), complété par les améliorations de la version 0.85.0 (§ 3 bis), sur données fictives. Destinataires : porteur du projet, service informatique (DSI ou direction du numérique, selon l'établissement), responsable de la sécurité informatique (RSSI). Script : `scripts/charge.cjs`, relançable à volonté avec d'autres hypothèses.*
 
 ## 1. En bref
 
 - **Espace disque** : environ **300 Mo par service et par an** sur le partage, modules d'organisation tous utilisés, pièces jointes désactivées (réglage par défaut). Le double avec le dossier de secours. Avec les pièces jointes de la messagerie, compter **+ 450 Mo par service et par an** (2 pièces de 600 Ko par jour).
 - **Nombre de fichiers** : environ **53 000 fichiers par service et par an**. Ce nombre, plus que la place, est la première limite : sauvegarde, antivirus et lecture du dossier par chaque poste.
 - **Temps de réponse en usage courant** : bons. Après une saisie, l'écran se met à jour en 10 à 400 ms selon la taille de l'établissement.
-- **Trois points bloquants au-delà de quelques services et années** :
-  1. la **première lecture** d'un poste à la connexion (vérification de chaque saisie) ;
-  2. le **recalcul complet** fait toutes les 10 minutes (l'écran se fige plusieurs secondes) ;
-  3. la **mémoire** du navigateur. Chaque poste charge les données de **tous les services** de l'établissement, sur toutes les années.
+- **Trois points bloquants au-delà de quelques services et années**, traités en version 0.85.0 (§ 3 bis) :
+  1. la **première lecture** d'un poste à la connexion (vérification de chaque saisie) : deux fois plus rapide ;
+  2. le **recalcul complet** fait toutes les 10 minutes (l'écran se figeait plusieurs secondes) : trois fois plus court, et une fois par heure seulement ;
+  3. la **mémoire** du navigateur, chaque poste chargeant les données de **tous les services** sur toutes les années : divisée par trois à quatre.
 - **Quotas** : inutiles pour les saisies ordinaires. **Utiles pour les documents et les pièces jointes**, seuls capables de remplir le partage. Ils doivent être réglables par agent et par service, et **ne jamais bloquer** une saisie d'Isolement et contention.
 
 ## 2. Méthode
@@ -63,6 +63,37 @@ Soit **144 saisies par service et par jour** (154 avec les données cliniques), 
 | Alertes de l'Agenda | 0,3 s |
 
 **Défaut corrigé pendant le test** : le registre d'un service prenait 0,4 s dès un an d'activité, et davantage avec chaque année et chaque service. Il parcourait toutes les traces de surveillance de l'établissement pour chacune de ses entrées. Les traces sont désormais rangées par service et par jour, et le registre est passé de 424 ms à 8 ms. L'alerte au cadre des numéros décalés, qui recalculait le registre à chaque affichage de la barre des modules, garde désormais son résultat tant que les données ne changent pas.
+
+## 3 bis. Améliorations de la version 0.85.0 (demande du porteur du 16 novembre 2026)
+
+| Mesure | 3 services, 3 ans : avant | après | 10 services, 2 ans : avant | après |
+| --- | --- | --- | --- | --- |
+| Calcul de la connexion | 87 s | 50 s | 217 s | 110 s |
+| Recalcul complet (connexion, saisie en retard, annulation) | 8,2 s | 2,4 s | 22 s | 7,5 s |
+| Recalcul de garantie | 8,2 s toutes les 10 min | 1,2 s une fois par heure | 22 s toutes les 10 min | 4,6 s une fois par heure |
+| Après une saisie | 110 ms | 70 ms | 420 ms | 220 ms |
+| Mémoire | 1,8 Go | 0,5 Go | 3,7 Go | 1,1 Go |
+
+*La mémoire « avant » compte les contenus des documents (environ 0,35 Go à 3 services sur 3 ans), que la première mesure du § 3 ne comptait pas. Le temps de connexion ne comprend toujours pas la lecture du partage : la lecture par lots devrait la raccourcir bien davantage sur un vrai partage réseau, où chaque fichier attend la réponse du serveur.*
+
+Ce qui a changé, sans rien changer aux résultats :
+
+1. **Connexion** :
+   - les fichiers d'un mois sont lus sur le partage par lots de 32 en parallèle, au lieu d'un par un ;
+   - les signatures sont vérifiées par lots de 64 en parallèle. Le gain mesuré est de 2,5 sur 2 cœurs ; il sera plus grand sur un poste qui en a davantage ;
+   - les saisies écartées et les fichiers illisibles restent signalés de la même façon.
+2. **Recalcul** :
+   - l'index des saisies, le journal, les annulations et les maillons manquants du chaînage sont calculés une fois pour tous les modules ; avant, chacun des 18 modules en tenait sa propre copie ;
+   - le tri des saisies est plus rapide ;
+   - la comparaison du journal et la copie des fiches patient sont faites une fois par recalcul, et non une fois par module ;
+   - le recalcul complet de garantie, fait jusqu'ici à chaque lecture complète du partage (toutes les 10 minutes), n'a plus lieu qu'**une fois par heure**. Une saisie arrivée en retard, une annulation ou une correction de fiche patient déclenchent toujours un recalcul complet aussitôt.
+3. **Mémoire** :
+   - les anciennes versions des documents ne gardent plus leur contenu en mémoire. Seules les 3 dernières versions de chaque document et les versions validées le gardent. Les autres sont relues sur le partage quand l'agent les ouvre, avec leur signature vérifiée. Rien ne change sur le partage ;
+   - l'index commun du point 2 divise aussi la mémoire des états par six.
+
+Ces améliorations sont couvertes par des tests : tous les tests existants (dont ceux qui comparent le recalcul incrémental au recalcul complet), plus un test de l'allègement et de la relecture des versions.
+
+**Ce qui reste** : la mémoire et le temps de connexion croissent toujours avec le nombre de services et d'années, car chaque poste charge tout l'établissement. Vers 10 services sur 5 ans (2,6 millions de saisies), il faut compter environ 2,8 Go, près de la limite d'un onglet de navigateur. Il faudra alors **ne charger que l'année en cours et la précédente**, et lire les années plus anciennes à la demande (registre, statistiques, droit d'accès) : c'est un changement de fond, à décider avant un déploiement de cette taille. La vérification des signatures pourrait aussi être gardée en mémoire sur le poste, entre deux connexions ; c'est un choix de sécurité à soumettre au responsable de la sécurité informatique.
 
 ## 4. Espace disque nécessaire par service
 
@@ -124,14 +155,14 @@ Le service informatique peut aussi poser un quota sur le partage lui-même (gest
 
 | N° | Point | Effet constaté | Piste |
 | --- | --- | --- | --- |
-| 1 | Première lecture d'un poste : chaque saisie est vérifiée l'une après l'autre | 1 min 30 à 3 min de calcul à 3 à 10 services sur 2 à 3 ans, plus le temps de lecture du partage | Vérifier les signatures par lots en parallèle (gain mesuré : × 3 sur 2 cœurs, davantage sur 4 ou 8) ; garder sur le poste la liste des saisies déjà vérifiées ; faire ce travail en arrière-plan |
-| 2 | Recalcul complet toutes les 10 minutes | 8 à 22 s pendant lesquelles l'écran ne répond plus | Chaque module ne traiterait que ses propres saisies, avec un index commun des saisies au lieu d'un index par module (aujourd'hui 18 copies). Gain attendu : plusieurs fois plus rapide, mémoire divisée par 3 à 5 |
-| 3 | Mémoire : chaque poste charge tous les services et toutes les années | 1,4 Go à 3 services sur 3 ans, 2,9 Go à 10 services sur 2 ans ; un onglet de navigateur est limité vers 4 Go | Charger l'année en cours et la précédente, et lire les années plus anciennes à la demande (registre, statistiques, droit d'accès). Ou un dossier par pôle |
+| 1 | Première lecture d'un poste : chaque saisie était vérifiée l'une après l'autre (**traité en 0.85.0 : lecture et vérification par lots**) | 1 min 30 à 3 min de calcul à 3 à 10 services sur 2 à 3 ans, plus le temps de lecture du partage | Vérifier les signatures par lots en parallèle (gain mesuré : × 3 sur 2 cœurs, davantage sur 4 ou 8) ; garder sur le poste la liste des saisies déjà vérifiées ; faire ce travail en arrière-plan |
+| 2 | Recalcul complet toutes les 10 minutes (**traité en 0.85.0 : index commun, une fois par heure**) | 8 à 22 s pendant lesquelles l'écran ne répond plus | Chaque module ne traiterait que ses propres saisies, avec un index commun des saisies au lieu d'un index par module (aujourd'hui 18 copies). Gain attendu : plusieurs fois plus rapide, mémoire divisée par 3 à 5 |
+| 3 | Mémoire : chaque poste charge tous les services et toutes les années (**réduite en 0.85.0 ; chargement par année à décider au-delà de 10 services sur 4 à 5 ans**) | 1,4 Go à 3 services sur 3 ans, 2,9 Go à 10 services sur 2 ans ; un onglet de navigateur est limité vers 4 Go | Charger l'année en cours et la précédente, et lire les années plus anciennes à la demande (registre, statistiques, droit d'accès). Ou un dossier par pôle |
 | 4 | Lecture complète du partage toutes les 10 minutes | Elle liste tous les fichiers : 2,6 millions à 10 services sur 5 ans. Sur un partage réseau, cela peut prendre plus de 10 minutes | À mesurer sur place (§ 7). Piste : lecture complète des 3 derniers mois toutes les 10 minutes, et de tout l'historique une fois par jour |
 | 5 | Nombre de fichiers (blocs de 4 Ko) | Place occupée 4 fois le contenu ; sauvegarde et antivirus ralentis | Regrouper les mois clos dans une archive, ce qui touche au principe « fichiers jamais modifiés » : décision à prendre avec le service informatique et le responsable de la sécurité informatique |
 | 6 | Volume des documents et pièces jointes | Seul poste qui peut croître sans limite | Quotas et espacement des versions (§ 5) |
 
-**Jusqu'à 3 services sur 3 ans**, Tessera reste utilisable en l'état, avec une connexion longue (1 à 3 minutes) et un gel de quelques secondes toutes les 10 minutes. **Au-delà**, les points 1 à 3 sont à traiter d'abord.
+**Depuis la version 0.85.0**, Tessera reste utilisable jusqu'à environ 10 services sur 2 à 3 ans. La connexion est encore longue à cette taille (environ 2 minutes de calcul, plus la lecture du partage), avec un gel de quelques secondes une fois par heure. **Au-delà**, il faudra charger les données par année (point 3).
 
 ## 7. À mesurer sur place, avec le service informatique
 

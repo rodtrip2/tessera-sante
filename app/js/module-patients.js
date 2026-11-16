@@ -245,9 +245,15 @@
    * Fourniture `patients.fiches` v1, lue à la volée : fiches en vigueur et fusions, calculées à partir des saisies
    * de la fiche (les autres saisies sont ignorées). Lecture seule : le consommateur reçoit des copies.
    */
+  var memoFiches = { evts: null, n: -1, texte: '' };
   function fiches(evts) {
-    var st = reduire(evts);
-    return JSON.parse(JSON.stringify({ fiches: st.fiches, fusions: st.fusions }));
+    // Plusieurs modules la lisent au même recalcul (mêmes saisies) : copie mise en texte une fois, chaque consommateur
+    // recevant toujours sa propre copie (test de charge du 16 novembre 2026)
+    if (memoFiches.evts !== evts || memoFiches.n !== evts.length) {
+      var st = reduire(evts);
+      memoFiches = { evts: evts, n: evts.length, texte: JSON.stringify({ fiches: st.fiches, fusions: st.fusions }) };
+    }
+    return JSON.parse(memoFiches.texte);
   }
 
   var contrat = {
