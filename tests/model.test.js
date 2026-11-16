@@ -49,10 +49,22 @@ function base() {
   ];
 }
 
-test('Registre : numérotation dans l\'ordre des fins, à la suite du registre antérieur ; entrées en cours sans numéro', () => {
+test('Registre : numérotation dans l\'ordre d\'apparition, à la suite du registre antérieur ; entrées en cours numérotées dès leur début', () => {
   const st = M.reduire(base().concat([evt('CONFIG', { cle: 'compteursRegistre', valeur: { U1: { 2026: 40 } } })]));
   const reg = M.registre(st, 'U1', 2026, local(2026, 5, 2));
-  assert.deepEqual(reg.map(e => e.numero), ['B41', 'A42', 'C43', 'A44', '']);
+  assert.deepEqual(reg.map(e => e.numero), ['B41', 'A42', 'C43', 'A44', 'A45']);
+  assert.equal(reg[4].fin, null);
+  // Une mesure longue débutée avant une mesure courte garde le numéro le plus petit, même si elle finit après
+  const d = h => local(2026, 7, 1, 0) + h * H;
+  const st2 = M.reduire([
+    evt('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1' }] }),
+    evt('PATIENT', { patientId: 'P1' }), evt('PATIENT', { patientId: 'P2' }),
+    evt('MESURE_DEBUT', { mesureId: 'L', patientId: 'P1', service: 'U1', typeMesure: 'Isolement', debut: d(8), csi: true }),
+    evt('MESURE_DEBUT', { mesureId: 'K', patientId: 'P2', service: 'U1', typeMesure: 'Contention', debut: d(9), csi: false }),
+    evt('MESURE_FIN', { mesureId: 'K', fin: d(11) }),
+    evt('MESURE_FIN', { mesureId: 'L', fin: d(30) })
+  ]);
+  assert.deepEqual(M.registre(st2, 'U1', 2026, d(48)).map(e => [e.numero, e.mesureId]), [['A1', 'L'], ['D2', 'K']]);
 });
 
 test('Statistiques annuelles : mesures, patients, durées, CSI, soins libres, mineurs, tiers', () => {
@@ -188,14 +200,12 @@ test('Option : pauses retranchées des décomptes et échéances reportées d’
   const dcSans = M.decompte(sans, sans.mesures.M1, t);
   assert.equal(dcSans.lignes.length, 1);
   assert.match(dcSans.lignes[0].commentaire, /dont levée temporaire de 12:00 à 14:00, non déduite \(comptée dans le cumul\)/);
-  // Registre : durée réelle par défaut (déduction limitée aux délais JLD), pauses listées
-  const r = M.registre(avec, 'U1', 2026, t)[0];
-  assert.equal(r.dureeHeures, 20);
-  assert.deepEqual(r.pauses, [[d0 + 4 * H, d0 + 6 * H]]);
-  // « Partout » : registre et statistiques hors pauses
-  const partout = M.reduire(evts({ retrancher: true, portee: 'partout' }));
-  assert.equal(M.registre(partout, 'U1', 2026, t)[0].dureeHeures, 18);
-  assert.equal(M.registre(partout, 'U1', 2026, t)[0].dureeReelleHeures, 20);
+  // Registre : la pause arrête la mesure, la reprise ouvre une nouvelle entrée, quel que soit le réglage
+  for (const st of [sans, avec, M.reduire(evts({ retrancher: true, portee: 'partout' }))]) {
+    const r = M.registre(st, 'U1', 2026, t);
+    assert.deepEqual(r.map(e => [e.numero, (e.debut - d0) / H, e.fin === null ? null : (e.fin - d0) / H, e.dureeHeures, e.pauseAvant, e.pauseApres]),
+      [['A1', 0, 4, 4, false, true], ['A2', 6, null, 14, true, false]]);
+  }
   // Mesure suivante : le cumul des 15 jours tient compte de la pause retranchée
   const suite = evts({ retrancher: true }).concat([
     evt('MESURE_FIN', { mesureId: 'M1', fin: d0 + 20 * H }, { base: 3 }),
@@ -291,7 +301,8 @@ test('Options des pauses : activation, portée de la déduction', () => {
   assert.equal(M.optionsPauses({ pauses: { active: false, retrancher: true } }).active, true);   // déduites : fonction forcément active
   assert.equal(M.optionsPauses({ pauses: { retrancher: true } }).portee, 'jld');
   assert.equal(M.optionsPauses({ pauses: { retrancher: true } }).deduireRegistre, false);
-  assert.equal(M.optionsPauses({ pauses: { retrancher: true, portee: 'partout' } }).deduireRegistre, true);
+  assert.equal(M.optionsPauses({ pauses: { retrancher: true, portee: 'partout' } }).deduireRegistre, false);   // depuis 0.83.0 : délais du juge seulement
+  assert.equal(M.optionsPauses({ pauses: { retrancher: true, portee: 'partout' } }).portee, 'jld');
   assert.equal(M.optionsPauses({ pauses: { retrancher: false, portee: 'partout' } }).deduireRegistre, false);
   assert.equal(M.optionsPauses({ pauses: { active: false } }).colonneRegistre, false);
 });
@@ -441,40 +452,64 @@ test('Scénario : isolement, contention ajoutée, pause de la contention, conten
   const t = d(48);
   const resume = st => M.registre(st, 'U1', 2026, t).map(e => [e.numero, (e.debut - d(0)) / H, (e.fin - d(0)) / H, e.dureeHeures]);
   const parPatient = st => { const s = M.statistiquesPatients(st, ['U1'], 2026, t).parPatient.P; return [s.colonnes.map(c => [c.n, c.heures]), s.isolements, s.contentions]; };
-  // Pauses comptées (défaut) et pauses déduites pour les délais JLD seulement : registre en durées réelles
-  for (const p of [{}, { retrancher: true }]) {
+  // La pause de la contention l'arrête au sens du registre : l'isolement seul reprend (A), puis la contention (nouvelle entrée C).
+  // Identique quel que soit le réglage des pauses (il ne concerne que les délais du juge).
+  for (const p of [{}, { retrancher: true }, { retrancher: true, portee: 'partout' }, { retrancher: true, portee: 'partout', contentionSeule: 'contention' }]) {
     const st = etat(p);
-    assert.deepEqual(resume(st), [['A1', 8, 12, 4], ['C2', 12, 18, 6], ['A3', 18, 22, 4]]);
-    assert.deepEqual(parPatient(st), [[[2, 8], [0, 0], [1, 6]], 1, 1]);
+    assert.deepEqual(resume(st), [['A1', 8, 12, 4], ['C2', 12, 14, 2], ['A3', 14, 15, 1], ['C4', 15, 18, 3], ['A5', 18, 22, 4]]);
+    assert.deepEqual(parPatient(st), [[[3, 9], [0, 0], [2, 5]], 1, 1]);
   }
-  assert.equal(M.dureeHeures(etat({ retrancher: true }).mesures.C, t, etat({ retrancher: true }).config), 5);   // délais JLD : contention 5 h
-  // Pauses déduites partout : la pause de la contention redevient de l'isolement seul, rien n'est perdu (9 h + 5 h = 14 h)
-  const st = etat({ retrancher: true, portee: 'partout' });
-  assert.deepEqual(resume(st), [['A1', 8, 12, 4], ['A2', 14, 15, 1], ['C3', 12, 18, 5], ['A4', 18, 22, 4]]);
-  assert.deepEqual(parPatient(st), [[[3, 9], [0, 0], [1, 5]], 1, 1]);
-  // Variante : la pause de la contention seule reste dans l'entrée C, non déduite (pas d'entrée A supplémentaire)
-  const st2 = etat({ retrancher: true, portee: 'partout', contentionSeule: 'contention' });
-  assert.deepEqual(resume(st2), [['A1', 8, 12, 4], ['C2', 12, 18, 6], ['A3', 18, 22, 4]]);
-  assert.deepEqual(parPatient(st2), [[[2, 8], [0, 0], [1, 6]], 1, 1]);
+  assert.equal(M.dureeHeures(etat({ retrancher: true }).mesures.C, t, etat({ retrancher: true }).config), 5);   // délais du juge : contention 5 h
+  assert.equal(M.dureeHeures(etat({}).mesures.C, t, etat({}).config), 6);
 });
 
-test('Variante du registre : une pause commune à l’isolement et à la contention reste déduite de l’entrée C', () => {
-  const d = h => local(2026, 3, 9, 0) + h * H;
+test('Registre : exemple du porteur — isolement + contention de 10 h à 18 h, arrêt de la contention de 12 h à 13 h', () => {
+  const d = h => local(2026, 3, 16, 0) + h * H;
   const st = M.reduire([
     evt('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1' }] }),
-    evt('CONFIG', { cle: 'pauses', valeur: { retrancher: true, portee: 'partout', contentionSeule: 'contention' } }),
+    evt('PATIENT', { patientId: 'P' }),
+    evt('MESURE_DEBUT', { mesureId: 'I', patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: d(10), csi: true }),
+    evt('MESURE_DEBUT', { mesureId: 'C', patientId: 'P', service: 'U1', typeMesure: 'Contention', debut: d(10), csi: true }),
+    evt('PAUSE', { mesureId: 'C', debut: d(12), reprisePrevue: d(13) }, { base: 1 }),
+    evt('REPRISE', { mesureId: 'C', date: d(13) }, { base: 2 }),
+    evt('MESURE_FIN', { mesureId: 'C', fin: d(18) }, { base: 3 }),
+    evt('MESURE_FIN', { mesureId: 'I', fin: d(18) }, { base: 1 })
+  ]);
+  const r = M.registre(st, 'U1', 2026, d(48)).map(e => [e.numero, (e.debut - d(0)) / H, (e.fin - d(0)) / H]);
+  assert.deepEqual(r, [['C1', 10, 12], ['A2', 12, 13], ['C3', 13, 18]]);
+});
+
+test('Registre : pause commune à l’isolement et à la contention — aucune entrée pendant la pause ; pause en cours', () => {
+  const d = h => local(2026, 3, 9, 0) + h * H;
+  const evts = [
+    evt('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1' }] }),
     evt('PATIENT', { patientId: 'P' }),
     evt('MESURE_DEBUT', { mesureId: 'I', patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: d(8), csi: true }),
     evt('MESURE_DEBUT', { mesureId: 'C', patientId: 'P', service: 'U1', typeMesure: 'Contention', debut: d(12), csi: true }),
     evt('PAUSE', { mesureId: 'C', debut: d(14), reprisePrevue: d(15) }, { base: 1 }),
-    evt('PAUSE', { mesureId: 'I', debut: d(14), reprisePrevue: d(15) }, { base: 2 }),
+    evt('PAUSE', { mesureId: 'I', debut: d(14), reprisePrevue: d(15) }, { base: 2 })
+  ];
+  // Pause en cours (14 h 30) : les entrées s'arrêtent à 14 h, aucune n'est en cours
+  const enPause = M.registre(M.reduire(evts), 'U1', 2026, d(14.5)).map(e => [e.numero, (e.debut - d(0)) / H, e.fin === null ? null : (e.fin - d(0)) / H]);
+  assert.deepEqual(enPause, [['A1', 8, 12], ['C2', 12, 14]]);
+  const st = M.reduire(evts.concat([
     evt('REPRISE', { mesureId: 'C', date: d(15) }, { base: 2 }),
     evt('REPRISE', { mesureId: 'I', date: d(15) }, { base: 3 }),
     evt('MESURE_FIN', { mesureId: 'C', fin: d(18) }, { base: 3 }),
     evt('MESURE_FIN', { mesureId: 'I', fin: d(22) }, { base: 4 })
+  ]));
+  const r = M.registre(st, 'U1', 2026, d(48)).map(e => [e.numero, (e.debut - d(0)) / H, (e.fin - d(0)) / H]);
+  assert.deepEqual(r, [['A1', 8, 12], ['C2', 12, 14], ['C3', 15, 18], ['A4', 18, 22]]);
+  // Pause de l'isolement seul (hors contention) : deux entrées A
+  const st2 = M.reduire([
+    evt('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1' }] }),
+    evt('PATIENT', { patientId: 'P' }),
+    evt('MESURE_DEBUT', { mesureId: 'I', patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: d(8), csi: true }),
+    evt('PAUSE', { mesureId: 'I', debut: d(20), reprisePrevue: d(21) }, { base: 1 }),
+    evt('REPRISE', { mesureId: 'I', date: d(21) }, { base: 2 }),
+    evt('MESURE_FIN', { mesureId: 'I', fin: d(26) }, { base: 3 })
   ]);
-  const r = M.registre(st, 'U1', 2026, d(48)).map(e => [e.categorie, e.dureeHeures]);
-  assert.deepEqual(r, [['A', 4], ['C', 5], ['A', 4]]);   // patient sorti de l'isolement : l'heure est déduite, partout
+  assert.deepEqual(M.registre(st2, 'U1', 2026, d(48)).map(e => [e.numero, (e.debut - d(0)) / H, (e.fin - d(0)) / H]), [['A1', 8, 20], ['A2', 21, 26]]);
   assert.equal(M.optionsPauses({}).contentionSeule, 'isolement');
 });
 

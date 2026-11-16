@@ -43,11 +43,12 @@ test('Changements de méthode relus au journal, avec comparaison', () => {
   const st = M.reduire(b.concat([ch]));
   const c = M.changementsMethode(st, local(2025, 1, 1), local(2027, 1, 1));
   assert.equal(c.length, 1);
-  assert.match(c[0].textes[0], /comptées → déduites \(partout\)/);
+  assert.match(c[0].textes[0], /comptées → déduites \(délais du juge\)/);
   const apres = M.statistiquesAnnee(st, ['U1'], 2026, local(2026, 6, 1));
   const avant = M.statistiquesAvec(st, { pauses: c[0].avant }, ['U1'], 2026, local(2026, 6, 1));
-  assert.equal(Math.round(avant.duree.total - apres.duree.total), 2);  // 2 h de pause
-  assert.ok(M.reglesCalcul(st.config).some((r) => /déduites des durées du registre/.test(r)));
+  assert.equal(Math.round(avant.duree.total - apres.duree.total), 0);  // depuis 0.83.0, le registre coupe les entrées aux pauses quel que soit le réglage
+  assert.ok(M.reglesCalcul(st.config).some((r) => /déduites des seuls délais du juge/.test(r)));
+  assert.ok(M.reglesCalcul(st.config).some((r) => /pause arrête la mesure/.test(r)));
   assert.equal(M.changementsMethode(st, local(2026, 5, 1), local(2027, 1, 1)).length, 0);
 });
 

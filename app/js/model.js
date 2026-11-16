@@ -222,10 +222,9 @@
       { libelle: 'Isolement + contention', categories: ['C'], alerte: false }
     ],
     // active : bouton Pause disponible (toujours vrai si les pauses sont déduites) ;
-    // portee : 'jld' (déduction pour les délais JLD seulement) ou 'partout' (aussi registre et statistiques) ;
-    // colonneRegistre : colonne des levées temporaires dans le registre.
-    // contentionSeule (pauses déduites partout) : pause de la contention seule, l'isolement continuant —
-    // 'isolement' : ce temps devient de l'isolement seul (entrée A) ; 'contention' : il reste dans l'entrée C, non déduit.
+    // portee : toujours 'jld' depuis 0.83.0 (la déduction ne vaut que pour les délais du juge ; le registre coupe les entrées aux pauses) ;
+    // colonneRegistre : colonne « Levée temporaire » du registre (entrées arrêtées par une pause ou ouvertes par une reprise).
+    // contentionSeule : réglage retiré en 0.83.0 (toujours 'isolement' : pause de la contention seule = isolement seul, entrée A).
     // verrouContention : interdit la pause de l'isolement seul pendant une contention (pause commune ou fin de la contention).
     pauses: { active: true, retrancher: false, portee: 'jld', contentionSeule: 'isolement', verrouContention: false, colonneRegistre: true, repriseAuto: false, alerteHeures: 12, refusHeures: 48 },
     // Cas particuliers (Administration → Cas particuliers), voir optionsCas :
@@ -624,8 +623,10 @@
     o.alerteHeures = Math.max(0, Math.min(o.refusHeures, +o.alerteHeures || 0));
     o.retrancher = !!o.retrancher;
     o.active = o.retrancher || o.active !== false;
-    if (o.portee !== 'partout') o.portee = 'jld';
-    o.deduireRegistre = o.retrancher && o.portee === 'partout';
+    // Depuis 0.83.0, le registre et les statistiques coupent les entrées aux pauses : la déduction ne vaut que
+    // pour les délais du juge (l'ancien réglage « partout » est lu comme « délais du juge »).
+    o.portee = 'jld';
+    o.deduireRegistre = false;
     if (o.contentionSeule !== 'contention') o.contentionSeule = 'isolement';
     o.verrouContention = o.verrouContention === true;
     o.colonneRegistre = o.active && o.colonneRegistre !== false;
@@ -1241,27 +1242,6 @@
     E: "Contention hors espace d'isolement (exception prévue)"
   };
 
-  /** Intersection de deux listes de plages. */
-  function intersection(a, b) {
-    var r = [];
-    a.forEach(function (x) { b.forEach(function (y) { var d = Math.max(x[0], y[0]), f = Math.min(x[1], y[1]); if (f > d) r.push([d, f]); }); });
-    return r;
-  }
-
-  /**
-   * Plages déduites de la durée d'une entrée du registre (pauses déduites partout). Entrée C avec le réglage
-   * contentionSeule = 'contention' : seules les pauses où l'isolement est lui aussi suspendu sont déduites.
-   */
-  function exclusionsRegistre(st, x, maintenant) {
-    var op = optionsPauses(st.config);
-    if (!op.deduireRegistre) return [];
-    var ex = exclusions(x.mesure, maintenant, st.config);
-    if (x.cat !== 'C' || op.contentionSeule !== 'contention' || !ex.length) return ex;
-    var iso = [];
-    listeMesures(st).forEach(function (i) { if (i.type === 'Isolement' && i.csi && i.patientId === x.mesure.patientId) iso = iso.concat(exclusions(i, maintenant, st.config)); });
-    return intersection(ex, iso);
-  }
-
   /** Entrées brutes (catégorisées) d'un service, toutes années. */
   /** Vrai si la mesure (importée, numérotée dans le classeur) garde la numérotation du classeur pour son année. */
   function estFigee(st, m) {
@@ -1317,6 +1297,25 @@
     return t;
   }
 
+  /** Plages réelles des pauses d'une mesure (de la pause à la reprise effective, ou en cours). */
+  function plagesActivesPauses(st, m, maintenant) {
+    return (m.pauses || []).map(function (p) { return [p.debut, finPause(m, p, maintenant, st.config)]; })
+      .filter(function (q) { return q[1] > q[0]; }).sort(function (a, b) { return a[0] - b[0]; });
+  }
+
+  /**
+   * Périodes actives d'une mesure (ou d'un morceau) pour le registre : la mesure moins ses pauses réelles,
+   * quel que soit le réglage des pauses (qui ne concerne que les délais du juge). `fin` null : période en cours.
+   */
+  function periodesActives(st, m, maintenant) {
+    var fin = typeof m.fin === 'number' ? m.fin : null, finCalc = fin === null ? maintenant : fin;
+    var pauses = plagesActivesPauses(st, m, maintenant);
+    return soustraire(m.debut, finCalc, pauses).map(function (x) {
+      return { debut: x[0], fin: (fin === null && x[1] === finCalc) ? null : x[1],
+        pauseAvant: pauses.some(function (q) { return q[1] === x[0]; }), pauseApres: pauses.some(function (q) { return q[0] === x[1]; }) };
+    });
+  }
+
   function entreesRegistre(st, service, maintenant) {
     var ms = [];
     listeMesures(st).forEach(function (m) { if (typeof m.debut === 'number') morceaux(m).forEach(function (x) { if (x.service === service) ms.push(x); }); });
@@ -1338,23 +1337,27 @@
         entrees.push({ cat: mo ? mo[1] : calc, mesure: m, debut: m.debut, fin: fin, fige: true, numero: mo ? mo[1] + mo[2] : no, rang: mo ? +mo[2] : 0 });
         return;
       }
+      // Une pause (levée temporaire) arrête la mesure au sens du registre : chaque période active forme une entrée.
+      var actives = periodesActives(st, m, maintenant);
       if (m.type === 'Contention') {
-        entrees.push({ cat: m.csi ? 'C' : (m.exception ? 'E' : 'D'), mesure: m, debut: m.debut, fin: fin });
+        var catC = m.csi ? 'C' : (m.exception ? 'E' : 'D');
+        actives.forEach(function (x) { entrees.push({ cat: catC, mesure: m, debut: x.debut, fin: x.fin, pauseAvant: x.pauseAvant, pauseApres: x.pauseApres }); });
       } else if (!m.csi) {
-        entrees.push({ cat: 'B', mesure: m, debut: m.debut, fin: fin });
+        actives.forEach(function (x) { entrees.push({ cat: 'B', mesure: m, debut: x.debut, fin: x.fin, pauseAvant: x.pauseAvant, pauseApres: x.pauseApres }); });
       } else {
-        var finCalc = fin === null ? maintenant : fin;
-        // Les portions couvertes par une contention en CSI deviennent l'entrée C. Si les pauses sont déduites
-        // partout, une pause de la contention pendant laquelle l'isolement continue redevient de l'isolement seul (A).
-        var opR = optionsPauses(st.config), deduire = opR.deduireRegistre && opR.contentionSeule === 'isolement', contentions = [];
-        ms.filter(function (c) {
-          return c.type === 'Contention' && c.csi && c.patientId === m.patientId;
-        }).forEach(function (c) {
-          var cf = typeof c.fin === 'number' ? c.fin : maintenant;
-          contentions = contentions.concat(deduire ? rules.retrancher(c.debut, cf, exclusions(c, maintenant, st.config)) : [[c.debut, cf]]);
+        // Les périodes actives d'une contention en CSI deviennent des entrées C ; le reste de l'isolement actif est en A
+        // (une pause de la contention seule, l'isolement continuant, est donc de l'isolement seul).
+        var contentions = [];
+        ms.filter(function (c) { return c.type === 'Contention' && c.csi && c.patientId === m.patientId; }).forEach(function (c) {
+          periodesActives(st, c, maintenant).forEach(function (x) { contentions.push([x.debut, x.fin === null ? maintenant : x.fin]); });
         });
-        soustraire(m.debut, finCalc, contentions).forEach(function (x) {
-          entrees.push({ cat: 'A', mesure: m, debut: x[0], fin: (fin === null && x[1] === finCalc) ? null : x[1] });
+        var pIso = plagesActivesPauses(st, m, maintenant);
+        actives.forEach(function (a) {
+          var finA = a.fin === null ? maintenant : a.fin;
+          soustraire(a.debut, finA, contentions).forEach(function (x) {
+            entrees.push({ cat: 'A', mesure: m, debut: x[0], fin: (a.fin === null && x[1] === finA) ? null : x[1],
+              pauseAvant: pIso.some(function (q) { return q[1] === x[0]; }), pauseApres: pIso.some(function (q) { return q[0] === x[1]; }) });
+          });
         });
       }
     });
@@ -1402,34 +1405,36 @@
    * A : isolement en CSI · B : isolement hors CSI · C : contention en CSI
    * D : contention hors espace d'isolement · E : idem, exception prévue.
    * Une contention en CSI couvre l'isolement qui l'accompagne : seules les
-   * portions d'isolement non couvertes deviennent des entrées A.
-   * Numérotation commune aux catégories, attribuée aux entrées terminées
-   * dans l'ordre de leur fin (comme en V1.3), à la suite du dernier numéro
-   * du registre antérieur s'il a été paramétré. Les entrées en cours n'ont
-   * pas encore de numéro.
+   * portions d'isolement non couvertes deviennent des entrées A. Une pause
+   * (levée temporaire) arrête la mesure au sens du registre : la reprise
+   * ouvre une nouvelle entrée (le réglage des pauses ne vaut que pour les
+   * délais du juge). Numérotation commune aux catégories, dans l'ordre
+   * d'apparition (début), attribuée dès le début de l'entrée, à la suite du
+   * dernier numéro du registre antérieur s'il a été paramétré.
    */
   function registre(st, service, annee, maintenant) {
     var debutAn = new Date(annee, 0, 1).getTime(), finAn = new Date(annee + 1, 0, 1).getTime();
     var entrees = entreesRegistre(st, service, maintenant)
       .filter(function (x) { return x.debut >= debutAn && x.debut < finAn; });
-    var terminees = entrees.filter(function (x) { return x.fin !== null; })
-      .sort(function (a, b) { return a.fin - b.fin || a.debut - b.debut || (a.mesure.id < b.mesure.id ? -1 : 1); });
-    var enCours = entrees.filter(function (x) { return x.fin === null; }).sort(function (a, b) { return a.debut - b.debut; });
+    // Numérotation dans l'ordre d'apparition (début), attribuée dès le début de l'entrée.
+    entrees.sort(function (a, b) {
+      return a.debut - b.debut || (a.fin === null ? Infinity : a.fin) - (b.fin === null ? Infinity : b.fin) || (a.mesure.id < b.mesure.id ? -1 : a.mesure.id > b.mesure.id ? 1 : 0);
+    });
     var depart = +(((st.config.compteursRegistre || {})[service] || {})[annee] || 0);
     // Numéros conservés du classeur : la numérotation de l'outil part du compteur et saute les numéros déjà pris.
     var pris = {};
     entrees.forEach(function (x) { if (x.fige && x.rang) pris[x.rang] = true; });
     var rang = depart;
     function suivant() { do { rang++; } while (pris[rang]); return rang; }
-    return terminees.concat(enCours).map(function (x) {
+    return entrees.map(function (x) {
       var mode = modeRetenu(st, x.mesure);
       var finRef = x.fin === null ? maintenant : x.fin;
       return {
-        numero: x.fige ? x.numero : x.fin === null ? '' : x.cat + suivant(), fige: !!x.fige,
+        numero: x.fige ? x.numero : x.cat + suivant(), fige: !!x.fige,
         categorie: x.cat, debut: x.debut, fin: x.fin,
-        dureeHeures: rules.heuresEffectives({ exclusions: exclusionsRegistre(st, x, maintenant) }, x.debut, finRef),
+        dureeHeures: (finRef - x.debut) / H,
         dureeReelleHeures: (finRef - x.debut) / H,
-        pauses: pausesSur(x.mesure, x.debut, finRef, maintenant, st.config).map(function (q) { return [q.debut, q.fin]; }),
+        pauses: [], pauseAvant: !!x.pauseAvant, pauseApres: !!x.pauseApres,
         type: x.mesure.type, lieu: x.mesure.lieu,
         psychiatre: nomMedecin(st.config, x.mesure.psychiatreDebut, x.mesure.psychiatreDebutId), modeHospi: mode.mode, basculeMode: mode.bascule,
         professionnelsDetail: (x._pd = professionnelsEntree(st, service, x, finRef)),
@@ -1579,7 +1584,7 @@
     if (o.patient === 'numero') colonnes.push('Patient');
     if (o.age !== 'masquer') colonnes.push(o.age === 'exact' ? 'Âge' : o.age === 'tranche' ? 'Tranche d’âge' : 'Mineur');
     if (o.mode !== 'masquer') colonnes.push(o.mode === 'contrainte' ? 'Soins sans consentement' : "Mode d'hospitalisation");
-    colonnes.push('Début', 'Fin', op.deduireRegistre ? 'Durée hors pauses' : 'Durée');
+    colonnes.push('Début', 'Fin', 'Durée');
     var avecPauses = o.pauses === 'afficher' && op.active;
     if (avecPauses) colonnes.push('Levées temporaires');
     if (o.lieu !== 'masquer') colonnes.push('Lieu');
@@ -1594,7 +1599,7 @@
       if (o.mode === 'afficher') l.push(e.modeHospi || '—');
       else if (o.mode === 'contrainte') l.push(estContrainte(st.config, e.modeHospi) ? 'oui' : 'non');
       l.push(quand(e.debut), quand(e.fin), fmt.duree(e.dureeHeures));
-      if (avecPauses) l.push(e.pauses.length ? e.pauses.length + ' — ' + fmt.duree(e.pauses.reduce(function (s, p) { return s + (p[1] - p[0]); }, 0) / H) : '—');
+      if (avecPauses) l.push([e.pauseAvant ? 'début : reprise après pause' : '', e.pauseApres ? 'fin : pause' : ''].filter(Boolean).join(' ; ') || '—');
       if (o.lieu === 'afficher') l.push(e.lieu || '—');
       else if (o.lieu === 'categorie') l.push(e.categorie === 'A' || e.categorie === 'C' ? txtLieu(st.config, 'Espace d’isolement (CSI)') : 'Hors espace d’isolement');
       if (o.psychiatre !== 'masquer') l.push(psychiatre(e.psychiatre));
@@ -1688,8 +1693,8 @@
   function reglesCalcul(config) {
     var op = optionsPauses(config), oc = optionsCas(config), os = optionsStats(config);
     var r = [];
-    r.push(op.retrancher ? 'Levées temporaires (pauses) déduites ' + (op.portee === 'partout' ? 'des durées du registre et des statistiques' : 'des seuls délais JLD (registre et statistiques en durée réelle)') : 'Levées temporaires (pauses) comptées dans les durées');
-    if (op.deduireRegistre) r.push(op.contentionSeule === 'contention' ? 'Pause de la contention seule pendant un isolement : laissée dans l’entrée C' : 'Pause de la contention seule pendant un isolement : comptée en isolement seul (entrée A)');
+    r.push(op.retrancher ? 'Levées temporaires (pauses) déduites des seuls délais du juge' : 'Levées temporaires (pauses) comptées dans les délais du juge');
+    r.push('Registre et statistiques : une pause arrête la mesure (fin de l’entrée), la reprise ouvre une nouvelle entrée ; une pause de la contention seule, l’isolement continuant, est de l’isolement seul');
     r.push('Passage en soins somatiques ou aux urgences : ' + { 'poursuite-service': 'mesure poursuivie, comptée au registre du service', 'poursuite-registre': 'mesure poursuivie, comptée au registre dédié', suspension: 'mesure suspendue, période non comptée', arret: 'fin de la mesure' }[oc.somatique] + ' (règle enregistrée à chaque départ)');
     r.push('Mode d’hospitalisation retenu : le nouveau mode s’il passe des soins libres à la contrainte dans les ' + (config.delaiModeHospiHeures || 12) + ' h suivant le début');
     r.push('Séquences : entrées regroupées si l’écart ' + (os.toleranceMinutes ? 'ne dépasse pas ' + libDuree(os.toleranceMinutes) : 'est nul (entrées qui se touchent)'));
@@ -1708,8 +1713,7 @@
     var a = cfg(avant), b = cfg(apres), res = [];
     if (cle === 'pauses') {
       var pa = optionsPauses(a), pb = optionsPauses(b);
-      if (pa.retrancher !== pb.retrancher || (pb.retrancher && pa.portee !== pb.portee)) res.push('pauses ' + (pa.retrancher ? 'déduites (' + (pa.portee === 'partout' ? 'partout' : 'délais JLD') + ')' : 'comptées') + ' → ' + (pb.retrancher ? 'déduites (' + (pb.portee === 'partout' ? 'partout' : 'délais JLD') + ')' : 'comptées'));
-      if (pb.deduireRegistre && pa.contentionSeule !== pb.contentionSeule) res.push('pause de la contention seule : ' + (pb.contentionSeule === 'contention' ? 'laissée dans l’entrée C' : 'comptée en isolement seul (A)'));
+      if (pa.retrancher !== pb.retrancher) res.push('pauses ' + (pa.retrancher ? 'déduites (délais du juge)' : 'comptées') + ' → ' + (pb.retrancher ? 'déduites (délais du juge)' : 'comptées'));
     } else if (cle === 'casParticuliers') {
       var ca = optionsCas(a), cb = optionsCas(b);
       if (ca.somatique !== cb.somatique || ca.serviceSomatique !== cb.serviceSomatique) res.push('règle des soins somatiques : ' + ca.somatique + ' → ' + cb.somatique + ' (départs suivants seulement)');

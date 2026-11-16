@@ -1,6 +1,6 @@
 # Isolement et contention — calcul des durées, échéances du juge et inscription au registre
 
-*Document de référence du module Isolement et contention de Tessera Santé (version 0.82). Il explique, règle par règle, comment l'outil calcule le cumul d'heures, les échéances d'information, de saisine et de décision du juge, et comment il inscrit chaque mesure au registre, y compris pour les mesures complexes (isolement et contention, pauses, reprises, arrêts). Destinataires : cadres de santé, psychiatres, IDE et secrétaires, direction des soins, département d'information médicale, direction juridique. Tous les exemples sont fictifs.*
+*Document de référence du module Isolement et contention de Tessera Santé (version 0.83). Il explique, règle par règle, comment l'outil calcule le cumul d'heures, les échéances d'information, de saisine et de décision du juge, et comment il inscrit chaque mesure au registre, y compris pour les mesures complexes (isolement et contention, pauses, reprises, arrêts). Destinataires : cadres de santé, psychiatres, IDE et secrétaires, direction des soins, département d'information médicale, direction juridique. Tous les exemples sont fictifs.*
 
 Le « juge » est le magistrat du siège du tribunal judiciaire chargé du contrôle des mesures (anciennement juge des libertés et de la détention, JLD). La « chambre de soins intensifs » (CSI) est le lieu d'isolement dédié ; son nom se règle par l'établissement. Les règles appliquées découlent de l'article L. 3222-5-1 du code de la santé publique ; les choix laissés à l'établissement sont signalés, avec le réglage correspondant, dans Administration → Isolement et contention. Tessera calcule et rappelle : les décisions restent médicales et judiciaires, et le calcul est à vérifier en cas de doute.
 
@@ -107,15 +107,16 @@ Une **pause** est une levée temporaire décidée par le psychiatre, avec une he
   - pause de l'**isolement** : la contention est mise en pause aussi (case cochée par défaut, alerte si elle est décochée) ; option de l'établissement : interdire la pause de l'isolement seul pendant une contention.
 - **Reprise** : saisie à l'heure réelle. Sans reprise saisie, la pause n'est déduite que jusqu'à l'heure prévue (calcul prudent) ; la reprise automatique à cette heure est une option, désactivée par défaut. Si le psychiatre ne reprend pas la mesure, on saisit la fin, à la date du début de la pause.
 
-**Trois réglages possibles** (*Règles et pauses*), tracés au journal :
+**Deux réglages possibles** (*Règles et pauses*), tracés au journal. Ils ne concernent que le cumul et les échéances du juge :
 
-| Réglage | Cumul et échéances du juge | Registre et statistiques |
-| --- | --- | --- |
-| **Pauses comptées** (défaut) | Inchangés : la pause compte comme du temps de mesure | Durée réelle |
-| **Pauses déduites des délais du juge** | Durée des pauses retirée du cumul ; échéances reportées d'autant | Durée réelle |
-| **Pauses déduites partout** | Idem | Durées hors pauses ; et, pour une pause de la contention seule pendant l'isolement : entrée d'isolement seul (A) supplémentaire (défaut) ou maintien dans l'entrée C sans déduction (seule une pause commune à l'isolement est alors déduite) |
+| Réglage | Cumul et échéances du juge |
+| --- | --- |
+| **Pauses comptées** (défaut) | Inchangés : la pause compte comme du temps de mesure |
+| **Pauses déduites des délais du juge** | Durée des pauses retirée du cumul ; échéances reportées d'autant |
 
-Le choix « comptées » est le plus prudent : aucune échéance ne recule. Une pause commune à l'isolement et à la contention est toujours déduite des deux mesures quand les pauses sont déduites partout.
+Le choix « comptées » est le plus prudent : aucune échéance ne recule.
+
+**Au registre et dans les statistiques, une pause est toujours un arrêt**, quel que soit le réglage : le registre ne connaît pas la levée temporaire. L'entrée s'arrête au début de la pause et la reprise ouvre une nouvelle entrée, avec un nouveau numéro (§ 6). Les versions 0.82 et antérieures proposaient aussi de déduire les pauses « partout » sans couper les entrées ; ce réglage a été retiré en 0.83 (décision du porteur du 16 novembre 2026).
 
 <p class="saut"></p>
 
@@ -139,13 +140,13 @@ Le registre (art. L. 3222-5-1) recense, par service et par année, chaque mesure
 
 ### Règles d'inscription
 
-1. **Une mesure, une ou plusieurs entrées.** Une contention donne une entrée (C, D ou E) pour toute sa durée, pauses comprises : une pause de la contention puis sa reprise ne créent pas de nouvelle entrée. Un **arrêt** de la contention termine son entrée ; une nouvelle contention, même peu après, est une nouvelle mesure et une nouvelle entrée.
-2. **Isolement en CSI et contention en CSI** : les périodes de contention forment les entrées C ; l'isolement est inscrit en A **pour les seules portions sans contention** (avant, entre et après les contentions). Une pause de l'isolement ne coupe pas son entrée A : elle est comptée ou déduite de sa durée selon le réglage.
-3. **Pauses déduites partout, pause de la contention seule** (l'isolement continue) : par défaut, ce temps redevient de l'isolement seul et forme une entrée A supplémentaire, et l'entrée C est diminuée d'autant ; au choix de l'établissement, il reste dans l'entrée C, sans déduction.
+1. **Une période active, une entrée.** Une pause (levée temporaire) arrête la mesure au sens du registre : l'entrée se termine au début de la pause et la reprise ouvre une nouvelle entrée. Un **arrêt** de la mesure termine aussi son entrée. Une contention donne ainsi une entrée C, D ou E par période active ; un isolement hors CSI, une entrée B par période active.
+2. **Isolement en CSI et contention en CSI** : les périodes actives de contention forment les entrées C ; l'isolement est inscrit en A **pour ses seules périodes actives sans contention** (avant, entre et après les contentions).
+3. **Pause de la contention seule** (l'isolement continue) : la contention est arrêtée pendant la pause, le patient reste à l'isolement : ce temps forme une entrée A, puis la reprise de la contention une nouvelle entrée C. Exemple : isolement et contention de 10 h à 18 h, contention arrêtée de 12 h à 13 h : **C1** 10 h – 12 h, **A2** 12 h – 13 h, **C3** 13 h – 18 h. **Pause commune** à l'isolement et à la contention, ou **pause de l'isolement** : aucune entrée pendant la pause, une nouvelle entrée à la reprise.
 4. **Transfert entre services, soins somatiques** : la mesure reste une pour le juge, mais le registre la répartit entre les services successifs ; une période de soins somatiques est inscrite au registre du service, à celui d'un service dédié, exclue (suspension), ou termine la mesure, selon le choix de l'établissement (*Cas particuliers*).
 5. **Mode d'hospitalisation retenu** : le nouveau mode si le patient passe des soins libres à des soins sans consentement dans les 12 h suivant le début (délai réglable).
-6. **Numérotation** commune aux catégories A à E, attribuée aux entrées terminées **dans l'ordre de leur fin**, à la suite du compteur du service ; l'année est celle du début de l'entrée ; une entrée en cours n'a pas encore de numéro.
-7. **Durée** : réelle, ou hors pauses si elles sont déduites partout ; une note sous le registre indique toujours la durée affichée.
+6. **Numérotation** commune aux catégories A à E, **dans l'ordre d'apparition** (ordre des débuts), attribuée **dès le début de l'entrée**, à la suite du compteur du service ; l'année est celle du début de l'entrée. Une mesure saisie après coup, débutée avant d'autres entrées de l'année, décale les numéros suivants : la note sous le registre le rappelle.
+7. **Durée** : durée réelle de la période, de son début (début de la mesure ou reprise) à sa fin (pause, arrêt ou fin de la mesure). Une colonne facultative « Levée temporaire » signale les entrées qui s'arrêtent pour une pause ou commencent à une reprise.
 8. **Professionnels** : traces de surveillance par poste en CSI (catégories A et C), et hors CSI si l'établissement l'a choisi.
 
 <p class="saut"></p>
@@ -173,7 +174,7 @@ Patient fictif en CSI, soins sans consentement, aucune mesure dans les 15 jours 
 
 ### Durées et échéances du juge
 
-| Mesure | Pauses comptées | Pauses déduites (délais du juge ou partout) |
+| Mesure | Pauses comptées | Pauses déduites des délais du juge |
 | --- | --- | --- |
 | Isolement : durée | 50 h | 49 h |
 | Isolement : information, saisine, décision | mercredi 8 h, jeudi 8 h, vendredi 8 h | mercredi 9 h, jeudi 9 h, vendredi 9 h |
@@ -186,24 +187,31 @@ L'isolement dure plus de 48 h : **l'information du juge est due** le mercredi à
 
 ### Entrées du registre
 
-| Réglage des pauses | Entrées (dans l'ordre des numéros) |
-| --- | --- |
-| Comptées, ou déduites des délais du juge seulement | **A1** lundi 8 h – 12 h, 4 h · **C2** lundi 12 h – 18 h, 6 h · **A3** lundi 18 h – mardi 2 h, 8 h · **C4** mardi 2 h – 6 h, 4 h · **A5** mardi 6 h – mercredi 10 h, 28 h |
-| Déduites partout, pause de la contention seule « en isolement seul » (défaut) | **A1** 4 h · **A2** lundi 14 h – 15 h, 1 h · **C3** lundi 12 h – 18 h, 5 h · **A4** lundi 18 h – mardi 2 h, 7 h · **C5** 4 h · **A6** 28 h |
-| Déduites partout, pause de la contention seule « dans l'entrée C » | **A1** 4 h · **C2** 6 h · **A3** 7 h · **C4** 4 h · **A5** 28 h |
+Quel que soit le réglage des pauses, chaque pause arrête l'entrée en cours :
 
-Dans tous les cas, l'isolement ne forme pas d'entrée pendant les contentions (couvertes par C), et la pause de l'isolement ne coupe pas son entrée (A3 ou A4) : elle n'en change que la durée. Le total ne perd aucune heure : 50 h en durée réelle, 49 h hors la pause de l'isolement.
+| N° | Catégorie | Période | Durée | Ce qui la termine |
+| --- | --- | --- | --- | --- |
+| **A1** | Isolement en CSI | lundi 8 h – 12 h | 4 h | début de la contention 1 |
+| **C2** | Contention en CSI | lundi 12 h – 14 h | 2 h | pause de la contention |
+| **A3** | Isolement en CSI | lundi 14 h – 15 h | 1 h | reprise de la contention |
+| **C4** | Contention en CSI | lundi 15 h – 18 h | 3 h | arrêt de la contention 1 |
+| **A5** | Isolement en CSI | lundi 18 h – 20 h | 2 h | pause de l'isolement |
+| **A6** | Isolement en CSI | lundi 21 h – mardi 2 h | 5 h | début de la contention 2 |
+| **C7** | Contention en CSI | mardi 2 h – 6 h | 4 h | arrêt de la contention 2 |
+| **A8** | Isolement en CSI | mardi 6 h – mercredi 10 h | 28 h | fin de l'isolement |
 
-![Logigramme 5 — Exemple : entrées du registre selon le réglage des pauses](images/calculs/5-exemple-frise.svg)
+La pause de la contention seule (14 h – 15 h) est de l'isolement seul (A3) ; la pause de l'isolement (20 h – 21 h) ne forme aucune entrée. Le registre totalise 49 h, la durée hors pauses de l'isolement ; pour le juge, en revanche, l'isolement dure 50 h si les pauses sont comptées.
 
-*Logigramme 5 — Exemple : entrées du registre selon le réglage des pauses.*
+![Logigramme 5 — Exemple : entrées du registre](images/calculs/5-exemple-frise.svg)
+
+*Logigramme 5 — Exemple : entrées du registre.*
 
 ## 8. Réglages de l'établissement concernés
 
 | Réglage | Où | Défaut |
 | --- | --- | --- |
 | Seuils légaux (information, saisine, décision ; intervalles ; rythme long) | *Règles et pauses* | Valeurs de la loi |
-| Pauses : activées, comptées ou déduites, portée, pause de la contention seule, seuils d'alerte et de refus, reprise automatique, pause de l'isolement seul interdite pendant une contention | *Règles et pauses* | Activées, comptées, 12 h / 48 h, reprise automatique désactivée |
+| Pauses : activées, comptées ou déduites des délais du juge, seuils d'alerte et de refus, reprise automatique, pause de l'isolement seul interdite pendant une contention, colonne « Levée temporaire » au registre | *Règles et pauses* | Activées, comptées, 12 h / 48 h, reprise automatique désactivée, colonne affichée |
 | Délai de sept jours | *Cas particuliers* | Compté aussi depuis la décision précédente |
 | Information sans délai après une mainlevée (48 h), toute mesure ou même type | *Cas particuliers* | Activée, toute nouvelle mesure |
 | Soins somatiques ou urgences | *Cas particuliers* | Mesure poursuivie au registre du service |

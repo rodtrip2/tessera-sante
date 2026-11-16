@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.83.0 — 16 novembre 2026
+
+Registre d'isolement et de contention (demande du porteur du 16 novembre 2026 : « le registre ne prend légalement pas en compte la différence entre un arrêt et une pause »).
+- **Une pause est un arrêt au sens du registre** : l'entrée s'arrête au début de la pause, la reprise ouvre une nouvelle entrée. Pause de la contention seule, l'isolement continuant : entrée A pendant la pause (exemple : isolement + contention de 10 h à 18 h, contention arrêtée de 12 h à 13 h → C1 10 h – 12 h, A2 12 h – 13 h, C3 13 h – 18 h). Pause commune ou de l'isolement : aucune entrée pendant la pause. Statistiques, fiche patient, séquences et registre pour communication suivent.
+- **Numérotation dans l'ordre d'apparition** (ordre des débuts), attribuée dès le début de l'entrée (une entrée en cours a son numéro) ; une saisie tardive d'une mesure plus ancienne décale les numéros suivants, ce que rappelle la note sous le registre.
+- **Réglage des pauses** : la déduction ne vaut plus que pour les délais du juge (cumul, échéances, décompte). La portée « partout » et le choix « pause de la contention seule au registre » sont retirés ; un ancien réglage « partout » est lu comme « délais du juge ». La colonne facultative « Levée temporaire » signale les entrées arrêtées par une pause ou ouvertes par une reprise.
+- Documentation : document 20 du kit (règles, exemple, logigrammes 3 à 5) et son PDF, consignes Isocont (§ 5 et 6), guide du module.
+
 ## 0.82.1 — 16 novembre 2026
 
 Documentation, sans changement de l'application : nouveau document du kit **« Isolement et contention — calcul des durées, échéances du juge et inscription au registre »** (`kit/20`, avec PDF) : cumul sur 15 jours, échéances du premier cycle et des suivants (délai de sept jours), pauses selon le réglage de l'établissement, catégories et règles d'inscription au registre, exemple complet (isolement, contention avec pause et reprise, arrêt, pause et reprise de l'isolement, seconde contention) calculé par l'outil ; cinq logigrammes (`kit/images/calculs/`, produits par `scripts/logigrammes-calculs.py`).

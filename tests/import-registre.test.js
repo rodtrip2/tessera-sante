@@ -67,7 +67,7 @@ test('Registre importé : mesures reconstituées, isolement unique autour de la 
   // Recalcul selon les règles de l'outil : mêmes entrées A, C, A, D (compteur 0) — le registre importé était cohérent
   st = appliquer(avecU1(), prep, { compteursRegistre: { U1: { 2026: 0 } } });
   reg = M.registre(st, 'U1', 2026, maintenant);
-  assert.deepEqual(reg.filter(e => e.numero).map(e => [e.numero, e.categorie, e.dureeHeures]), [['A1', 'A', 4], ['C2', 'C', 6], ['A3', 'A', 4], ['D4', 'D', 3]]);
+  assert.deepEqual(reg.filter(e => e.fin !== null).map(e => [e.numero, e.categorie, e.dureeHeures]), [['A1', 'A', 4], ['C2', 'C', 6], ['A3', 'A', 4], ['D4', 'D', 3]]);
   assert.equal(reg[0].professionnels.join(' ; '), 'Agent A (fictif) (IDE) ; Agent B (fictif) (AS) ; Agent C (fictif) (IDE)');   // soignants cités, faute de traces par poste
 });
 
