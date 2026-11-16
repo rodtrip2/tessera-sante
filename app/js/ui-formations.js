@@ -36,7 +36,7 @@
     var precision = h('textarea', { rows: 2, maxlength: 300, 'aria-label': 'Précisions' }); precision.value = x ? (x.precision || '') : '';
     var sv = h('select', { 'aria-label': 'Service', disabled: !nouveau }, (admin ? [h('option', { value: '', text: 'Établissement (tous les services)' })] : []).concat((admin ? U.tousServices() : U.services().filter(function (v) { return svs.indexOf(v.code) >= 0; })).map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: x ? x.service === v.code : U.App.service === v.code }); })));
     var boutons = [{ texte: 'Annuler' }];
-    if (!nouveau && !x.annulee) boutons.push({ texte: 'Annuler la formation', classe: 'danger', action: async function () { if (!confirm('Annuler cette formation ? Les inscrits la verront annulée.')) return false; await s().enregistrer('FORMATION_SESSION', { id: x.id, annulee: true, service: x.service }); U.toast('Formation annulée.'); } });
+    if (!nouveau && !x.annulee) boutons.push({ texte: 'Annuler la formation', classe: 'danger', action: async function () { if (!await SIC.ui.confirmer('Annuler cette formation ? Les inscrits la verront annulée.')) return false; await s().enregistrer('FORMATION_SESSION', { id: x.id, annulee: true, service: x.service }); U.toast('Formation annulée.'); } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       var d = { id: x ? x.id : 'FS-' + C.hex(C.aleatoire(6)), intitule: intitule.value.trim(), debut: debut.value, fin: fin.value || '', lieu: lieu.value.trim(), places: places.value === '' ? 0 : Math.round(+places.value),
         public: pub.value.trim(), limite: limite.value || '', precision: precision.value.trim(), service: x ? x.service : sv.value };
@@ -65,7 +65,7 @@
       [{ texte: 'Annuler' }, { texte: lib, classe: decision === 'refuse' ? 'danger' : 'primaire', action: async function () { await s().enregistrer('FORMATION_DECISION', { inscription: i.id, decision: decision, motif: motif.value.trim(), service: i.service, nom: moi().nom || '' }); U.toast('Décision enregistrée.'); } }]);
   }
   async function desister(i) {
-    if (!confirm('Enregistrer le désistement ? La place sera proposée au suivant de la liste d’attente.')) return;
+    if (!await SIC.ui.confirmer('Enregistrer le désistement ? La place sera proposée au suivant de la liste d’attente.')) return;
     try { await s().enregistrer('FORMATION_DESISTEMENT', { inscription: i.id, service: i.service, nom: moi().nom || '' }); U.toast('Désistement enregistré.'); U.rendreContenu(); } catch (e) { U.toast(e.message); }
   }
   async function enregistree(i) {

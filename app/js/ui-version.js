@@ -47,9 +47,9 @@
 
   function retirerBandeau() { if (etat.bandeau) { etat.bandeau.remove(); etat.bandeau = null; } }
 
-  function recharger(v) {
+  async function recharger(v) {
     var saisie = document.querySelector('dialog[open]');
-    if (saisie && !confirm('Une fenêtre de saisie est ouverte : ce qui n’est pas enregistré sera perdu. Recharger quand même ?')) return;
+    if (saisie && !await SIC.ui.confirmer('Une fenêtre de saisie est ouverte : ce qui n’est pas enregistré sera perdu. Recharger quand même ?')) return;
     try { sessionStorage.setItem(CLE_ATTENDUE, v); } catch (e) { /* stockage indisponible */ }
     location.reload();
   }

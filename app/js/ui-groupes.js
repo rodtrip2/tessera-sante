@@ -28,7 +28,7 @@
         return h('li', { text: '« ' + a.groupe.libelle + ' »' + (a.groupe.services.length ? ' (' + a.groupe.services.map(U.libService).join(', ') + ')' : ' (tout l’établissement)') + ', par ' + (a.membre.ajoute.nom || U.App.session.nomAuteur(a.membre.ajoute.par)) + ', le ' + U.date(Date.parse(a.membre.ajoute.le)) + '. Les tâches et alertes adressées à ce groupe apparaissent dans « Mon agenda ».' });
       })));
   }
-  async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisGroupesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
+  async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisGroupesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); } }
   function bandeauAvis() {
     var av = mesAvis();
     if (!av.length) return null;
@@ -95,7 +95,7 @@
     var boutons = [{ texte: 'Annuler' }];
     function enregistrerListe(liste) { return U.enregistrerConfig([['groupes', liste]]); }
     if (g) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
-      if (!confirm('Supprimer le groupe « ' + g.libelle + ' » ? Les tâches et alertes qui lui étaient adressées reviennent à toute l’équipe du service. Pour le garder sans l’utiliser, décochez plutôt « Groupe actif ».')) return false;
+      if (!await SIC.ui.confirmer('Supprimer le groupe « ' + g.libelle + ' » ? Les tâches et alertes qui lui étaient adressées reviennent à toute l’équipe du service. Pour le garder sans l’utiliser, décochez plutôt « Groupe actif ».')) return false;
       await enregistrerListe(G.liste(U.config()).filter(function (y) { return y.code !== g.code; }));
     } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {

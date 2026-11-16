@@ -30,7 +30,7 @@
     return res.sort(function (a, b) { return String(a.nom).localeCompare(String(b.nom), 'fr'); });
   }
   function agent(id) { return agents().filter(function (a) { return a.id === id; })[0] || null; }
-  function copier(t) { try { navigator.clipboard.writeText(t).then(function () { U.toast('Copié : ' + t); }, function () { prompt('Copiez :', t); }); } catch (e) { prompt('Copiez :', t); } }
+  async function copier(t) { try { navigator.clipboard.writeText(t).then(function () { U.toast('Copié : ' + t); }, async function () { await SIC.ui.demander('Copiez :', t); }); } catch (e) { await SIC.ui.demander('Copiez :', t); } }
   function boutonCopie(t, titre) { return t ? h('button', { class: 'btn lien is-numero', type: 'button', title: titre || 'Copier', onclick: function () { copier(t); } }, t) : h('span', { class: 'muted', text: '—' }); }
   function peutEcrire() { return U.messagerie && U.messagerie.peutEnvoyer && U.messagerie.peutEnvoyer(); }
 
@@ -213,7 +213,7 @@
           await enregistrerFiche(a, { telPro: tp.value.trim(), mailPro: mp.value.trim(), fonction: fo.value.trim(), accord: accord.checked, perso: accord.checked ? { tel: tpe.value.trim(), mail: mpe.value.trim() } : null });
           await bd.enregistrer();
           U.toast('Fiche enregistrée.');
-        } catch (e) { alert(e.message); }
+        } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer')));
     // Récapitulatif des congés et droits (0.44.0) : onglet de la fiche
     var cg = U.conges && U.conges.voitFiche && U.conges.voitFiche(a) ? U.conges.sectionAgent(a.id) : null;

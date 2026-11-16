@@ -168,8 +168,8 @@
           regles.push({ id: 'alerte-' + Math.random().toString(36).slice(2, 9), libelle: '', active: true, declencheur: 'toute-mesure', services: [], nature: 'information', destinataires: '', delaiMinutes: 0, message: '', depuis: 0 });
           dessiner();
         } }, '+ Ajouter une alerte'),
-        h('button', { class: 'btn', type: 'button', onclick: function () {
-          if (!confirm('Revenir aux deux alertes proposées par défaut ? Les alertes actuelles seront remplacées à l’enregistrement.')) return;
+        h('button', { class: 'btn', type: 'button', onclick: async function () {
+          if (!await SIC.ui.confirmer('Revenir aux deux alertes proposées par défaut ? Les alertes actuelles seront remplacées à l’enregistrement.')) return;
           regles = M.alertesConfig(M.CONFIG_DEFAUT).map(function (r) { return Object.assign({}, r, { message: '' }); });
           dessiner();
         } }, 'Alertes par défaut')),

@@ -76,7 +76,7 @@
       }); } }, local ? 'Changer la copie locale des données…' : 'Créer une copie locale des données sur ce poste…'));
       actions.appendChild(h('button', { class: 'btn', type: 'button', title: 'Copie tenue à jour même quand l’outil n’est pas ouvert (tâche planifiée Windows)', onclick: function () { U.miroir.assistantRobocopy('local'); } }, 'Tenir la copie locale à jour par robocopy…'));
       if (local) actions.appendChild(h('button', { class: 'btn', type: 'button', onclick: function () { faire(async function () {
-        if (!confirm('Ne plus tenir à jour la copie locale de ce poste ? Le dossier n’est pas effacé : supprimez-le ensuite (données de santé chiffrées).')) return;
+        if (!await SIC.ui.confirmer('Ne plus tenir à jour la copie locale de ce poste ? Le dossier n’est pas effacé : supprimez-le ensuite (données de santé chiffrées).')) return;
         await SIC.Dossier.relierMiroir(null, 'local'); await s.tracer('HORS_RESEAU', { libelle: 'Copie locale des données retirée de ce poste (« ' + local.nom + ' »)' });
       }); } }, 'Retirer la copie locale'));
       zone.appendChild(actions);

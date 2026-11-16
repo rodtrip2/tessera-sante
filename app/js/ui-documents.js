@@ -395,13 +395,13 @@
       U.modale('Renommer l’onglet', h('label', {}, 'Nom', champ), [{ texte: 'Annuler' }, { texte: 'Renommer', classe: 'primaire', action: function () { onglets[i].titre = champ.value.trim().slice(0, 60) || onglets[i].titre; marquer(); dessinerOnglets(); } }]);
       setTimeout(function () { champ.select(); }, 50);
     }
-    function actionOnglet(v) {
+    async function actionOnglet(v) {
       if (v === 'renommer') return renommerOnglet(actif);
       garderOnglet();
       if (v === 'gauche' && actif > 0) { onglets.splice(actif - 1, 0, onglets.splice(actif, 1)[0]); actif--; }
       else if (v === 'droite' && actif < onglets.length - 1) { onglets.splice(actif + 1, 0, onglets.splice(actif, 1)[0]); actif++; }
       else if (v === 'supprimer') {
-        if (!confirm('Supprimer l’onglet « ' + onglets[actif].titre + ' » et son contenu ? (Il reste dans l’historique des versions.)')) return;
+        if (!await SIC.ui.confirmer('Supprimer l’onglet « ' + onglets[actif].titre + ' » et son contenu ? (Il reste dans l’historique des versions.)')) return;
         onglets.splice(actif, 1); actif = Math.max(0, actif - 1);
         if (onglets.length === 1) { onglets[0].id = ''; onglets[0].titre = ''; }   // plus qu'un : document sans onglets
         U.vider(corps); rendreBlocs(onglets[actif].blocs).forEach(function (n) { corps.appendChild(n); });
@@ -852,8 +852,8 @@
         modifiable && (stt.statut === 'brouillon' || stt.statut === 'modifie' || stt.statut === 'a-reviser') ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { demanderValidation(id, dessinerBarre); }); } }, 'Demander la validation') : null,
         valideur ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { modaleValidation(id, dessinerBarre); }); } }, 'Valider…') : null,
         modifiable ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleMiseEnPage(tab ? tab.page : page, function (p) { if (tab) { tab.appliquerPage(p); page = tab.page; } dessinerZones(); marquer(); }, !!tab, id); } }, 'Mise en page') : null,
-        h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { var luI = { meta: { titre: titre.value || 'Sans titre', rattaches: meta.rattaches }, contenu: lireContenu() };
-          if (tab) { var toutes = luI.contenu.feuilles.length > 1 && confirm('Imprimer toutes les feuilles ? (Annuler : la feuille affichée seulement)'); U.tableur.imprimer(luI.contenu, zonesPage, valeursPage(doc(id) || d0, luI.meta), toutes, tab.feuille()); }
+        h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(async function () { var luI = { meta: { titre: titre.value || 'Sans titre', rattaches: meta.rattaches }, contenu: lireContenu() };
+          if (tab) { var toutes = luI.contenu.feuilles.length > 1 && await SIC.ui.confirmer('Imprimer toutes les feuilles ? (Annuler : la feuille affichée seulement)'); U.tableur.imprimer(luI.contenu, zonesPage, valeursPage(doc(id) || d0, luI.meta), toutes, tab.feuille()); }
           else { if (!marquesVisibles) luI.contenu = DM.resoudreSuivi(luI.contenu, true); imprimer(id, luI); } }); } }, 'Imprimer'),
         DM.peutExporter(dd, moi(), cfg()) && !s().apercu && SIC.documentsExport ? h('button', { class: 'btn', type: 'button', onclick: function () { enregistrer(false).then(function () { modaleExport(); }); } }, 'Exporter…') : null,
         gere && !dd.corbeille && !s().apercu ? h('button', { class: 'btn danger', type: 'button', onclick: function () { mettreACorbeille(id); } }, 'Corbeille') : null,
@@ -997,7 +997,7 @@
     dessinerBarre();
     async function fermer() {
       if (ferme) return;
-      if (sale && !(await enregistrer(true)) && !confirm('L’enregistrement a échoué. Fermer quand même (les dernières modifications seront perdues) ?')) return;
+      if (sale && !(await enregistrer(true)) && !await SIC.ui.confirmer('L’enregistrement a échoué. Fermer quand même (les dernières modifications seront perdues) ?')) return;
       ferme = true; clearTimeout(minuteur); clearInterval(minuteurPresence); clearInterval(minuteurDirect);
       s().retirerPresence(id).catch(function () {});
       document.removeEventListener('selectionchange', garderSelection);
@@ -1216,7 +1216,7 @@
       h('div', { class: 'doc-diff' }, diff.map(function (x) { return h('p', { class: 'diff-' + x.etat, text: x.texte || ' ' }); }))));
   }
   async function restaurer(d, v) {
-    if (!confirm('Revenir à la version du ' + dateCourte(v.le) + ' ? Elle devient la version actuelle ; les autres restent dans l’historique.')) return;
+    if (!await SIC.ui.confirmer('Revenir à la version du ' + dateCourte(v.le) + ' ? Elle devient la version actuelle ; les autres restent dans l’historique.')) return;
     var lu = await lireVersion(d, v);
     if (!lu) return U.toast('Version illisible.');
     var c = await s().chiffrerDocument(d.id, { meta: lu.meta, contenu: lu.contenu });
@@ -1335,7 +1335,7 @@
         if (mq) {
           var r = await mq.valeur(); p.masque = r.masque;
           if (r.marges) p.marges = Object.assign({}, r.marges);
-          if (r.orientation && r.masque && r.orientation !== p.orientation && confirm('Ce masque est prévu en ' + r.orientation + ' : passer le document en ' + r.orientation + ' ?')) p.orientation = r.orientation;
+          if (r.orientation && r.masque && r.orientation !== p.orientation && await SIC.ui.confirmer('Ce masque est prévu en ' + r.orientation + ' : passer le document en ' + r.orientation + ' ?')) p.orientation = r.orientation;
         }
         var np = DM.page(p); Object.keys(page).forEach(function (k) { delete page[k]; }); Object.assign(page, np); apres(p);
       } }], { large: true });
@@ -1444,7 +1444,7 @@
         var m = metaConnue(d), gere = DM.peut(d, moi(), cfg(), 'gerer') && !s().apercu;
         return h('li', {}, h('b', { text: m ? m.titre : '…' }), ' — effacé dans ' + DM.joursAvantEffacement(d, Date.now(), jc()) + ' jour(s) ',
           gere ? h('button', { class: 'btn petit', type: 'button', onclick: function () { s().enregistrer('DOC_CORBEILLE', { doc: d.id, corbeille: false }).then(function () { U.toast('Document restauré.'); U.rendreContenu(); }, function (e) { U.toast(e.message); }); } }, 'Restaurer') : null,
-          gere ? h('button', { class: 'btn petit danger', type: 'button', onclick: function () { if (confirm('Effacer définitivement ce document ? Sa clé sera détruite : il ne pourra plus être lu, même depuis le journal.')) effacer(d.id).then(function () { U.rendreContenu(); }, function (e) { U.toast(e.message); }); } }, 'Effacer définitivement') : null);
+          gere ? h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (await SIC.ui.confirmer('Effacer définitivement ce document ? Sa clé sera détruite : il ne pourra plus être lu, même depuis le journal.')) effacer(d.id).then(function () { U.rendreContenu(); }, function (e) { U.toast(e.message); }); } }, 'Effacer définitivement') : null);
       })));
   }
   // ------------------------------------------------------------ Masques de service et d'établissement (0.42.0)
@@ -1464,7 +1464,7 @@
         return h('div', { class: 'doc-masque-carte' }, h('div', { class: 'doc-masque-vignette ' + m.orientation }, h('img', { src: m.image.donnees, alt: 'Masque « ' + m.nom + ' »' })),
           h('b', { text: m.nom }), h('small', { class: 'muted', text: (m.services.length ? m.services.map(U.libService).join(', ') : 'Établissement') + ' — ' + (m.pages === 'premiere' ? 'première page' : 'toutes les pages') + (m.opacite < 1 ? ', opacité ' + Math.round(m.opacite * 100) + ' %' : '') + (m.marges ? ', marges conseillées' : '') }),
           gerable(m) ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleMasque(m, adm); } }, 'Modifier'),
-            h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (!confirm('Retirer le masque « ' + m.nom + ' » ? Les documents qui l’utilisent gardent leur copie.')) return; var n = JSON.parse(JSON.stringify(cfg().masquesDocuments || {})); delete n[m.id]; try { await U.enregistrerConfig([['masquesDocuments', n]]); U.rendreContenu(); } catch (e) { U.toast(e.message); } } }, 'Retirer')) : null);
+            h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (!await SIC.ui.confirmer('Retirer le masque « ' + m.nom + ' » ? Les documents qui l’utilisent gardent leur copie.')) return; var n = JSON.parse(JSON.stringify(cfg().masquesDocuments || {})); delete n[m.id]; try { await U.enregistrerConfig([['masquesDocuments', n]]); U.rendreContenu(); } catch (e) { U.toast(e.message); } } }, 'Retirer')) : null);
       })));
   }
   function modaleMasque(m, adm) {
@@ -1514,8 +1514,8 @@
     for (var i = 0; i < ds.length; i++) { try { await effacer(ds[i].id); } catch (e) { /* nouvelle tentative plus tard */ } }
     return ds.length;
   }
-  function mettreACorbeille(id) {
-    if (!confirm('Mettre ce document à la corbeille ? Il y reste ' + jc() + ' jours, puis il est effacé définitivement.')) return;
+  async function mettreACorbeille(id) {
+    if (!await SIC.ui.confirmer('Mettre ce document à la corbeille ? Il y reste ' + jc() + ' jours, puis il est effacé définitivement.')) return;
     s().enregistrer('DOC_CORBEILLE', { doc: id, corbeille: true }).then(function () { var o = U.App.documentOuvert; if (o && o.id === id) o.editeur.fermer(); U.toast('Document mis à la corbeille.'); U.rendreContenu(); }, function (e) { U.toast(e.message); });
   }
 
@@ -1558,7 +1558,7 @@
       h('label', { class: 'case' }, tp, h('span', { text: 'Compte d’un auteur retiré : transférer aussi au cadre ses documents privés, partagés avec personne (désactivé par défaut ; sinon ils restent illisibles, seul leur auteur les ouvrait)' })),
       h('p', { class: 'muted', text: 'Validation : rôle avec l’accès « Valider les documents » (cadre par défaut, Rôles et accès) ; il peut demander une validation supplémentaire à un agent nommé. Compte d’un auteur retiré : la gestion de ses documents partagés passe au cadre de ses services, à la connexion de l’administrateur.' }),
       adm ? h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
-        try { var v = Math.round(+j.value); if (!(v >= 7 && v <= 365)) throw new Error('De 7 à 365 jours.'); var val = {}; if (v !== 30) val.corbeilleJours = v; if (tp.checked) val.transfertPrives = true; await U.enregistrerConfig([['documents', val]]); U.toast('Réglages enregistrés.'); } catch (e) { alert(e.message); }
+        try { var v = Math.round(+j.value); if (!(v >= 7 && v <= 365)) throw new Error('De 7 à 365 jours.'); var val = {}; if (v !== 30) val.corbeilleJours = v; if (tp.checked) val.transfertPrives = true; await U.enregistrerConfig([['documents', val]]); U.toast('Réglages enregistrés.'); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer')) : null);
   }
   var LIB = { DOC: 'Documents : création', DOC_VERSION: 'Documents : version', DOC_PARTAGE: 'Documents : partage', DOC_STATUT: 'Documents : demande de validation ou retour en brouillon', DOC_VALIDATION: 'Documents : validation',

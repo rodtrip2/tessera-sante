@@ -158,7 +158,7 @@
         try { d = await choisir('sic-local'); } catch (e) { if (e && e.name === 'AbortError') return false; throw e; }
         var nature = await s.controlerMiroir(d);
         if (etat.poste && await etat.poste.memeQue(d)) throw new Error('Ce dossier est déjà le dossier de secours du service : choisissez un dossier sur le disque de ce poste.');
-        if (!confirm('Créer la copie locale des données dans « ' + d.nom + ' » ?\n\nLes données de santé, chiffrées, seront copiées sur ce poste et tenues à jour toutes les 10 minutes. À réserver aux postes désignés par l’établissement (disque chiffré, accord du délégué à la protection des données).' + (nature === 'meme' ? '\n\nCe dossier contient déjà une copie de ces données : elle sera complétée.' : ''))) return false;
+        if (!await SIC.ui.confirmer('Créer la copie locale des données dans « ' + d.nom + ' » ?\n\nLes données de santé, chiffrées, seront copiées sur ce poste et tenues à jour toutes les 10 minutes. À réserver aux postes désignés par l’établissement (disque chiffré, accord du délégué à la protection des données).' + (nature === 'meme' ? '\n\nCe dossier contient déjà une copie de ces données : elle sera complétée.' : ''))) return false;
         try { localStorage.setItem('sic-nom-poste', nom); } catch (e) { /* sans effet */ }
         await SIC.Dossier.relierMiroir(d, 'local'); etat.local = d;
         await s.tracer('HORS_RESEAU', { libelle: 'Copie locale des données créée sur le poste « ' + nom + ' » (dossier « ' + d.nom + ' »)' });
@@ -199,7 +199,7 @@
             h('td', { text: x.poste || '—' }),
             h('td', { class: vieux ? 'texte-bad nowrap' : 'nowrap', text: x.derniere ? U.date(dateEtat(x.derniere)) : 'jamais' }),
             h('td', {}, x.id && s.peut('CONFIG') ? h('button', { class: 'btn petit', type: 'button', title: 'Pour un poste retiré ou un dossier abandonné : il ne sera plus listé (il revient s’il est de nouveau synchronisé).', onclick: function () { action(async function () {
-              if (!confirm('Retirer « ' + (x.nom || x.id) + ' » de la liste ?')) return;
+              if (!await SIC.ui.confirmer('Retirer « ' + (x.nom || x.id) + ' » de la liste ?')) return;
               await s.dossier.oublierMiroir(x.id);
             }); } }, 'Retirer de la liste') : null));
         })))));
@@ -212,7 +212,7 @@
       actions.appendChild(h('button', { class: 'btn', type: 'button', disabled: !reseau, onclick: function () { action(async function () {
         var d = await choisir('sic-miroir');
         var nature = await s.controlerMiroir(d);
-        if (!confirm(nature === 'vide'
+        if (!await SIC.ui.confirmer(nature === 'vide'
           ? 'Utiliser « ' + d.nom + ' » comme dossier de secours ? Toutes les données chiffrées (sans les exports) y seront copiées, puis tenues à jour par ce poste.'
           : '« ' + d.nom + ' » contient déjà une copie de ces données : relier ce poste à ce dossier de secours ?')) return;
         await SIC.Dossier.relierMiroir(d, 'serveur'); etat.poste = d;
@@ -232,7 +232,7 @@
         }); } }, 'Délier ce poste'));
       }
       if (o.attendu) actions.appendChild(h('button', { class: 'btn', type: 'button', onclick: function () { action(async function () {
-        if (!confirm('Ne plus utiliser de dossier de secours ? Le dossier de secours n’est pas effacé, mais il ne sera plus tenu à jour ni surveillé.')) return;
+        if (!await SIC.ui.confirmer('Ne plus utiliser de dossier de secours ? Le dossier de secours n’est pas effacé, mais il ne sera plus tenu à jour ni surveillé.')) return;
         await SIC.Dossier.relierMiroir(null, 'serveur'); etat.poste = null;
         await U.enregistrerConfig([['miroir', { attendu: false, nom: '' }]]);
       }); } }, 'Ne plus utiliser de dossier de secours'));
@@ -250,11 +250,11 @@
       U.erreurDans(zoneErr, null);
       try {
         var cible = await choisir('sic-deplacement');
-        if (!confirm('Déplacer toutes les données vers « ' + cible.nom + ' » ?\n\nChaque fichier est copié puis relu. Ensuite, l’ancien dossier « ' + U.App.dossier.nom + ' » ne s’ouvrira plus : chaque poste devra choisir le nouveau dossier (« Changer de dossier »). Prévenez les équipes et évitez toute saisie pendant le déplacement.')) return;
+        if (!await SIC.ui.confirmer('Déplacer toutes les données vers « ' + cible.nom + ' » ?\n\nChaque fichier est copié puis relu. Ensuite, l’ancien dossier « ' + U.App.dossier.nom + ' » ne s’ouvrira plus : chaque poste devra choisir le nouveau dossier (« Changer de dossier »). Prévenez les équipes et évitez toute saisie pendant le déplacement.')) return;
         deplacer.disabled = true;
         var n = await s.deplacerDonnees(cible, function (i, total) { progres.textContent = i + ' / ' + total + ' fichier(s) copié(s)…'; });
         await cible.retenir();
-        alert(n + ' fichier(s) copié(s) et vérifié(s). L’outil s’ouvre maintenant sur « ' + cible.nom + ' » : reconnectez-vous. Communiquez le nouveau dossier au service informatique (sauvegardes) et aux autres postes.');
+        SIC.ui.alerte(n + ' fichier(s) copié(s) et vérifié(s). L’outil s’ouvre maintenant sur « ' + cible.nom + ' » : reconnectez-vous. Communiquez le nouveau dossier au service informatique (sauvegardes) et aux autres postes.');
         await SIC.Dossier.relierMiroir(null, 'serveur'); await SIC.Dossier.relierMiroir(null, 'local');
         U.App.dossier = cible;
         location.reload();

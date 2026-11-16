@@ -206,7 +206,7 @@
               c.fournie || parent.some(function (p) { return p.code === c.code; }) ? h('button', { class: 'btn petit', type: 'button', onclick: function () {
                 var p = parent.filter(function (y) { return y.code === c.code; })[0]; if (p) { liste[i] = JSON.parse(JSON.stringify(p)); dessiner(); }
               } }, niveauCategories === '*' ? 'Préréglages fournis' : 'Reprendre les réglages de l’établissement') :
-                h('button', { class: 'btn petit danger', type: 'button', onclick: function () { if (confirm('Retirer la catégorie « ' + c.libelle + ' » ? Les éléments déjà créés gardent leur catégorie (affichés comme « autre événement »). Pour seulement ne plus la proposer, décochez « Proposée ».')) { liste.splice(i, 1); dessiner(); } } }, 'Retirer')))), c.couleur));
+                h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (await SIC.ui.confirmer('Retirer la catégorie « ' + c.libelle + ' » ? Les éléments déjà créés gardent leur catégorie (affichés comme « autre événement »). Pour seulement ne plus la proposer, décochez « Proposée ».')) { liste.splice(i, 1); dessiner(); } } }, 'Retirer')))), c.couleur));
       });
     }
     dessiner();
@@ -289,7 +289,7 @@
           var plus = []; autres.forEach(function (f) { plus = plus.concat(f() || []); });
           await U.enregistrerConfig([['agendaReglages', tout]].concat(plus));
           U.toast('Réglages enregistrés.');
-        } catch (e) { alert(e.message); }
+        } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer')));
   }
   /** Cases de rôles, avec « comme l'établissement » pour un service. `defaut` : rôles par défaut. */

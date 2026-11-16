@@ -85,7 +85,7 @@
     }
 
     function apercu() {
-      if (!modele.colonnes.nom && !modele.colonnes.nomComplet) { alert('Attribuez au moins la colonne du nom.'); return; }
+      if (!modele.colonnes.nom && !modele.colonnes.nomComplet) { SIC.ui.alerte('Attribuez au moins la colonne du nom.'); return; }
       decisions = { doublons: {}, noms: {}, sorties: {} };
       analyse = IP.analyser(lignes, modele, U.st().patients, { aujourdhui: new Date().toISOString().slice(0, 10), service: modele.colonnes.unite ? null : svDefaut.value, config: U.config() });
       U.vider(zoneApercu);
@@ -147,7 +147,7 @@
         var r = IP.saisies(analyse, decisions);
         var att = r.resume.attente ? '\n' + r.resume.attente + ' doublon(s) possible(s) sans décision ne seront pas importés.' : '';
         if (!r.evenements.length && !memoriser.checked) throw new Error('Rien à importer.' + att);
-        if (r.evenements.length && !confirm('Enregistrer : ' + r.resume.creees + ' nouvelle(s) fiche(s), ' + r.resume.modifiees + ' fiche(s) mise(s) à jour, ' + r.resume.sejours + ' séjour(s), ' + r.resume.sorties + ' sortie(s) ?' + att + '\n\nL’import est annulable depuis le journal.')) return false;
+        if (r.evenements.length && !await SIC.ui.confirmer('Enregistrer : ' + r.resume.creees + ' nouvelle(s) fiche(s), ' + r.resume.modifiees + ' fiche(s) mise(s) à jour, ' + r.resume.sejours + ' séjour(s), ' + r.resume.sorties + ' sortie(s) ?' + att + '\n\nL’import est annulable depuis le journal.')) return false;
         if (r.evenements.length) await U.App.session.enregistrerLot(r.evenements, { libelle: 'Import de la liste des patients (DPI)' });
         if (memoriser.checked) {
           var modeles = JSON.parse(JSON.stringify(memorises));

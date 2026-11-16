@@ -22,6 +22,7 @@ with sync_playwright() as p:
     ctx = b.new_context(viewport={'width': 1366, 'height': 1180}, locale='fr-FR', timezone_id='Europe/Paris', color_scheme='light', device_scale_factor=1.5, accept_downloads=True)
     a = ctx.new_page(); a.on('pageerror', lambda e: errs.append(str(e))); a.on('dialog', lambda d: d.accept())
     a.goto('http://localhost:8765/app/')
+    a.evaluate("SIC.ui.reponsesAutomatiques((m, g, v) => g === 'question' ? v : !m.startsWith('Imprimer toutes'))")
     a.get_by_role('button', name='Mode démonstration (données fictives)').click()
     a.get_by_placeholder('Prénom NOM').fill('Cadre Démo (fictif)'); a.get_by_placeholder('ex. prenom.nom').fill('cadre')
     pw = a.locator('input[type=password]'); pw.nth(0).fill('Carotte-Verte-Demo-27'); pw.nth(1).fill('Carotte-Verte-Demo-27')

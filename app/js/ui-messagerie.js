@@ -222,7 +222,7 @@
   function modaleRattacher(puis, o) {
     var exclus = (o && o.exclure) || [];
     var mods = Object.keys(MS.RATTACHABLES).filter(function (k) { return exclus.indexOf(k) < 0 && s().ouvert && s().ouvert(k); });
-    if (!mods.length) { alert('Vous n’avez accès à aucun module dont on peut rattacher un élément.'); return; }
+    if (!mods.length) { SIC.ui.alerte('Vous n’avez accès à aucun module dont on peut rattacher un élément.'); return; }
     var selM = h('select', { 'aria-label': 'Module' }, mods.map(function (k) { return h('option', { value: k, text: MS.RATTACHABLES[k] }); }));
     var zone = h('div', { class: 'pile ms-choix-elements' }), choisi = null, filtreTxt = h('input', { type: 'search', placeholder: 'Filtrer', 'aria-label': 'Filtrer les éléments' });
     function dessiner() {
@@ -250,7 +250,7 @@
   // ------------------------------------------------------------ Pièces jointes
   async function ouvrirPiece(m, p) {
     var w = null, affiche = MS.affichable(p);
-    if (!affiche && !confirm('« ' + p.nom + ' » ne peut pas être affiché dans l’application : il va être téléchargé sur ce poste et sortira du coffre chiffré. Ne le gardez pas au-delà du nécessaire. Continuer ?')) return;
+    if (!affiche && !await SIC.ui.confirmer('« ' + p.nom + ' » ne peut pas être affiché dans l’application : il va être téléchargé sur ce poste et sortira du coffre chiffré. Ne le gardez pas au-delà du nécessaire. Continuer ?')) return;
     if (affiche === 'application/pdf') w = window.open('', '_blank');
     try {
       var o = await s().lirePiece('messagerie', p.id);
@@ -261,7 +261,7 @@
       // Image : affichée dans une fenêtre de l'application (adresse data:, permise par la politique de sécurité)
       var b = ''; for (var i = 0; i < o.length; i += 32768) b += String.fromCharCode.apply(null, o.subarray(i, i + 32768));
       U.modale(p.nom, h('img', { class: 'ms-image', src: 'data:' + affiche + ';base64,' + btoa(b), alt: p.nom }), [{ texte: 'Fermer' }], { large: true });
-    } catch (e) { if (w) w.close(); alert(e.message); }
+    } catch (e) { if (w) w.close(); SIC.ui.alerte(e.message); }
   }
   function puce(p, retirer, m) {
     var e = MS.ext(p.nom).toUpperCase();
@@ -280,7 +280,7 @@
     luEnCours[m.id] = true;
     s().enregistrer('MESSAGE_LU', { message: m.id }).catch(function () { /* lecture non enregistrée : sans conséquence */ }).then(function () { setTimeout(function () { delete luEnCours[m.id]; U.rendreContenu(); }, 0); });
   }
-  async function ecrire(type, data, msg) { try { await s().enregistrer(type, data); if (msg) U.toast(msg); U.rendreContenu(); } catch (e) { alert(e.message); } }
+  async function ecrire(type, data, msg) { try { await s().enregistrer(type, data); if (msg) U.toast(msg); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); } }
   function badges(m) {
     var si = m.situation;
     return h('div', { class: 'ms-badges' },
@@ -354,7 +354,7 @@
         var d = { message: m.id, id: 'R' + SIC.crypto.hex(SIC.crypto.aleatoire(5)), texte: t.value.trim(), nom: moi().nom };
         if (dest && dest.value) { d.a = dest.value; var r0 = repondants.filter(function (r) { return r.par === dest.value; })[0]; d.nomA = r0 ? r0.nom || '' : ''; }
         // Message chiffré : la réponse l'est avec la clé du message (ouverte par l'agent)
-        if (m.chiffre) { var clair = d.texte; d.texte = ''; reps[m.id + '|' + d.id] = clair; s().chiffrerPourMessage(m.id, { texte: clair }, 'r:' + d.id).then(function (c0) { d.chiffre = c0; envoyerReponse(d); }).catch(function (e) { alert(e.message); }); return; }
+        if (m.chiffre) { var clair = d.texte; d.texte = ''; reps[m.id + '|' + d.id] = clair; s().chiffrerPourMessage(m.id, { texte: clair }, 'r:' + d.id).then(function (c0) { d.chiffre = c0; envoyerReponse(d); }).catch(function (e) { SIC.ui.alerte(e.message); }); return; }
         envoyerReponse(d);
       } }, 'Envoyer')));
     }
@@ -404,8 +404,8 @@
       var p = MS.participation(m, comptes(), U.config());
       z.appendChild(h('small', { class: 'muted', text: p.ont.length + ' ont voté' + (p.nont.length ? ' ; n’ont pas encore voté : ' + p.nont.map(function (x) { return x.nom || x.id; }).join(', ') : '') + '.' }));
     }
-    if ((auteur || admin()) && r.ouvert && !s().apercu) z.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () {
-      if (confirm('Clore le sondage maintenant ? Plus personne ne pourra voter.')) ecrire('SONDAGE_CLOTURE', { message: m.id }, 'Sondage clos.');
+    if ((auteur || admin()) && r.ouvert && !s().apercu) z.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
+      if (await SIC.ui.confirmer('Clore le sondage maintenant ? Plus personne ne pourra voter.')) ecrire('SONDAGE_CLOTURE', { message: m.id }, 'Sondage clos.');
     } }, 'Clore le sondage')));
     return z;
   }
@@ -423,8 +423,8 @@
       }
       if (U.mesTaches && U.mesTaches.nouvelle && U.mesTaches.disponible && U.mesTaches.disponible()) actions.push(['+ Ma liste', function () { U.mesTaches.nouvelle({ titre: 'Message : ' + (m.objet || ''), element: { module: 'messagerie', genre: 'message', id: m.id, service: '' } }); }]);
       if (peutEcrire()) actions.push(['Transférer…', function () { modaleNouveau({ objet: 'Tr : ' + m.objet, texte: '\n\n— Message de ' + (m.nom || s().nomAuteur(m.par)) + ' du ' + dateHeure(m.cree) + ' —\n' + m.texte, rattaches: m.rattaches.slice() }); }]);
-      if ((auteur || admin()) && !m.retire) actions.push(['Retirer le message…', function () {
-        var mo = prompt('Le message disparaîtra des reçus de tous les destinataires (il reste au journal). Motif (facultatif) :', '');
+      if ((auteur || admin()) && !m.retire) actions.push(['Retirer le message…', async function () {
+        var mo = await SIC.ui.demander('Le message disparaîtra des reçus de tous les destinataires (il reste au journal). Motif (facultatif) :', '');
         if (mo !== null) ecrire('MESSAGE_RETRAIT', { message: m.id, motif: mo.trim() }, 'Message retiré.');
       }, 'danger']);
     }
@@ -535,7 +535,7 @@
       if (i.vu) await i.vu();
       else await s().enregistrerPreference('informationsVues', infosVues().concat([i.id]).slice(-500));
       U.rendreContenu();
-    } catch (e) { alert(e.message); }
+    } catch (e) { SIC.ui.alerte(e.message); }
   }
   var toutesInfos = false;
   function informations() {
@@ -663,8 +663,8 @@
     if (entree) entree.addEventListener('change', function () {
       Array.prototype.forEach.call(entree.files, function (f) {
         if (fichiers.length >= MS.MAX_PIECES) return;
-        if (o.typesPieces.indexOf(MS.ext(f.name)) < 0) { alert('Type de fichier non autorisé : ' + f.name); return; }
-        if (f.size > o.tailleMaxMo * 1048576) { alert('Fichier trop volumineux : ' + f.name + ' (' + o.tailleMaxMo + ' Mo au plus).'); return; }
+        if (o.typesPieces.indexOf(MS.ext(f.name)) < 0) { SIC.ui.alerte('Type de fichier non autorisé : ' + f.name); return; }
+        if (f.size > o.tailleMaxMo * 1048576) { SIC.ui.alerte('Fichier trop volumineux : ' + f.name + ' (' + o.tailleMaxMo + ' Mo au plus).'); return; }
         fichiers.push(f);
       });
       entree.value = ''; dessinerP();
@@ -676,7 +676,7 @@
         h('small', { class: 'muted', text: encadrement() ? 'Services, groupes, rôles, agents nommés ou tout l’établissement.' : 'Vos services, vos groupes, un rôle de vos services ou des agents nommés (un seul service à la fois). Plusieurs services ou tout l’établissement : cadre et administrateur.' })),
       h('label', {}, 'Objet', objet), h('label', {}, 'Message', texte),
       h('div', { class: 'pile' }, zoneR, zoneP,
-        h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (rattaches.length >= MS.MAX_RATTACHES) return alert('Dix éléments au plus.'); modaleRattacher(function (r) { if (!rattaches.some(function (x) { return x.module === r.module && x.id === r.id; })) rattaches.push(r); dessinerR(); }, { exclure: ['messagerie'] }); } }, 'Rattacher un élément…'),
+        h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (rattaches.length >= MS.MAX_RATTACHES) return SIC.ui.alerte('Dix éléments au plus.'); modaleRattacher(function (r) { if (!rattaches.some(function (x) { return x.module === r.module && x.id === r.id; })) rattaches.push(r); dessinerR(); }, { exclure: ['messagerie'] }); } }, 'Rattacher un élément…'),
           entree ? h('label', { class: 'btn petit ms-joindre' }, 'Joindre un fichier…', entree) : null),
         entree ? h('small', { class: 'muted', text: 'Fichiers : ' + o.typesPieces.join(', ') + ' ; ' + o.tailleMaxMo + ' Mo au plus chacun. Ils sont chiffrés et conservés avec le message.' }) : null),
       peutSondage ? h('div', { class: 'pile' }, h('label', { class: 'case' }, avecSondage, h('b', { text: 'Ajouter un sondage' })), zoneS) : null,
@@ -698,7 +698,7 @@
       }
       // Contrôle avant d'écrire les fichiers (aucun fichier orphelin si le message est refusé)
       MS.controler('MESSAGE', Object.assign({}, d, { pieces: fichiers.map(function (f) { return { id: 'PJ0000000000000000', nom: f.name, taille: f.size }; }) }), { etat: st(), compte: c, config: U.config(), peut: function (t) { return s().peut(t); } });
-      if (fichiers.length && !confirm('Les pièces jointes ne doivent contenir aucune donnée clinique ni nominative sur un patient. Envoyer ?')) return false;
+      if (fichiers.length && !await SIC.ui.confirmer('Les pièces jointes ne doivent contenir aucune donnée clinique ni nominative sur un patient. Envoyer ?')) return false;
       var chiffrer = chiffrable && cbChiffre.checked;
       if (chiffrer) {
         var noms = MS.clesPourMessage(dest, c, U.config(), comptes()), manquantes = s().clesMessagerieManquantes(noms);
@@ -783,7 +783,7 @@
           var v = {}; lecteurs.forEach(function (f) { f(v); });
           if (Object.keys(v).length) tout[niveau] = v; else delete tout[niveau];
           await U.enregistrerConfig([['messagerie', tout]]); U.toast('Réglages enregistrés.');
-        } catch (e) { alert(e.message); }
+        } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer')));
   }
 

@@ -28,7 +28,7 @@
   function etoile(module, id) {
     var f = K.element(lire(), module, id).favori;
     return h('button', { class: 'btn petit etoile' + (f ? ' active' : ''), type: 'button', 'aria-pressed': f ? 'true' : 'false', title: f ? 'Retirer des favoris' : 'Ajouter aux favoris', disabled: !disponible(),
-      onclick: async function (ev) { ev.stopPropagation(); try { await ecrire(K.marquer(lire(), module, id, { favori: !f })); } catch (e) { alert(e.message); } } }, f ? '★' : '☆');
+      onclick: async function (ev) { ev.stopPropagation(); try { await ecrire(K.marquer(lire(), module, id, { favori: !f })); } catch (e) { SIC.ui.alerte(e.message); } } }, f ? '★' : '☆');
   }
   function optionsDossiers(module, valeur, avecTous, libRacine) {
     var l = lire().dossiers[module], opts = [];
@@ -59,7 +59,7 @@
     var nomEt = h('input', { type: 'text', maxlength: 30, placeholder: 'Nouvelle étiquette', 'aria-label': 'Nom de la nouvelle étiquette' });
     var couleur = h('select', { 'aria-label': 'Couleur' }, Object.keys(K.COULEURS).map(function (k) { return h('option', { value: k, text: K.COULEURS[k] }); }));
     var btEt = h('button', { class: 'btn petit', type: 'button', onclick: async function () {
-      try { var r = K.creerEtiquette(lire(), nomEt.value, couleur.value); await s().enregistrerPreference('classement', r.classement); choix.push(r.id); nomEt.value = ''; dessinerEt(); } catch (err) { alert(err.message); }
+      try { var r = K.creerEtiquette(lire(), nomEt.value, couleur.value); await s().enregistrerPreference('classement', r.classement); choix.push(r.id); nomEt.value = ''; dessinerEt(); } catch (err) { SIC.ui.alerte(err.message); }
     } }, 'Créer');
     function dessinerDo() {
       U.vider(zoneDo);
@@ -68,7 +68,7 @@
     }
     var nomDo = h('input', { type: 'text', maxlength: 40, placeholder: 'Nouveau dossier', 'aria-label': 'Nom du nouveau dossier' });
     var btDo = h('button', { class: 'btn petit', type: 'button', onclick: async function () {
-      try { var r = K.creerDossier(lire(), module, nomDo.value, ''); await s().enregistrerPreference('classement', r.classement); dossier = r.id; nomDo.value = ''; dessinerDo(); } catch (err) { alert(err.message); }
+      try { var r = K.creerDossier(lire(), module, nomDo.value, ''); await s().enregistrerPreference('classement', r.classement); dossier = r.id; nomDo.value = ''; dessinerDo(); } catch (err) { SIC.ui.alerte(err.message); }
     } }, 'Créer');
     dessinerEt(); dessinerDo();
     var contenu = h('div', { class: 'pile' }, titre ? h('p', {}, h('b', { text: titre })) : null,
@@ -93,8 +93,8 @@
       if (!c.etiquettes.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune étiquette personnelle.' }));
       c.etiquettes.forEach(function (e) {
         zone.appendChild(h('div', { class: 'barre' }, puce(e), h('div', { class: 'espace' }),
-          h('button', { class: 'btn petit', type: 'button', onclick: async function () { var n = prompt('Nouveau nom de l’étiquette :', e.libelle); if (n === null) return; try { await s().enregistrerPreference('classement', K.modifierEtiquette(lire(), e.id, n)); dessiner(); } catch (err) { alert(err.message); } } }, 'Renommer'),
-          h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (!confirm('Supprimer l’étiquette « ' + e.libelle + ' » ? Elle est retirée des messages et documents (qui ne sont pas supprimés).')) return; await s().enregistrerPreference('classement', K.supprimerEtiquette(lire(), e.id)); dessiner(); } }, 'Supprimer')));
+          h('button', { class: 'btn petit', type: 'button', onclick: async function () { var n = await SIC.ui.demander('Nouveau nom de l’étiquette :', e.libelle); if (n === null) return; try { await s().enregistrerPreference('classement', K.modifierEtiquette(lire(), e.id, n)); dessiner(); } catch (err) { SIC.ui.alerte(err.message); } } }, 'Renommer'),
+          h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (!await SIC.ui.confirmer('Supprimer l’étiquette « ' + e.libelle + ' » ? Elle est retirée des messages et documents (qui ne sont pas supprimés).')) return; await s().enregistrerPreference('classement', K.supprimerEtiquette(lire(), e.id)); dessiner(); } }, 'Supprimer')));
       });
       var com = K.communes(U.config(), services());
       if (com.length) zone.appendChild(h('p', { class: 'muted' }, 'Étiquettes communes (réglées par le cadre ou l’administrateur) : ', com.map(puce)));
@@ -103,14 +103,14 @@
       c.dossiers[module].forEach(function (d) {
         var n = K.contenu(c, module, d.id);
         zone.appendChild(h('div', { class: 'barre' }, h('span', { text: (d.parent ? '— ' : '') + d.libelle + ' (' + n + ')' }), h('div', { class: 'espace' }),
-          !d.parent ? h('button', { class: 'btn petit', type: 'button', onclick: async function () { var x = prompt('Nom du sous-dossier de « ' + d.libelle + ' » :', ''); if (!x) return; try { await s().enregistrerPreference('classement', K.creerDossier(lire(), module, x, d.id).classement); dessiner(); } catch (err) { alert(err.message); } } }, '+ Sous-dossier') : null,
-          h('button', { class: 'btn petit', type: 'button', onclick: async function () { var x = prompt('Nouveau nom du dossier :', d.libelle); if (x === null) return; try { await s().enregistrerPreference('classement', K.renommerDossier(lire(), module, d.id, x)); dessiner(); } catch (err) { alert(err.message); } } }, 'Renommer'),
+          !d.parent ? h('button', { class: 'btn petit', type: 'button', onclick: async function () { var x = await SIC.ui.demander('Nom du sous-dossier de « ' + d.libelle + ' » :', ''); if (!x) return; try { await s().enregistrerPreference('classement', K.creerDossier(lire(), module, x, d.id).classement); dessiner(); } catch (err) { SIC.ui.alerte(err.message); } } }, '+ Sous-dossier') : null,
+          h('button', { class: 'btn petit', type: 'button', onclick: async function () { var x = await SIC.ui.demander('Nouveau nom du dossier :', d.libelle); if (x === null) return; try { await s().enregistrerPreference('classement', K.renommerDossier(lire(), module, d.id, x)); dessiner(); } catch (err) { SIC.ui.alerte(err.message); } } }, 'Renommer'),
           h('button', { class: 'btn petit danger', type: 'button', onclick: async function () {
-            if (n && !confirm('Le dossier « ' + d.libelle + ' » contient ' + n + ' élément(s). Le supprimer ? Son contenu revient à la racine ; rien n’est supprimé.')) return;
+            if (n && !await SIC.ui.confirmer('Le dossier « ' + d.libelle + ' » contient ' + n + ' élément(s). Le supprimer ? Son contenu revient à la racine ; rien n’est supprimé.')) return;
             await s().enregistrerPreference('classement', K.supprimerDossier(lire(), module, d.id)); dessiner();
           } }, 'Supprimer')));
       });
-      zone.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: async function () { var x = prompt('Nom du nouveau dossier :', ''); if (!x) return; try { await s().enregistrerPreference('classement', K.creerDossier(lire(), module, x, '').classement); dessiner(); } catch (err) { alert(err.message); } } }, '+ Dossier')));
+      zone.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: async function () { var x = await SIC.ui.demander('Nom du nouveau dossier :', ''); if (!x) return; try { await s().enregistrerPreference('classement', K.creerDossier(lire(), module, x, '').classement); dessiner(); } catch (err) { SIC.ui.alerte(err.message); } } }, '+ Dossier')));
     }
     dessiner();
     return U.modale('Étiquettes et dossiers', zone, [{ texte: 'Fermer' }]);

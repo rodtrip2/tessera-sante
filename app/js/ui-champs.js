@@ -116,11 +116,11 @@
         h('small', { class: 'muted', text: ' — ' + session().nomAuteur(n.par) + ', ' + U.court(Date.parse(n.le)) + (n.importance !== 'info' ? ' — ' + CH.IMPORTANCES[n.importance] : '') }),
         n.tiers ? h('span', { class: 'badge', title: 'Information d’un tiers : exclue du droit d’accès du patient', text: 'tiers' }) : null,
         o.peut && (n.par === moi || cadre) ? h('button', { class: 'btn petit', type: 'button', 'aria-label': n.tiers ? 'Ne plus marquer comme information d’un tiers' : 'Marquer comme information d’un tiers', title: n.tiers ? 'Ne plus marquer « information d’un tiers »' : 'Marquer « information d’un tiers » (exclue du droit d’accès du patient)', onclick: async function () {
-          try { await o.enregistrerOp({ tiers: { element: n.id, tiers: !n.tiers } }); if (o.apres) o.apres(); } catch (e) { alert(e.message); }
+          try { await o.enregistrerOp({ tiers: { element: n.id, tiers: !n.tiers } }); if (o.apres) o.apres(); } catch (e) { SIC.ui.alerte(e.message); }
         } }, n.tiers ? 'Pas un tiers' : 'Tiers') : null,
         peutRetirer ? h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Retirer la note', title: 'Retirer (la note reste dans l’historique)', onclick: async function () {
-          if (!confirm('Retirer cette note ? Elle reste dans l’historique.')) return;
-          try { await o.enregistrerOp({ retrait: n.id }); if (o.apres) o.apres(); } catch (e) { alert(e.message); }
+          if (!await SIC.ui.confirmer('Retirer cette note ? Elle reste dans l’historique.')) return;
+          try { await o.enregistrerOp({ retrait: n.id }); if (o.apres) o.apres(); } catch (e) { SIC.ui.alerte(e.message); }
         } }, '✕') : null);
     }) : [h('li', { class: 'muted', text: 'Aucune note.' })]);
     if (!o.peut) return h('div', { class: 'notes' }, liste);
@@ -129,7 +129,7 @@
     var tiersN = h('input', { type: 'checkbox', 'aria-label': 'Information d’un tiers' });
     var ajouter = async function () {
       if (!t.value.trim()) return t.focus();
-      try { await o.enregistrerOp({ ajout: { id: idCourt('n'), texte: t.value, importance: imp.value, tiers: tiersN.checked } }); t.value = ''; tiersN.checked = false; if (o.apres) o.apres(); } catch (e) { alert(e.message); }
+      try { await o.enregistrerOp({ ajout: { id: idCourt('n'), texte: t.value, importance: imp.value, tiers: tiersN.checked } }); t.value = ''; tiersN.checked = false; if (o.apres) o.apres(); } catch (e) { SIC.ui.alerte(e.message); }
     };
     t.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); ajouter(); } });
     return h('div', { class: 'notes' }, liste, h('div', { class: 'actions gauche' }, t, imp, h('label', { class: 'case', title: 'Information qui concerne un tiers ou vient d’un tiers : exclue du droit d’accès du patient' }, tiersN, h('span', { text: 'Information d’un tiers' })), h('button', { class: 'btn petit', type: 'button', onclick: ajouter }, 'Ajouter')),
@@ -140,13 +140,13 @@
     var o = options || {}, k = CH.checklist(champ, v);
     var corps = h('ul', { class: 'checklist' }, k.elements.length ? k.elements.map(function (e) {
       var cb = h('input', { type: 'checkbox', checked: e.fait, disabled: !o.peut, onchange: async function () {
-        try { await o.enregistrerOp({ cocher: { element: e.id, fait: cb.checked } }); if (o.apres) o.apres(); } catch (err) { alert(err.message); cb.checked = !cb.checked; }
+        try { await o.enregistrerOp({ cocher: { element: e.id, fait: cb.checked } }); if (o.apres) o.apres(); } catch (err) { SIC.ui.alerte(err.message); cb.checked = !cb.checked; }
       } });
       return h('li', {}, h('label', { class: 'case' }, cb, h('span', { text: e.libelle })),
         e.cocheLe ? h('small', { class: 'muted', text: ' ' + (e.fait ? 'fait' : 'décoché') + ' le ' + U.court(Date.parse(e.cocheLe)) + ' (' + session().nomAuteur(e.cochePar) + ')' }) : null,
         e.libre && o.peut ? h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Retirer l’élément', onclick: async function () {
-          if (!confirm('Retirer « ' + e.libelle + ' » ? Il reste dans l’historique.')) return;
-          try { await o.enregistrerOp({ retrait: e.id }); if (o.apres) o.apres(); } catch (err) { alert(err.message); }
+          if (!await SIC.ui.confirmer('Retirer « ' + e.libelle + ' » ? Il reste dans l’historique.')) return;
+          try { await o.enregistrerOp({ retrait: e.id }); if (o.apres) o.apres(); } catch (err) { SIC.ui.alerte(err.message); }
         } }, '✕') : null);
     }) : [h('li', { class: 'muted', text: 'Aucun élément.' })]);
     var pied = null;
@@ -154,7 +154,7 @@
       var t = h('input', { type: 'text', maxlength: 80, placeholder: 'Élément propre à ce patient', 'aria-label': 'Nouvel élément' });
       pied = h('div', { class: 'actions gauche' }, t, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
         if (!t.value.trim()) return t.focus();
-        try { await o.enregistrerOp({ ajout: { id: idCourt('e'), libelle: t.value } }); t.value = ''; if (o.apres) o.apres(); } catch (e) { alert(e.message); }
+        try { await o.enregistrerOp({ ajout: { id: idCourt('e'), libelle: t.value } }); t.value = ''; if (o.apres) o.apres(); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Ajouter'));
     }
     return h('div', { class: 'checklist-bloc' }, h('small', { class: 'muted', text: k.total ? k.faits + ' fait(s) sur ' + k.total : '' }), corps, pied);
@@ -227,8 +227,8 @@
       var soi = h('select', { 'aria-label': 'L’agent lui-même' }, [['', 'Ne la voit pas'], ['lecture', 'La voit (lecture)'], ['ecriture', 'La voit et la modifie']].map(function (o) { return h('option', { value: o[0], text: o[1], selected: (x.soi || '') === o[0] }); }));
       var ligneSoi = h('label', {}, 'L’agent lui-même (sa propre valeur, dans « Ma fiche » de la fenêtre Équipe)', soi);
       var clin = h('input', { type: 'checkbox', checked: !!x.clinique, disabled: !admin || (existant && x.clinique) });
-      clin.addEventListener('change', function () {
-        if (clin.checked && !confirm('Option « donnée clinique ».\n\nTessera ne doit contenir aucune donnée clinique : elle relève du dossier patient informatisé. Activer cette option engage l’établissement : avis du délégué à la protection des données (DPO, référent RGPD), inscription au registre des traitements, durée de conservation. La donnée aura une clé propre, remise aux seuls rôles réglés, et l’activation est tracée au journal.\n\nActiver ?')) { clin.checked = false; return; }
+      clin.addEventListener('change', async function () {
+        if (clin.checked && !await SIC.ui.confirmer('Option « donnée clinique ».\n\nTessera ne doit contenir aucune donnée clinique : elle relève du dossier patient informatisé. Activer cette option engage l’établissement : avis du délégué à la protection des données (DPO, référent RGPD), inscription au registre des traitements, durée de conservation. La donnée aura une clé propre, remise aux seuls rôles réglés, et l’activation est tracée au journal.\n\nActiver ?')) { clin.checked = false; return; }
         if (clin.checked) { prot.value = 'cle'; prot.disabled = true; } else if (!existant) prot.disabled = false;
       });
       var ligneTiers = h('label', { class: 'case' }, tiers, h('span', { text: 'Information concernant un tiers : exclue des exports remis au patient (droit d’accès)' }));
@@ -274,9 +274,9 @@
       U.modale(existant ? 'Modifier la donnée' : 'Nouvelle donnée', corps, [{ texte: 'Annuler' }, { texte: 'Valider', classe: 'primaire', action: async function () {
         var n = lib.value.trim();
         if (!n) throw new Error('Indiquez le nom de la donnée.');
-        if (ent.value === 'agent' && !existant && !confirm('Donnée d’un agent.\n\n' + CH.AVERTISSEMENT_AGENT + '\n\nCréer cette donnée ?')) return false;
+        if (ent.value === 'agent' && !existant && !await SIC.ui.confirmer('Donnée d’un agent.\n\n' + CH.AVERTISSEMENT_AGENT + '\n\nCréer cette donnée ?')) return false;
         var mots = CH.libelleClinique(n);
-        if (mots.length && !clin.checked && !confirm('« ' + n + ' » évoque une donnée clinique (' + mots.join(', ') + '), qui relève du dossier patient informatisé. Continuer ?')) return false;
+        if (mots.length && !clin.checked && !await SIC.ui.confirmer('« ' + n + ' » évoque une donnée clinique (' + mots.join(', ') + '), qui relève du dossier patient informatisé. Continuer ?')) return false;
         var o = { id: x.id, libelle: n, type: typ.value, entite: ent.value, module: mod.value, services: x.services, saisie: x.saisie, lecture: x.lecture };
         if (ent.value === 'agent' && soi.value) o.soi = soi.value;
         if (choix) { o.choix = choix.value.split(';').map(function (y) { return y.trim(); }).filter(Boolean); if (!o.choix.length) throw new Error('Indiquez les choix proposés.'); }
@@ -321,7 +321,7 @@
       var r = await modaleDefinition(c || { id: '', libelle: '', type: 'texte', entite: o.entite || 'patient', services: [], saisie: [], lecture: [] }, !!c, o.cadre);
       if (!r) return;
       if (i >= 0) liste[i] = r; else { r.id = CH.identifiant(r.libelle, liste.map(function (x) { return x.id; })); liste.push(r); }
-      try { await enregistrerListe(liste); } catch (e) { alert(e.message); }
+      try { await enregistrerListe(liste); } catch (e) { SIC.ui.alerte(e.message); }
     }
     var libR = {}; rolesConfig().forEach(function (r) { libR[r.code] = r.libelle; });
     function libRoles(l) { return l.map(function (c) { return libR[c] || c; }).join(', '); }
@@ -332,7 +332,7 @@
       var actif = h('input', { type: 'checkbox', checked: c.actif !== false, disabled: !peut, 'aria-label': 'Proposée', title: 'Décochée : donnée masquée (ses valeurs restent au journal)', onchange: async function () {
         var l = definitionsBrutes(), x = l.filter(function (y) { return y.id === c.id; })[0];
         if (actif.checked) delete x.actif; else x.actif = false;
-        try { await enregistrerListe(l); U.rendreContenu(); } catch (e) { alert(e.message); actif.checked = !actif.checked; }
+        try { await enregistrerListe(l); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); actif.checked = !actif.checked; }
       } });
       corps.appendChild(h('tr', { class: c.actif === false ? 'ancienne' : '' },
         h('td', {}, h('b', { text: c.libelle }), n.clinique ? h('span', { class: 'badge bad', text: 'clinique' }) : null, n.tiers ? h('span', { class: 'badge', text: 'tiers' }) : null, n.perimetre === 'pole' ? h('span', { class: 'badge', text: 'pôle du patient' }) : null),
@@ -363,7 +363,7 @@
   function modaleReglages(options) {
     var o = options || {}, cfg = U.config(), admin = roles().indexOf('ADMIN') >= 0;
     var portees = (admin ? [{ code: '*', libelle: 'Établissement (tous les services)' }] : []).concat(U.tousServices().filter(function (s) { return admin || (session().utilisateur.services || []).indexOf(s.code) >= 0; }).map(function (s) { return { code: s.code, libelle: s.libelle }; }));
-    if (!portees.length) return alert('Réglage réservé au cadre et à l’administrateur.');
+    if (!portees.length) return SIC.ui.alerte('Réglage réservé au cadre et à l’administrateur.');
     var tous = JSON.parse(JSON.stringify(cfg.reglagesDonnees || {})), selPortee = h('select', {}, portees.map(function (p) { return h('option', { value: p.code, text: p.libelle }); }));
     if (!admin && U.App.service && U.App.service !== '*') selPortee.value = U.App.service;
     var zone = h('div', { class: 'pile' }), courant;
@@ -530,7 +530,7 @@
             if (JSON.stringify(norm === null ? undefined : norm) !== JSON.stringify(x.avant)) { await enregistrer(x.c, entite, id, { valeur: norm }); n++; }
           }
           U.toast(n ? n + ' donnée(s) enregistrée(s).' : 'Aucun changement.'); dessiner();
-        } catch (e) { alert(e.message); }
+        } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer les données')));
     }
     dessiner();

@@ -480,7 +480,7 @@
     var hist = p.modes.length ? h('div', { class: 'table-wrap' }, h('table', {}, h('tbody', {}, p.modes.slice().reverse().map(function (x) {
       return h('tr', {}, h('td', { class: 'nowrap', text: U.date(x.date) }), h('td', {}, h('b', { text: x.mode })), h('td', { text: U.App.session.nomAuteur(x.by) }),
         h('td', { class: 'actions-ligne' }, peutAnnuler && p.modes.length > 1 ? h('button', { class: 'btn petit', onclick: async function () {
-          var motif = prompt('Motif de la suppression de ce changement :');
+          var motif = await SIC.ui.demander('Motif de la suppression de ce changement :');
           if (!motif) return;
           await U.App.session.enregistrer('ANNULATION', { cible: x.evt, motif: motif });
           U.toast('Changement annulé.');

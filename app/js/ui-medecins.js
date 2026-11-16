@@ -80,7 +80,7 @@
     var confirmation = m && m.aConfirmer, creation = m && m.nouveau;
     if (creation) m = null;
     if (m && !confirmation) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
-      if (!confirm('Supprimer « ' + m.nom + T.t(' » de la liste ? Les fiches qui le citent gardent son nom. Pour un médecin qui part, décochez plutôt « En activité » (il reste dans l’historique).'))) return false;
+      if (!await SIC.ui.confirmer('Supprimer « ' + m.nom + T.t(' » de la liste ? Les fiches qui le citent gardent son nom. Pour un médecin qui part, décochez plutôt « En activité » (il reste dans l’historique).'))) return false;
       await enregistrerListe(MED.liste(U.config()).filter(function (y) { return y.id !== m.id; }));
       if (apres) apres();
     } });
@@ -207,8 +207,8 @@
       h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { modaleMedecin(m, apres); } }, 'Confirmer…'),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleReunir(m.nom, apres); } }, 'Réunir avec…'),
       h('button', { class: 'btn petit danger', type: 'button', onclick: async function () {
-        if (!confirm('Refuser la fiche « ' + m.nom + ' » ? Le nom reste écrit dans les saisies déjà faites, marqué « hors liste ».')) return;
-        try { await refuser(m.nom); U.toast('Fiche refusée.'); if (apres) apres(); } catch (e) { alert(e.message); }
+        if (!await SIC.ui.confirmer('Refuser la fiche « ' + m.nom + ' » ? Le nom reste écrit dans les saisies déjà faites, marqué « hors liste ».')) return;
+        try { await refuser(m.nom); U.toast('Fiche refusée.'); if (apres) apres(); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Refuser'));
   }
   /** Bandeau affiché dans toutes les fenêtres des gestionnaires de la liste tant que des fiches sont à confirmer. */
@@ -237,7 +237,7 @@
             h('td', { class: 'actions-ligne' },
               h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleMedecin({ nouveau: true, nom: x.nom, fonction: MED.FONCTION_DEFAUT, services: [], statut: 'titulaire', debut: '', fin: '', compte: null, actif: true, anciensNoms: [] }); } }, 'Créer la fiche'),
               h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleReunir(x.nom, U.rendreContenu); } }, 'Rattacher à…'),
-              h('button', { class: 'btn petit', type: 'button', onclick: async function () { try { await enregistrerBrut(function (v) { v.refuses.push(x.nom); return v; }); U.toast('Laissé hors liste.'); } catch (e) { alert(e.message); } } }, 'Laisser tel quel')));
+              h('button', { class: 'btn petit', type: 'button', onclick: async function () { try { await enregistrerBrut(function (v) { v.refuses.push(x.nom); return v; }); U.toast('Laissé hors liste.'); } catch (e) { SIC.ui.alerte(e.message); } } }, 'Laisser tel quel')));
         })))) : h('p', { class: 'muted', text: 'Tous les noms saisis sont dans la liste.' }));
   }
 

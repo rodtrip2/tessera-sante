@@ -71,7 +71,7 @@
       { texte: 'Importer', classe: 'primaire', action: async function () {
         var r = M.reglagesAImporter(a, choisis(), cfg, ctx);
         if (!r.changements.length) throw new Error('Aucun réglage à modifier : cochez au moins une rubrique.');
-        if (!confirm('Modifier ' + r.changements.length + ' réglage(s) de l’établissement à partir de ce fichier ?')) return false;
+        if (!await SIC.ui.confirmer('Modifier ' + r.changements.length + ' réglage(s) de l’établissement à partir de ce fichier ?')) return false;
         await s.enregistrerLot(r.changements.map(function (c) { return { type: 'CONFIG', data: { cle: c[0], valeur: c[1] } }; }),
           { libelle: 'Import des réglages « ' + fichier.nom + ' »' + (src.etablissement ? ' (' + src.etablissement + ')' : '') + ' : ' + r.changements.map(function (c) { return U.libConfig(c[0]); }).join(', ') });
         if (r.changements.some(function (c) { return c[0] === 'affichage'; })) U.retenirAccueil();

@@ -95,7 +95,7 @@
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         var k = choisi();
         var valeur = V.changer(cfg(), f.code, { etat: k, date: date.value, auteur: auteur.value, reference: reference.value, dpoInforme: dpo.value });
-        if (k === 'desactive' && e.etat !== 'desactive' && !confirm('Désactiver « ' + f.libelle + ' » ?\n\nSes écrans seront masqués pour tous. Les données déjà saisies sont conservées, jamais supprimées.')) return false;
+        if (k === 'desactive' && e.etat !== 'desactive' && !await SIC.ui.confirmer('Désactiver « ' + f.libelle + ' » ?\n\nSes écrans seront masqués pour tous. Les données déjà saisies sont conservées, jamais supprimées.')) return false;
         if (JSON.stringify(valeur) === JSON.stringify(V.normaliser(cfg().validations))) { U.toast('Aucune modification.'); return; }
         await s().enregistrer('CONFIG', { cle: 'validations', valeur: valeur });
         U.toast('État enregistré : ' + V.ETATS[k].toLowerCase() + '.');

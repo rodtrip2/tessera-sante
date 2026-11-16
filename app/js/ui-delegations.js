@@ -91,9 +91,9 @@
       } }], { large: true });
   }
   async function annulerPret(d) {
-    if (!confirm('Mettre fin au prêt de ' + nom(d.de) + ' à ' + nom(d.a) + ' ?')) return;
+    if (!await SIC.ui.confirmer('Mettre fin au prêt de ' + nom(d.de) + ' à ' + nom(d.a) + ' ?')) return;
     var l = pretsBruts().map(function (x) { return x.id === d.id ? Object.assign({}, x, { annule: true, annulePar: moi().id }) : x; });
-    try { await enregistrerPrets(l); U.toast('Prêt terminé : les clés seront retirées par la session de l’administrateur.'); U.rendreContenu(); } catch (e) { alert(e.message); }
+    try { await enregistrerPrets(l); U.toast('Prêt terminé : les clés seront retirées par la session de l’administrateur.'); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); }
   }
   function tablePrets(l) {
     if (!l.length) return h('p', { class: 'muted', text: 'Aucun prêt de droits.' });
@@ -176,13 +176,13 @@
     U.modale('Intervenant : ' + c.nom, h('div', { class: 'pile' }, h('label', {}, 'Dernier jour d’accès', fin),
       estAdmin() ? null : h('p', { class: 'muted', text: 'Appliqué quand l’administrateur aura confirmé la demande, à sa prochaine connexion.' })),
       [{ texte: 'Annuler' },
-        { texte: 'Mettre fin au compte', classe: 'danger', action: async function () { if (!confirm('Mettre fin au compte de ' + c.nom + ' ?')) return false; await s().demanderModificationIntervenant(c.id, { actif: false }); U.toast('Fin du compte demandée.'); } },
+        { texte: 'Mettre fin au compte', classe: 'danger', action: async function () { if (!await SIC.ui.confirmer('Mettre fin au compte de ' + c.nom + ' ?')) return false; await s().demanderModificationIntervenant(c.id, { actif: false }); U.toast('Fin du compte demandée.'); } },
         { texte: 'Prolonger', classe: 'primaire', action: async function () { await s().demanderModificationIntervenant(c.id, { finValidite: fin.value }); U.toast('Prolongation enregistrée.'); } }]);
   }
   async function annulerDemande(d) {
     var v = JSON.parse(JSON.stringify(cfg().comptesDemandes || { demandes: [] }));
     v.demandes = v.demandes.map(function (x) { return x.id === d.id ? Object.assign({}, x, { etat: 'annulee' }) : x; });
-    try { await s().enregistrer('CONFIG', { cle: 'comptesDemandes', valeur: v }); U.rendreContenu(); } catch (e) { alert(e.message); }
+    try { await s().enregistrer('CONFIG', { cle: 'comptesDemandes', valeur: v }); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); }
   }
   var LIB_DEMANDE = { attente: 'en attente de l’administrateur', faite: 'faite', annulee: 'annulée', refusee: 'refusée' };
   function panneauIntervenants() {
@@ -207,7 +207,7 @@
     return h('section', { class: 'panneau pile' }, h('h2', { text: 'Charte de confidentialité des intervenants extérieurs' }),
       h('p', { class: 'muted', text: 'Texte rédigé par l’établissement, présenté à chaque intervenant à sa première connexion ; son acceptation est datée et inscrite au journal. Une nouvelle version enregistrée est de nouveau présentée à tous. Vide : aucune charte.' + (c.version ? ' Version actuelle : ' + c.version + '.' : '') }),
       zone, h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
-        try { await U.enregistrerConfig([['charteIntervenants', { texte: zone.value.trim(), version: zone.value.trim() ? c.version + 1 : 0 }]]); U.toast('Charte enregistrée.'); } catch (e) { alert(e.message); }
+        try { await U.enregistrerConfig([['charteIntervenants', { texte: zone.value.trim(), version: zone.value.trim() ? c.version + 1 : 0 }]]); U.toast('Charte enregistrée.'); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer la charte')));
   }
   /** Charte à accepter (intervenant) : panneau qui remplace tout affichage tant qu'elle n'est pas acceptée. */
@@ -220,7 +220,7 @@
       h('label', { class: 'case' }, cb, h('span', { text: 'J’ai lu la charte et je m’engage à la respecter.' })),
       h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
         if (!cb.checked) return U.toast('Cochez la case pour accepter la charte.');
-        try { await s().enregistrerPreference('charte', { version: c.version, le: new Date().toISOString() }); await s().tracer('CHARTE', { version: c.version, libelle: 'charte de confidentialité acceptée' }); U.rendreContenu(); } catch (e) { alert(e.message); }
+        try { await s().enregistrerPreference('charte', { version: c.version, le: new Date().toISOString() }); await s().tracer('CHARTE', { version: c.version, libelle: 'charte de confidentialité acceptée' }); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'J’accepte')));
   }
 

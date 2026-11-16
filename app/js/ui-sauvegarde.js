@@ -115,7 +115,7 @@
             var b = ev.currentTarget; erreur(null);
             try {
               var copie = await lireFichierJSON(fichier);
-              if (!confirm('Remettre depuis la copie du ' + (copie.creeLe ? U.date(Date.parse(copie.creeLe)) : '?') + ' les fichiers absents ou illisibles du dossier ? Les fichiers présents et lisibles ne seront pas touchés.')) return;
+              if (!await SIC.ui.confirmer('Remettre depuis la copie du ' + (copie.creeLe ? U.date(Date.parse(copie.creeLe)) : '?') + ' les fichiers absents ou illisibles du dossier ? Les fichiers présents et lisibles ne seront pas touchés.')) return;
               b.disabled = true;
               var rap = await s.reparerDepuisCopie(copie);
               U.toast(rap.remis.length + ' fichier(s) remis' + (rap.invalides.length ? ', ' + rap.invalides.length + ' refusé(s) (ne s’ouvrent pas avec la clé actuelle)' : '') + '.');
@@ -130,7 +130,7 @@
           out.appendChild(h('p', { class: 'muted', text: 'Les ' + r.fichiersIllisibles.length + ' fichier(s) illisible(s) sont déplacés dans le dossier « quarantaine » de l’outil, sans être supprimés : le service informatique peut les examiner ou les restaurer. À faire après avoir tenté la réparation. Une saisie mise en quarantaine reste à restaurer ; si elle ne peut pas l’être, prenez-en acte.' }));
           out.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: async function () {
             erreur(null);
-            if (!confirm('Déplacer ' + r.fichiersIllisibles.length + ' fichier(s) illisible(s) dans le dossier « quarantaine » ? L’opération est tracée au journal.')) return;
+            if (!await SIC.ui.confirmer('Déplacer ' + r.fichiersIllisibles.length + ' fichier(s) illisible(s) dans le dossier « quarantaine » ? L’opération est tracée au journal.')) return;
             try { var f = await s.mettreEnQuarantaine(r.fichiersIllisibles.map(function (x) { return x.nom; })); U.toast(f.length + ' fichier(s) mis en quarantaine.'); rafraichir(); }
             catch (e) { erreur(e); }
           } }, 'Mettre en quarantaine')));
@@ -143,7 +143,7 @@
         out.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: async function () {
           erreur(null);
           if (!motif.value.trim()) return erreur(new Error('Le motif est obligatoire.'));
-          if (!confirm('Prendre acte de ' + lignes.length + ' anomalie(s) ? L’alerte sera close pour ces fichiers ; une nouvelle anomalie déclenchera toujours une alerte.')) return;
+          if (!await SIC.ui.confirmer('Prendre acte de ' + lignes.length + ' anomalie(s) ? L’alerte sera close pour ces fichiers ; une nouvelle anomalie déclenchera toujours une alerte.')) return;
           try { await s.prendreActeIntegrite(motif.value); U.toast('Prise d’acte enregistrée au journal.'); rafraichir(); }
           catch (e) { erreur(e); }
         } }, 'Prendre acte')));
@@ -210,7 +210,7 @@
       h('p', { class: 'muted', text: 'À enregistrer sur une clé USB ou un CD conservé au coffre avec l’enveloppe du code de secours. Si le fichier coffre.json était perdu avec ses sauvegardes, cette copie et le code de secours suffisent à rouvrir toutes les données (les mots de passe des agents seront alors à réinitialiser). À refaire après chaque renouvellement du code de secours.' }),
       h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: async function () {
         try { var c = await s.copieSousScelle(); telechargerJSON('coffre-sous-scelle_' + jourISO() + '.json', c); U.toast('Copie sous scellé téléchargée.'); remplir(); }
-        catch (e) { alert(e.message); }
+        catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Télécharger la copie sous scellé')),
       h('h3', { text: 'Copie de sauvegarde complète' }),
       h('p', { class: 'muted', text: 'Un seul fichier réunissant le coffre et toutes les saisies (chiffrées), à enregistrer sur un autre support que le partage (autre serveur, support hors ligne). Il protège contre une sauvegarde défaillante ou un rançongiciel. Restauration : dans un dossier vide, depuis l’écran d’initialisation.' }),
@@ -218,7 +218,7 @@
         h('button', { class: 'btn', type: 'button', onclick: async function (ev) {
           var b = ev.currentTarget; b.disabled = true;
           try { var c = await s.copieComplete(); telechargerJSON('sauvegarde-suivi-isocont_' + jourISO() + '.json', c); U.toast('Copie de sauvegarde téléchargée (' + c.fichiers.length + ' fichiers).'); remplir(); }
-          catch (e) { alert(e.message); } finally { b.disabled = false; }
+          catch (e) { SIC.ui.alerte(e.message); } finally { b.disabled = false; }
         } }, 'Télécharger une copie de sauvegarde complète'),
         h('label', { class: 'en-ligne' }, 'Rappel au tableau de bord', rappel),
         h('button', { class: 'btn petit', type: 'button', onclick: async function () { await U.enregistrerConfig([['sauvegarde', { rappelJours: +rappel.value }]]); remplir(); } }, 'Enregistrer le rappel')),

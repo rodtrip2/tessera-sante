@@ -114,7 +114,7 @@
    * l'agent d'arbitrer ou d'abandonner. `o` : { salle, service, titre, genre, periodes: [{ ref, debut, fin }], exclure }.
    * Retourne les demandes à enregistrer après la saisie (`envoyer`), ou lève une erreur si l'agent renonce.
    */
-  function verifier(o) {
+  async function verifier(o) {
     if (!o.salle || !o.periodes.length) return [];
     var x = st().salles[o.salle], gestion = S.gere(x, compte()), demandes = [], conflitsTxt = [];
     var debut = Math.min.apply(null, o.periodes.map(function (p) { return p.debut; })), fin = Math.max.apply(null, o.periodes.map(function (p) { return p.fin; }));
@@ -129,7 +129,7 @@
     var motif = '';
     if (conflitsTxt.length) {
       var lib = S.libres(st(), occ, o.service, o.periodes[0].debut, o.periodes[0].fin, null, o.exclure).map(function (y) { return y.nom; });
-      motif = prompt(nomSalle(o.salle) + ' est déjà occupée :\n' + conflitsTxt.slice(0, 6).join('\n') + (conflitsTxt.length > 6 ? '\n…' : '') +
+      motif = await SIC.ui.demander(nomSalle(o.salle) + ' est déjà occupée :\n' + conflitsTxt.slice(0, 6).join('\n') + (conflitsTxt.length > 6 ? '\n…' : '') +
         (lib.length ? '\n\nSalles libres : ' + lib.join(', ') + '.' : '') + '\n\nPour demander la salle malgré le conflit (le gestionnaire de la salle arbitrera), indiquez le motif. Sinon, annulez et choisissez une autre salle.');
       if (motif === null || !motif.trim()) throw new Error('Choisissez une autre salle, ou indiquez le motif de la demande.');
     }
@@ -202,7 +202,7 @@
     if (r && (r.par === c.id || S.gere(st().salles[r.salle], compte())) && !s().apercu) {
       var j = o.ref.split('|')[2], serie = S.repetition(r.repetition).type !== 'aucune';
       if (serie) actions.push({ texte: 'Retirer ce jour seulement', action: async function () { await s().enregistrer('SALLE_RESERVATION', { id: r.id, salle: r.salle, sauf: (r.sauf || []).concat([j]) }); U.toast('Date retirée de la série.'); } });
-      actions.push({ texte: serie ? 'Annuler toute la série' : 'Annuler la réservation', classe: 'danger', action: async function () { var m = prompt('Motif de l’annulation (facultatif) :', ''); if (m === null) return false; await s().enregistrer('SALLE_RESERVATION', { id: r.id, salle: r.salle, annulee: true, motifAnnulation: m.trim() }); U.toast('Réservation annulée.'); } });
+      actions.push({ texte: serie ? 'Annuler toute la série' : 'Annuler la réservation', classe: 'danger', action: async function () { var m = await SIC.ui.demander('Motif de l’annulation (facultatif) :', ''); if (m === null) return false; await s().enregistrer('SALLE_RESERVATION', { id: r.id, salle: r.salle, annulee: true, motifAnnulation: m.trim() }); U.toast('Réservation annulée.'); } });
     }
     U.modale(o.titre, h('div', { class: 'pile' },
       h('p', {}, h('b', { text: nomSalle(o.salle) }), ' — ' + jourLong(S.jourISO(o.debut)) + ', ' + S.hm(o.debut) + ' – ' + S.hm(o.fin)),
@@ -233,7 +233,7 @@
       })));
   }
   function avisVus() { var p = s().preferences || {}; return Array.isArray(p.avisSallesVus) ? p.avisSallesVus : []; }
-  async function marquerVus(ids) { try { await s().enregistrerPreference('avisSallesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
+  async function marquerVus(ids) { try { await s().enregistrerPreference('avisSallesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); } }
 
   // ------------------------------------------------------------ Onglet Journée
   function vueJournee() {
@@ -301,13 +301,13 @@
         res.length ? h('ul', { class: 'liste-simple' }, res.map(function (r) {
           var rp = S.repetition(r.repetition);
           return h('li', {}, h('b', { text: nomSalle(r.salle) }), ' — ' + r.titre + ' — ' + (rp.type === 'aucune' ? jourFr(r.jour) : 'chaque ' + rp.jours.map(function (d) { return JOURS[d]; }).join(', ') + ' depuis le ' + jourFr(r.jour)) + ', ' + r.de + '–' + r.a + ' ',
-            h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (!confirm('Annuler cette réservation ?')) return; try { await s().enregistrer('SALLE_RESERVATION', { id: r.id, salle: r.salle, annulee: true }); U.toast('Réservation annulée.'); } catch (e) { alert(e.message); } } }, 'Annuler'));
+            h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (!await SIC.ui.confirmer('Annuler cette réservation ?')) return; try { await s().enregistrer('SALLE_RESERVATION', { id: r.id, salle: r.salle, annulee: true }); U.toast('Réservation annulée.'); } catch (e) { SIC.ui.alerte(e.message); } } }, 'Annuler'));
         })) : h('p', { class: 'muted', text: 'Aucune réservation simple. Les salles de vos événements de l’agenda se réservent depuis l’événement.' })),
       h('section', { class: 'panneau' }, h('h2', { text: 'Mes demandes' }),
         dem.length ? h('ul', { class: 'liste-simple' }, dem.map(function (d) {
           var t = STATUT[d.statut] || ['', d.statut];
           return h('li', {}, h('span', { class: 'badge ' + t[0], text: t[1] }), ' ', h('b', { text: nomSalle(d.salle) }), ' — ' + d.titre + ' — ' + jourFr(S.jourISO(d.debut)) + ' ' + S.hm(d.debut) + '–' + S.hm(d.fin) + (d.decision && d.decision.message ? ' — ' + d.decision.message : '') + ' ',
-            d.statut === 'ouverte' && !s().apercu ? h('button', { class: 'btn petit', type: 'button', onclick: async function () { try { await s().enregistrer('SALLE_DECISION', { demande: d.id, retirer: true }); U.toast('Demande retirée.'); } catch (e) { alert(e.message); } } }, 'Retirer') : null);
+            d.statut === 'ouverte' && !s().apercu ? h('button', { class: 'btn petit', type: 'button', onclick: async function () { try { await s().enregistrer('SALLE_DECISION', { demande: d.id, retirer: true }); U.toast('Demande retirée.'); } catch (e) { SIC.ui.alerte(e.message); } } }, 'Retirer') : null);
         })) : h('p', { class: 'muted', text: 'Aucune demande en cours.' })));
   }
 
@@ -355,7 +355,7 @@
   function modaleReserver(init) {
     init = init || {};
     var sv = service(), salles = S.sallesDuService(st(), sv);
-    if (!salles.length) { alert('Aucune salle pour ce service.'); return; }
+    if (!salles.length) { SIC.ui.alerte('Aucune salle pour ce service.'); return; }
     var agenda = h('input', { type: 'radio', name: 'sb-type', checked: !!(U.agenda && s().ouvert('agenda') && s().peut('RDV')), disabled: !(U.agenda && s().ouvert('agenda') && s().peut('RDV')) });
     var simple = h('input', { type: 'radio', name: 'sb-type', checked: !agenda.checked });
     var sel = h('select', { 'aria-label': 'Salle' }, salles.map(function (x) { return h('option', { value: x.id, text: x.nom + (x.capacite ? ' (' + x.capacite + ' places)' : ''), selected: x.id === init.salle }); }));
@@ -390,7 +390,7 @@
       // Dates des 8 prochaines semaines d'une série : conflits vérifiés date par date
       var periodes = [], j = jour.value;
       for (var n = 0; n < 60 && periodes.length < 40; n++, j = S.plusJours(j, 1)) { if (S.couvre(d, j)) periodes.push({ ref: 'salles|' + id + '|' + j, debut: S.instant(j, d.de), fin: S.instant(j, d.a) }); if (rp.type === 'aucune') break; }
-      var x = st().salles[d.salle], dem = verifier({ salle: d.salle, service: sv, titre: d.titre, genre: 'simple', periodes: periodes });
+      var x = st().salles[d.salle], dem = await verifier({ salle: d.salle, service: sv, titre: d.titre, genre: 'simple', periodes: periodes });
       if (x.validation && !S.gere(x, compte())) { await envoyer(dem); return true; }   // salle à valider : la demande tient lieu de réservation
       var conflitsSeuls = dem.filter(function (y) { return !y.validation; });
       if (conflitsSeuls.length && rp.type === 'aucune') { await envoyer(conflitsSeuls); return true; }
@@ -451,7 +451,7 @@
       h('label', {}, 'Équipement', eq), h('label', { class: 'case' }, acc, h('span', { text: 'Accessible aux personnes à mobilité réduite' })),
       h('label', { class: 'case' }, val, h('span', { text: 'Réservation soumise à la validation du cadre' })), h('label', { class: 'case' }, actif, h('span', { text: 'En service' })),
       !nouveau && U.documents ? U.documents.section('salles', 'salle', x.id, 'Salle ou bureau : ' + x.nom, x.service) : null),
-    [{ texte: 'Annuler' }, nouveau ? null : { texte: 'Retirer la salle', classe: 'danger', action: async function () { if (!confirm('Retirer cette salle ? Ses réservations passées restent au journal.')) return false; await s().enregistrer('SALLE', { id: x.id, supprime: true }); } },
+    [{ texte: 'Annuler' }, nouveau ? null : { texte: 'Retirer la salle', classe: 'danger', action: async function () { if (!await SIC.ui.confirmer('Retirer cette salle ? Ses réservations passées restent au journal.')) return false; await s().enregistrer('SALLE', { id: x.id, supprime: true }); } },
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         await s().enregistrer('SALLE', { id: x.id || 'SA' + C.hex(C.aleatoire(5)), nom: nom.value.trim(), type: type.value, capacite: cap.value ? +cap.value : '', equipement: eq.value.trim(), accessible: acc.checked, validation: val.checked, actif: actif.checked, service: proprio.value, services: [] });
         U.toast('Salle enregistrée.');
@@ -477,7 +477,7 @@
       h('label', { class: 'en-ligne' }, 'Réglages pour', sel), h('div', { class: 'grille-2' }, champs.map(function (x) { return x.el; })),
       h('label', {}, 'Salle occupée par un planning que l’agent ne peut pas consulter : afficher le nom de la personne qui a réservé (désactivé par défaut)', nomOcc),
       h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
-        try { var v = {}; champs.forEach(function (x) { if (x.i.value) v[x.cle] = x.i.value; }); if (nomOcc.value === 'oui') v.nomOccupe = true; else if (nomOcc.value === 'non' && vue.niveau !== '*') v.nomOccupe = false; if (Object.keys(v).length) tout[vue.niveau] = v; else delete tout[vue.niveau]; await U.enregistrerConfig([['salles', tout]]); U.toast('Réglages enregistrés.'); } catch (e) { alert(e.message); }
+        try { var v = {}; champs.forEach(function (x) { if (x.i.value) v[x.cle] = x.i.value; }); if (nomOcc.value === 'oui') v.nomOccupe = true; else if (nomOcc.value === 'non' && vue.niveau !== '*') v.nomOccupe = false; if (Object.keys(v).length) tout[vue.niveau] = v; else delete tout[vue.niveau]; await U.enregistrerConfig([['salles', tout]]); U.toast('Réglages enregistrés.'); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer')));
   }
 

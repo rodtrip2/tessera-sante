@@ -179,21 +179,21 @@
     var titre = medecin + ' — ' + jourFr(c.jour) + ' ' + S.MOMENTS[c.moment].toLowerCase();
     var dlg;
     function fermer() { if (dlg) { dlg.close(); dlg.remove(); } U.rendreContenu(); }
-    async function agir(f, msg) { try { await f(); U.toast(msg); fermer(); } catch (e) { alert(e.message); } }
+    async function agir(f, msg) { try { await f(); U.toast(msg); fermer(); } catch (e) { SIC.ui.alerte(e.message); } }
     function ligne(p) {
       var serie = p.repetition !== 'date', btns;
       if (serie) btns = [
         bouton('Modifier ce jour seulement', function () { fermer(); setTimeout(function () { modalePresence(null, { jourSeul: { serie: p, jour: c.jour } }); }, 0); }, 'petit primaire'),
-        bouton('Retirer ce jour seulement', function () { if (confirm('Retirer le ' + jourFr(c.jour) + ' de la série ? Les autres jours ne changent pas.')) agir(function () { return ecarter(p, c.jour); }, 'Jour retiré de la série.'); }, 'petit'),
+        bouton('Retirer ce jour seulement', async function () { if (await SIC.ui.confirmer('Retirer le ' + jourFr(c.jour) + ' de la série ? Les autres jours ne changent pas.')) agir(function () { return ecarter(p, c.jour); }, 'Jour retiré de la série.'); }, 'petit'),
         bouton('Modifier toute la série', function () { fermer(); setTimeout(function () { modalePresence(p); }, 0); }, 'petit'),
-        bouton('Arrêter la série à partir de ce jour', function () {
-          if (!confirm('Arrêter la série à partir du ' + jourFr(c.jour) + ' ? Les jours précédents sont gardés.')) return;
+        bouton('Arrêter la série à partir de ce jour', async function () {
+          if (!await SIC.ui.confirmer('Arrêter la série à partir du ' + jourFr(c.jour) + ' ? Les jours précédents sont gardés.')) return;
           var veille = S.jourISO(S.plusJours(S.depuisISO(c.jour), -1));
           agir(function () { return veille < p.debut ? U.App.session.enregistrer('PRESENCE', { id: p.id, supprime: true, service: p.service || serviceCourant() }) : U.App.session.enregistrer('PRESENCE', { id: p.id, fin: veille, service: p.service || serviceCourant() }); }, 'Série arrêtée.');
         }, 'petit danger')];
       else btns = [
         bouton('Modifier', function () { fermer(); setTimeout(function () { modalePresence(p); }, 0); }, 'petit'),
-        bouton('Retirer', function () { if (confirm('Retirer : ' + libPresence(p) + ' ?')) agir(function () { return U.App.session.enregistrer('PRESENCE', { id: p.id, supprime: true, service: p.service || serviceCourant() }); }, 'Retiré.'); }, 'petit danger')];
+        bouton('Retirer', async function () { if (await SIC.ui.confirmer('Retirer : ' + libPresence(p) + ' ?')) agir(function () { return U.App.session.enregistrer('PRESENCE', { id: p.id, supprime: true, service: p.service || serviceCourant() }); }, 'Retiré.'); }, 'petit danger')];
       return h('div', { class: 'agenda-point pile' }, h('span', {}, h('b', { text: serie ? 'Série : ' : 'Ce jour : ' }), libPresence(p) + (p.remplace ? ' (remplace un jour d’une série)' : '')), h('div', { class: 'actions gauche' }, btns));
     }
     var corps = h('div', { class: 'pile' },
@@ -270,7 +270,7 @@
     dessiner();
     var boutons = [{ texte: 'Annuler' }];
     if (p) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
-      if (!confirm('Supprimer : ' + S.medecinDe(cfg(), p) + ' — ' + libPresence(p) + ' ?')) return false;
+      if (!await SIC.ui.confirmer('Supprimer : ' + S.medecinDe(cfg(), p) + ' — ' + libPresence(p) + ' ?')) return false;
       await U.App.session.enregistrer('PRESENCE', { id: p.id, supprime: true, service: p.service || serviceCourant() });
       U.toast('Supprimé.');
     } });
@@ -433,8 +433,8 @@
       return h('div', { class: 'agenda-point' }, h('span', { text: dateFr(x.date) + ' ' + x.date.slice(0, 4) + ' — ' + S.QUOI[x.quoi] + (x.medecin ? ' — ' + x.medecin : '') }),
         h('small', { class: 'muted', text: 'saisi par ' + U.App.session.nomAuteur(x.par) }),
         peut('SUIVI') ? bouton('Annuler', async function () {
-          if (!confirm('Annuler cette saisie ?')) return;
-          try { await U.App.session.enregistrer('SUIVI', { id: x.id, annule: true, service: x.service }); U.toast('Saisie annulée.'); var d = document.querySelector('dialog[open]'); if (d) d.dispatchEvent(new Event('cancel')); } catch (e) { alert(e.message); }
+          if (!await SIC.ui.confirmer('Annuler cette saisie ?')) return;
+          try { await U.App.session.enregistrer('SUIVI', { id: x.id, annule: true, service: x.service }); U.toast('Saisie annulée.'); var d = document.querySelector('dialog[open]'); if (d) d.dispatchEvent(new Event('cancel')); } catch (e) { SIC.ui.alerte(e.message); }
         }, 'petit danger') : null);
     }) : h('p', { class: 'muted', text: 'Aucune saisie.' })), [{ texte: 'Fermer' }], { large: true });
   }
@@ -559,7 +559,7 @@
       { texte: 'Ajouter', classe: 'primaire', action: async function () {
         if (!choix) throw new Error('Choisissez un patient.');
         var p = fiches()[choix];
-        if (p[champ] && nomMed(p[champ], p[champ + 'Id']) !== nom && !confirm('Changer de responsabilité de ' + lib + ' ?\n\n' + identite(p) + ' a déjà ' + nomMed(p[champ], p[champ + 'Id']) + ' comme médecin de ' + lib + '.\nLe remplacer par ' + nom + ' ?\n\n(Le changement est daté et inscrit au journal ; il apparaît dans la fiche patient.)')) return false;
+        if (p[champ] && nomMed(p[champ], p[champ + 'Id']) !== nom && !await SIC.ui.confirmer('Changer de responsabilité de ' + lib + ' ?\n\n' + identite(p) + ' a déjà ' + nomMed(p[champ], p[champ + 'Id']) + ' comme médecin de ' + lib + '.\nLe remplacer par ' + nom + ' ?\n\n(Le changement est daté et inscrit au journal ; il apparaît dans la fiche patient.)')) return false;
         var d = { patientId: p.id }; d[champ] = nom; d[champ + 'Id'] = idMed(nom) || '';
         await U.App.session.enregistrer('PATIENT', d);
         U.toast(nom + ' : médecin de ' + lib + ' de ' + identite(p) + '.');

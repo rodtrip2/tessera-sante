@@ -57,7 +57,7 @@
   // ------------------------------------------------------------ Informations de l'agent (décisions)
   function avisVus() { var p = s().preferences || {}; return Array.isArray(p.avisCongesVus) ? p.avisCongesVus : []; }
   function mesAvis() { try { return C.avisPour(st(), moi().id, avisVus()); } catch (e) { return []; } }
-  async function marquerVus(ids) { try { await s().enregistrerPreference('avisCongesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
+  async function marquerVus(ids) { try { await s().enregistrerPreference('avisCongesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); } }
   var GENRES = { valide: 'a validé', refuse: 'a refusé', annule: 'a annulé' };
   function bandeauAvis() {
     var av = mesAvis();
@@ -183,17 +183,17 @@
       h('label', {}, 'Commentaire pour le validateur', com), zone, alerte(),
       o().souhaits ? h('small', { class: 'muted', text: 'Un souhait reste visible de vous et du validateur seulement, sans demande envoyée ; il se transforme en demande quand vous le décidez.' }) : null), boutons);
   }
-  async function envoyer(c) { try { await s().enregistrer('CONGE', { id: c.id, statut: 'demande' }); U.toast('Demande envoyée au validateur.'); } catch (e) { alert(e.message); } }
-  async function decider(c, decision, motif) { try { await s().enregistrer('CONGE_DECISION', { conge: c.id, decision: decision, motif: motif || '', nom: moi().nom }); U.toast(decision === 'valide' ? 'Congé validé.' : 'Demande refusée.'); } catch (e) { alert(e.message); } }
+  async function envoyer(c) { try { await s().enregistrer('CONGE', { id: c.id, statut: 'demande' }); U.toast('Demande envoyée au validateur.'); } catch (e) { SIC.ui.alerte(e.message); } }
+  async function decider(c, decision, motif) { try { await s().enregistrer('CONGE_DECISION', { conge: c.id, decision: decision, motif: motif || '', nom: moi().nom }); U.toast(decision === 'valide' ? 'Congé validé.' : 'Demande refusée.'); } catch (e) { SIC.ui.alerte(e.message); } }
   function modaleRefus(c) {
     var m = h('input', { type: 'text', maxlength: 300, placeholder: 'Ex. : effectif minimal (vu par l’agent, sans donnée de santé)', 'aria-label': 'Motif du refus' });
     U.modale('Refuser la demande de ' + nomDe(c), h('div', { class: 'pile' }, h('p', { text: libType(c.type) + ', ' + periodeFr(c) + '.' }), h('label', {}, 'Motif', m)),
       [{ texte: 'Annuler' }, { texte: 'Refuser la demande', classe: 'primaire', action: async function () { if (!m.value.trim()) throw new Error('Indiquez le motif.'); await s().enregistrer('CONGE_DECISION', { conge: c.id, decision: 'refuse', motif: m.value.trim(), nom: moi().nom }); U.toast('Demande refusée.'); } }], { focus: m });
   }
-  function annuler(c) {
+  async function annuler(c) {
     if (c.statut === 'souhait' || (c.statut === 'demande' && c.agent === moi().id)) {
-      if (!confirm((c.statut === 'souhait' ? 'Supprimer ce souhait' : 'Annuler cette demande') + ' (' + periodeFr(c) + ') ?')) return;
-      s().enregistrer('CONGE_ANNULATION', { conge: c.id, motif: '' }).then(function () { U.toast('Annulé.'); }, function (e) { alert(e.message); });
+      if (!await SIC.ui.confirmer((c.statut === 'souhait' ? 'Supprimer ce souhait' : 'Annuler cette demande') + ' (' + periodeFr(c) + ') ?')) return;
+      s().enregistrer('CONGE_ANNULATION', { conge: c.id, motif: '' }).then(function () { U.toast('Annulé.'); }, function (e) { SIC.ui.alerte(e.message); });
       return;
     }
     var m = h('input', { type: 'text', maxlength: 300, 'aria-label': 'Motif de l’annulation' });
@@ -437,7 +437,7 @@
     }
     dessinerRegles();
     var boutons = [{ texte: 'Annuler' }];
-    if (t) boutons.push({ texte: 'Supprimer le tableau', classe: 'danger', action: async function () { if (!confirm('Supprimer le tableau « ' + t.nom + ' » ? Les congés ne sont pas touchés.')) return false; await s().enregistrer('TABLEAU_CONGES', { id: t.id, service: t.service, supprime: true }); vue.tableau = ''; } });
+    if (t) boutons.push({ texte: 'Supprimer le tableau', classe: 'danger', action: async function () { if (!await SIC.ui.confirmer('Supprimer le tableau « ' + t.nom + ' » ? Les congés ne sont pas touchés.')) return false; await s().enregistrer('TABLEAU_CONGES', { id: t.id, service: t.service, supprime: true }); vue.tableau = ''; } });
     if (t) boutons.push({ texte: 'Dupliquer pour l’année suivante', action: function () { setTimeout(function () { modaleTableau(null, { service: t.service, nom: t.nom.replace(/\d{4}/, function (a) { return String(+a + 1); }), debut: C.plusJours(t.debut, 365), fin: C.plusJours(t.fin, 365), resolution: t.resolution, roles: t.roles, visible: t.visible, souhaits: t.souhaits, totaux: t.totaux, regles: t.regles }); }, 0); } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       var d = { id: (t && t.id) || 'TC' + CR.hex(CR.aleatoire(4)), service: sv.value, nom: nom.value.trim(), debut: deb.value, fin: fin.value, resolution: res.value, roles: roles.filter(function (y) { return y.cb.checked; }).map(function (y) { return y.r; }),
@@ -470,7 +470,7 @@
       var d = { id: (p && p.id) || 'PC' + CR.hex(CR.aleatoire(4)), service: sv.value, libelle: lib.value.trim(), debut: deb.value, fin: fin.value || deb.value, effet: eff.value, couleur: coul.value, limite: eff.value === 'limite' ? lim.value : '', roles: roles.filter(function (y) { return y.cb.checked; }).map(function (y) { return y.r; }) };
       if (d.effet === 'bloquee') {
         var deja = Object.keys(st().conges).map(function (k) { return st().conges[k]; }).filter(function (c) { return c.service === d.service && c.statut === 'valide' && c.debut <= d.fin && c.fin >= d.debut; });
-        if (deja.length && !confirm(deja.length + ' congé(s) déjà validé(s) sur cette période : ils restent validés (' + deja.map(nomDe).join(', ') + '). Bloquer la période pour les nouvelles demandes ?')) return false;
+        if (deja.length && !await SIC.ui.confirmer(deja.length + ' congé(s) déjà validé(s) sur cette période : ils restent validés (' + deja.map(nomDe).join(', ') + '). Bloquer la période pour les nouvelles demandes ?')) return false;
       }
       await s().enregistrer('PERIODE_CONGES', d); U.toast(d.effet === 'bloquee' ? 'Période bloquée.' : 'Période enregistrée.');
     } });
@@ -525,7 +525,7 @@
           var ks = Object.keys(parAgent);
           for (var i = 0; i < ks.length; i++) await s().enregistrer('DROITS_CONGES', { agent: ks[i], annee: an, droits: parAgent[ks[i]].d, service: info(parAgent[ks[i]].a).service });
           U.toast(ks.length ? 'Droits enregistrés (' + ks.length + ' agent' + (ks.length > 1 ? 's' : '') + ').' : 'Aucun changement.');
-        } catch (e) { alert(e.message); }
+        } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer les droits')) : null);
   }
   function modaleQuotite(a) {
@@ -535,7 +535,7 @@
     U.modale('Quotité de travail — ' + a.nom, h('div', { class: 'pile' },
       hist.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Depuis', 'Quotité', 'RTP habituel', ''].map(function (x) { return h('th', { text: x }); }))), h('tbody', {}, hist.map(function (x) {
         return h('tr', {}, h('td', { text: jourFr(x.depuis) }), h('td', { text: x.quotite + ' %' }), h('td', { text: (x.nonTravailles || []).map(function (d) { return JS[d]; }).join(', ') || '—' }),
-          h('td', {}, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (confirm('Retirer ce changement de quotité ?')) s().enregistrer('QUOTITE', { agent: a.id, depuis: x.depuis, supprime: true, service: info(a).service }).then(function () { U.toast('Retiré.'); }, function (e) { alert(e.message); }); } }, 'Retirer')));
+          h('td', {}, h('button', { class: 'btn petit', type: 'button', onclick: async function () { if (await SIC.ui.confirmer('Retirer ce changement de quotité ?')) s().enregistrer('QUOTITE', { agent: a.id, depuis: x.depuis, supprime: true, service: info(a).service }).then(function () { U.toast('Retiré.'); }, function (e) { SIC.ui.alerte(e.message); }); } }, 'Retirer')));
       }))) : h('p', { class: 'muted', text: 'Temps plein (aucune quotité enregistrée).' }),
       h('h3', { text: 'Nouveau changement' }),
       h('div', { class: 'grille-2' }, h('label', {}, 'À partir du', dep), h('label', {}, 'Quotité (%)', qt)),

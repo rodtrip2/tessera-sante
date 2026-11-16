@@ -635,7 +635,7 @@
         var patientId = selPatient.value;
         var existant = patientId === '__nouveau' && ipp.value.trim() && Object.keys(st().patients).map(function (k) { return st().patients[k]; }).filter(function (p) { return p.ipp === ipp.value.trim(); })[0];
         if (existant) {
-          if (!confirm('Un patient porte déjà l’IPP ' + existant.ipp + ' : ' + (existant.nom || '') + ' ' + (existant.prenom || '') + '. Utiliser sa fiche ?')) return false;
+          if (!await SIC.ui.confirmer('Un patient porte déjà l’IPP ' + existant.ipp + ' : ' + (existant.nom || '') + ' ' + (existant.prenom || '') + '. Utiliser sa fiche ?')) return false;
           patientId = existant.id;
           var maj = { patientId: patientId };
           if (existant.service !== selSv.value) maj.service = selSv.value;
@@ -934,7 +934,7 @@
       { texte: 'Annuler' },
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         var n = nature.value, t = depuisSaisie(quand.value);
-        if (m.jld[j.cycle] && m.jld[j.cycle][n] && !confirm(LIB_NATURE[n] + ' déjà saisie pour ce cycle (' + date(m.jld[j.cycle][n].date) + '). Enregistrer une nouvelle saisie ?')) return false;
+        if (m.jld[j.cycle] && m.jld[j.cycle][n] && !await SIC.ui.confirmer(LIB_NATURE[n] + ' déjà saisie pour ce cycle (' + date(m.jld[j.cycle][n].date) + '). Enregistrer une nouvelle saisie ?')) return false;
         await App.session.enregistrer('JLD', { mesureId: m.id, cycle: j.cycle, nature: n, date: t, decision: n === 'DECISION' ? decision.value : null }, base);
         var ech = n === 'INFO' ? j.info.echeance : n === 'SAISINE' ? j.saisine.echeance : j.decision.echeance;
         if (n === 'DECISION' && decision.value === 'MAINTIEN') toast('Maintien enregistré : cycle ' + (j.cycle + 1) + ' ouvert. Le tiers doit être informé de ce renouvellement.');
@@ -985,7 +985,7 @@
           h('td', { text: App.session.nomAuteur(e.by) }),
           h('td', {}, resumeEvt(e), annule ? h('span', { class: 'badge', text: ' annulée' }) : null),
           h('td', { class: 'actions-ligne' }, App.session.peut('ANNULATION') && !annule ? h('button', { class: 'btn petit', onclick: async function () {
-            var motif = prompt(e.type === 'MESURE_DEBUT' ? 'Annuler le début annule toute la mesure (doublon, mauvais patient…). Motif :' : 'Motif de l’annulation de cette saisie :');
+            var motif = await SIC.ui.demander(e.type === 'MESURE_DEBUT' ? 'Annuler le début annule toute la mesure (doublon, mauvais patient…). Motif :' : 'Motif de l’annulation de cette saisie :');
             if (!motif) return;
             await App.session.enregistrer('ANNULATION', { cible: e.id, motif: motif });
             toast('Saisie annulée.');
@@ -1658,7 +1658,7 @@
         if (cbRetr.checked && portee !== avant.portee) msgs.push(portee === 'partout' ? 'Les durées du registre et des statistiques seront désormais hors pauses.' : 'Le registre et les statistiques reprendront les durées réelles.');
         if (cbRetr.checked && portee === 'partout' && contentionSeule !== avant.contentionSeule) msgs.push(contentionSeule === 'isolement' ? 'Les pauses de contention seule formeront des entrées A au registre.' : 'Les pauses de contention seule resteront dans l’entrée C du registre.');
         if (cbActive.checked !== avant.active) msgs.push(cbActive.checked ? 'Le bouton « Pause » sera disponible dans la page des mesures.' : 'Le bouton « Pause » disparaîtra de la page des mesures.');
-        if (msgs.length && !confirm(msgs.join('\n') + '\nConfirmer ?')) return false;
+        if (msgs.length && !await SIC.ui.confirmer(msgs.join('\n') + '\nConfirmer ?')) return false;
         await enregistrerConfig([['pauses', { active: cbActive.checked, retrancher: cbRetr.checked, portee: portee, contentionSeule: contentionSeule, verrouContention: cbVerrou.checked, colonneRegistre: cbCol.checked, repriseAuto: cbAuto.checked, alerteHeures: a, refusHeures: r }]]);
       }));
     majPauses();
@@ -1732,7 +1732,7 @@
           : 'Recalculer selon les règles de l’outil les entrées de ' + libService(g.service) + ' ' + g.annee + ' ?' + (passee ? '\n\nATTENTION : année passée. Les numéros, les catégories et le nombre d’entrées du registre peuvent changer, et avec eux les statistiques et rapports déjà produits pour cette année.' : '');
         var cpt = M.compteurPour(st(), g.service, g.annee, figer, Date.now());
         if (cpt != null) msg += '\n\nLe compteur du registre de cette année passera à ' + cpt + (figer ? ' (dernier numéro du document importé).' : ' (dernier numéro du document importé moins les entrées que l’outil numérotera lui-même).');
-        if (!confirm(msg)) return;
+        if (!await SIC.ui.confirmer(msg)) return;
         var v = JSON.parse(JSON.stringify(fige));
         if (figer) { v[g.service] = v[g.service] || {}; v[g.service][g.annee] = true; }
         else if (v[g.service]) { delete v[g.service][g.annee]; if (!Object.keys(v[g.service]).length) delete v[g.service]; }

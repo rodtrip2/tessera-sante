@@ -39,7 +39,7 @@
   function modaleInformation() {
     var s = U.App.session, c = s.utilisateur, admin = (c.roles || []).indexOf('ADMIN') >= 0;
     var svs = admin ? U.tousServices() : U.tousServices().filter(function (x) { return (c.services || []).indexOf(x.code) >= 0; });
-    if (!svs.length) return alert('Aucun service à régler.');
+    if (!svs.length) return SIC.ui.alerte('Aucun service à régler.');
     var tout = JSON.parse(JSON.stringify(U.config().vehiculesInformation || {}));
     var sel = h('select', { 'aria-label': 'Service' }, svs.map(function (x) { return h('option', { value: x.code, text: x.libelle }); }));
     var zone = h('div', { class: 'pile' }), courant = null;
@@ -78,7 +78,7 @@
       { texte: 'Revenir au réglage par défaut', action: async function () { lire(); delete tout[sel.value]; await U.enregistrerConfig([['vehiculesInformation', tout]]); } },
       { texte: 'Enregistrer', classe: 'primaire', action: async function () { lire(); await U.enregistrerConfig([['vehiculesInformation', tout]]); } }], { large: true });
   }
-  async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisVehiculesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
+  async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisVehiculesVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); } }
   function bandeauAvis() {
     var av = mesAvis();
     if (!av.length) return null;
@@ -151,7 +151,7 @@
     });
     var boutons = [{ texte: 'Annuler' }];
     if (v) boutons.push({ texte: 'Retirer du parc', classe: 'danger', action: async function () {
-      if (!confirm('Retirer « ' + V.libelleVehicule(v) + ' » du parc ? Son historique (réservations, signalements) reste au journal. Pour une indisponibilité passagère, décochez plutôt « En service ».')) return false;
+      if (!await SIC.ui.confirmer('Retirer « ' + V.libelleVehicule(v) + ' » du parc ? Son historique (réservations, signalements) reste au journal. Pour une indisponibilité passagère, décochez plutôt « En service ».')) return false;
       await U.App.session.enregistrer('VEHICULE', { id: v.id, supprime: true, service: v.service });
       U.toast('Véhicule retiré du parc.');
     } });
@@ -244,7 +244,7 @@
     if (r && U.messageries) { var bec = U.messageries.boutonModale(function () { var vv = st().vehicules[r.vehicule]; return 'Réservation du véhicule ' + (vv ? V.libelleVehicule(vv) : '') + ' — ' + quand(r); }, { services: [r.service] }); if (bec) boutons.push(bec); }
     var moiOuDroit = r && (peut('RESERVATION') || r.agent === m.id || r.par === m.id);
     if (r && moiOuDroit) boutons.push({ texte: 'Annuler la réservation', classe: 'danger', action: async function () {
-      var mo = prompt('Annuler la réservation ' + quand(r) + ' ? Motif (facultatif) :', '');
+      var mo = await SIC.ui.demander('Annuler la réservation ' + quand(r) + ' ? Motif (facultatif) :', '');
       if (mo === null) return false;
       await s.enregistrer('RESERVATION', { id: r.id, annulee: true, motifAnnulation: mo.trim(), service: r.service });
       U.toast('Réservation annulée.');
@@ -257,7 +257,7 @@
       if (!motif.value.trim()) throw new Error('Indiquez le motif' + (st0 === 'pre' ? ' de la pré-réservation.' : ' de la réservation.'));
       var d = { id: x.id || 'RV' + C.hex(C.aleatoire(5)), vehicule: selV.value, debut: p[0], fin: p[1], service: sv.value, agent: x.agent || m.id, nom: x.nom || m.nom, motif: motif.value.trim(), statut: st0 };
       if (info && info.pre && info.pre.length) {
-        if (!confirm('Véhicule ' + info.avertissement + '.\n\n' + (st0 === 'pre' ? 'Pré-réserver quand même ?' : 'Forcer la réservation ? L’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.'))) return false;
+        if (!await SIC.ui.confirmer('Véhicule ' + info.avertissement + '.\n\n' + (st0 === 'pre' ? 'Pré-réserver quand même ?' : 'Forcer la réservation ? L’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.'))) return false;
         if (st0 !== 'pre') d.supplante = info.pre.slice();
       }
       await s.enregistrer('RESERVATION', d);
@@ -315,7 +315,7 @@
       sg.texte ? h('span', { text: sg.texte }) : null,
       h('small', { class: 'muted', text: U.App.session.nomAuteur(sg.par) + ', ' + U.date(Date.parse(sg.cree)) + (sg.fait ? ' — fait par ' + U.App.session.nomAuteur(sg.fait.par) + ', ' + U.date(Date.parse(sg.fait.le)) : '') }),
       peut('SIGNALEMENT_FAIT') ? h('button', { class: 'btn petit' + (sg.fait ? '' : ' primaire'), type: 'button', onclick: async function () {
-        try { await U.App.session.enregistrer('SIGNALEMENT_FAIT', { signalement: sg.id, annule: sg.fait ? true : undefined }); U.rendreContenu(); } catch (e) { alert(e.message); }
+        try { await U.App.session.enregistrer('SIGNALEMENT_FAIT', { signalement: sg.id, annule: sg.fait ? true : undefined }); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); }
       } }, sg.fait ? 'Remettre à faire' : 'Fait') : null);
   }
   function vueSignalements() {

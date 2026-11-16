@@ -13,7 +13,7 @@
   /** Fenêtre de la sortie d'un patient (séjour en cours). `puis()` après un enregistrement. */
   function modale(p, puis) {
     var sj = SO.sejourEnCours(p);
-    if (!sj) { alert('Ce patient n’a pas de séjour en cours.'); return; }
+    if (!sj) { SIC.ui.alerte('Ce patient n’a pas de séjour en cours.'); return; }
     var v = sj.sortiePrevue || {}, lecture = !peut(), dis = lecture ? { disabled: true } : {};
     var etat = SO.etat(v), zone = h('div', { class: 'pile' });
     var debut = h('input', Object.assign({ type: 'date', value: v.debut || '' }, dis)), fin = h('input', Object.assign({ type: 'date', value: v.fin || '' }, dis));

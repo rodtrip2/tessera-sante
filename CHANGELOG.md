@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.80.0 — 16 novembre 2026
+
+Ergonomie (constat E3 de l'audit du 15 novembre 2026) : plus aucune fenêtre du navigateur.
+- **Confirmations** (114) : fenêtre de l'outil, boutons « Annuler » et « Confirmer », bouton rouge pour une suppression, un arrêt, un retrait ou un refus ; Échap répond « Annuler ».
+- **Questions à réponse libre** (35, motifs de refus, précisions…) : fenêtre de l'outil avec un champ, validé par Entrée.
+- **Messages d’information et d’erreur** (125) : bandeau non bloquant en bas à droite, fermé par l'agent ou après 12 secondes ; affiché au-dessus de la fenêtre ouverte, au lieu de rester caché derrière.
+- Même apparence que le reste de l'outil, thème clair ou sombre respecté, texte sur plusieurs lignes lisible.
+
 ## 0.79.0 — 16 novembre 2026
 
 Ergonomie (constat E1 de l'audit du 15 novembre 2026) : plus de place pour les tableaux sur un écran de 1 366 × 768.

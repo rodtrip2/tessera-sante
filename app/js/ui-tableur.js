@@ -327,14 +327,14 @@
       U.modale('Renommer la feuille', h('label', {}, 'Nom', champ), [{ texte: 'Annuler' }, { texte: 'Renommer', classe: 'primaire', action: function () { var c2 = T.renommerFeuille(C, i, champ.value); memoriser(); C = c2; modifie(); } }]);
       setTimeout(function () { champ.select(); }, 50);
     }
-    function actionFeuille(v) {
+    async function actionFeuille(v) {
       if (v === 'renommer') return renommer(fi);
       if (v === 'dupliquer') { if (C.feuilles.length >= T.MAX_FEUILLES) return U.toast('Au plus ' + T.MAX_FEUILLES + ' feuilles.'); memoriser(); var copie = JSON.parse(JSON.stringify(F())); copie.nom = F().nom.slice(0, 24) + ' (copie)'; copie.suivi = suivi() ? { op: 'ins', p: o.agent.id, n: o.agent.nom, le: new Date().toISOString() } : null; C.feuilles.splice(fi + 1, 0, copie); C = T.contenu(C); fi++; return modifie(); }
       if (v === 'gauche' && fi > 0) { memoriser(); C.feuilles.splice(fi - 1, 0, C.feuilles.splice(fi, 1)[0]); fi--; return modifie(); }
       if (v === 'droite' && fi < C.feuilles.length - 1) { memoriser(); C.feuilles.splice(fi + 1, 0, C.feuilles.splice(fi, 1)[0]); fi++; return modifie(); }
       if (v === 'supprimer') {
         if (C.feuilles.length <= 1) return U.toast('Un classeur garde au moins une feuille.');
-        if (!confirm('Supprimer la feuille « ' + F().nom + ' » ? Les formules des autres feuilles qui la citent afficheront #REF!.')) return;
+        if (!await SIC.ui.confirmer('Supprimer la feuille « ' + F().nom + ' » ? Les formules des autres feuilles qui la citent afficheront #REF!.')) return;
         memoriser(); var avant = C.feuilles.length; C = suivi() ? T.supprimerFeuilleSuivi(C, fi, o.agent) : T.supprimerFeuille(C, fi); if (C.feuilles.length < avant) fi = Math.max(0, fi - 1); modifie();
       }
     }
@@ -587,7 +587,7 @@
       var d = Math.max(0, Math.min(6, (s.dec !== undefined ? s.dec : (sens > 0 ? dflt - 1 : dflt)) + sens));
       changerStyle(function (y) { y.dec = d; if (!y.fmt) y.fmt = 'nombre'; });
     }
-    function fusionner() {
+    async function fusionner() {
       if (!modifiable) return;
       var f = F();
       var existante = f.fusions.filter(function (u) { return u.l === sel.l1 && u.c === sel.c1 && u.nl === sel.l2 - sel.l1 + 1 && u.nc === sel.c2 - sel.c1 + 1; })[0];
@@ -595,13 +595,13 @@
       if (existante) { f.fusions.splice(f.fusions.indexOf(existante), 1); return modifie(); }
       if (sel.l1 === sel.l2 && sel.c1 === sel.c2) return U.toast('Sélectionnez plusieurs cases à fusionner.');
       var autres = 0; pourSelection(function (l, c) { var x = caseDe(l, c); if ((l !== sel.l1 || c !== sel.c1) && x && (x.v !== undefined || x.f !== undefined)) autres++; });
-      if (autres && !confirm('La fusion ne garde que le contenu de la case en haut à gauche. Continuer ?')) { annuler.pop(); return; }
+      if (autres && !await SIC.ui.confirmer('La fusion ne garde que le contenu de la case en haut à gauche. Continuer ?')) { annuler.pop(); return; }
       pourSelection(function (l, c) { if (l !== sel.l1 || c !== sel.c1) { var x = caseDe(l, c); ecrireCase(l, c, x && x.s ? { s: x.s } : null); } });
       f.fusions = f.fusions.filter(function (u) { return !T.chevauche(u, { l: sel.l1, c: sel.c1, nl: sel.l2 - sel.l1 + 1, nc: sel.c2 - sel.c1 + 1 }); });
       f.fusions.push({ l: sel.l1, c: sel.c1, nl: sel.l2 - sel.l1 + 1, nc: sel.c2 - sel.c1 + 1 });
       modifie();
     }
-    function lignesColonnes(op) {
+    async function lignesColonnes(op) {
       if (!modifiable) return;
       finirEdition(true);
       var nL = sel.l2 - sel.l1 + 1, nC = sel.c2 - sel.c1 + 1, c2, sv = suivi();
@@ -611,19 +611,19 @@
       var precis = sv ? ' (suivi des modifications : marquée(s) supprimée(s) jusqu’à leur acceptation)' : '';
       if (op === 'l-avant') c2 = ins('l', sel.l1, nL);
       if (op === 'l-apres') c2 = ins('l', sel.l2 + 1, nL);
-      if (op === 'l-suppr') { if (!confirm('Supprimer ' + (nL > 1 ? 'les lignes ' + (sel.l1 + 1) + ' à ' + (sel.l2 + 1) : 'la ligne ' + (sel.l1 + 1)) + ' ?' + precis)) return; c2 = sup('l', sel.l1, nL); }
+      if (op === 'l-suppr') { if (!await SIC.ui.confirmer('Supprimer ' + (nL > 1 ? 'les lignes ' + (sel.l1 + 1) + ' à ' + (sel.l2 + 1) : 'la ligne ' + (sel.l1 + 1)) + ' ?' + precis)) return; c2 = sup('l', sel.l1, nL); }
       if (op === 'c-avant') c2 = ins('c', sel.c1, nC);
       if (op === 'c-apres') c2 = ins('c', sel.c2 + 1, nC);
-      if (op === 'c-suppr') { if (!confirm('Supprimer ' + (nC > 1 ? 'les colonnes ' + T.lettres(sel.c1) + ' à ' + T.lettres(sel.c2) : 'la colonne ' + T.lettres(sel.c1)) + ' ?' + precis)) return; c2 = sup('c', sel.c1, nC); }
+      if (op === 'c-suppr') { if (!await SIC.ui.confirmer('Supprimer ' + (nC > 1 ? 'les colonnes ' + T.lettres(sel.c1) + ' à ' + T.lettres(sel.c2) : 'la colonne ' + T.lettres(sel.c1)) + ' ?' + precis)) return; c2 = sup('c', sel.c1, nC); }
       if (!c2) return;
       memoriser(); C = c2; modifie();
     }
-    function trier(dec) {
+    async function trier(dec) {
       if (!modifiable) return;
       var e = T.etendue(F()), p = sel.l1 === sel.l2 && sel.c1 === sel.c2 ? { l1: 0, l2: e.l - 1, c1: 0, c2: e.c - 1 } : { l1: sel.l1, l2: Math.min(sel.l2, e.l - 1), c1: sel.c1, c2: Math.min(sel.c2, e.c - 1) };
       if (p.l2 <= p.l1) return U.toast('Rien à trier.');
       if (F().fusions.some(function (u) { return T.chevauche(u, { l: p.l1, c: p.c1, nl: p.l2 - p.l1 + 1, nc: p.c2 - p.c1 + 1 }); })) return U.toast('Tri impossible sur des cases fusionnées.');
-      var entete = p.l1 === 0 && sel.l1 === sel.l2 && confirm('La première ligne est-elle une ligne de titres (gardée en haut) ?');
+      var entete = p.l1 === 0 && sel.l1 === sel.l2 && await SIC.ui.confirmer('La première ligne est-elle une ligne de titres (gardée en haut) ?');
       if (entete) p.l1 = 1;
       memoriser(); C = suivi() ? T.trierSuivi(C, fi, p, Math.max(p.c1, Math.min(sel.c, p.c2)), dec, o.agent, { maintenant: Date.now() }) : T.trier(C, fi, p, Math.max(p.c1, Math.min(sel.c, p.c2)), dec, { maintenant: Date.now() }); modifie();
     }

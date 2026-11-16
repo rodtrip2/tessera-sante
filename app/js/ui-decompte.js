@@ -445,7 +445,7 @@
           images[id] = im; remplirFonds(id); apercu();
           var ratio = im.hauteur / im.largeur;
           infoFond.textContent = 'Image importée (' + Math.round(im.donnees.length / 1024) + ' Ko). ' + (Math.abs(ratio - 1.414) > 0.1 ? 'Elle n’est pas au format A4 portrait : elle sera étirée sur la page.' : 'Format A4 portrait.') + ' Enregistrez le masque pour la conserver.';
-        } catch (e) { alert(e.message); }
+        } catch (e) { SIC.ui.alerte(e.message); }
         fichier.value = '';
       } });
       var selPages = h('select', {}, h('option', { value: 'toutes', text: 'Sur toutes les pages', selected: mq.fondPages !== 'premiere' }), h('option', { value: 'premiere', text: 'Sur la première page seulement', selected: mq.fondPages === 'premiere' }));
@@ -520,17 +520,17 @@
       }
       var boutons = h('div', { class: 'actions' },
         cible !== '*' && dec[cible] ? h('button', { class: 'btn', onclick: async function () {
-          if (!confirm('Supprimer le masque propre de ce service ? Il utilisera le masque de l’établissement.')) return;
-          try { await enregistrer(null); } catch (e) { alert(e.message); }
+          if (!await SIC.ui.confirmer('Supprimer le masque propre de ce service ? Il utilisera le masque de l’établissement.')) return;
+          try { await enregistrer(null); } catch (e) { SIC.ui.alerte(e.message); }
         } }, 'Revenir au masque de l’établissement') : null,
         h('button', { class: 'btn primaire', onclick: async function (ev) {
           var b = ev.currentTarget; b.disabled = true;
           try {
             var v = lire();
             if (!v.colonnes.length) throw new Error('Cochez au moins une colonne du tableau.');
-            if (v.identite.indexOf('patient') < 0 && v.identite.indexOf('ipp') < 0 && !confirm('Ni le nom du patient ni l’IPP ne figurent dans le masque : le juge ne pourra pas identifier le patient. Enregistrer quand même ?')) return;
+            if (v.identite.indexOf('patient') < 0 && v.identite.indexOf('ipp') < 0 && !await SIC.ui.confirmer('Ni le nom du patient ni l’IPP ne figurent dans le masque : le juge ne pourra pas identifier le patient. Enregistrer quand même ?')) return;
             await enregistrer(v);
-          } catch (e) { alert(e.message); } finally { b.disabled = false; }
+          } catch (e) { SIC.ui.alerte(e.message); } finally { b.disabled = false; }
         } }, cible === '*' ? 'Enregistrer le masque de l’établissement' : (dec[cible] ? 'Enregistrer le masque du service' : 'Créer le masque propre au service')));
 
       return h('div', { class: 'editeur-masque' },
