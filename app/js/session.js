@@ -429,6 +429,27 @@
     if (cx) info.connexion = coffre.connexion = normaliserConnexion(cx); else delete coffre.connexion;
     return A.signer(cles, trousseau, coffre, s.comptes, info);
   }
+  // --- Horloge du poste (0.77.0, constat S6 de l'audit) ---
+  // Les heures des saisies et les échéances légales viennent de l'horloge du poste. À chaque écriture, la date que le
+  // serveur du partage donne au fichier est comparée à celle du poste : un écart de plus de 5 minutes est signalé
+  // (bandeau, trace au journal une fois par session). Sans date fiable du système de fichiers, rien n'est signalé.
+  var ECART_HORLOGE_MAX = 5 * 60 * 1000;
+  function noterHorloge(s, d) {
+    var m = d && d.ecartHorloge;
+    if (!m || s.formation) return;
+    // Écart mesuré deux fois de suite au-delà du seuil : évite une fausse alerte sur un fichier copié ou un cache
+    var hors = Math.abs(m.ecart) > ECART_HORLOGE_MAX;
+    s.ecartHorloge = hors && s.ecartHorlogeBrut && Math.abs(s.ecartHorlogeBrut.ecart) > ECART_HORLOGE_MAX ? m : (hors ? s.ecartHorloge : null);
+    s.ecartHorlogeBrut = m;
+    if (s.ecartHorloge && !s.horlogeTracee) {
+      s.horlogeTracee = true;
+      var min = Math.round(s.ecartHorloge.ecart / 60000);
+      s.tracer('HORLOGE', { ecartMinutes: min, libelle: 'horloge du poste ' + (min > 0 ? 'en avance' : 'en retard') + ' de ' + Math.abs(min) + ' min sur le serveur du partage' }).catch(function () { /* trace facultative */ });
+    }
+  }
+  /** Écart d'horloge signalé : { minutes } (positif : le poste avance), ou null. */
+  Session.prototype.ecartHorlogeSignale = function () { return this.ecartHorloge ? { minutes: Math.round(this.ecartHorloge.ecart / 60000) } : null; };
+
   // --- Connexion : règle des mots de passe, second facteur, code de la clé (0.75.0, constat S3 de l'audit) ---
   var CONNEXION_DEFAUT = { regleMdp: 'renforcee', secondFacteur: [], codeCle: false };
   function normaliserConnexion(v) {
@@ -1895,6 +1916,7 @@
     await signerSaisie(this, evt);
     await d.ecrireEvenement(j.cle, evt);
     j.connus.add(evt.id + '.enc');
+    noterHorloge(this, d);
     j.evts.push(evt);
     this.evts.push(evt);
     // Repère d'intégrité de l'agent (par journal) : permet de détecter la disparition de ses dernières saisies.
@@ -2269,7 +2291,8 @@
    * (nom du fichier) sauf `options.sansTrace` (export déjà tracé par ailleurs). Retourne le chemin relatif.
    */
   Session.prototype.exporter = async function (categorie, nom, octets, options) {
-    var d = dossierActif(this), dossier = X.dossierExports(config(this));
+    var d = dossierActif(this), dossier = X.dossierExports(config(this)), CSV = socle('csv', './csv.js');
+    if (CSV && /\.csv$/i.test(nom)) octets = CSV.neutraliserOctets(octets);   // injection de formule (constat S7)
     var chemin = await d.ecrireExport(dossier, [X.dossierExportService(options && options.service), categorie], nom, octets);
     if (!(options && options.sansTrace)) { try { await this.tracer('EXPORT', { libelle: chemin }); } catch (e) { /* sans conséquence sur l'export */ } }
     return chemin;

@@ -253,6 +253,10 @@
     informateursTiers: [{ code: 'IDE', libelle: 'IDE' }],
     // Organisation des envois au JLD, affichée en tête de l'onglet JLD (texte libre de l'établissement ; vide = rien d'affiché)
     organisationJLD: '',
+    // Désignation du juge (0.77.0, constat J1 de l'audit) : le juge des libertés et de la détention est devenu le
+    // « magistrat du siège du tribunal judiciaire » (art. L. 3222-5-1 CSP, depuis le 1er septembre 2024). `court`
+    // remplace « JLD » dans les écrans et les exports ; `long`, l'appellation complète. Voir libelleJuge.
+    libelleJuge: { court: 'juge', long: 'magistrat du siège du tribunal judiciaire' },
     // Listes de l'établissement (voir listesConfig) : fonctions des professionnels de surveillance, motifs de pause,
     // motifs de fin propres (ajoutés à ceux de l'outil), raccourcis de durée des pauses (minutes)
     listes: { fonctionsSurveillance: ['IDE', 'AS', 'ASH', 'Psychiatre', 'Médecin', 'Cadre de santé', 'Autre'],
@@ -269,7 +273,9 @@
     // Page GitHub : vérifier que la version utilisée est la dernière publiée (désactivable)
     verificationVersion: true,
     // Exports (PDF, CSV) enregistrés automatiquement dans ce sous-dossier du dossier des données
-    exports: { dossier: 'exports', conservationJours: 0, cheminReseau: '' },
+    // Purge des exports après 31 jours par défaut (0.77.0, constat S4 de l'audit : fichiers en clair sur le partage) ;
+    // l'administrateur règle la durée, « aucune purge » restant possible
+    exports: { dossier: 'exports', conservationJours: 31, cheminReseau: '' },
     // Fonctions soumises à avis (validations.js, 13 novembre 2026) : { etats: { code: { etat, date, auteur, reference, dpoInforme } } } ; vide = états par défaut
     validations: {},
     // Étiquettes communes du classement des messages et documents (classement.js, 14 novembre 2026) : { '*': [{ code, libelle, couleur }], U1: [...] }
@@ -689,6 +695,25 @@
   }
 
   // ------------------------------------------------- Cas particuliers
+  /** Désignation du juge, validée : { court, long } ; `court` = 'JLD' garde l'ancienne appellation. */
+  function libelleJuge(config) {
+    var v = (config && config.libelleJuge) || {}, d = CONFIG_DEFAUT.libelleJuge;
+    var court = String(v.court || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 30), long = String(v.long || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 90);
+    return { court: court || d.court, long: long || d.long };
+  }
+  /**
+   * Texte affiché ou exporté avec la désignation du juge de l'établissement : « JLD » et « juge des libertés et de la
+   * détention » remplacés (affichage seulement ; le journal et les données saisies ne changent pas).
+   */
+  function texteJuge(texte, config) {
+    var s = String(texte);
+    if (s.indexOf('JLD') < 0 && !/libert[ée]s et de la d[ée]tention/i.test(s)) return s;
+    var l = libelleJuge(config);
+    if (l.court === 'JLD') return s;
+    return s.replace(/juges? des libert[ée]s et de la d[ée]tention/gi, function (m) { return /^J/.test(m) ? l.long.charAt(0).toUpperCase() + l.long.slice(1) : l.long; })
+      .replace(/\bJLD\b/g, function (m, i) { return i === 0 ? l.court.charAt(0).toUpperCase() + l.court.slice(1) : l.court; });   // « JLD » en tête : majuscule
+  }
+
   function optionsCas(config) {
     var o = Object.assign({}, CONFIG_DEFAUT.casParticuliers, (config && config.casParticuliers) || {});
     o.mainleveeType = o.mainleveeType === 'meme' ? 'meme' : 'tout';
@@ -2150,7 +2175,7 @@
     { code: 'agenda', libelle: 'Module Agenda : identité du patient affichée, types d’alertes', cles: ['agenda'] },
     { code: 'psychiatres', libelle: 'Liste des médecins (noms) et ancienne liste des psychiatres', cles: ['psychiatres', 'medecins'] },
     { code: 'suiviMedical', libelle: 'Module Suivi médical : délais d’alerte, gardes et astreintes, lieux de présence', cles: ['suiviMedical'] },
-    { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
+    { code: 'saisie', libelle: 'Postes de surveillance, modes d’hospitalisation et listes de saisie', cles: ['libelleJuge', 'periodes', 'periodesService', 'surveillance', 'modesHospitalisation', 'listes', 'informateursTiers', 'organisationJLD'] },
     { code: 'affichage', libelle: 'Points de vigilance, écran de connexion (contact, consigne, logo), barre des modules', cles: ['vigilance', 'affichage', 'barreModules'] },
     { code: 'boitesMail', libelle: 'Messageries du service : boîtes aux lettres et webmail', cles: ['boitesMail'] },
     { code: 'accesClinique', libelle: 'Données cliniques : rôles limités aux patients présents, bris de glace (rôles, durée)', cles: ['accesClinique'] },
@@ -2307,7 +2332,7 @@
     registre: registre, estFigee: estFigee, explicationEntree: explicationEntree, REGLES_CATEGORIES: REGLES_CATEGORIES, compteurPour: compteurPour, colonnesPatients: colonnesPatients, statistiquesPatients: statistiquesPatients, registreCommunicable: registreCommunicable, OCCULTATION_DEFAUT: OCCULTATION_DEFAUT, OCCULTATION_CHOIX: OCCULTATION_CHOIX, trancheAge: trancheAge, ageAu: ageAu, soustraire: soustraire, statistiquesAnnee: statistiquesAnnee, decompte: decompte,
     PAUSE_MAX_HEURES: PAUSE_MAX_HEURES, optionsPauses: optionsPauses, pauseEnCours: pauseEnCours, repriseAutomatique: repriseAutomatique, finPause: finPause,
     exclusions: exclusions, plagesPauses: plagesPauses, pausesSur: pausesSur, mesuresCalcul: mesuresCalcul, dureePausesHeures: dureePausesHeures,
-    optionsCas: optionsCas, informateursTiers: informateursTiers, libInformateur: libInformateur, optionsStats: optionsStats, UNITES_STATS: UNITES_STATS, TOLERANCES_SEQUENCE: TOLERANCES_SEQUENCE, sequences: sequences, indicateursSequences: indicateursSequences,
+    optionsCas: optionsCas, libelleJuge: libelleJuge, texteJuge: texteJuge, informateursTiers: informateursTiers, libInformateur: libInformateur, optionsStats: optionsStats, UNITES_STATS: UNITES_STATS, TOLERANCES_SEQUENCE: TOLERANCES_SEQUENCE, sequences: sequences, indicateursSequences: indicateursSequences,
     reglesCalcul: reglesCalcul, changementsMethode: changementsMethode, statistiquesAvec: statistiquesAvec, CLES_METHODE: CLES_METHODE, optionsQualite: optionsQualite, donneesPatient: donneesPatient, auDelaConservation: auDelaConservation, propositionsEnAttente: propositionsEnAttente, morceaux: morceaux, suspensions: suspensions, MOTIFS_FIN: MOTIFS_FIN, mainlevees: mainlevees, mainleveeRecente: mainleveeRecente, apresMainlevee: apresMainlevee, ciblePatient: ciblePatient, doublonsPossibles: doublonsPossibles, normaliserNom: normaliserNom,
     DECLENCHEURS_ALERTE: DECLENCHEURS_ALERTE, TEXTES_ALERTE: TEXTES_ALERTE, DELAIS_ALERTE: DELAIS_ALERTE, alertesConfig: alertesConfig, faitsMesure: faitsMesure,
     reglesDeclenchees: reglesDeclenchees, alertesMesure: alertesMesure, informationsATracer: informationsATracer,
