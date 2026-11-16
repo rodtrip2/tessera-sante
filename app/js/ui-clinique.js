@@ -48,6 +48,28 @@
       lignes.push(l); zoneCim.appendChild(el);
     }
     (sf.cim.length ? sf.cim : (ecrit ? [null] : [])).forEach(ligneCim);
+    // Plusieurs codes dans un seul champ (0.78.0) : séparés en lignes, à vérifier avant d'enregistrer
+    var saisieMulti = h('textarea', { rows: 2, maxlength: 4000, 'aria-label': 'Plusieurs codes CIM à la fois', placeholder: 'F20.0 Schizophrénie paranoïde ; F10.2 ; Z59.0 Sans abri' });
+    function separer() {
+      var codes = K.separerCim(saisieMulti.value);
+      if (!codes.length) { U.toast('Aucun code CIM reconnu (une lettre suivie de deux chiffres : F20, F20.0, F200…).'); return; }
+      var deja = {};
+      lignes.forEach(function (l) { var c = l.code.value.trim().toUpperCase().replace(/[.+*†]/g, ''); if (c) deja[c] = l; });
+      // Lignes vides retirées : les codes séparés prennent leur place
+      lignes.slice().forEach(function (l) { if (!l.code.value.trim() && !l.lib.value.trim()) { lignes.splice(lignes.indexOf(l), 1); l.code.parentNode.remove(); } });
+      var ajoutes = 0, completes = 0;
+      codes.forEach(function (c) {
+        var l = deja[c.code.replace(/[.+*†]/g, '')];
+        if (l) { if (c.libelle && !l.lib.value.trim()) { l.lib.value = c.libelle; completes++; } return; }
+        ligneCim(c); ajoutes++;
+      });
+      saisieMulti.value = '';
+      U.toast(ajoutes + ' code(s) ajouté(s)' + (completes ? ', ' + completes + ' libellé(s) complété(s)' : '') + (codes.length > ajoutes + completes ? ', ' + (codes.length - ajoutes - completes) + ' déjà présent(s)' : '') + '. Vérifiez puis enregistrez la feuille de staff.');
+    }
+    var zoneMulti = ecrit ? h('details', { class: 'cl-cim-multi' }, h('summary', { text: 'Saisir plusieurs codes à la fois' }),
+      h('div', { class: 'pile' }, saisieMulti,
+        h('small', { class: 'muted', text: 'Séparez les codes par un point-virgule, une virgule ou un retour à la ligne ; le texte qui suit un code devient son libellé.' }),
+        h('div', { class: 'actions' }, h('button', { class: 'btn petit', type: 'button', onclick: separer }, 'Séparer en codes')))) : null;
     var motif = h('textarea', { rows: 2, maxlength: 1000, 'aria-label': 'Motif d’hospitalisation', disabled: !ecrit }); motif.value = sf.motif || '';
     var projet = h('textarea', { rows: 4, maxlength: 4000, 'aria-label': 'Projet thérapeutique', disabled: !ecrit }); projet.value = sf.projet || '';
     var total = h('b'), sels = K.AVQ.map(function (v) {
@@ -81,7 +103,7 @@
       prec ? h('div', { class: 'cl-precedent', role: 'note' }, h('b', { text: 'Séjour précédent (entrée le ' + fr(prec.sejour.entree) + ') — pour référence' }),
         h('p', { text: 'Codes CIM : ' + (libCim(prec.staff.cim) || '—') }), h('p', { text: 'Dépendance : ' + (libDep(prec.staff.avq) || '—') + (Object.keys(prec.staff.avq || {}).length ? ' (' + K.AVQ.map(function (v) { return v.libelle + ' ' + (prec.staff.avq[v.code] || '—'); }).join(', ') + ')' : '') })) : null,
       h('h3', { text: 'Feuille de staff' }),
-      h('div', {}, h('b', { text: 'Codes CIM (saisie libre)' }), zoneCim, ecrit ? h('button', { class: 'btn petit', type: 'button', onclick: function () { ligneCim(null); } }, '+ Code') : null),
+      h('div', {}, h('b', { text: 'Codes CIM (saisie libre)' }), zoneCim, ecrit ? h('button', { class: 'btn petit', type: 'button', onclick: function () { ligneCim(null); } }, '+ Code') : null, zoneMulti),
       h('label', {}, 'Motif d’hospitalisation', motif),
       h('label', {}, 'Projet thérapeutique', projet),
       h('fieldset', { class: 'hs-horaire' }, h('legend', { text: 'Dépendance — activités de la vie quotidienne (RIM-P)' }), h('div', { class: 'grille-2' }, sels.map(function (x) { return h('label', {}, x.v.libelle, x.sel); })), total),

@@ -82,10 +82,12 @@
     function dessinerGraphiques() {
       U.vider(zoneGraphiques);
       (F().graphiques || []).forEach(function (g, i) {
-        zoneGraphiques.appendChild(figureGraphique(C, fi, g, calc, modifiable ? h('figcaption', { class: 'actions gauche' },
-          h('small', { class: 'muted', text: 'Plage ' + T.nom(g.plage.l1, g.plage.c1) + ':' + T.nom(g.plage.l2, g.plage.c2) }),
-          h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleGraphique(i); } }, 'Modifier'),
-          h('button', { class: 'btn petit danger', type: 'button', onclick: function () { memoriser(); F().graphiques.splice(i, 1); modifie(); } }, 'Supprimer')) : null));
+        var fig = figureGraphique(C, fi, g, calc, h('figcaption', { class: 'actions gauche' },
+          modifiable ? h('small', { class: 'muted', text: 'Plage ' + T.nom(g.plage.l1, g.plage.c1) + ':' + T.nom(g.plage.l2, g.plage.c2) }) : null,
+          modifiable ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleGraphique(i); } }, 'Modifier') : null,
+          U.graphiquePdf.bouton(function () { return fig; }, { titre: g.titre || 'Graphique', sousTitre: 'Feuille « ' + (F().nom || '') + ' », plage ' + T.nom(g.plage.l1, g.plage.c1) + ':' + T.nom(g.plage.l2, g.plage.c2), nom: 'graphique_' + (g.titre || 'tableur'), categorie: 'graphiques' }),
+          modifiable ? h('button', { class: 'btn petit danger', type: 'button', onclick: function () { memoriser(); F().graphiques.splice(i, 1); modifie(); } }, 'Supprimer') : null));
+        zoneGraphiques.appendChild(fig);
       });
     }
     /** Graphique à partir de la sélection (ou modification d'un graphique existant). */

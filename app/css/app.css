@@ -1469,3 +1469,8 @@ tr.ligne-annulee td { text-decoration: line-through; color: var(--ink-2); }
 .cl-precedent p { margin: 2px 0; }
 .cl-staff td.cl-court { max-width: 22em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-cim { display: grid; grid-template-columns: 8em 1fr auto; gap: 6px; align-items: center; margin-bottom: 4px; }
+
+/* Graphiques en PDF (0.78.0) : figure construite pour l'export, lue hors de l'écran */
+.hors-ecran { position: absolute; left: -10000px; top: 0; width: 760px; }
+.figure-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px; }
+@media print { .ecran-seul { display: none; } }

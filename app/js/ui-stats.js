@@ -149,6 +149,7 @@
     var seq = U.methode.lignesSequences(a, b);
     if (seq.length) S(doc, 'Séquences', ['', String(a.annee), String(b.annee), 'Évolution'], seq.map(function (l) { return [l[0], l[3](l[1]), l[3](l[2]), evolution(l[1], l[2])]; }), [52, 16, 16, 16]);
     S(doc, 'Répartition mensuelle (mesures)', ['Mois', String(a.annee), String(b.annee)], b.mois.map(function (m, i) { return [MOIS[i], a.mois[i].mesures, m.mesures]; }), [50, 25, 25]);
+    U.graphiquePdf.ajouterAuPdf(doc, graphique(a, b), { hauteurMax: 230 });
     var methode = U.methode.lignesCSV(b.annee).filter(function (l) { return l && l.length && l[0] !== 'Méthode de calcul'; });
     if (methode.length) {
       doc.paragraphe('Méthode', { taille: 10, style: 'gras', avant: 6, apres: 3 });
@@ -186,6 +187,10 @@
       U.methode.sectionSequences(a, b),
       U.qualite.sectionsStats(a, b),
       U.methode.sectionMethode(svs, annee, b, false),
-      h('section', { class: 'panneau' }, h('h2', { text: 'Répartition mensuelle' }), graphique(a, b)));
+      (function () {
+        var fig = graphique(a, b), sv = svs.length === 1 ? svs[0] : null;
+        return h('section', { class: 'panneau' }, h('div', { class: 'barre' }, h('h2', { text: 'Répartition mensuelle' }), h('div', { class: 'espace' }),
+          U.graphiquePdf.bouton(fig, { titre: 'Mesures par mois — ' + b.annee + ' comparé à ' + a.annee, sousTitre: U.lieu('Isolement et contention. Une mesure = une entrée du registre anonymisé, comptée au mois de son début.'), service: sv, nom: 'graphique_mesures_par_mois_' + (sv || 'services') + '_' + b.annee, categorie: 'statistiques' })), fig);
+      })());
   };
 })();

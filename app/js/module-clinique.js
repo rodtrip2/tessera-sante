@@ -54,6 +54,37 @@
     if (e.type === 'CLINIQUE_NOTE' && d.id && !x.notes.some(function (n) { return n.id === d.id; })) x.notes.push({ id: d.id, texte: long(d.texte, 4000), le: e.at, par: e.by, nom: texte(d.nom, 80), retiree: null });
     if (e.type === 'CLINIQUE_NOTE_RETRAIT') { var n = x.notes.filter(function (y) { return y.id === d.id; })[0]; if (n && !n.retiree) n.retiree = { le: e.at, par: e.by, motif: texte(d.motif, 200) }; }
   }
+  /**
+   * Plusieurs codes CIM saisis dans un seul champ (0.78.0, demande du porteur du 16 novembre 2026) : chaque code
+   * (une lettre, deux chiffres, puis un point et jusqu'à trois caractères, ou une suite collée : F200, F20.0, F10.24,
+   * U07.1, avec + * † éventuels) ouvre une ligne ; le texte qui le suit, jusqu'au code suivant, en est le libellé.
+   * Séparateurs : point-virgule, virgule, retour à la ligne, tiret, barre ; un code qui suit un mot du libellé sans
+   * séparateur (« carence en vitamine B12 ») reste dans le libellé. Codes en double ignorés.
+   * Exemple : « F20.0 Schizophrénie paranoïde ; F10.2, Z59.0 Sans abri » → trois lignes.
+   */
+  var RE_CIM = /(^|[^A-Za-z0-9])([A-Za-z][0-9]{2}(?:\.[0-9A-Za-z]{1,3}|[0-9][0-9A-Za-z]{0,2})?[+*†]?)(?![0-9A-Za-z])/g;
+  function separerCim(saisie) {
+    var s = String(saisie == null ? '' : saisie).slice(0, 4000), trouves = [], m;
+    RE_CIM.lastIndex = 0;
+    while ((m = RE_CIM.exec(s)) && trouves.length < 50) {
+      var debut = m.index + m[1].length, avant = s.slice(trouves.length ? trouves[trouves.length - 1].fin : 0, debut);
+      // Un code au milieu d'un libellé (« carence en vitamine B12 ») n'en est pas un : il doit suivre le début, un
+      // séparateur ou directement un autre code
+      if (trouves.length && avant.trim() && !/[;,|/\n\r–—-]\s*$/.test(avant)) continue;
+      trouves.push({ code: m[2], debut: debut, fin: m.index + m[0].length });
+    }
+    var vus = {}, res = [];
+    trouves.forEach(function (t, i) {
+      var code = t.code.toUpperCase(), cle = code.replace(/[.+*†]/g, '');
+      var lib = s.slice(t.fin, i + 1 < trouves.length ? trouves[i + 1].debut : s.length).replace(/^[\s;,:|/–—\-–]+|[\s;,:|/–—\-]+$/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
+      if (/^(et|ou)$/i.test(lib)) lib = '';
+      if (vus[cle]) { if (lib && !vus[cle].libelle) vus[cle].libelle = lib; return; }
+      vus[cle] = { code: code.slice(0, 12), libelle: lib };
+      res.push(vus[cle]);
+    });
+    return res;
+  }
+
   function reduire(evts) { return N.reduire(evts, { cle: 'clinique', etat: function () { return { sejours: {} }; }, appliquer: appliquer }); }
 
   // ------------------------------------------------------------ Lecture
@@ -122,6 +153,6 @@
     besoins: []
   };
   registre.declarer(contrat);
-  return { contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, LECTURE: LECTURE, AVQ: AVQ, COTES: COTES, score: score, sejour: sejour, precedent: precedent, notesVisibles: notesVisibles,
+  return { contrat: contrat, reduire: reduire, separerCim: separerCim, droits: D, ACCES: ACCES, TYPES: TYPES, LECTURE: LECTURE, AVQ: AVQ, COTES: COTES, score: score, sejour: sejour, precedent: precedent, notesVisibles: notesVisibles,
     fonctionActive: fonctionActive, controler: controler, cle: cle };
 });
