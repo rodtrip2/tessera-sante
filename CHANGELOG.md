@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.81.0 — 16 novembre 2026
+
+Ergonomie et lisibilité (constats E2, E4 et E5 de l'audit du 15 novembre 2026).
+- **Administration** : onglets rangés par thème (Général, Patients et soins, Organisation, Équipe), tous visibles sur quelques rangées, sans défilement.
+- **Contrastes** : plus aucun texte sous le seuil des règles d'accessibilité (4,5 : 1, ou 3 : 1 pour un grand texte) sur les écrans parcourus, en thème clair et sombre (73 cas relevés avant). Orange et vert des badges plus foncés en thème clair ; pastilles et rubriques choisies lisibles en thème sombre ; textes colorés des données mêlés à l'encre du thème ; textes estompés (permissions en attente, événements annulés, patients ailleurs, réglages des colonnes, congés refusés ou tardifs) lisibles sans transparence ; encre noire ou blanche calculée sur les couleurs choisies par l'établissement (statuts des congés, périodes, étapes des processus de l'agenda).
+- **Taille des textes** : 12 px au moins partout (badges, petites mentions, barre des modules, tableau des congés, véhicules, présences), sauf la mise en page imprimable du tableau de transmissions, à la taille réglée par l'établissement.
+- **Noms lus par les outils d'accessibilité** : les éléments de l'agenda commencent par le texte affiché (heure et titre), puis leur type.
+
 ## 0.80.0 — 16 novembre 2026
 
 Ergonomie (constat E3 de l'audit du 15 novembre 2026) : plus aucune fenêtre du navigateur.

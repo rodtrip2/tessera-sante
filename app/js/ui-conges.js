@@ -50,7 +50,7 @@
   function gereDroits(a) { var m = moi(); return !!a && peut('DROITS_CONGES') && (s().roles().indexOf('ADMIN') >= 0 || (a.id !== m.id && (m.services || []).some(function (x) { return (a.services || []).indexOf(x) >= 0; }))); }
   function id() { return 'CG' + CR.hex(CR.aleatoire(5)); }
   function alerte() { var a = o().alerte; return a.active ? h('p', { class: 'alerte cg-avertissement', role: 'note', text: a.texte }) : null; }
-  function teinte(el, statut) { var c = o().couleurs[statut]; if (c) el.style.backgroundColor = c; return el; }
+  function teinte(el, statut) { var c = o().couleurs[statut]; if (c) { el.style.backgroundColor = c; var e = U.encreSur(c); if (e) el.style.color = e; } return el; }
   function badge(statut) { return teinte(h('span', { class: 'badge cg-badge cg-' + statut, text: C.STATUTS[statut] || statut }), statut); }
   function nomDe(c) { var a = agent(c.agent); return (a && a.nom) || c.nom || c.agent; }
 
@@ -233,7 +233,7 @@
     var p = j.periodes.filter(function (x) { return x.effet === 'bloquee'; })[0] || j.periodes.filter(function (x) { return x.effet === 'eviter'; })[0] || j.periodes[0];
     return p ? 'cg-p-' + p.effet : j.horsDelai && tete ? 'cg-p-delai' : '';
   }
-  function couleurPeriode(el, j) { var p = j.periodes.filter(function (x) { return x.couleur; })[0]; if (p && p.effet === 'info') { el.style.backgroundColor = p.couleur; el.style.backgroundColor = 'color-mix(in srgb, ' + p.couleur + ' 45%, transparent)'; } return el; }
+  function couleurPeriode(el, j) { var p = j.periodes.filter(function (x) { return x.couleur; })[0]; if (p && p.effet === 'info') { el.style.backgroundColor = p.couleur; el.style.backgroundColor = 'color-mix(in srgb, ' + p.couleur + ' 45%, transparent)'; var e = U.encreSurTeinte(p.couleur, 45); if (e) el.style.color = e; } return el; }
   function legende(t) {
     var stt = ['souhait', 'demande', 'valide', 'refuse'].filter(function (k) { return k !== 'souhait' || (o().souhaits && t.souhaits !== false); });
     var ps = C.periodes(st(), t.service, t.debut, t.fin);
