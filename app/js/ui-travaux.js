@@ -27,7 +27,7 @@
   // ------------------------------------------------------------ Informations de l'auteur et urgences
   function avisVus() { var p = U.App.session.preferences || {}; return Array.isArray(p.avisTravauxVus) ? p.avisTravauxVus : []; }
   function mesAvis() { try { return T.avisPour(st(), moi().id, avisVus()); } catch (e) { return []; } }
-  async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisTravauxVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
+  async function marquerVus(ids) { try { await U.App.session.enregistrerPreference('avisTravauxVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); } }
   var GENRES = { realisee: 'a marqué réalisée', confirmee: 'a confirmé la réalisation de', rouverte: 'a rouvert' };
   function bandeauAvis() {
     var av = mesAvis();
@@ -184,7 +184,7 @@
         if (d.salleIndisponible && U.salles) U.salles.synchroniser(true);
         var u = o.urgences.filter(function (y) { return y.code === d.urgence; })[0];
         U.toast(nouveau ? 'Demande enregistrée.' : 'Demande modifiée.');
-        if (nouveau && u && u.appel) setTimeout(function () { alert('Urgence immédiate : appelez maintenant les services techniques' + (numeroST() ? ' au ' + numeroST() : '') + '.'); }, 50);
+        if (nouveau && u && u.appel) setTimeout(function () { SIC.ui.alerte('Urgence immédiate : appelez maintenant les services techniques' + (numeroST() ? ' au ' + numeroST() : '') + '.'); }, 50);
       } } : null].filter(Boolean), { large: true });
     dlg = document.querySelector('dialog[open]');
     return dlg;
@@ -194,19 +194,19 @@
   function zoneSuivi(x) {
     var s = U.App.session, zone = h('div', { class: 'pile' }), apercu = s.apercu;
     var suivre = peut('TRAVAUX_ETAPE') && !apercu, confirmer = peut('TRAVAUX_CONFIRMATION') && !apercu, auteur = x.par === moi().id && !apercu;
-    async function etape(d, msg) { try { await s.enregistrer('TRAVAUX_ETAPE', Object.assign({ demande: x.id, service: x.service }, d)); if (x.salleIndisponible && U.salles) U.salles.synchroniser(true); U.toast(msg); fermerEtRouvrir(); } catch (e) { alert(e.message); } }
-    async function confirmation(d, msg) { try { await s.enregistrer('TRAVAUX_CONFIRMATION', Object.assign({ demande: x.id, service: x.service }, d)); U.toast(msg); fermerEtRouvrir(); } catch (e) { alert(e.message); } }
+    async function etape(d, msg) { try { await s.enregistrer('TRAVAUX_ETAPE', Object.assign({ demande: x.id, service: x.service }, d)); if (x.salleIndisponible && U.salles) U.salles.synchroniser(true); U.toast(msg); fermerEtRouvrir(); } catch (e) { SIC.ui.alerte(e.message); } }
+    async function confirmation(d, msg) { try { await s.enregistrer('TRAVAUX_CONFIRMATION', Object.assign({ demande: x.id, service: x.service }, d)); U.toast(msg); fermerEtRouvrir(); } catch (e) { SIC.ui.alerte(e.message); } }
     function fermerEtRouvrir() { var d = document.querySelector('dialog[open]'); if (d) d.dispatchEvent(new Event('cancel')); setTimeout(function () { modaleDemande(st().demandes[x.id]); }, 0); }
     function peutDepuis(et) { return T.DEPUIS[et].indexOf(x.etat) >= 0; }
     var actions = [];
-    if (suivre && peutDepuis('transmise')) actions.push(['Transmise aux services techniques…', function () { var r = prompt('Référence du bon des services techniques (facultative) :', x.reference || ''); if (r !== null) etape({ etape: 'transmise', reference: r.trim() }, 'Demande transmise.'); }]);
+    if (suivre && peutDepuis('transmise')) actions.push(['Transmise aux services techniques…', async function () { var r = await SIC.ui.demander('Référence du bon des services techniques (facultative) :', x.reference || ''); if (r !== null) etape({ etape: 'transmise', reference: r.trim() }, 'Demande transmise.'); }]);
     if (suivre && peutDepuis('programmee')) actions.push(['Intervention programmée…', function () { modaleDate(x, function (j) { etape({ etape: 'programmee', date: j }, 'Intervention programmée le ' + jourFr(j) + '.'); }); }]);
     if (suivre && peutDepuis('realisee')) actions.push(['Réalisée', function () { etape({ etape: 'realisee' }, 'Demande réalisée : le cadre confirmera.'); }, 'primaire']);
     if (confirmer && x.etat === 'realisee') actions.push(['Confirmer la réalisation', function () { confirmation({}, 'Réalisation confirmée.'); }, 'primaire']);
-    if (confirmer && ['realisee', 'confirmee', 'refusee'].indexOf(x.etat) >= 0) actions.push(['Rouvrir…', function () { var m = prompt('Pourquoi rouvrir la demande (intervention insuffisante, problème revenu…) ?'); if (m && m.trim()) confirmation({ rouvrir: true, motif: m.trim() }, 'Demande rouverte.'); }]);
-    if (suivre && peutDepuis('refusee')) actions.push(['Refusée par les services techniques…', function () { var m = prompt('Motif du refus :'); if (m && m.trim()) etape({ etape: 'refusee', motif: m.trim() }, 'Refus enregistré.'); }]);
+    if (confirmer && ['realisee', 'confirmee', 'refusee'].indexOf(x.etat) >= 0) actions.push(['Rouvrir…', async function () { var m = await SIC.ui.demander('Pourquoi rouvrir la demande (intervention insuffisante, problème revenu…) ?'); if (m && m.trim()) confirmation({ rouvrir: true, motif: m.trim() }, 'Demande rouverte.'); }]);
+    if (suivre && peutDepuis('refusee')) actions.push(['Refusée par les services techniques…', async function () { var m = await SIC.ui.demander('Motif du refus :'); if (m && m.trim()) etape({ etape: 'refusee', motif: m.trim() }, 'Refus enregistré.'); }]);
     if (suivre && peutDepuis('doublon')) actions.push(['Doublon de…', function () { modaleDoublon(x, function (id) { etape({ etape: 'doublon', doublonDe: id }, 'Demande rattachée à la première.'); }); }]);
-    if ((suivre || auteur) && peutDepuis('annulee')) actions.push(['Annuler la demande…', function () { var m = prompt('Motif de l’annulation :'); if (m && m.trim()) etape({ etape: 'annulee', motif: m.trim() }, 'Demande annulée.'); }, 'danger']);
+    if ((suivre || auteur) && peutDepuis('annulee')) actions.push(['Annuler la demande…', async function () { var m = await SIC.ui.demander('Motif de l’annulation :'); if (m && m.trim()) etape({ etape: 'annulee', motif: m.trim() }, 'Demande annulée.'); }, 'danger']);
     zone.appendChild(h('b', { text: 'Suivi' }));
     if (x.doublonDe && st().demandes[x.doublonDe]) zone.appendChild(h('p', {}, 'Doublon de ', h('button', { class: 'btn lien', type: 'button', onclick: function () { fermerEtOuvrir(st().demandes[x.doublonDe]); } }, numero(st().demandes[x.doublonDe]))));
     zone.appendChild(h('ul', { class: 'liste-simple' }, [h('li', {}, h('small', { class: 'muted', text: dateFr(x.cree) + ' — ' + s.nomAuteur(x.par) + ' : ' }), 'demande enregistrée')].concat(x.etapes.map(function (e) {
@@ -222,7 +222,7 @@
       var com = h('input', { type: 'text', maxlength: 1000, placeholder: 'Ajouter un commentaire (sans donnée sur un patient)' });
       zone.appendChild(h('div', { class: 'barre' }, com, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
         if (!com.value.trim()) return;
-        try { await s.enregistrer('TRAVAUX_COMMENTAIRE', { demande: x.id, id: 'K' + C.hex(C.aleatoire(4)), texte: com.value.trim(), service: x.service }); U.toast('Commentaire ajouté.'); fermerEtRouvrir(); } catch (e) { alert(e.message); }
+        try { await s.enregistrer('TRAVAUX_COMMENTAIRE', { demande: x.id, id: 'K' + C.hex(C.aleatoire(4)), texte: com.value.trim(), service: x.service }); U.toast('Commentaire ajouté.'); fermerEtRouvrir(); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Ajouter')));
     }
     return zone;
@@ -333,7 +333,7 @@
           var v = {}; lecteurs.forEach(function (f) { f(v); });
           if (Object.keys(v).length) tout[niveau] = v; else delete tout[niveau];
           await U.enregistrerConfig([['travaux', tout]]); U.toast('Réglages enregistrés.');
-        } catch (e) { alert(e.message); }
+        } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer')));
   }
 

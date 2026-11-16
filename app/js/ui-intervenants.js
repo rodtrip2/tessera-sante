@@ -46,9 +46,9 @@
           l.tiers ? h('span', { class: 'badge', title: 'Information d’un tiers : exclue du droit d’accès du patient', text: 'tiers' }) : null),
           ok ? h('span', { class: 'actions' },
             h('button', { class: 'btn petit', type: 'button', title: 'Information d’un tiers : exclue du droit d’accès du patient', onclick: function () { ecrire({ patientId: fiche.id, lien: l.lien, intervenant: i.id, commentaire: l.commentaire || '', tiers: !l.tiers }, l.tiers ? 'N’est plus marqué « tiers ».' : 'Marqué « information d’un tiers ».'); } }, l.tiers ? 'Pas un tiers' : 'Tiers'),
-            h('button', { class: 'btn petit', type: 'button', onclick: function () { var c = prompt('Commentaire pour ce patient (court, sans donnée clinique) :', l.commentaire || ''); if (c !== null) ecrire({ patientId: fiche.id, lien: l.lien, intervenant: i.id, commentaire: c.trim().slice(0, 300), tiers: !!l.tiers }, 'Commentaire enregistré.'); } }, 'Commentaire…'),
+            h('button', { class: 'btn petit', type: 'button', onclick: async function () { var c = await SIC.ui.demander('Commentaire pour ce patient (court, sans donnée clinique) :', l.commentaire || ''); if (c !== null) ecrire({ patientId: fiche.id, lien: l.lien, intervenant: i.id, commentaire: c.trim().slice(0, 300), tiers: !!l.tiers }, 'Commentaire enregistré.'); } }, 'Commentaire…'),
             h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleIntervenant(i, rouvrir); } }, 'Modifier la fiche…'),
-            h('button', { class: 'btn petit danger', type: 'button', onclick: function () { if (confirm('Retirer « ' + i.nom + ' » de la prise en charge de ce patient ? Sa fiche reste dans le répertoire.')) ecrire({ patientId: fiche.id, lien: l.lien, retire: true }, 'Retiré de la fiche.'); } }, 'Retirer')) : null);
+            h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (await SIC.ui.confirmer('Retirer « ' + i.nom + ' » de la prise en charge de ce patient ? Sa fiche reste dans le répertoire.')) ecrire({ patientId: fiche.id, lien: l.lien, retire: true }, 'Retiré de la fiche.'); } }, 'Retirer')) : null);
       })) : h('p', { class: 'muted', text: 'Aucun professionnel ni structure indiqué.' }));
       if (!ok) return;
       var deja = liens.map(function (l) { return l.intervenant.id; }), rep = K.repertoire(etat()).filter(function (i) { return deja.indexOf(i.id) < 0; });
@@ -57,7 +57,7 @@
       zone.appendChild(h('div', { class: 'actions gauche' }, sel, h('button', { class: 'btn petit', type: 'button', onclick: function () { if (sel.value) lier(sel.value); } }, 'Ajouter'),
         h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleIntervenant(null, function (d) { lier(d.id).then(function () { if (rouvrir) rouvrir(); }); }); } }, '+ Nouveau professionnel ou nouvelle structure…')));
     }
-    async function ecrire(d, msg) { try { await U.App.session.enregistrer('PRISE_EN_CHARGE', d); U.toast(msg); dessiner(); } catch (e) { alert(e.message); } }
+    async function ecrire(d, msg) { try { await U.App.session.enregistrer('PRISE_EN_CHARGE', d); U.toast(msg); dessiner(); } catch (e) { SIC.ui.alerte(e.message); } }
     dessiner();
     return h('div', { class: 'pile' }, h('b', { text: 'Professionnels ou structures participant à la prise en charge' }), zone);
   }
@@ -83,14 +83,14 @@
       h('p', { class: 'muted', text: 'Rubrique de la fiche patient : infirmier libéral à domicile, foyer, hôpital de jour… Chaque professionnel ou structure est saisi une fois dans un répertoire commun, puis rattaché aux patients qu’il suit. Coordonnées professionnelles seulement, aucune donnée clinique. Ces types servent aussi aux tâches suggérées de l’agenda (ex. « Appeler l’infirmier libéral » avant une sortie).' }),
       h('div', { class: 'grille-2' }, h('div', { class: 'pile' }, h('b', { text: 'Types proposés' }), zT), h('div', { class: 'pile' }, h('b', { text: 'Champs ajoutés à chaque fiche' }), zC)),
       h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
-        try { await U.enregistrerConfig([['intervenants', { types: types.filter(function (t) { return t.libelle.trim(); }), champs: champs.filter(function (t) { return t.libelle.trim(); }) }]]); U.toast('Réglages enregistrés.'); } catch (e) { alert(e.message); }
+        try { await U.enregistrerConfig([['intervenants', { types: types.filter(function (t) { return t.libelle.trim(); }), champs: champs.filter(function (t) { return t.libelle.trim(); }) }]]); U.toast('Réglages enregistrés.'); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer')),
       h('h2', { text: 'Répertoire (' + rep.length + ')' }),
       rep.length ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: 'Type' }), h('th', { text: 'Nom' }), h('th', { text: 'Contact' }), h('th', { text: 'Commentaire' }), h('th'))),
         h('tbody', {}, rep.map(function (i) {
           return h('tr', {}, h('td', { text: K.libType(U.config(), i.type) }), h('td', { text: i.nom }), h('td', { text: i.contact || '' }), h('td', { text: i.commentaire || '' }),
             h('td', {}, peut() ? [h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleIntervenant(i, function () { U.rendreContenu(); }); } }, 'Modifier'), ' ',
-              h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (!confirm('Retirer « ' + i.nom + ' » du répertoire ? Il disparaît des fiches des patients ; les saisies restent au journal.')) return; try { await U.App.session.enregistrer('INTERVENANT', { id: i.id, supprime: true }); U.toast('Retiré du répertoire.'); } catch (e) { alert(e.message); } } }, 'Retirer')] : null));
+              h('button', { class: 'btn petit danger', type: 'button', onclick: async function () { if (!await SIC.ui.confirmer('Retirer « ' + i.nom + ' » du répertoire ? Il disparaît des fiches des patients ; les saisies restent au journal.')) return; try { await U.App.session.enregistrer('INTERVENANT', { id: i.id, supprime: true }); U.toast('Retiré du répertoire.'); } catch (e) { SIC.ui.alerte(e.message); } } }, 'Retirer')] : null));
         })))) : h('p', { class: 'muted', text: 'Répertoire vide : il se remplit depuis les fiches des patients.' }),
       peut() ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleIntervenant(null, function () { U.rendreContenu(); }); } }, '+ Ajouter au répertoire…')) : null);
   }

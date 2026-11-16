@@ -98,7 +98,7 @@
     if (champ && champ.focus) setTimeout(function () { champ.focus(); }, 20);
     async function valider() {
       ok.disabled = true;
-      try { await enregistrer(w.lire()); await apresSaisie(); } catch (e) { alert(e.message); ok.disabled = false; return; }
+      try { await enregistrer(w.lire()); await apresSaisie(); } catch (e) { SIC.ui.alerte(e.message); ok.disabled = false; return; }
       U.rendreContenu();
     }
     ok.addEventListener('click', valider);
@@ -116,13 +116,13 @@
     }
     if (e.type === 'medecin') return editerDansCase(td, col, l, null, async function (v) {
       var avant = MED.resoudre(cfg(), p[e.cle], p[e.cle + 'Id']);
-      if (avant && v.nom && avant !== v.nom && !confirm(titreLigne(l) + ' a déjà un ' + col.libelle.toLowerCase() + ' (' + avant + '). Le remplacer par ' + v.nom + ' ?')) throw new Error('Changement abandonné.');
+      if (avant && v.nom && avant !== v.nom && !await SIC.ui.confirmer(titreLigne(l) + ' a déjà un ' + col.libelle.toLowerCase() + ' (' + avant + '). Le remplacer par ' + v.nom + ' ?')) throw new Error('Changement abandonné.');
       var d = { patientId: p.id }; d[e.cle] = v.nom || ''; d[e.cle + 'Id'] = v.id || null;
       return s.enregistrer('PATIENT', d);
     });
     if (e.type === 'psychologue') return editerDansCase(td, col, l, null, async function (v) {
       var avant = l.p.psychologue || l.p.psychologueId ? SIC.psychologues.resoudre(cfg(), l.p.psychologue, l.p.psychologueId) : '';
-      if (avant && v.nom && avant !== v.nom && !confirm(titreLigne(l) + ' a déjà un psychologue référent (' + avant + '). Le remplacer par ' + v.nom + ' ?')) throw new Error('Changement abandonné.');
+      if (avant && v.nom && avant !== v.nom && !await SIC.ui.confirmer(titreLigne(l) + ' a déjà un psychologue référent (' + avant + '). Le remplacer par ' + v.nom + ' ?')) throw new Error('Changement abandonné.');
       return s.enregistrer('PATIENT', { patientId: p.id, psychologue: v.nom || '', psychologueId: v.id || '' });
     });
     if (e.type === 'texte') return editerDansCase(td, col, l, p[e.cle], function (v) { var d = { patientId: p.id }; d[e.cle] = v; return s.enregistrer('PATIENT', d); });
@@ -274,7 +274,7 @@
     var l = vuesBrutes(), x = l.filter(function (y) { return y.id === v.id; })[0];
     if (!x) return;
     x.colonnes = (x.colonnes || []).map(function (c) { c = typeof c === 'string' ? { code: c } : c; if (c.code === code) { if (px) c.largeur = V.largeur(px); else delete c.largeur; } return c; });
-    try { await U.enregistrerConfig([['vuesEnsemble', Object.assign({}, cfg().vuesEnsemble || {}, { vues: l })]]); } catch (e) { alert(e.message); }
+    try { await U.enregistrerConfig([['vuesEnsemble', Object.assign({}, cfg().vuesEnsemble || {}, { vues: l })]]); } catch (e) { SIC.ui.alerte(e.message); }
     U.rendreContenu();
   }
   function caseCouleur(td, coul) {
@@ -410,13 +410,13 @@
     var ctx = contexte(), cat = V.catalogue(v.lignes, ctx), cols = colonnesVisibles(v, cat), ls = V.lignes(v, ctx), groupes = V.ranger(v, ls, cat, ctx, cols.map(function (x) { return x.col; }));
     var id = 'I' + C.hex(C.aleatoire(6)), prep = V.preparerInstantane(v, groupes, cols, ctx, id);
     var detenus = prep.parts.filter(function (p) { return p.journal === 'vue' || p.journal === 'patients' || (session().ouvert && session().ouvert(p.journal)) || (p.journal.indexOf('d-') === 0 && (p.journal.indexOf('.') < 0 || (session().ouvert && session().ouvert(p.journal)))); });
-    if (!confirm('Clore la feuille « ' + v.nom + ' » du ' + U.date(Date.now()) + ' ?\n\nL’instantané garde les ' + ls.length + ' ligne(s) et les ' + cols.length + ' colonne(s) telles qu’elles sont maintenant. Il ne sera plus modifiable (des annotations datées restent possibles).')) return;
+    if (!await SIC.ui.confirmer('Clore la feuille « ' + v.nom + ' » du ' + U.date(Date.now()) + ' ?\n\nL’instantané garde les ' + ls.length + ' ligne(s) et les ' + cols.length + ' colonne(s) telles qu’elles sont maintenant. Il ne sera plus modifiable (des annotations datées restent possibles).')) return;
     try {
       for (var i = 0; i < detenus.length; i++) await session().enregistrer('INSTANTANE_PART', detenus[i].data);
       await session().enregistrer('INSTANTANE', prep.entete);
       try { localStorage.removeItem(cleePrep(v)); } catch (e) { /* */ }
       U.toast('Instantané enregistré (onglet « Instantanés »).');
-    } catch (e) { alert(e.message); }
+    } catch (e) { SIC.ui.alerte(e.message); }
     U.rendreContenu();
   }
   function tableauInstantane(i) {
@@ -451,7 +451,7 @@
       tableauInstantane(i), h('b', { text: 'Annotations' }), notes,
       peut('INSTANTANE_NOTE') ? h('div', { class: 'actions gauche' }, t, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
         if (!t.value.trim()) return t.focus();
-        try { await session().enregistrer('INSTANTANE_NOTE', { instantane: e.id, texte: t.value.trim() }); U.toast('Annotation ajoutée.'); notes.appendChild(h('li', { class: 'note' }, h('span', { class: 'note-texte', text: t.value.trim() }), h('small', { class: 'muted', text: ' — ' + compte().nom + ', à l’instant' }))); t.value = ''; } catch (er) { alert(er.message); }
+        try { await session().enregistrer('INSTANTANE_NOTE', { instantane: e.id, texte: t.value.trim() }); U.toast('Annotation ajoutée.'); notes.appendChild(h('li', { class: 'note' }, h('span', { class: 'note-texte', text: t.value.trim() }), h('small', { class: 'muted', text: ' — ' + compte().nom + ', à l’instant' }))); t.value = ''; } catch (er) { SIC.ui.alerte(er.message); }
       } }, 'Annoter')) : null), [
       { texte: 'Imprimer', action: function () { U.imprimer(documentVue(e.nom, 'Instantané clos le ' + U.date(Date.parse(e.le)) + ' par ' + session().nomAuteur(i.par), tableauInstantane(i))); return false; } },
       { texte: 'Fermer' }], { large: true });
@@ -590,7 +590,7 @@
         h('button', { class: 'btn petit', type: 'button', onclick: function () { U.modale('Capacité d’accueil', U.champs.panneauCapacites(), [{ texte: 'Fermer' }], { large: true }); } }, 'Capacité d’accueil…')) : null);
     var boutons = [{ texte: 'Annuler' }];
     if (!nouveau) boutons.push({ texte: 'Supprimer la vue', classe: 'danger', action: async function () {
-      if (!confirm('Supprimer la vue « ' + v0.nom + ' » ? Ses instantanés clos restent consultables.')) return false;
+      if (!await SIC.ui.confirmer('Supprimer la vue « ' + v0.nom + ' » ? Ses instantanés clos restent consultables.')) return false;
       await U.enregistrerConfig([['vuesEnsemble', { vues: vuesBrutes().filter(function (x) { return x.id !== v0.id; }) }]]);
     } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {

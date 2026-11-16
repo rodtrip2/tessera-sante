@@ -53,7 +53,7 @@
   async function retirer(t) { await s().enregistrer('TACHE_PERSO', { id: t.id, agent: moi().id, supprime: true }); }
   async function cocher(t, fait) {
     try { await enregistrer(t.id, Object.assign({}, t, { fait: fait, faitLe: fait ? new Date().toISOString() : '' })); U.toast(fait ? 'Tâche faite.' : 'Tâche remise à faire.'); }
-    catch (e) { alert(e.message); }
+    catch (e) { SIC.ui.alerte(e.message); }
   }
 
   function modaleTache(t, init) {
@@ -78,7 +78,7 @@
       (U.plusOptions || function (o) { return h('div', { class: 'pile' }, [].slice.call(arguments, 1)); })(!!(t.note || t.element), h('label', {}, 'Note (facultatif ; aucune donnée clinique)', note),
         h('h3', { text: 'Élément rattaché' }), zoneE),
       h('small', { class: 'muted', text: 'Votre liste est chiffrée par votre clé de liste, remise à vous seul : l’application ne l’ouvre pour personne d’autre, administrateur compris, et elle reste lisible après un mot de passe oublié. Pour confier une tâche à un collègue, envoyez-lui un message avec l’élément rattaché.' })),
-    [{ texte: 'Annuler' }, nouveau ? null : { texte: 'Retirer', classe: 'danger', action: async function () { if (!confirm('Retirer cette tâche de votre liste ?')) return false; await retirer(t); U.toast('Tâche retirée.'); } },
+    [{ texte: 'Annuler' }, nouveau ? null : { texte: 'Retirer', classe: 'danger', action: async function () { if (!await SIC.ui.confirmer('Retirer cette tâche de votre liste ?')) return false; await retirer(t); U.toast('Tâche retirée.'); } },
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         if (!titre.value.trim()) { titre.focus(); throw new Error('Indiquez la tâche.'); }
         if (rappel.value && !ech.value) throw new Error('Un rappel demande une échéance.');

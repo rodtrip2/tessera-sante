@@ -15,3 +15,8 @@ Mise à jour des documents reportable (décision du porteur du 11 novembre 2026)
 - En-tête sur une rangée : menu « Plus ▾ » (`menuEntete`, `app/js/ui.js`) avec Mot de passe, Exports, Affichage (ancien « Aa »), thème, installation hors réseau, À propos ; Rechercher, Signaler, Verrouiller visibles. Titre de fenêtre et onglets dans `.fenetre-tete`. Messages pour l'agent (`messagesPerso`) : complets dans « Aujourd'hui », repliés ailleurs (`App.messagesOuverts` pour la session). Aucune saisie ni réglage. Parcours et script de captures adaptés (menu).
 - À documenter : guides utilisateur (06 : « bouton *Mot de passe* » → menu « Plus » ; Exports ; Affichage), IDE / AS (08 : captures régénérées), installation (03 si un écran y est cité) ; fiche pour les représentants du personnel (19, § 4 ergonomie : E1 fait).
 
+## 0.80.0 — 16 novembre 2026 (ergonomie, constat E3)
+
+- `SIC.ui.confirmer(message, { ok, danger })` (promesse d'un booléen), `SIC.ui.demander(message, valeur)` (promesse du texte ou null), `SIC.ui.alerte(message)` (bandeau non bloquant, dans la fenêtre ouverte s'il y en a une) remplacent `confirm`, `prompt` et `alert` partout (`app/js/ui.js`, styles `.petite-fenetre`, `.zone-alertes`). Fonctions englobantes rendues asynchrones ; boucle des véhicules de l'agenda réécrite ; `verifier` des Salles attendu. `SIC.ui.reponsesAutomatiques(f)` : réponses d'office pour le parcours automatisé des écrans (et le script des captures), sans effet tant qu'il n'est pas appelé. Parcours : étapes de vérification des trois fenêtres.
+- Convention de code à ajouter (CLAUDE.md § 5 et `docs/architecture.md`) : ne plus utiliser `alert`, `confirm` ni `prompt` ; passer par `SIC.ui.alerte`, `SIC.ui.confirmer`, `SIC.ui.demander`.
+

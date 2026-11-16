@@ -59,9 +59,9 @@
           h('div', { text: jeu ? 'Jeu de formation créé le ' + U.date(Date.parse(jeu.creeLe)) + ' par ' + jeu.par + '.' : 'Le jeu de formation sera créé à la première connexion en mode formation.' }),
           h('div', { text: avec + ' compte(s) actif(s) sur ' + actifs + ' ont accès au mode formation.' })),
         h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: async function () {
-          if (jeu && !confirm('Effacer le jeu de formation actuel (y compris les saisies des stagiaires) et en recréer un neuf ?')) return;
+          if (jeu && !await SIC.ui.confirmer('Effacer le jeu de formation actuel (y compris les saisies des stagiaires) et en recréer un neuf ?')) return;
           try { await s.creerFormation(generer(s.etat.config), 'Jeu de formation (données fictives)'); U.toast('Jeu de formation ' + (jeu ? 'régénéré' : 'créé') + '.'); U.rendreContenu(); }
-          catch (e) { alert(e.message); }
+          catch (e) { SIC.ui.alerte(e.message); }
         } }, jeu ? 'Régénérer les données fictives' : 'Créer le jeu de formation maintenant')));
     }
   };

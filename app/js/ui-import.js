@@ -314,7 +314,7 @@
         for (var i = 0; i < choisis.length; i++) await s.enregistrer('CONFIG', { cle: choisis[i].cle, valeur: choisis[i].valeur });
         if (champsCompteurs.length) await s.enregistrer('CONFIG', { cle: 'compteursRegistre', valeur: I().fusionCompteurs(U.st(), compteursChoisis()) });
         if (prep.anneesNumerotees.length) {
-          if (modeNum === 'tout' && !confirm('Recalculer toutes les années : les numéros et les statistiques des années passées peuvent changer. Confirmer ?')) return false;
+          if (modeNum === 'tout' && !await SIC.ui.confirmer('Recalculer toutes les années : les numéros et les statistiques des années passées peuvent changer. Confirmer ?')) return false;
           var fige = I().fusionFige(U.st(), prep, figeChoisi());
           if (JSON.stringify(fige) !== JSON.stringify(U.config().registreFige || {})) await s.enregistrer('CONFIG', { cle: 'registreFige', valeur: fige });
           if (Object.keys(decisions).length) await s.enregistrer('CONFIG', { cle: 'registreFigeMesures', valeur: I().fusionFigeMesures(U.st(), prep, decisions) });

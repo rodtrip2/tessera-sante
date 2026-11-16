@@ -88,7 +88,7 @@
       nv.forEach(function (n) {
         zoneNotes.appendChild(h('div', { class: 'cl-note' }, h('small', { class: 'muted', text: new Date(n.le).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) + ' — ' + (n.nom || s().nomAuteur(n.par)) }), h('p', { class: 'en-texte', text: n.texte }),
           note && (n.par === s().utilisateur.id || s().roles().indexOf('CADRE') >= 0) ? h('button', { class: 'btn petit', type: 'button', onclick: async function () {
-            var m = prompt('Motif du retrait (la note est masquée, jamais effacée) :');
+            var m = await SIC.ui.demander('Motif du retrait (la note est masquée, jamais effacée) :');
             if (!m) return;
             try { await s().enregistrer('CLINIQUE_NOTE_RETRAIT', { patientId: f.id, sejour: sj.id, service: f.service, id: n.id, motif: m }); dessinerNotes(); } catch (e) { U.toast(e.message); }
           } }, 'Retirer') : null));

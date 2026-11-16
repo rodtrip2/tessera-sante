@@ -86,7 +86,7 @@
       try {
         await U.App.session.enregistrer('INSCRIPTION', { rdv: x.rdv.id, occurrence: x.occurrence, agent: moi.id, nom: moi.nom, retrait: quoi[0] ? undefined : true, etat: quoi[0] || undefined, service: x.rdv.service });
         U.toast(quoi[2]);
-      } catch (e) { alert(e.message); }
+      } catch (e) { SIC.ui.alerte(e.message); }
     } }, quoi[1]);
   }
   function badgeAccompagnateurs(x) {
@@ -216,7 +216,7 @@
     var office = A.reglagesService(U.config(), service).sortieEvenement === 'office';
     var d0 = new Date(val.debut + 'T' + (val.heure || '11:00')).getTime();
     if (!office) {
-      if (!confirm('Créer l’événement « Sortie du patient » dans l’agenda, avec sa check-list ?')) return;
+      if (!await SIC.ui.confirmer('Créer l’événement « Sortie du patient » dans l’agenda, avec sa check-list ?')) return;
       return modaleElement(null, d0, false, null, false, null, { nature: 'sortie', service: service, patients: [p.id], heure: val.heure || '11:00', heureFixee: true });
     }
     var pr = cat('sortie', service).prereglages || {}, liste = [], modele = A.checklists(U.config()).filter(function (c) { return c.code === pr.checklist; })[0];
@@ -227,7 +227,7 @@
     try {
       await U.App.session.enregistrer('RDV', { id: 'R' + C.hex(C.aleatoire(6)), nature: 'sortie', titre: pr.titre || '', debut: d0, fin: d0 + (pr.duree || 30) * 6e4, lieu: pr.lieu || '', service: service, patients: [p.id], professionnels: [], checklist: liste });
       U.toast('Événement de sortie ajouté à l’agenda, avec sa check-list.');
-    } catch (e) { alert(e.message); }
+    } catch (e) { SIC.ui.alerte(e.message); }
   }
   function reperesParJour(debut, n, maintenant) {
     var svs = servicesAffiches(), res = {}, aujourdhui = A.jourISO(maintenant);
@@ -283,7 +283,7 @@
   function mesAvis() { var s = U.App.session; return s && s.compteEffectif && s.etatModule('agenda') ? A.avisPour(st(), s.compteEffectif().id, avisVus(), Date.now()) : []; }
   async function marquerVus(ids) {
     var s = U.App.session;
-    try { await s.enregistrerPreference('avisVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); }
+    try { await s.enregistrerPreference('avisVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); }
   }
   /** Ce qui attend une réponse de l'agent (propositions, invitations) et les demandes qu'il peut confirmer (0.21.0). */
   function mesReponses() {
@@ -297,7 +297,7 @@
     if (!m.repondre.length && !m.confirmer.length) return null;
     async function ecrire(x, agent, nom, o) {
       try { await U.App.session.enregistrer('INSCRIPTION', { rdv: x.rdv.id, occurrence: x.occurrence, agent: agent, nom: nom, etat: o.etat, motif: o.motif || undefined, service: x.rdv.service }); U.toast(o.etat === 'refuse' ? 'Refus enregistré.' : 'Enregistré.'); }
-      catch (e) { alert(e.message); }
+      catch (e) { SIC.ui.alerte(e.message); }
     }
     function lien(x) { return h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleElement(x.rdv, null, !peut('RDV'), null, false, x.occurrence); } }, libelleElement(x.rdv)); }
     function quand(x) { return h('span', { text: ' — ' + libJour(x.debut) + ' ' + hm(x.debut) + ' ' }); }
@@ -306,12 +306,12 @@
         m.repondre.map(function (x) {
           return h('li', {}, h('span', { text: x.situation.etat === 'propose' ? U.App.session.nomAuteur(x.situation.par) + ' vous propose de participer : ' : 'Vous êtes invité(e) : ' }), lien(x), quand(x),
             h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { ecrire(x, moi.id, moi.nom, { etat: 'inscrit' }); } }, 'Accepter'), ' ',
-            h('button', { class: 'btn petit', type: 'button', onclick: function () { var mo = prompt('Motif du refus (facultatif, court, sans donnée de santé) :'); if (mo !== null) ecrire(x, moi.id, moi.nom, { etat: 'refuse', motif: mo.trim() }); } }, 'Refuser…'));
+            h('button', { class: 'btn petit', type: 'button', onclick: async function () { var mo = await SIC.ui.demander('Motif du refus (facultatif, court, sans donnée de santé) :'); if (mo !== null) ecrire(x, moi.id, moi.nom, { etat: 'refuse', motif: mo.trim() }); } }, 'Refuser…'));
         }),
         m.confirmer.map(function (x) {
           return h('li', {}, h('span', { text: (x.demande.nom || U.App.session.nomAuteur(x.demande.agent)) + ' demande à participer : ' }), lien(x), quand(x),
             h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { ecrire(x, x.demande.agent, x.demande.nom, { etat: 'inscrit' }); } }, 'Confirmer'), ' ',
-            h('button', { class: 'btn petit', type: 'button', onclick: function () { var mo = prompt('Motif du refus (court, sans donnée de santé) :'); if (mo && mo.trim()) ecrire(x, x.demande.agent, x.demande.nom, { etat: 'refuse', motif: mo.trim() }); } }, 'Refuser…'));
+            h('button', { class: 'btn petit', type: 'button', onclick: async function () { var mo = await SIC.ui.demander('Motif du refus (court, sans donnée de santé) :'); if (mo && mo.trim()) ecrire(x, x.demande.agent, x.demande.nom, { etat: 'refuse', motif: mo.trim() }); } }, 'Refuser…'));
         })));
   }
   function bandeauAvis() {
@@ -565,7 +565,7 @@
         // Véhicule pré-réservé : réservation forcée après avertissement (déjà donné à l'enregistrement d'une seule date)
         var pv = SIC.vehicules.peutReserver(ev, w.vehicule, r0.service, w.debut, w.fin, null, U.libService), supplante;
         if (pv.ok && pv.pre && pv.pre.length) {
-          if (!o.forcer && !confirm(w.occurrence.split('-').reverse().join('/') + ' : véhicule ' + pv.avertissement + '.\n\nForcer la réservation ? L’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.')) { echecs.push(w.occurrence.split('-').reverse().join('/') + ' : ' + pv.avertissement); continue; }
+          if (!o.forcer && !await SIC.ui.confirmer(w.occurrence.split('-').reverse().join('/') + ' : véhicule ' + pv.avertissement + '.\n\nForcer la réservation ? L’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.')) { echecs.push(w.occurrence.split('-').reverse().join('/') + ' : ' + pv.avertissement); continue; }
           supplante = pv.pre.map(function (z) { return z.id; });
         }
         await s.enregistrer('RESERVATION', { id: 'RV' + C.hex(C.aleatoire(5)), vehicule: w.vehicule, debut: w.debut, fin: w.fin, service: r0.service, agent: moi.id, nom: moi.nom, statut: 'ferme', supplante: supplante,
@@ -575,7 +575,7 @@
     }
     return echecs;
   }
-  function signalerEchecs(echecs) { if (echecs.length) alert('Réservation du véhicule non faite :\n' + echecs.join('\n') + '\n\nLe transport reste « à réserver » à ces dates.'); }
+  function signalerEchecs(echecs) { if (echecs.length) SIC.ui.alerte('Réservation du véhicule non faite :\n' + echecs.join('\n') + '\n\nLe transport reste « à réserver » à ces dates.'); }
 
   function modaleElement(r, jour, lecture, patientsVisibles, externe, occurrence, init) {
     // Toujours l'élément enregistré (réglages de toutes les dates), même ouvert depuis une date qui a ses propres réglages
@@ -707,7 +707,7 @@
                 patients = cb.checked ? patients.concat([p.id]) : patients.filter(function (i) { return i !== p.id; });
                 patientsVisibles = patients.filter(function (pid) { return mesSv.indexOf(A.serviceDuPatient(fiches()[pid])) >= 0; });
                 U.toast(cb.checked ? 'Patient inscrit.' : 'Patient retiré.'); dessinerPatients();
-              } catch (e) { cb.checked = !cb.checked; alert(e.message); }
+              } catch (e) { cb.checked = !cb.checked; SIC.ui.alerte(e.message); }
             } });
             var rg = ppl.attente.indexOf(p.id);
             return h('label', { class: 'case' }, cb, h('span', { text: (p.nom || '?') + ' ' + (p.prenom || '') }), rg >= 0 ? h('span', { class: 'badge warn', text: 'attente n° ' + (rg + 1) }) : null);
@@ -835,7 +835,7 @@
       });
       groupe('Demandes à confirmer', acc.demandes, function (i) {
         return ligne(i, '', confirme && i.agent !== moi.id ? [h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { inscrire(i.agent, i.nom, { etat: 'inscrit' }); } }, 'Confirmer'),
-          h('button', { class: 'btn petit', type: 'button', onclick: function () { var m = prompt('Motif du refus (court, sans donnée de santé) :'); if (m && m.trim()) inscrire(i.agent, i.nom, { etat: 'refuse', motif: m.trim() }); } }, 'Refuser…')] : null);
+          h('button', { class: 'btn petit', type: 'button', onclick: async function () { var m = await SIC.ui.demander('Motif du refus (court, sans donnée de santé) :'); if (m && m.trim()) inscrire(i.agent, i.nom, { etat: 'refuse', motif: m.trim() }); } }, 'Refuser…')] : null);
       });
       groupe('Refus', acc.refus, function (i) { return ligne(i, i.motif ? ' — ' + i.motif : ''); });
       // Ce que je peux faire pour moi
@@ -849,7 +849,7 @@
           if (a === 'inscrire') actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { inscrire(moi.id, moi.nom, { etat: 'inscrit' }); } }, acc.complet ? 'M’inscrire en liste d’attente' : 'M’inscrire'));
           if (a === 'demander') actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { inscrire(moi.id, moi.nom, { etat: 'demande' }); } }, 'Demander à participer'));
           if (a === 'accepter') actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { inscrire(moi.id, moi.nom, { etat: 'inscrit' }); } }, acc.complet ? 'Accepter (liste d’attente)' : 'Accepter'));
-          if (a === 'refuser') actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { var m = prompt('Motif du refus (facultatif, court, sans donnée de santé) :'); if (m !== null) inscrire(moi.id, moi.nom, { etat: 'refuse', motif: m.trim() }); } }, 'Refuser…'));
+          if (a === 'refuser') actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: async function () { var m = await SIC.ui.demander('Motif du refus (facultatif, court, sans donnée de santé) :'); if (m !== null) inscrire(moi.id, moi.nom, { etat: 'refuse', motif: m.trim() }); } }, 'Refuser…'));
           if (a === 'retirer' && sit.etat === 'demande') actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () { inscrire(moi.id, moi.nom, { retrait: true }); } }, 'Retirer ma demande'));
         });
       }
@@ -869,7 +869,7 @@
         await s.enregistrer('INSCRIPTION', { rdv: x.id, occurrence: occurrence, agent: agent, nom: nom, retrait: o.retrait ? true : undefined, etat: o.retrait ? undefined : o.etat, motif: o.motif || undefined, prioritaire: o.prioritaire, service: x.service });
         U.toast(o.retrait ? 'Retrait enregistré.' : o.etat === 'propose' ? 'Proposition envoyée au collègue.' : o.etat === 'demande' ? 'Demande envoyée aux organisateurs.' : o.etat === 'refuse' ? 'Refus enregistré.' : 'Inscription enregistrée.');
         dessinerAccompagnateurs();
-      } catch (e) { alert(e.message); }
+      } catch (e) { SIC.ui.alerte(e.message); }
     }
     // -- Transports (VSL, taxi…) et leur réservation pour la date affichée
     var zoneTr = h('div', { class: 'pile' });
@@ -923,13 +923,13 @@
           U.toast('Réservation du véhicule annulée.');
         }
         dessinerTransports();
-      } catch (e) { alert(e.message); }
+      } catch (e) { SIC.ui.alerte(e.message); }
     }
     async function reserver(id, oui) {
-      var prec = oui ? prompt('Réservation (facultatif : société, numéro de réservation, horaire) :', '') : '';
+      var prec = oui ? await SIC.ui.demander('Réservation (facultatif : société, numéro de réservation, horaire) :', '') : '';
       if (prec === null) return;
       try { await s.enregistrer('TRANSPORT', { rdv: x.id, transport: id, occurrence: occurrence, statut: oui ? 'reserve' : 'a-reserver', precision: (prec || '').trim(), service: x.service }); U.toast(oui ? 'Transport réservé.' : 'Transport remis à réserver.'); dessinerTransports(); }
-      catch (e) { alert(e.message); }
+      catch (e) { SIC.ui.alerte(e.message); }
     }
     // -- Validations : permission à faire valider (délai selon le mode), validation médicale ou autre (délai choisi)
     var zoneVal = h('div', { class: 'pile' });
@@ -975,19 +975,19 @@
       var actions = h('div', { class: 'actions gauche' }), sv0 = ep.suivante;
       async function ecrire(d, msg) {
         try { await s.enregistrer('VALIDATION', Object.assign({ rdv: x.id, validation: v.id, occurrence: occurrence, processus: ep.processus.cle, service: x.service }, d)); U.toast(msg); dessinerValidations(); }
-        catch (err) { alert(err.message); }
+        catch (err) { SIC.ui.alerte(err.message); }
       }
-      function passer(et, extra) {
+      async function passer(et, extra) {
         var finale = et.code === es[es.length - 1].code, nom = '';
-        if (finale || /sign/i.test(et.libelle)) { nom = prompt('« ' + et.libelle + ' » — par (facultatif) :', ''); if (nom === null) return; }
+        if (finale || /sign/i.test(et.libelle)) { nom = await SIC.ui.demander('« ' + et.libelle + ' » — par (facultatif) :', ''); if (nom === null) return; }
         ecrire(Object.assign({ statut: 'etape', etape: et.code, finale: finale || undefined, nom: nom.trim() || undefined }, extra || {}), 'Étape enregistrée : ' + et.libelle + '.');
       }
       if (sv0 && permis(sv0)) {
         if (sv0.retour) {
           actions.appendChild(h('button', { class: 'btn petit primaire', type: 'button', onclick: function () { passer(sv0, { retourARS: 'accord' }); } }, 'Accord reçu'));
           [['complement', 'Demande d’éléments complémentaires…'], ['avis', 'Demande d’un 2e avis…']].forEach(function (o) {
-            actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: function () {
-              var m = prompt(PM.RETOURS[o[0]] + ' — précision (courte, sans donnée de santé) :', ''); if (!m || !m.trim()) return;
+            actions.appendChild(h('button', { class: 'btn petit', type: 'button', onclick: async function () {
+              var m = await SIC.ui.demander(PM.RETOURS[o[0]] + ' — précision (courte, sans donnée de santé) :', ''); if (!m || !m.trim()) return;
               var ret = PM.etapeApresDemande(ep.processus);
               ecrire({ statut: 'etape', etape: ret.code, retourARS: o[0], mention: PM.RETOURS[o[0]] + ' : ' + m.trim() }, 'Demande notée : retour à « ' + ret.libelle + ' ».');
             } }, o[1]));
@@ -1008,12 +1008,12 @@
     async function valider(id, statut) {
       var nom = '';
       if (statut !== 'attente') {
-        nom = prompt(statut === 'validee' ? 'Validée (signée) par :' : 'Refusée par :', (U.config().psychiatres || [])[0] || '');
+        nom = await SIC.ui.demander(statut === 'validee' ? 'Validée (signée) par :' : 'Refusée par :', (U.config().psychiatres || [])[0] || '');
         if (nom === null) return;
-        if (!nom.trim()) { alert('Indiquez qui a validé ou refusé.'); return; }
+        if (!nom.trim()) { SIC.ui.alerte('Indiquez qui a validé ou refusé.'); return; }
       }
       try { await s.enregistrer('VALIDATION', { rdv: x.id, validation: id, occurrence: occurrence, statut: statut, nom: nom.trim(), service: x.service }); U.toast(statut === 'attente' ? 'Remise en attente.' : (statut === 'validee' ? 'Validation enregistrée.' : 'Refus enregistré.')); dessinerValidations(); }
-      catch (e) { alert(e.message); }
+      catch (e) { SIC.ui.alerte(e.message); }
     }
     // Commentaires (tout agent de l'Agenda, y compris sur un élément d'un autre service)
     var zoneCom = h('div', { class: 'pile' });
@@ -1026,7 +1026,7 @@
       var monService = U.App.service !== '*' ? U.App.service : (s.mesServices()[0] || null);
       zoneCom.appendChild(h('div', { class: 'barre' }, txt, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
         if (!txt.value.trim()) return;
-        try { await s.enregistrer('COMMENTAIRE', { id: 'K' + C.hex(C.aleatoire(5)), rdv: x.id, texte: txt.value.trim(), service: monService }); dessinerCommentaires(); } catch (e) { alert(e.message); }
+        try { await s.enregistrer('COMMENTAIRE', { id: 'K' + C.hex(C.aleatoire(5)), rdv: x.id, texte: txt.value.trim(), service: monService }); dessinerCommentaires(); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Ajouter le commentaire')));
     }
     var rep = champsRepetition(reg, parDate ? { disabled: true } : dis);
@@ -1051,7 +1051,7 @@
         var f = etat && etat.items.filter(function (y) { return y.id === it.id; })[0];
         var cb = h('input', { type: 'checkbox', checked: !!(f && f.fait), disabled: !peutCocher || !f, onchange: async function () {
           try { await s.enregistrer('CHECK', { rdv: x.id, item: it.id, occurrence: occurrence, fait: cb.checked, service: externe ? (U.App.service !== '*' ? U.App.service : s.mesServices()[0]) : x.service }); dessinerChecklist(); }
-          catch (e) { cb.checked = !cb.checked; alert(e.message); }
+          catch (e) { cb.checked = !cb.checked; SIC.ui.alerte(e.message); }
         } });
         zoneCheck.appendChild(h('div', { class: 'agenda-point' }, h('label', { class: 'case' }, cb, h('span', { text: it.libelle })),
           lecture ? (it.delai !== null && it.delai !== undefined ? h('small', { class: 'muted', text: libDelai(it.delai) }) : null) : selectDelai(it.delai, function (v) { it.delai = v; }),
@@ -1132,32 +1132,32 @@
       signalerEchecs(await suivreVehicules(x.id, { seulement: { occurrence: occurrence } }));
     } });
     else if (!lecture && parDate) boutons.push({ texte: 'Annuler cette date…', action: async function () {
-      var motif = prompt('Annuler le ' + occurrence.split('-').reverse().join('/') + ' (la date reste affichée, barrée). Motif (facultatif) :', baseNature(x.nature, x.service) === 'audience' ? 'Aucun patient convoqué' : '');
+      var motif = await SIC.ui.demander('Annuler le ' + occurrence.split('-').reverse().join('/') + ' (la date reste affichée, barrée). Motif (facultatif) :', baseNature(x.nature, x.service) === 'audience' ? 'Aucun patient convoqué' : '');
       if (motif === null) return false;
       await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, annulee: true, motifAnnulation: motif.trim(), service: x.service });
       U.toast('Date annulée.');
       signalerEchecs(await suivreVehicules(x.id, { seulement: { occurrence: occurrence } }));
     } });
     if (!lecture && parDate && propres.length) boutons.push({ texte: 'Reprendre les réglages communs', action: async function () {
-      if (!confirm('Le ' + occurrence.split('-').reverse().join('/') + ' reprend les réglages de toutes les dates (' + propres.join(', ') + ' propres à cette date seront oubliés) ?')) return false;
+      if (!await SIC.ui.confirmer('Le ' + occurrence.split('-').reverse().join('/') + ' reprend les réglages de toutes les dates (' + propres.join(', ') + ' propres à cette date seront oubliés) ?')) return false;
       await s.enregistrer('OCCURRENCE', { rdv: x.id, occurrence: occurrence, reset: true, service: x.service });
       U.toast('Réglages communs repris pour cette date.');
     } });
     if (!lecture && !nouveau && repete && !parDate) boutons.push({ texte: 'Retirer cette date', action: async function () {
-      if (!confirm('Retirer définitivement l’occurrence du ' + occurrence.split('-').reverse().join('/') + ' ? Les autres dates sont gardées.')) return false;
+      if (!await SIC.ui.confirmer('Retirer définitivement l’occurrence du ' + occurrence.split('-').reverse().join('/') + ' ? Les autres dates sont gardées.')) return false;
       await s.enregistrer('RDV', { id: x.id, exceptions: (r.exceptions || []).concat([occurrence]), service: x.service });
       U.toast('Date retirée.');
       signalerEchecs(await suivreVehicules(x.id, { seulement: { occurrence: occurrence } }));
     } });
     if (!lecture && !nouveau && repete && !parDate && occurrence > A.jourISO(r.debut)) boutons.push({ texte: 'Arrêter à cette date', action: async function () {
-      if (!confirm('Arrêter la répétition : retirer le ' + occurrence.split('-').reverse().join('/') + ' et toutes les dates suivantes ? Les dates précédentes sont gardées.')) return false;
+      if (!await SIC.ui.confirmer('Arrêter la répétition : retirer le ' + occurrence.split('-').reverse().join('/') + ' et toutes les dates suivantes ? Les dates précédentes sont gardées.')) return false;
       var rg = A.regularite(r.regularite); rg.jusquAu = A.jourISO(plusJours(A.depuisISO(occurrence), -1));
       await s.enregistrer('RDV', { id: x.id, regularite: rg, service: x.service });
       U.toast('Dates retirées à partir du ' + occurrence.split('-').reverse().join('/') + '.');
       signalerEchecs(await suivreVehicules(x.id));
     } });
     if (!lecture && !nouveau && !parDate) boutons.push({ texte: repete ? 'Supprimer toutes les dates' : 'Supprimer', classe: 'danger', action: async function () {
-      if (!confirm('Supprimer « ' + libelleElement(x) + ' »' + (repete ? ' et toutes ses dates' : '') + ' de l’agenda ?')) return false;
+      if (!await SIC.ui.confirmer('Supprimer « ' + libelleElement(x) + ' »' + (repete ? ' et toutes ses dates' : '') + ' de l’agenda ?')) return false;
       await s.enregistrer('RDV', { id: x.id, supprime: true, service: x.service });
       U.toast('Élément supprimé.');
       signalerEchecs(await suivreVehicules(x.id));
@@ -1172,7 +1172,7 @@
       var d0 = new Date(date.value + 'T' + hDebut.value).getTime(), d1 = hFin.value ? new Date((dateFin.value || date.value) + 'T' + hFin.value).getTime() : null;
       if (d1 !== null && d1 <= d0) throw new Error('La fin doit suivre le début (vérifiez le jour et l’heure de fin).');
       if (d1 !== null && d1 - d0 > 14 * 864e5) throw new Error('Un élément ne dure pas plus de 14 jours.');
-      if (d1 !== null && cv.prereglages.dureeMax && d1 - d0 > cv.prereglages.dureeMax * 36e5 && !confirm('Durée de ' + Math.round((d1 - d0) / 36e5) + ' h, au-delà des ' + cv.prereglages.dureeMax + ' h prévues pour « ' + cv.libelle + ' ». Enregistrer quand même ?')) return false;
+      if (d1 !== null && cv.prereglages.dureeMax && d1 - d0 > cv.prereglages.dureeMax * 36e5 && !await SIC.ui.confirmer('Durée de ' + Math.round((d1 - d0) / 36e5) + ' h, au-delà des ' + cv.prereglages.dureeMax + ' h prévues pour « ' + cv.libelle + ' ». Enregistrer quand même ?')) return false;
       var rg = rep.lire();
       if (rg.jusquAu && rg.jusquAu < date.value) throw new Error('La date de fin de répétition précède la première date.');
       if (parDate) rg = A.regularite(r.regularite);
@@ -1189,15 +1189,17 @@
       var forcerVehicules = false;
       if (parDate || rg.type === 'aucune') {
         var occV = parDate ? occurrence : jourISO(d0);
-        d.transports.filter(function (t) { return t.type === 'vehicule' && t.vehicule; }).forEach(function (t) {
-          var lie = vehiculesLies(x.id, occV).filter(function (y) { return y.lien.transport === t.id; })[0], dispo = vehiculesDispo(sv.value, d0, finVehicule(d0, d1), lie && lie.id);
-          var y = dispo && dispo.filter(function (z) { return z.id === t.vehicule; })[0];
-          if (dispo && (!y || !y.ok) && !confirm('Véhicule indisponible' + (y ? ' : ' + y.raison : '') + '.\nEnregistrer quand même (le transport restera « à réserver ») ?')) throw new Error('Choisissez un autre véhicule ou d’autres horaires.');
+        var transportsV = d.transports.filter(function (t) { return t.type === 'vehicule' && t.vehicule; });
+        for (var iv = 0; iv < transportsV.length; iv++) {
+          var tv = transportsV[iv];
+          var lie = vehiculesLies(x.id, occV).filter(function (y) { return y.lien.transport === tv.id; })[0], dispo = vehiculesDispo(sv.value, d0, finVehicule(d0, d1), lie && lie.id);
+          var y = dispo && dispo.filter(function (z) { return z.id === tv.vehicule; })[0];
+          if (dispo && (!y || !y.ok) && !await SIC.ui.confirmer('Véhicule indisponible' + (y ? ' : ' + y.raison : '') + '.\nEnregistrer quand même (le transport restera « à réserver ») ?')) throw new Error('Choisissez un autre véhicule ou d’autres horaires.');
           if (y && y.ok && y.avertissement) {
-            if (!confirm('Véhicule ' + y.avertissement + '.\n\nForcer la réservation ? L’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.\n(Annuler : revenir à l’événement.)')) throw new Error('Choisissez un autre véhicule ou d’autres horaires, ou forcez la réservation.');
+            if (!await SIC.ui.confirmer('Véhicule ' + y.avertissement + '.\n\nForcer la réservation ? L’auteur de la pré-réservation et les personnes désignées pour son service (par défaut le cadre et la secrétaire) en seront informés.\n(Annuler : revenir à l’événement.)')) throw new Error('Choisissez un autre véhicule ou d’autres horaires, ou forcez la réservation.');
             forcerVehicules = true;
           }
-        });
+        }
       }
       // Tâches des étapes d'une permission ajoutées d'office à la check-list à la création (réglage du service, 0.21.0)
       if (nouveau && A.tachesPermission(U.config(), sv.value) === 'office') {

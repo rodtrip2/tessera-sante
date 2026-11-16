@@ -1492,3 +1492,11 @@ details.messages-perso[open] > summary { margin-bottom: 8px; }
 @media print { .fenetre-tete { display: none !important; } }
 .entete-haut { gap: 10px; padding: 8px 16px; }
 .entete-haut select { max-width: 11.5rem; }
+/* Fenêtres de l'outil à la place de celles du navigateur (0.80.0, constat E3) */
+.zone-alertes { position: fixed; right: 18px; bottom: 90px; z-index: 70; display: flex; flex-direction: column; gap: 8px; max-width: min(460px, calc(100vw - 36px)); }
+.alerte-outil { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: var(--radius); box-shadow: var(--shadow); font-size: .9rem; }
+.alerte-outil .alerte-texte { flex: 1; white-space: pre-line; }
+dialog.petite-fenetre { max-width: min(520px, calc(100vw - 32px)); }
+dialog.petite-fenetre .petite-fenetre-texte { white-space: pre-line; margin: 0 0 10px; }
+dialog.petite-fenetre input, dialog.petite-fenetre textarea { width: 100%; }
+@media print { .zone-alertes { display: none !important; } }

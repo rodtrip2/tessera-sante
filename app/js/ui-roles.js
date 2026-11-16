@@ -184,7 +184,7 @@
         });
         avant.forEach(function (a) { if (!liste.some(function (r) { return r.code === a.code; })) lignes.push('Rôle « ' + a.libelle + ' » supprimé.'); });
         if (!lignes.length) { U.toast('Aucun changement.'); return; }
-        if (!confirm('Enregistrer ces changements de rôles ?\n\n' + lignes.join('\n'))) return;
+        if (!await SIC.ui.confirmer('Enregistrer ces changements de rôles ?\n\n' + lignes.join('\n'))) return;
         await U.enregistrerConfig([['roles', valeur]]);
       }));
   }

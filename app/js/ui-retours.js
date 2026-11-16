@@ -64,7 +64,7 @@
   // ------------------------------------------------------------ Liste
   function avisVus() { var p = s().preferences || {}; return Array.isArray(p.avisRetoursVus) ? p.avisRetoursVus : []; }
   function mesAvis() { try { return R.avisPour(st(), moi().id, avisVus()); } catch (e) { return []; } }
-  async function marquerVus(ids) { try { await s().enregistrerPreference('avisRetoursVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { alert(e.message); } }
+  async function marquerVus(ids) { try { await s().enregistrerPreference('avisRetoursVus', avisVus().concat(ids).slice(-300)); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); } }
 
   function retoursVisibles(f) { return R.liste(st(), { agent: moi().id, suivre: peut('RETOUR_SUIVI'), tous: admin(), services: servicesSuivis(), filtre: f }); }
 

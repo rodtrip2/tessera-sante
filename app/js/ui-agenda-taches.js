@@ -46,7 +46,7 @@
     var peutAffecter = t.niveau === 'service' && peut('TACHE_AJUSTEMENT') && A.optionsTaches(U.config()).ajustables.indexOf('affectation') >= 0;
     var cb = h('input', { type: 'checkbox', checked: !!x.fait, disabled: !peut('TACHE_FAITE'), 'aria-label': 'Tâche faite : ' + t.titre, onchange: async function () {
       try { await U.App.session.enregistrer('TACHE_FAITE', { tache: t.id, occurrence: x.occurrence, annule: !cb.checked }); }
-      catch (e) { cb.checked = !cb.checked; alert(e.message); }
+      catch (e) { cb.checked = !cb.checked; SIC.ui.alerte(e.message); }
     } });
     // Modifier la tâche depuis l'agenda : tâche de l'équipe (accès « Tâches de l'équipe »), tâche du service (« Régler les tâches »)
     var modifiable = t.niveau === 'service' ? peut('TACHE') : (peut('TACHE_EQUIPE') || peut('TACHE'));
@@ -140,7 +140,7 @@
     dessinerGroupes();
     var boutons = [{ texte: 'Annuler' }];
     if (t) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
-      if (!confirm('Supprimer la tâche « ' + x.titre + ' » ? Les dates déjà cochées restent au journal.')) return false;
+      if (!await SIC.ui.confirmer('Supprimer la tâche « ' + x.titre + ' » ? Les dates déjà cochées restent au journal.')) return false;
       await U.App.session.enregistrer(type, { id: x.id, supprime: true, service: x.service });
       U.toast('Tâche supprimée.');
     } });
@@ -265,7 +265,7 @@
         h('span', { class: 'badge ' + (a.depassee ? 'bad' : (a.vue ? 'ok' : 'warn')), text: a.vue ? 'Vue' : (a.depassee ? 'En retard, ' : '') + libAvant(a) }),
         h('div', { class: 'espace' }),
         peut('ALERTE_VUE') ? h('button', { class: 'btn petit' + (a.vue ? '' : ' primaire'), type: 'button', onclick: async function () {
-          try { await U.App.session.enregistrer('ALERTE_VUE', { alerte: a.id, annule: a.vue ? true : undefined, service: a.service }); U.rendreContenu(); } catch (e) { alert(e.message); }
+          try { await U.App.session.enregistrer('ALERTE_VUE', { alerte: a.id, annule: a.vue ? true : undefined, service: a.service }); U.rendreContenu(); } catch (e) { SIC.ui.alerte(e.message); }
         } }, a.vue ? 'Remettre à voir' : 'Vu') : null,
         peut('ALERTE') && !a.vue ? h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleAlerte(a); } }, 'Modifier') : null),
       a.precision ? h('div', { text: a.precision }) : null,
@@ -374,7 +374,7 @@
     remplir();
     var boutons = [{ texte: 'Annuler' }];
     if (!nouveau) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
-      if (!confirm('Supprimer cette alerte ?')) return false;
+      if (!await SIC.ui.confirmer('Supprimer cette alerte ?')) return false;
       await U.App.session.enregistrer('ALERTE', { id: x.id, supprime: true, service: x.service });
       U.toast('Alerte supprimée.');
     } });

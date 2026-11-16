@@ -71,7 +71,7 @@
         verifier();
         var valides = analyse.filter(function (r) { return !r.erreurs.length; });
         if (!valides.length) throw new Error('Aucun compte valide à créer.');
-        if (valides.length < analyse.length && !confirm((analyse.length - valides.length) + ' ligne(s) en erreur seront ignorées. Créer les ' + valides.length + ' autres comptes ?')) return false;
+        if (valides.length < analyse.length && !await SIC.ui.confirmer((analyse.length - valides.length) + ' ligne(s) en erreur seront ignorées. Créer les ' + valides.length + ' autres comptes ?')) return false;
         var liste = valides.map(function (r) { return { nom: r.nom, login: r.login, roles: r.roles, services: M.voitTousServices(r.roles, U.config()) ? [] : r.services, motDePasse: C.nouveauMotDePasseProvisoire(), aleatoire: true, formation: accesForm.checked, finValidite: finLot.value }; });
         U.vider(apercu).appendChild(h('div', { class: 'info', text: 'Chiffrement des mots de passe…' }));
         await session.creerComptes(liste, function (n, total) { apercu.firstChild.textContent = 'Chiffrement des mots de passe… ' + n + ' / ' + total; });
@@ -101,8 +101,8 @@
   /** Affiche les mots de passe provisoires (une seule fois) avec impression des fiches à découper et export. */
   U.actions.fichesRemise = function (liste, titre) {
     var vus = h('input', { type: 'checkbox' });
-    var fermer = { texte: 'Fermer', classe: 'primaire', action: function () {
-      if (!vus.checked && !confirm('Les mots de passe provisoires ne seront plus affichés. Fermer quand même ?')) return false;
+    var fermer = { texte: 'Fermer', classe: 'primaire', action: async function () {
+      if (!vus.checked && !await SIC.ui.confirmer('Les mots de passe provisoires ne seront plus affichés. Fermer quand même ?')) return false;
       return true;
     } };
     U.modale(titre + ' — mots de passe provisoires', h('div', { class: 'pile' },

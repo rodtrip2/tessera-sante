@@ -58,12 +58,12 @@
           // Lit retiré alors qu'un patient l'occupe : avertir
           var gardes = K.occupation(fiches(), sv), nouv = { chambres: {} }; nouv.chambres[sv] = { colonnes: travail.colonnes || 8, pieces: travail.pieces };
           var perdus = Object.keys(gardes).filter(function (k) { return !K.lits(nouv, sv).some(function (x) { return x.cle === k; }); });
-          if (perdus.length && !confirm('Des patients occupent des lits retirés ou renommés (' + perdus.map(function (k) { return k.replace('|', ' '); }).join(', ') + ') : leur lit restera affiché tel quel jusqu’à un changement. Enregistrer ?')) return;
+          if (perdus.length && !await SIC.ui.confirmer('Des patients occupent des lits retirés ou renommés (' + perdus.map(function (k) { return k.replace('|', ' '); }).join(', ') + ') : leur lit restera affiché tel quel jusqu’à un changement. Enregistrer ?')) return;
           var v = JSON.parse(JSON.stringify(cfg().chambres || {}));
           v[sv] = { colonnes: travail.colonnes || 8, pieces: travail.pieces.map(function (p) { var x = { id: p.id, nom: p.nom.trim(), type: p.type }; if (p.type !== 'piece') x.lits = (p.lits || []).filter(Boolean); else { x.nature = p.nature; if (p.usage) x.usage = true; } ['x', 'y', 'w', 'h', 'couleur'].forEach(function (k) { if (p[k] != null && p[k] !== '') x[k] = p[k]; }); return x; }) };
           await U.enregistrerConfig([['chambres', v]]);
           U.toast('Chambres et lits enregistrés.');
-        } catch (e) { alert(e.message); }
+        } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer')));
   }
 
@@ -135,7 +135,7 @@
     var moves = d.chambre !== undefined || d.lit !== undefined ? await cascade(sv, d.patientId, d.chambre !== undefined ? d.chambre : '', d.lit !== undefined ? d.lit : '') : [{ patient: d.patientId }];
     if (!moves) return false;
     var autres = moves.slice(1);
-    if (autres.length && !confirm('Déplacements à enregistrer :\n' + moves.map(function (m) { return '• ' + nom(m.patient) + ' → ' + (K.libelle(m.chambre, m.lit) || 'aucun lit'); }).join('\n') + '\n\nConfirmer ?')) return false;
+    if (autres.length && !await SIC.ui.confirmer('Déplacements à enregistrer :\n' + moves.map(function (m) { return '• ' + nom(m.patient) + ' → ' + (K.libelle(m.chambre, m.lit) || 'aucun lit'); }).join('\n') + '\n\nConfirmer ?')) return false;
     var ordre = K.ordreEcriture(autres);
     for (var i = 0; i < ordre.length; i++) await s().enregistrer('SEJOUR', { patientId: ordre[i].patient, sejourId: ordre[i].sejour, chambre: ordre[i].chambre, lit: ordre[i].lit });
     await s().enregistrer('SEJOUR', d);

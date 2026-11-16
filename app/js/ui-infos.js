@@ -28,10 +28,10 @@
   function nomAgent(id) { var c = agents().filter(function (x) { return x.id === id; })[0]; return c ? c.nom : ''; }
 
   // ------------------------------------------------------------ Contacts : copier le numéro, écrire un message
-  function copier(t) {
+  async function copier(t) {
     var fin = function () { U.toast('Copié : ' + t); };
-    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(fin, function () { prompt('Copiez :', t); }); return; } } catch (e) { /* presse-papiers indisponible */ }
-    prompt('Copiez :', t);
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(fin, async function () { await SIC.ui.demander('Copiez :', t); }); return; } } catch (e) { /* presse-papiers indisponible */ }
+    await SIC.ui.demander('Copiez :', t);
   }
   function boutonMessage(c) {
     if (!c.agent || !U.messagerie || !U.messagerie.peutEnvoyer || !U.messagerie.peutEnvoyer()) return null;
@@ -52,7 +52,7 @@
   function affichable(nom) { var e = String(nom).split('.').pop().toLowerCase(); return e === 'pdf' ? 'application/pdf' : /^(png|jpe?g|gif|webp)$/.test(e) ? 'image/' + (e === 'jpg' ? 'jpeg' : e) : null; }
   async function ouvrirPiece(p) {
     var type = affichable(p.nom), w = null;
-    if (!type && !confirm('« ' + p.nom + ' » ne peut pas être affiché dans l’application : il va être téléchargé sur ce poste et sortira du coffre chiffré. Continuer ?')) return;
+    if (!type && !await SIC.ui.confirmer('« ' + p.nom + ' » ne peut pas être affiché dans l’application : il va être téléchargé sur ce poste et sortira du coffre chiffré. Continuer ?')) return;
     if (type === 'application/pdf') w = window.open('', '_blank');
     try {
       var o = await s().lirePiece('infos', p.id);
@@ -61,7 +61,7 @@
       if (type === 'application/pdf') { var url = URL.createObjectURL(new Blob([o], { type: type })); if (w) w.location = url; else U.telechargerOctets(p.nom, o, type); return; }
       var b = ''; for (var i = 0; i < o.length; i += 32768) b += String.fromCharCode.apply(null, o.subarray(i, i + 32768));
       U.modale(p.nom, h('img', { class: 'ms-image', src: 'data:' + type + ';base64,' + btoa(b), alt: p.nom }), [{ texte: 'Fermer' }], { large: true });
-    } catch (e) { if (w) w.close(); alert(e.message); }
+    } catch (e) { if (w) w.close(); SIC.ui.alerte(e.message); }
   }
   function listePieces(pieces) {
     return pieces.length ? h('div', { class: 'is-pieces' }, pieces.map(function (p) {
@@ -81,9 +81,9 @@
     return h('section', { class: 'panneau is-rubrique' + (r.masquee ? ' is-masquee' : '') },
       h('div', { class: 'is-tete' }, h('h2', { text: r.titre }), r.masquee ? h('span', { class: 'badge', text: 'Masquée aux agents' }) : null,
         g ? h('div', { class: 'actions gauche is-gestion' },
-          h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Monter', title: 'Monter', disabled: i <= 0, onclick: function () { bouger(-1).catch(function (e) { alert(e.message); }); } }, '↑'),
-          h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Descendre', title: 'Descendre', disabled: i >= liste.length - 1, onclick: function () { bouger(1).catch(function (e) { alert(e.message); }); } }, '↓'),
-          h('button', { class: 'btn petit', type: 'button', onclick: function () { s().enregistrer('INFO_RUBRIQUE', { id: r.id, masquee: !r.masquee }).catch(function (e) { alert(e.message); }); } }, r.masquee ? 'Afficher' : 'Masquer'),
+          h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Monter', title: 'Monter', disabled: i <= 0, onclick: function () { bouger(-1).catch(function (e) { SIC.ui.alerte(e.message); }); } }, '↑'),
+          h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Descendre', title: 'Descendre', disabled: i >= liste.length - 1, onclick: function () { bouger(1).catch(function (e) { SIC.ui.alerte(e.message); }); } }, '↓'),
+          h('button', { class: 'btn petit', type: 'button', onclick: function () { s().enregistrer('INFO_RUBRIQUE', { id: r.id, masquee: !r.masquee }).catch(function (e) { SIC.ui.alerte(e.message); }); } }, r.masquee ? 'Afficher' : 'Masquer'),
           h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleRubrique(r, r.service); } }, 'Modifier')) : null),
       r.texte ? h('div', { class: 'is-texte', text: r.texte }) : null,
       r.contacts.length ? tableContacts(r.contacts) : null,
@@ -106,7 +106,7 @@
   }
   async function ajouter(sv, titre) {
     try { await s().enregistrer('INFO_RUBRIQUE', { id: 'IR' + C.hex(C.aleatoire(5)), service: sv, titre: titre, ordre: I.ordreSuivant(st(), sv), texte: '', contacts: [], pieces: [] }); U.toast('Rubrique ajoutée.'); }
-    catch (e) { alert(e.message); }
+    catch (e) { SIC.ui.alerte(e.message); }
   }
 
   function modaleRubrique(r, sv) {
@@ -137,7 +137,7 @@
         var f = h('input', { type: 'file', multiple: true, 'aria-label': 'Ajouter des pièces jointes' });
         f.addEventListener('change', function () {
           Array.prototype.forEach.call(f.files, function (x) {
-            if (x.size > o.tailleMaxMo * 1048576) { alert('« ' + x.name + ' » dépasse ' + o.tailleMaxMo + ' Mo.'); return; }
+            if (x.size > o.tailleMaxMo * 1048576) { SIC.ui.alerte('« ' + x.name + ' » dépasse ' + o.tailleMaxMo + ' Mo.'); return; }
             nouvelles.push({ fichier: x, nom: x.name, taille: x.size });
           });
           majPieces();
@@ -151,7 +151,7 @@
       h('h3', { text: 'Contacts' }), h('small', { class: 'muted', text: 'Un numéro se copie d’un clic ; un contact relié à un compte reçoit un message d’un clic.' }), zoneC,
       h('h3', { text: 'Pièces jointes' }), zoneP),
     [{ texte: 'Annuler' }, nouveau ? null : { texte: 'Retirer la rubrique', classe: 'danger', action: async function () {
-      if (!confirm('Retirer la rubrique « ' + r.titre + ' » ? Elle reste au journal.')) return false;
+      if (!await SIC.ui.confirmer('Retirer la rubrique « ' + r.titre + ' » ? Elle reste au journal.')) return false;
       await s().enregistrer('INFO_RUBRIQUE', { id: r.id, supprime: true }); U.toast('Rubrique retirée.');
     } }, { texte: 'Enregistrer', classe: 'primaire', action: async function () {
       if (!titre.value.trim()) { titre.focus(); throw new Error('Indiquez le titre de la rubrique.'); }
@@ -196,7 +196,7 @@
       h('label', { class: 'case' }, pj, h('span', { text: 'Autoriser les pièces jointes (procédures en PDF…) — désactivé par défaut ; aucun contrôle antivirus par l’application' })),
       h('label', { class: 'en-ligne' }, 'Taille maximale d’un fichier (Mo)', tm),
       h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
-        try { v.piecesJointes = pj.checked; v.tailleMaxMo = Math.max(1, Math.min(20, Math.round(+tm.value) || 5)); await U.enregistrerConfig([['infos', v]]); U.toast('Réglages enregistrés.'); } catch (e) { alert(e.message); }
+        try { v.piecesJointes = pj.checked; v.tailleMaxMo = Math.max(1, Math.min(20, Math.round(+tm.value) || 5)); await U.enregistrerConfig([['infos', v]]); U.toast('Réglages enregistrés.'); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer')));
   }
 

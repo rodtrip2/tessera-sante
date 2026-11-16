@@ -168,7 +168,7 @@
       var b = h('button', { class: 'btn petit', type: 'button', onclick: async function () {
         b.disabled = true;
         try { await s.enregistrer('ANNULATION', { cible: d.evt.id, motif: 'Annulée par son auteur juste après la saisie', immediate: true }); t.remove(); toast('Saisie annulée (elle reste au journal avec son annulation).'); }
-        catch (e) { alert(e.message); b.disabled = false; }
+        catch (e) { SIC.ui.alerte(e.message); b.disabled = false; }
       } }, 'Annuler');
       t.appendChild(b); t.classList.add('avec-action');
       s.derniereSaisie = null;
@@ -177,6 +177,55 @@
     setTimeout(function () { t.remove(); }, duree);
   }
 
+  // ---------------------------------------------------------------- Fenêtres de l'outil (0.80.0, constat E3 de l'audit)
+  // Remplacent alert, confirm et prompt du navigateur : même apparence que le reste de l'outil, texte lisible,
+  // libellés de boutons explicites, thème clair ou sombre, sans bloquer la page.
+  var reponsesAuto = null;
+  /** Message d'information ou d'erreur : bandeau non bloquant, fermé par l'agent ou après 12 secondes. */
+  function alerte(message) {
+    // Fenêtre ouverte : le message s'affiche dans sa couche, sinon il resterait caché derrière elle
+    var ouvertes = document.querySelectorAll('dialog[open]'), parent = ouvertes.length ? ouvertes[ouvertes.length - 1] : document.body;
+    var zone = Array.prototype.filter.call(parent.children, function (x) { return x.classList.contains('zone-alertes'); })[0];
+    if (!zone) { zone = h('div', { class: 'zone-alertes' }); parent.appendChild(zone); }
+    var t = h('div', { class: 'alerte-outil', role: 'alert' }, h('span', { class: 'alerte-texte', text: String(message == null ? '' : message) }));
+    var b = h('button', { class: 'btn petit', type: 'button', 'aria-label': 'Fermer le message', onclick: function () { t.remove(); } }, '✕');
+    t.appendChild(b);
+    zone.appendChild(t);
+    while (zone.children.length > 4) zone.firstChild.remove();
+    setTimeout(function () { t.remove(); }, 12000);
+  }
+  /** Petite fenêtre modale : message, champ éventuel, deux boutons ; Échap = Annuler. Promesse de la réponse. */
+  function petiteFenetre(message, champ, ok, danger) {
+    return new Promise(function (resoudre) {
+      var d = h('dialog', { class: 'petite-fenetre', 'aria-label': champ ? 'Question' : 'Confirmation' });
+      function fin(v) { d.close(); d.remove(); resoudre(v); }
+      var bOk = h('button', { class: 'btn ' + (danger ? 'danger' : 'primaire'), type: 'button', onclick: function () { fin(champ ? champ.value : true); } }, ok);
+      d.appendChild(h('div', { class: 'corps' }, h('p', { class: 'petite-fenetre-texte', text: String(message == null ? '' : message) }), champ || null));
+      d.appendChild(h('div', { class: 'pied' }, h('button', { class: 'btn', type: 'button', onclick: function () { fin(champ ? null : false); } }, 'Annuler'), bOk));
+      d.addEventListener('cancel', function (ev) { ev.preventDefault(); fin(champ ? null : false); });
+      if (champ) champ.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && champ.tagName === 'INPUT') { ev.preventDefault(); fin(champ.value); } });
+      document.body.appendChild(d);
+      d.showModal();
+      setTimeout(function () { (champ || bOk).focus(); if (champ && champ.select) champ.select(); }, 20);
+    });
+  }
+  /** Confirmation (remplace confirm) : promesse d'un booléen ; bouton rouge pour une suppression, un arrêt, un retrait. */
+  function confirmer(message, options) {
+    options = options || {};
+    if (reponsesAuto) return Promise.resolve(!!reponsesAuto(String(message), 'confirmation'));
+    var danger = options.danger !== undefined ? options.danger : /^(Supprimer|Arrêter|Désactiver|Effacer|Retirer|Purger|Mettre à la corbeille|Tout renouveler|Annuler la|Refuser|Fermer définitivement)/i.test(String(message));
+    return petiteFenetre(message, null, options.ok || 'Confirmer', danger);
+  }
+  /** Question à réponse libre (remplace prompt) : promesse du texte saisi, ou null si l'agent annule. */
+  function demander(message, valeur) {
+    if (reponsesAuto) { var r = reponsesAuto(String(message), 'question', valeur == null ? '' : String(valeur)); return Promise.resolve(r === undefined ? (valeur == null ? '' : String(valeur)) : r); }
+    var long = String(message || '').length > 160;
+    var champ = h(long ? 'textarea' : 'input', { rows: long ? 2 : null, maxlength: 2000, 'aria-label': 'Réponse' });
+    champ.value = valeur == null ? '' : String(valeur);
+    return petiteFenetre(message, champ, 'Valider', false);
+  }
+  /** Parcours automatisé des écrans : réponses données d'office (fonction message, genre, valeur → réponse), ou null. */
+  function reponsesAutomatiques(f) { reponsesAuto = typeof f === 'function' ? f : null; }
 
   // ================================================================ État
   var App = { dossier: null, session: null, onglet: 'tableau', service: '*', minuteurs: [], derniereActivite: Date.now(), message: null };
@@ -620,7 +669,7 @@
         h('div', { class: 'actions gauche' },
           h('button', { class: 'btn petit', type: 'button', onclick: async function () {
             try { await navigator.clipboard.writeText(chemin); toast('Chemin copié : collez-le dans la barre d’adresse de l’Explorateur Windows.'); }
-            catch (e) { prompt('Copiez ce chemin :', chemin); }
+            catch (e) { await SIC.ui.demander('Copiez ce chemin :', chemin); }
           } }, 'Copier le chemin'),
           location.protocol === 'file:' ? h('a', { class: 'btn petit', href: urlFichier(chemin), target: '_blank' }, 'Ouvrir le dossier') : null),
         // Raccourci créé par Windows : un fichier .url téléchargé est bloqué par Edge et Chrome (type de fichier jugé dangereux).
@@ -655,14 +704,14 @@
               /\.pdf$/i.test(f.nom) ? h('button', { class: 'btn petit', type: 'button', onclick: async function () {
                 var w = window.open('', '_blank');
                 try { var o = await s.lireExport(f.chemin); var url = URL.createObjectURL(new Blob([o], { type: 'application/pdf' })); if (w) w.location = url; else telechargerOctets(f.nom, o, 'application/pdf'); }
-                catch (e) { if (w) w.close(); alert(e.message); }
+                catch (e) { if (w) w.close(); SIC.ui.alerte(e.message); }
               } }, 'Ouvrir') : null, ' ',
               h('button', { class: 'btn petit', type: 'button', title: 'Copie sur ce poste (à ne pas conserver hors du réseau de l’établissement)', onclick: async function () {
-                try { telechargerOctets(f.nom, await s.lireExport(f.chemin), typeFichier(f.nom)); } catch (e) { alert(e.message); }
+                try { telechargerOctets(f.nom, await s.lireExport(f.chemin), typeFichier(f.nom)); } catch (e) { SIC.ui.alerte(e.message); }
               } }, 'Télécharger'), ' ',
               s.peut('CONFIG') ? h('button', { class: 'btn petit danger', type: 'button', onclick: async function () {
-                if (!confirm('Supprimer définitivement « ' + f.nom + ' » du dossier des exports ? La suppression est tracée au journal.')) return;
-                try { await s.supprimerExport(f.chemin); liste = liste.filter(function (y) { return y !== f; }); dessiner(); toast('Fichier supprimé.'); } catch (e) { alert(e.message); }
+                if (!await SIC.ui.confirmer('Supprimer définitivement « ' + f.nom + ' » du dossier des exports ? La suppression est tracée au journal.')) return;
+                try { await s.supprimerExport(f.chemin); liste = liste.filter(function (y) { return y !== f; }); dessiner(); toast('Fichier supprimé.'); } catch (e) { SIC.ui.alerte(e.message); }
               } }, 'Supprimer') : null));
         })))));
       if (vus.length > 300) zone.appendChild(h('small', { class: 'muted', text: 'Affichage limité aux 300 fichiers les plus récents.' }));
@@ -870,7 +919,7 @@
     var s = App.session, prefs = (s && s.preferences) || {};
     return BM.epingles(config(), prefs.barreModules, s ? s.roles() : [], fenetres().map(function (f) { return f.id; }));
   }
-  async function changerEpingles(l) { try { await App.session.enregistrerPreference('barreModules', l); } catch (e) { alert(e.message); } rendreContenu(); }
+  async function changerEpingles(l) { try { await App.session.enregistrerPreference('barreModules', l); } catch (e) { SIC.ui.alerte(e.message); } rendreContenu(); }
   function menuModules() {
     var fs = fenetres(), zone = h('div', { class: 'pile menu-modules' }), q = h('input', { type: 'search', placeholder: 'Rechercher un module', 'aria-label': 'Rechercher un module' });
     function dessiner() {
@@ -929,7 +978,7 @@
   function selApercu(s) {
     if ((s.utilisateur.roles || []).indexOf('ADMIN') < 0) return null;
     var sel = h('select', { 'aria-label': 'Affichage selon le rôle', title: 'Voir l’outil comme un agent portant ce rôle (aucune saisie n’est enregistrée pendant l’aperçu)', onchange: function () {
-      try { s.definirApercu(sel.value || null); } catch (e) { alert(e.message); }
+      try { s.definirApercu(sel.value || null); } catch (e) { SIC.ui.alerte(e.message); }
       if (s.apercu && App.fenetre === 'admin') { App.fenetre = s.moduleAffiche(); App.onglet = onglets()[0][0]; }
       rendreContenu();
     } }, h('option', { value: '', text: 'Affichage : le mien' }),
@@ -1248,7 +1297,7 @@
         function choix(garder, annuler) {
           return h('button', { class: 'btn petit', disabled: !peutArbitrer, onclick: async function () {
             try { await App.session.enregistrer('ANNULATION', { cible: annuler.id, motif: 'Arbitrage de conflit : saisie de ' + App.session.nomAuteur(garder.by) + ' conservée' }); toast('Conflit arbitré.'); }
-            catch (e) { alert(e.message); }
+            catch (e) { SIC.ui.alerte(e.message); }
           } }, 'Garder');
         }
         return h('div', { class: 'recap' },
@@ -1324,7 +1373,7 @@
     // Second facteur (0.75.0) : associer une clé de sécurité au mot de passe (ou la remplacer), avec ce nouveau mot de passe
     if (cleDispo) boutons.splice(1, 0, { texte: double ? 'Changer, avec une nouvelle clé' : 'Changer et associer une clé de sécurité', action: async function () {
       verifierNouveauMotDePasse(a.value, b.value);
-      var lib = prompt('Branchez la clé de sécurité à associer à votre mot de passe.\nNom de cette clé :', 'Clé de sécurité');
+      var lib = await SIC.ui.demander('Branchez la clé de sécurité à associer à votre mot de passe.\nNom de cette clé :', 'Clé de sécurité');
       if (lib === null) return false;
       await App.session.activerSecondFacteur(a.value, lib);
       toast('Mot de passe modifié ; la connexion demandera votre clé de sécurité, puis votre mot de passe.');
@@ -1347,7 +1396,7 @@
   function boutonEnregistrer(fn) {
     return h('div', { class: 'actions' }, h('button', { class: 'btn primaire', onclick: async function (ev) {
       var b = ev.currentTarget; b.disabled = true;
-      try { await fn(); } catch (err) { alert(err.message); } finally { b.disabled = false; }
+      try { await fn(); } catch (err) { SIC.ui.alerte(err.message); } finally { b.disabled = false; }
     } }, 'Enregistrer'));
   }
   function periodeDepuis(x, l) {
@@ -1376,10 +1425,10 @@
         h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: async function () {
           try {
             if (!(await s.retourAvantTrousseauPossible())) throw new Error('L’ancien coffre ne figure plus dans l’historique du coffre.');
-            if (!confirm('Revenir à la clé unique ?\n\nLes saisies faites depuis la migration ne seront plus lisibles. Chaque agent se reconnectera avec son mot de passe d’avant la migration ; les mots de passe provisoires et le code de secours créés à la migration ne serviront plus.')) return;
+            if (!await SIC.ui.confirmer('Revenir à la clé unique ?\n\nLes saisies faites depuis la migration ne seront plus lisibles. Chaque agent se reconnectera avec son mot de passe d’avant la migration ; les mots de passe provisoires et le code de secours créés à la migration ne serviront plus.')) return;
             await s.revenirAvantTrousseau();
             verrouiller('Ancien coffre remis en place : reconnectez-vous avec votre mot de passe d’avant la migration.');
-          } catch (err) { alert(err.message); }
+          } catch (err) { SIC.ui.alerte(err.message); }
         } }, 'Revenir à la clé unique…')));
     }
     var pAttestation = panneauAttestation(s), pSignatures = panneauSignatures(s), pConnexion = panneauConnexion(s);
@@ -1401,13 +1450,13 @@
       return vus.join(' ; ');
     }
     async function remettre(liste) {
-      try { s.erreurDroits = null; var r = await s.confirmerRemises(liste); toast(r.change ? 'Clés remises.' : 'Aucune clé à remettre.'); rendreContenu(); } catch (err) { alert(err.message); }
+      try { s.erreurDroits = null; var r = await s.confirmerRemises(liste); toast(r.change ? 'Clés remises.' : 'Aucune clé à remettre.'); rendreContenu(); } catch (err) { SIC.ui.alerte(err.message); }
     }
     // Refus (0.72.0) : un prêt refusé est annulé ; les autres remises refusées ne sont plus proposées jusqu'à la levée du refus
     async function refuser(liste, qui) {
-      var raison = prompt('Refuser la remise des clés à ' + qui + ' ?\nMotif montré au cadre (facultatif, court, sans donnée de patient) :', '');
+      var raison = await SIC.ui.demander('Refuser la remise des clés à ' + qui + ' ?\nMotif montré au cadre (facultatif, court, sans donnée de patient) :', '');
       if (raison === null) return;
-      try { await s.refuserRemises(liste, raison); toast('Remise refusée.'); rendreContenu(); } catch (err) { alert(err.message); }
+      try { await s.refuserRemises(liste, raison); toast('Remise refusée.'); rendreContenu(); } catch (err) { SIC.ui.alerte(err.message); }
     }
     var refusees = s.remisesRefusees ? s.remisesRefusees() : [];
     var sansRemise = incomplets.filter(function (x) { return !parAgent.some(function (a) { return a.id === x.id; }) && !refusees.some(function (r) { return r.id === x.id; }); });
@@ -1430,12 +1479,12 @@
               h('td', { text: (d.action === 'creer' ? 'création' : 'modification') + ' — ' + ((d.services || []).map(libService).join(', ') || 'aucun service') + (d.finValidite ? ' — jusqu’au ' + String(d.finValidite).split('-').reverse().join('/') : '') }),
               h('td', { text: d.auteur }),
               h('td', { class: 'actions-ligne' }, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
-                try { await s.confirmerDemandesComptes([d.id]); toast('Demande traitée.'); rendreContenu(); } catch (err) { alert(err.message); }
+                try { await s.confirmerDemandesComptes([d.id]); toast('Demande traitée.'); rendreContenu(); } catch (err) { SIC.ui.alerte(err.message); }
               } }, d.action === 'creer' ? 'Créer le compte' : 'Appliquer'),
                 h('button', { class: 'btn petit danger', type: 'button', onclick: async function () {
-                  var raison = prompt('Refuser la demande concernant ' + d.nom + ' ?\nMotif montré au cadre (facultatif, court) :', '');
+                  var raison = await SIC.ui.demander('Refuser la demande concernant ' + d.nom + ' ?\nMotif montré au cadre (facultatif, court) :', '');
                   if (raison === null) return;
-                  try { await s.refuserDemandesComptes([d.id], raison); toast('Demande refusée.'); rendreContenu(); } catch (err) { alert(err.message); }
+                  try { await s.refuserDemandesComptes([d.id], raison); toast('Demande refusée.'); rendreContenu(); } catch (err) { SIC.ui.alerte(err.message); }
                 } }, 'Refuser')));
           }))))] : null,
       refusees.length ? [
@@ -1445,7 +1494,7 @@
           h('tbody', {}, refusees.map(function (r) {
             return h('tr', {}, h('td', { text: r.nom }), h('td', { text: r.libelle }), h('td', { text: String(r.refus.le || '').slice(0, 10).split('-').reverse().join('/') }), h('td', { text: r.refus.raison || '—' }),
               h('td', { class: 'actions-ligne' }, h('button', { class: 'btn petit', type: 'button', onclick: async function () {
-                try { await s.leverRefusRemises([r]); toast('Refus levé.'); rendreContenu(); } catch (err) { alert(err.message); }
+                try { await s.leverRefusRemises([r]); toast('Refus levé.'); rendreContenu(); } catch (err) { SIC.ui.alerte(err.message); }
               } }, 'Lever le refus')));
           }))))] : null,
       sansRemise.length ? h('div', { class: 'alerte', text: sansRemise.length + ' compte(s) n’ont pas toutes les clés auxquelles ils ont droit : ' + sansRemise.map(function (x) { return x.nom; }).join(', ') + '.' }) : null,
@@ -1453,13 +1502,13 @@
       sansRemise.length || s.erreurDroits ? [
         h('p', { class: 'muted', text: 'Un compte réactivé reçoit sa clé personnelle à la réinitialisation de son mot de passe. Pour les autres, la réémission complète les clés qu’ils détiennent déjà.' }),
         h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: async function () {
-          try { s.erreurDroits = null; var r = await s.appliquerDroits(); toast(r.change ? 'Clés réémises.' : 'Aucune clé à réémettre.'); rendreContenu(); } catch (err) { alert(err.message); }
+          try { s.erreurDroits = null; var r = await s.appliquerDroits(); toast(r.change ? 'Clés réémises.' : 'Aucune clé à réémettre.'); rendreContenu(); } catch (err) { SIC.ui.alerte(err.message); }
         } }, 'Réémettre les clés'))] : null) : null;
     // Comptes qui suivent un pôle et dont les services ne sont plus ceux du pôle (14 novembre 2026)
     var ecartsP = M.ecartsPoles(config(), s.comptes || []);
     var pPoles = ecartsP.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Comptes à mettre à jour selon leur pôle' }),
       h('ul', { class: 'liste-simple' }, ecartsP.map(function (e) { return h('li', { text: e.compte.nom + ' (pôle ' + e.pole.libelle + ')' + (e.ajoutes.length ? ' — à ajouter : ' + e.ajoutes.map(libService).join(', ') : '') + (e.retires.length ? ' — à retirer : ' + e.retires.map(libService).join(', ') : '') }); })),
-      h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () { try { await appliquerPoles(ecartsP); rendreContenu(); } catch (err) { alert(err.message); } } }, 'Mettre à jour'))) : null;
+      h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () { try { await appliquerPoles(ecartsP); rendreContenu(); } catch (err) { SIC.ui.alerte(err.message); } } }, 'Mettre à jour'))) : null;
     // Trousseau : clés détenues par chaque compte (coffre version 2)
     var resume = s.resumeTrousseau ? s.resumeTrousseau() : null;
     function libCle(n) { if (n === 'plateforme') return 'Plateforme'; var m = SIC.modules.obtenir(n); return m ? m.libelle : n; }
@@ -1521,7 +1570,7 @@
         if (!expires.length) return null;
         return h('div', { class: 'alerte' }, expires.length + ' compte(s) temporaire(s) expiré(s) : ' + expires.map(function (c) { return c.nom; }).join(', ') + '. La connexion leur est déjà refusée ; les désactiver retire aussi leur mot de passe du coffre. ',
           h('button', { class: 'btn petit', onclick: async function () {
-            if (!confirm('Désactiver ' + expires.length + ' compte(s) expiré(s) ?')) return;
+            if (!await SIC.ui.confirmer('Désactiver ' + expires.length + ' compte(s) expiré(s) ?')) return;
             for (var i = 0; i < expires.length; i++) await s.modifierRoles(expires[i].id, expires[i].roles, false, expires[i].services || []);
             toast('Comptes expirés désactivés.'); rendreContenu();
           } }, 'Désactiver les comptes expirés'));
@@ -1547,19 +1596,19 @@
                 [{ texte: 'Annuler' }, { texte: 'Retirer', classe: 'danger', action: async function () { await s.retirerEmballage(e.id, mdp.value); toast('Clé retirée, clé personnelle renouvelée.'); } }], { focus: mdp });
               return;
             }
-            if (!confirm(e.userId ? 'Retirer cette clé de sécurité ?' : 'Retirer cette clé de sécurité de secours ?\n\nSi elle est perdue, renouvelez aussi le code de secours : la clé retrouvée ouvrirait encore la clé de secours d’une ancienne version du coffre.')) return;
-            try { await s.retirerEmballage(e.id); toast('Clé retirée.'); } catch (err) { alert(err.message); }
+            if (!await SIC.ui.confirmer(e.userId ? 'Retirer cette clé de sécurité ?' : 'Retirer cette clé de sécurité de secours ?\n\nSi elle est perdue, renouvelez aussi le code de secours : la clé retrouvée ouvrirait encore la clé de secours d’une ancienne version du coffre.')) return;
+            try { await s.retirerEmballage(e.id); toast('Clé retirée.'); } catch (err) { SIC.ui.alerte(err.message); }
           } }, 'Retirer') : null));
       })))),
       h('div', { class: 'actions' },
         h('button', { class: 'btn', disabled: !webauthn, title: webauthn ? '' : 'Disponible uniquement en HTTPS', onclick: async function () {
-          var lib = prompt('Nom de cette clé (ex. « YubiKey cadre », « YubiKey coffre ») :', 'YubiKey');
+          var lib = await SIC.ui.demander('Nom de cette clé (ex. « YubiKey cadre », « YubiKey coffre ») :', 'YubiKey');
           if (lib === null) return;
-          try { await s.ajouterCleSecurite(lib); toast('Clé de sécurité enregistrée.'); } catch (err) { alert(err.message); }
+          try { await s.ajouterCleSecurite(lib); toast('Clé de sécurité enregistrée.'); } catch (err) { SIC.ui.alerte(err.message); }
         } }, 'Enregistrer une clé de sécurité'),
         h('button', { class: 'btn', onclick: async function () {
-          if (!confirm('Générer un nouveau code de secours ? L’ancien ne fonctionnera plus.')) return;
-          try { var code = await s.nouveauCodeSecours(); arreterMinuteurs(); afficherCodeSecours(code, false); } catch (err) { alert(err.message); }
+          if (!await SIC.ui.confirmer('Générer un nouveau code de secours ? L’ancien ne fonctionnera plus.')) return;
+          try { var code = await s.nouveauCodeSecours(); arreterMinuteurs(); afficherCodeSecours(code, false); } catch (err) { SIC.ui.alerte(err.message); }
         } }, 'Nouveau code de secours')),
       webauthn ? null : h('small', { class: 'muted', text: 'Les clés de sécurité nécessitent une page servie en HTTPS (GitHub Pages ou intranet).' }));
 
@@ -1594,7 +1643,7 @@
         var vusP = {}; poles.forEach(function (p) { p.services.forEach(function (c) { if (vusP[c]) throw new Error('Le service ' + c + ' est dans deux pôles.'); vusP[c] = 1; }); });
         await enregistrerConfig([['etablissement', etab.value.trim()], ['services', svs], ['lieuxCSI', lieux], ['poles', poles]]);
         var ecarts = M.ecartsPoles(config(), App.session.comptes || []);
-        if (ecarts.length && confirm(ecarts.length + ' compte(s) suivent un pôle modifié (' + ecarts.map(function (e) { return e.compte.nom; }).join(', ') + ') : mettre leurs services à jour maintenant ? Les clés des services ajoutés leur sont remises, celles des services retirés leur sont retirées.')) await appliquerPoles(ecarts);
+        if (ecarts.length && await SIC.ui.confirmer(ecarts.length + ' compte(s) suivent un pôle modifié (' + ecarts.map(function (e) { return e.compte.nom; }).join(', ') + ') : mettre leurs services à jour maintenant ? Les clés des services ajoutés leur sont remises, celles des services retirés leur sont retirées.')) await appliquerPoles(ecarts);
       }));
 
     // -- Activation des modules par service (socle, architecture § 5)
@@ -1623,7 +1672,7 @@
           if (!actifs.length && SIC.modules.indispensable(m.id)) throw new Error('« ' + m.libelle + ' » est indispensable : laissez-le activé pour au moins un service.');
           SIC.modules.ecrireActivation(valeur, m.id, actifs, actifs.length === lignes.length);   // tous les services : réglage d'origine ; arrêt gardé
         });
-        if (desactives.length && !confirm('Désactiver :\n' + desactives.join('\n') + '\n\nLes données sont conservées, mais plus aucune saisie ne sera possible dans ces services ; seuls ' + (encadrement.length ? encadrement.join(', ') + ' et l’administrateur' : 'l’administrateur') + ' les consulteront. Continuer ?')) return;
+        if (desactives.length && !await SIC.ui.confirmer('Désactiver :\n' + desactives.join('\n') + '\n\nLes données sont conservées, mais plus aucune saisie ne sera possible dans ces services ; seuls ' + (encadrement.length ? encadrement.join(', ') + ' et l’administrateur' : 'l’administrateur') + ' les consulteront. Continuer ?')) return;
         await enregistrerConfig([['modulesServices', valeur]]);
       }));
 
@@ -1678,10 +1727,10 @@
       h('small', { class: 'muted', text: 'Purge automatique : à la première connexion de la journée sur chaque poste, les fichiers du dossier des exports plus anciens que cette durée (date d’enregistrement) sont supprimés, et la purge est inscrite au journal. La durée est à fixer avec le délégué à la protection des données ; elle ne concerne que les exports, jamais les données de l’outil ni le registre.' }),
       h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: async function () {
         var j = X.optionsExports(config()).conservationJours;
-        if (!j) return alert('Aucune durée de conservation enregistrée : choisissez une durée puis « Enregistrer ».');
+        if (!j) return SIC.ui.alerte('Aucune durée de conservation enregistrée : choisissez une durée puis « Enregistrer ».');
         var l = await App.session.purgerExports({ simulation: true });
         if (!l.length) return toast('Aucun export à purger.');
-        if (!confirm('Supprimer ' + l.length + ' fichier(s) de plus de ' + libConservation(j) + ' du dossier des exports ? L’opération est inscrite au journal.')) return;
+        if (!await SIC.ui.confirmer('Supprimer ' + l.length + ' fichier(s) de plus de ' + libConservation(j) + ' du dossier des exports ? L’opération est inscrite au journal.')) return;
         var f = await App.session.purgerExports(); toast(f.length + ' fichier(s) supprimé(s).'); majApercuPurge();
       } }, 'Purger maintenant')),
       boutonEnregistrer(async function () {
@@ -1691,7 +1740,7 @@
         var j = +selConservation.value;
         if (j && j < X.optionsExports(config()).conservationJours || (j && !X.optionsExports(config()).conservationJours)) {
           var l = await App.session.purgerExports({ simulation: true, conservationJours: j });
-          if (l.length && !confirm('Avec une conservation de ' + libConservation(j) + ', ' + l.length + ' fichier(s) existant(s) seront supprimés à la prochaine purge automatique (première connexion de la journée). Enregistrer ?')) return;
+          if (l.length && !await SIC.ui.confirmer('Avec une conservation de ' + libConservation(j) + ', ' + l.length + ' fichier(s) existant(s) seront supprimés à la prochaine purge automatique (première connexion de la journée). Enregistrer ?')) return;
         }
         var reseau = tReseau.value.trim().replace(/[\\/]+$/, '');
         if (reseau && !/^(\\\\[^\\/]+[\\/][^\\/]+|[A-Za-z]:[\\/]?)/.test(reseau)) throw new Error('Chemin réseau inattendu : il commence par \\\\serveur\\partage ou par une lettre de lecteur (Z:\\…).');
@@ -1708,7 +1757,7 @@
     var demo = App.dossier.mode === 'demo' ? h('section', { class: 'panneau' }, h('h2', { text: 'Démonstration' }),
       h('p', { class: 'muted', text: 'Efface toutes les données de démonstration de ce navigateur et revient à l’accueil.' }),
       h('button', { class: 'btn danger', onclick: async function () {
-        if (!confirm('Effacer toutes les données de démonstration ?')) return;
+        if (!await SIC.ui.confirmer('Effacer toutes les données de démonstration ?')) return;
         arreterMinuteurs(); await App.dossier.vider(); await changerDossier();
       } }, 'Effacer la démonstration')) : null;
 
@@ -1790,10 +1839,10 @@
       h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function (ev) {
         var v = { regleMdp: selRegle.value, secondFacteur: tous.checked ? ['*'] : cases.filter(function (x) { return x.cb.checked; }).map(function (x) { return x.r; }), codeCle: code.checked };
         var moi = v.secondFacteur.length && (v.secondFacteur[0] === '*' || (s.utilisateur.roles || []).some(function (r) { return v.secondFacteur.indexOf(r) >= 0; })) && !s.connexionDouble;
-        if (moi && !C.webauthnDisponible()) return alert('Votre propre compte serait concerné, mais cette page ne permet pas d’enregistrer une clé de sécurité (HTTPS nécessaire) : vous ne pourriez plus continuer. Ouvrez l’outil par son adresse HTTPS pour régler ce point.');
-        if (moi && !confirm('Votre propre compte est concerné : vous devrez associer une clé de sécurité à votre mot de passe aussitôt après l’enregistrement. Ayez votre clé sous la main.\n\nEnregistrer ?')) return;
+        if (moi && !C.webauthnDisponible()) return SIC.ui.alerte('Votre propre compte serait concerné, mais cette page ne permet pas d’enregistrer une clé de sécurité (HTTPS nécessaire) : vous ne pourriez plus continuer. Ouvrez l’outil par son adresse HTTPS pour régler ce point.');
+        if (moi && !await SIC.ui.confirmer('Votre propre compte est concerné : vous devrez associer une clé de sécurité à votre mot de passe aussitôt après l’enregistrement. Ayez votre clé sous la main.\n\nEnregistrer ?')) return;
         var b = ev.currentTarget; b.disabled = true;
-        try { await s.reglerConnexion(v); toast('Règles de connexion enregistrées.'); rendre(); } catch (err) { alert(err.message); b.disabled = false; }
+        try { await s.reglerConnexion(v); toast('Règles de connexion enregistrées.'); rendre(); } catch (err) { SIC.ui.alerte(err.message); b.disabled = false; }
       } }, 'Enregistrer les règles de connexion')));
   }
 
@@ -1829,9 +1878,9 @@
         h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Date', 'Écrit par', 'Saisie ou réglage'].map(function (x) { return h('th', { text: x }); }))),
           h('tbody', {}, hd.slice(0, 50).map(function (x) { return h('tr', {}, h('td', { text: dateIso(x.at) }), h('td', { text: nomDe(x.sg || x.by) }), h('td', { text: x.type === 'CONFIG' ? 'réglage : ' + libReglage(x.cle) : (LIB_TYPE_ECART[x.type] || 'saisie') + ((SIC.modules.moduleDuType(x.type) || {}).libelle ? ' — ' + SIC.modules.moduleDuType(x.type).libelle : '') })); }))))] : null,
       !e.exigee ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', disabled: e.comptesSansCle.length > 0, onclick: async function (ev) {
-        if (!confirm('Exiger la signature de toute saisie ?\n\nLes saisies non signées (écrites avant la version 0.72.0) seront écartées sur tous les postes : masquées, jamais supprimées. Ce choix est inscrit dans le coffre attesté et ne peut pas être retiré.')) return;
+        if (!await SIC.ui.confirmer('Exiger la signature de toute saisie ?\n\nLes saisies non signées (écrites avant la version 0.72.0) seront écartées sur tous les postes : masquées, jamais supprimées. Ce choix est inscrit dans le coffre attesté et ne peut pas être retiré.')) return;
         var b = ev.currentTarget; b.disabled = true;
-        try { await s.exigerSignatures(); toast('Signature des saisies exigée.'); rendreContenu(); } catch (err) { alert(err.message); b.disabled = false; }
+        try { await s.exigerSignatures(); toast('Signature des saisies exigée.'); rendreContenu(); } catch (err) { SIC.ui.alerte(err.message); b.disabled = false; }
       } }, 'Exiger la signature des saisies')) : null);
   }
 
@@ -1852,13 +1901,13 @@
     function action(texte, classe, fn) {
       return h('button', { class: 'btn ' + (classe || ''), onclick: async function (ev) {
         var b = ev.currentTarget; b.disabled = true;
-        try { await fn(); } catch (err) { alert(err.message); } finally { b.disabled = false; }
+        try { await fn(); } catch (err) { SIC.ui.alerte(err.message); } finally { b.disabled = false; }
       } }, texte);
     }
     var actions = h('div', { class: 'actions gauche' });
     var seulement = function (liste) { return codes.length && codes.every(function (c) { return liste.indexOf(c) >= 0; }); };
     if (seulement(['restaure', 'ancienne'])) actions.appendChild(action('Renouveler les clés', 'primaire', async function () {
-      if (!confirm('Renouveler toutes les clés ?\n\nNouvelles clés maîtresses et nouvelle génération de chaque clé, remises selon les comptes tels qu’ils figurent dans ce coffre : vérifiez d’abord les comptes (un compte retiré depuis la version restaurée doit être désactivé ensuite). Les mots de passe ne changent pas ; la copie sous scellé sera à refaire.')) return;
+      if (!await SIC.ui.confirmer('Renouveler toutes les clés ?\n\nNouvelles clés maîtresses et nouvelle génération de chaque clé, remises selon les comptes tels qu’ils figurent dans ce coffre : vérifiez d’abord les comptes (un compte retiré depuis la version restaurée doit être désactivé ensuite). Les mots de passe ne changent pas ; la copie sous scellé sera à refaire.')) return;
       await s.renouvelerCles(); toast('Clés renouvelées.'); rendreContenu();
     }));
     var ag = an.filter(function (x) { return x.code === 'agents'; })[0];
@@ -1866,7 +1915,7 @@
       var c = s.comptes.filter(function (x) { return x.id === id; })[0];
       if (!c || !c.actif) return;
       actions.appendChild(action('Nouvelle clé personnelle : ' + c.nom, '', async function () {
-        if (!confirm('Créer une nouvelle clé personnelle pour ' + c.nom + ' ?\n\nUn mot de passe provisoire lui est attribué (fiche de remise) ; ses clés de sécurité sont retirées.')) return;
+        if (!await SIC.ui.confirmer('Créer une nouvelle clé personnelle pour ' + c.nom + ' ?\n\nUn mot de passe provisoire lui est attribué (fiche de remise) ; ses clés de sécurité sont retirées.')) return;
         var mdp = C.nouveauMotDePasseProvisoire();
         await s.reinitialiserMotDePasse(id, mdp, { reparation: true, aleatoire: true });
         if (SIC.ui.actions.fichesRemise) SIC.ui.actions.fichesRemise([{ nom: c.nom, login: c.login, motDePasse: mdp, roles: c.roles, services: c.services || [], finValidite: c.finValidite || '' }], 'Nouvelle clé personnelle');
@@ -1874,12 +1923,12 @@
       }));
     });
     if (codes.indexOf('secours') >= 0 && seulement(['agents', 'secours'])) actions.appendChild(action('Nouveau code de secours', '', async function () {
-      if (!confirm('Créer un nouveau code de secours ? L’ancien n’ouvrira plus rien.')) return;
+      if (!await SIC.ui.confirmer('Créer un nouveau code de secours ? L’ancien n’ouvrira plus rien.')) return;
       var code = await s.nouveauCodeSecours();
       modale('Nouveau code de secours', h('div', { class: 'pile' }, h('p', { text: 'Notez ce code et conservez-le sous scellé ; refaites la copie du coffre sous scellé.' }), h('div', { class: 'code-secours', text: code })), [{ texte: 'J’ai noté le code', classe: 'primaire' }]);
     }));
     if (codes.length) actions.appendChild(action('Remettre la dernière version attestée…', codes.some(function (c) { return ['restaure', 'ancienne', 'agents', 'secours'].indexOf(c) < 0; }) ? 'primaire' : '', async function () {
-      if (!confirm('Remettre en place la dernière version du coffre dont l’attestation est intacte ?\n\nLes comptes, rôles et mots de passe reviennent à cette version : ce qui a été fait depuis (comptes créés, rôles changés, mots de passe) sera à refaire. Votre propre mot de passe est conservé. Toutes les clés sont ensuite renouvelées.')) return;
+      if (!await SIC.ui.confirmer('Remettre en place la dernière version du coffre dont l’attestation est intacte ?\n\nLes comptes, rôles et mots de passe reviennent à cette version : ce qui a été fait depuis (comptes créés, rôles changés, mots de passe) sera à refaire. Votre propre mot de passe est conservé. Toutes les clés sont ensuite renouvelées.')) return;
       var le = await s.remettreDerniereAttestee();
       toast('Version attestée du ' + dateIso(le) + ' remise en place, clés renouvelées.'); rendreContenu();
     }));
@@ -2055,7 +2104,7 @@
         { texte: 'Annuler' },
         { texte: 'Enregistrer', classe: 'primaire', action: async function () {
           var r = roles.valeur(), sv = svs.valeur(r);
-          if (c.id === s.utilisateur.id && r.indexOf('ADMIN') < 0 && !confirm('Vous retirez votre propre rôle d’administrateur. Continuer ?')) return false;
+          if (c.id === s.utilisateur.id && r.indexOf('ADMIN') < 0 && !await SIC.ui.confirmer('Vous retirez votre propre rôle d’administrateur. Continuer ?')) return false;
           if (r.indexOf('ADMIN') >= 0 && !actif.checked && s.comptes.filter(function (x) { return x.actif && x.roles.indexOf('ADMIN') >= 0 && x.id !== c.id; }).length === 0) throw new Error('Il doit rester au moins un administrateur actif.');
           await s.modifierRoles(c.id, r, actif.checked, sv, formation.checked, finVal.value);
           await enregistrerPoleSuivi(c.id, svs.poleSuivi());
@@ -2484,7 +2533,7 @@
     vues: (SIC.ui && SIC.ui.vues) || {}, actions: (SIC.ui && SIC.ui.actions) || {},
     rendreRepliable: rendreRepliable, replierVue: replierVue, controleRepli: controleRepli, deplier: deplier, replierPanneaux: replierPanneaux, ongletsLocaux: ongletsLocaux,
     h: h, vider: vider, date: date, court: court, duree: duree, relatif: relatif, versSaisie: versSaisie, depuisSaisie: depuisSaisie,
-    ouvrirFenetre: ouvrirFenetre, toast: toast, modale: modale, imprimer: imprimer, imprimerPage: imprimerPage, impressionNB: impressionNB, erreurDans: erreurDans, fmtJour: fmtJour,
+    ouvrirFenetre: ouvrirFenetre, toast: toast, alerte: alerte, confirmer: confirmer, demander: demander, reponsesAutomatiques: reponsesAutomatiques, modale: modale, imprimer: imprimer, imprimerPage: imprimerPage, impressionNB: impressionNB, erreurDans: erreurDans, fmtJour: fmtJour,
     App: App, st: st, config: config, affiche: affiche, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, lignesDe: lignesDe, zoneTexte: zoneTexte, periodeDepuis: periodeDepuis, changerDossier: function () { return changerDossier(); },

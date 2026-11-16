@@ -122,7 +122,7 @@
     var zJours = h('div', { class: 'actions gauche', hidden: rep.value === 'date' }, cases);
     rep.addEventListener('change', function () { zJours.hidden = rep.value === 'date'; });
     var boutons = [{ texte: 'Annuler' }];
-    if (p) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () { if (!confirm('Supprimer cette ' + (p.nature === 'absence' ? 'absence' : 'présence') + ' ?')) return false; await s().enregistrer('PRESENCE_PSY', { id: p.id, supprime: true, service: p.service }); U.toast('Supprimé.'); } });
+    if (p) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () { if (!await SIC.ui.confirmer('Supprimer cette ' + (p.nature === 'absence' ? 'absence' : 'présence') + ' ?')) return false; await s().enregistrer('PRESENCE_PSY', { id: p.id, supprime: true, service: p.service }); U.toast('Supprimé.'); } });
     boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       var nat = natA.checked ? 'absence' : 'presence';
       var d = { id: x.id || 'PP' + C.hex(C.aleatoire(5)), psychologue: selPsy.value, psychologueId: idPsy(selPsy.value), nature: nat, service: selSv.value, repetition: rep.value, debut: debut.value,
@@ -160,7 +160,7 @@
     if (selSalle) [jour, de, a].forEach(function (c) { c.addEventListener('change', function () { selSalle.maj(); }); });
     var pres = x.presence && st().presencesPsy[x.presence];
     var boutons = [{ texte: 'Annuler' }];
-    if (e && peut('ENTRETIEN_PREVU')) boutons.push({ texte: 'Annuler l’entretien', classe: 'danger', action: async function () { if (!confirm('Annuler cet entretien prévu ?')) return false; await s().enregistrer('ENTRETIEN_PREVU', { id: e.id, annule: true, service: e.service }); U.toast('Entretien annulé.'); } });
+    if (e && peut('ENTRETIEN_PREVU')) boutons.push({ texte: 'Annuler l’entretien', classe: 'danger', action: async function () { if (!await SIC.ui.confirmer('Annuler cet entretien prévu ?')) return false; await s().enregistrer('ENTRETIEN_PREVU', { id: e.id, annule: true, service: e.service }); U.toast('Entretien annulé.'); } });
     if (peut('ENTRETIEN_PREVU')) boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: async function () {
       var d = { id: (e && e.id) || 'EP' + C.hex(C.aleatoire(5)), psychologue: selPsy.value, psychologueId: idPsy(selPsy.value), patient: selPat.value, jour: jour.value, de: de.value, a: a.value, presence: x.presence || '', salle: selSalle ? selSalle.valeur() : (x.salle || ''), service: sv };
       var demandes = [];

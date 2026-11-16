@@ -44,7 +44,7 @@
     if (!ar) {
       if (SIC.modules.indispensable(m.id)) return U.toast('« ' + m.libelle + ' » est indispensable : il ne s’arrête pas.');
       var dep = effetsArret(m), nb = saisiesDe(m);
-      if (!confirm('Arrêter le module « ' + m.libelle + ' » ?\n\n' +
+      if (!await SIC.ui.confirmer('Arrêter le module « ' + m.libelle + ' » ?\n\n' +
         '— Sa fenêtre est masquée pour tous les agents, et ses informations n’apparaissent plus dans les autres modules' + (dep.length ? ' (' + dep.join(', ') + ')' : '') + '.\n' +
         '— Rien n’est effacé : ' + (nb ? 'ses ' + nb + ' saisies et ' : '') + 'ses réglages sont gardés, ainsi que les sauvegardes ; ses données restent dans l’export du droit d’accès d’un patient.\n' +
         '— Les agents gardent la clé du module (rien à redistribuer à la remise en marche).\n\nLa remise en marche rétablit tout comme avant.')) return;
@@ -73,7 +73,7 @@
     [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: async function () {
       var desactives = cases.filter(function (c) { return !c.cb.checked && m.droits.serviceChoisi(cfg(), c.sv.code); });
       if (desactives.length === cases.length && SIC.modules.indispensable(m.id)) throw new Error('« ' + m.libelle + ' » est indispensable : laissez-le activé pour au moins un service.');
-      if (desactives.length && saisiesDe(m) && !confirm('Désactiver « ' + m.libelle + ' » pour ' + desactives.map(function (c) { return c.sv.libelle; }).join(', ') + ' ?\n\nRien n’est effacé : le module est seulement masqué. Ses données sont conservées ; plus aucune saisie n’est possible dans ces services, et seuls l’encadrement et l’administrateur les consultent.')) return false;
+      if (desactives.length && saisiesDe(m) && !await SIC.ui.confirmer('Désactiver « ' + m.libelle + ' » pour ' + desactives.map(function (c) { return c.sv.libelle; }).join(', ') + ' ?\n\nRien n’est effacé : le module est seulement masqué. Ses données sont conservées ; plus aucune saisie n’est possible dans ces services, et seuls l’encadrement et l’administrateur les consultent.')) return false;
       var valeur = JSON.parse(JSON.stringify(cfg().modulesServices || {})), actifs = cases.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.sv.code; });
       SIC.modules.ecrireActivation(valeur, m.id, actifs, actifs.length === cases.length);
       await U.enregistrerConfig([['modulesServices', valeur]]);

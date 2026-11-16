@@ -174,7 +174,7 @@
       h('span', { class: 'espace' }),
       h('button', { class: 'btn primaire', type: 'button', onclick: function () { modaleImprimer(v); } }, 'Imprimer'),
       h('button', { class: 'btn', type: 'button', title: perso ? 'Régler votre copie personnelle' : (modele ? 'Régler le modèle du service' : 'Régler votre copie personnelle (le modèle du service n’est pas modifié)'), onclick: function () { modaleMiseEnPage(v); } }, 'Mise en page'),
-      perso ? h('button', { class: 'btn', type: 'button', title: 'Supprimer votre copie et reprendre le modèle du service', onclick: function () { if (confirm('Supprimer votre copie personnelle et reprendre le modèle du service ?')) enregistrerCopie(v, null).then(function () { U.rendreContenu(); }); } }, 'Reprendre le modèle')
+      perso ? h('button', { class: 'btn', type: 'button', title: 'Supprimer votre copie et reprendre le modèle du service', onclick: async function () { if (await SIC.ui.confirmer('Supprimer votre copie personnelle et reprendre le modèle du service ?')) enregistrerCopie(v, null).then(function () { U.rendreContenu(); }); } }, 'Reprendre le modèle')
         : h('button', { class: 'btn', type: 'button', title: 'Garder votre propre mise en page de ce tableau', onclick: function () { enregistrerCopie(v, JSON.parse(JSON.stringify(t))).then(function () { U.toast('Copie personnelle créée.'); U.rendreContenu(); }); } }, 'Faire ma copie'),
       modele ? h('button', { class: 'btn', type: 'button', onclick: function () { VE().modaleVue(v); } }, 'Régler la vue') : null,
       modele || U.App.session.roles().indexOf('CADRE') >= 0 ? h('button', { class: 'btn', type: 'button', title: 'Nouveau tableau de transmissions pour vos services', onclick: nouveau }, '+ Tableau') : null);
@@ -185,7 +185,7 @@
   }
   async function nouveau() {
     var admin = session().roles().indexOf('ADMIN') >= 0, mes = compte().services || [];
-    var nom = prompt('Nom du nouveau tableau de transmissions :', 'Transmissions');
+    var nom = await SIC.ui.demander('Nom du nouveau tableau de transmissions :', 'Transmissions');
     if (!nom || !nom.trim()) return;
     var id = 'tr' + SIC.crypto.hex(SIC.crypto.aleatoire(3)), l = VE().vuesBrutes();
     l.push({ id: id, nom: nom.trim().slice(0, 60), type: 'transmissions', lignes: 'patients', services: admin ? [] : mes.slice(), roles: [], perimetre: 'hospitalises', tri: { colonne: 'chambre', sens: 1 }, transmissions: T.modele(), groupes: [], synthese: [], par: { role: admin ? 'ADMIN' : 'CADRE', services: admin ? [] : mes.slice() } });

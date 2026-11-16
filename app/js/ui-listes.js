@@ -144,7 +144,7 @@
     dessinerApercu();
     var fichier = h('input', { type: 'file', accept: 'image/png,image/jpeg', onchange: async function () {
       if (!fichier.files[0]) return;
-      try { logo = await reduireLogo(fichier.files[0]); dessinerApercu(); } catch (e) { alert(e.message); }
+      try { logo = await reduireLogo(fichier.files[0]); dessinerApercu(); } catch (e) { SIC.ui.alerte(e.message); }
       fichier.value = '';
     } });
     return h('section', { class: 'panneau' }, h('h2', { text: 'Écran de connexion et logo' }),
