@@ -862,6 +862,21 @@
           rattaches: [], pieces: [{ id: pj1, nom: 'plan-boite-a-code (fictif).png', taille: png.length }, { id: pj2, nom: 'feuille-emprunts (fictif).txt', taille: txt.length }] } }],
           { libelle: 'Message fictif avec pièces jointes', by: 'demo', sansControle: true });
       } catch (e) { /* démonstration sans pièces jointes */ }
+      // Liste des codes CIM (0.82.0) : extrait fictif de démonstration (la vraie liste est importée par l'établissement,
+      // sous les conditions de licence de son éditeur ; aucun fichier officiel dans le dépôt)
+      try {
+        if (SIC.modules.obtenir('clinique') && session.detientCle && session.detientCle('clinique')) {
+          var cimDemo = [['F10.2', 'Dépendance à l’alcool'], ['F11.2', 'Dépendance aux opiacés'], ['F12.2', 'Dépendance au cannabis'], ['F19.2', 'Dépendance à plusieurs substances'],
+            ['F20', 'Schizophrénie'], ['F20.0', 'Schizophrénie paranoïde'], ['F20.1', 'Schizophrénie hébéphrénique'], ['F20.5', 'Schizophrénie résiduelle'], ['F22.0', 'Trouble délirant'],
+            ['F25.0', 'Trouble schizo-affectif, type maniaque'], ['F25.1', 'Trouble schizo-affectif, type dépressif'], ['F31.1', 'Trouble bipolaire, épisode maniaque'], ['F31.4', 'Trouble bipolaire, épisode dépressif sévère'],
+            ['F32.1', 'Épisode dépressif moyen'], ['F32.2', 'Épisode dépressif sévère'], ['F41.1', 'Anxiété généralisée'], ['F43.1', 'État de stress post-traumatique'],
+            ['F60.3', 'Personnalité émotionnellement labile'], ['F84.0', 'Autisme infantile'], ['Z59.0', 'Sans abri'], ['Z63.0', 'Difficultés avec le conjoint']]
+            .map(function (c) { return [c[0], c[1] + ' (liste fictive de démonstration)', c[0].length === 3 ? '3' : '0']; });
+          var pjCim = await session.enregistrerPiece('clinique', new TextEncoder().encode(JSON.stringify({ codes: cimDemo, version: 'démo' })));
+          await session.enregistrerLot([{ at: new Date(Date.now() - 864e5).toISOString(), by: 'demo', type: 'CLINIQUE_REFERENTIEL', data: { piece: pjCim, version: 'démo', nombre: cimDemo.length,
+            format: 'tableau code ; libellé', nomFichier: 'cim-extrait-demonstration (fictif).csv', source: 'Extrait fictif de démonstration', empreinte: '' } }], { libelle: 'Liste fictive des codes CIM', by: 'demo', sansControle: true });
+        }
+      } catch (e) { /* démonstration sans liste des codes CIM */ }
     }
     // Données sous clé propre (0.20.0) : la clé de chaque donnée est créée d'abord, puis ses valeurs fictives sont écrites
     // dans son journal (vigilance organisationnelle, données des agents)

@@ -4,8 +4,8 @@
  * du 15 novembre 2026).
  *
  * Feuille de staff clinique et notes cliniques, rattachées au séjour du patient :
- *   - codes CIM (classification internationale des maladies), saisie libre (code et libellé ; liste de référence
- *     intégrée plus tard), motif d'hospitalisation, projet thérapeutique ;
+ *   - codes CIM (classification internationale des maladies), saisie libre (code et libellé ; liste importée par
+ *     l’établissement depuis 0.82.0 : app/js/cim.js), motif d’hospitalisation, projet thérapeutique ;
  *   - dépendance : les 6 variables des activités de la vie quotidienne (AVQ) du recueil d'informations médicalisé en
  *     psychiatrie (RIM-P), cotées de 1 (autonomie) à 4 (assistance totale) ;
  *   - rappel, pour un patient déjà hospitalisé, des codes CIM et de la dépendance du séjour précédent (référence) ;
@@ -21,7 +21,9 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre) {
   'use strict';
 
-  var TYPES = ['CLINIQUE_STAFF', 'CLINIQUE_NOTE', 'CLINIQUE_NOTE_RETRAIT'];
+  var TYPES = ['CLINIQUE_STAFF', 'CLINIQUE_NOTE', 'CLINIQUE_NOTE_RETRAIT', 'CLINIQUE_REFERENTIEL'];
+  // Liste des codes CIM importée par l'établissement (0.82.0) : réservée à l'administrateur
+  var TYPES_SEJOUR = ['CLINIQUE_STAFF', 'CLINIQUE_NOTE', 'CLINIQUE_NOTE_RETRAIT'];
   // Repère de lecture (jamais écrit) : accès « Consulter les données cliniques » réglé rôle par rôle
   var LECTURE = 'CLINIQUE_LECTURE';
   /** Variables AVQ du RIM-P et cotation. */
@@ -40,6 +42,13 @@
   // ------------------------------------------------------------ Reconstitution de l'état
   function appliquer(st, e) {
     var d = e.data || {}, k, x;
+    if (e.type === 'CLINIQUE_REFERENTIEL') {
+      // Une liste remplace la précédente ; « retirer » revient à la saisie libre. Historique gardé (journal).
+      if (st.referentiel) st.referentielsPrecedents.push(st.referentiel);
+      st.referentiel = d.retirer ? null : { piece: texte(d.piece, 60), version: texte(d.version, 40), nombre: Math.max(0, Math.round(+d.nombre) || 0), format: texte(d.format, 60),
+        nomFichier: texte(d.nomFichier, 160), source: texte(d.source, 200), empreinte: texte(d.empreinte, 80), le: e.at, par: e.by };
+      return;
+    }
     if (!d.patientId || !d.sejour) return;
     k = cle(d.patientId, d.sejour);
     x = st.sejours[k] || (st.sejours[k] = { patientId: d.patientId, sejour: d.sejour, service: d.service || '', staff: null, historique: [], notes: [] });
@@ -85,7 +94,7 @@
     return res;
   }
 
-  function reduire(evts) { return N.reduire(evts, { cle: 'clinique', etat: function () { return { sejours: {} }; }, appliquer: appliquer }); }
+  function reduire(evts) { return N.reduire(evts, { cle: 'clinique', etat: function () { return { sejours: {}, referentiel: null, referentielsPrecedents: [] }; }, appliquer: appliquer }); }
 
   // ------------------------------------------------------------ Lecture
   function sejour(st, patientId, sejourId) { return (st && st.sejours && st.sejours[cle(patientId, sejourId)]) || { patientId: patientId, sejour: sejourId, staff: null, historique: [], notes: [] }; }
@@ -105,6 +114,12 @@
   // ------------------------------------------------------------ Contrôles
   function controler(type, d, ctx) {
     var cfg = (ctx && ctx.config) || null, c = ctx && ctx.compte, st = (ctx && ctx.etat) || { sejours: {} };
+    if (type === 'CLINIQUE_REFERENTIEL') {
+      // Préparée même si la fonction est encore désactivée (l'établissement importe la liste avant de l'activer)
+      if (d.retirer) { if (!st.referentiel) throw new Error('Aucune liste de codes CIM à retirer.'); return; }
+      if (!texte(d.piece) || !(+d.nombre > 0)) throw new Error('Liste de codes CIM vide ou fichier manquant.');
+      return;
+    }
     if (cfg && !fonctionActive(cfg)) throw new Error('Données cliniques du séjour : fonction désactivée par l’établissement (onglet « Validations »).');
     if (!d.patientId || !d.sejour) throw new Error('Patient ou séjour manquant.');
     if (type === 'CLINIQUE_STAFF') {
@@ -128,10 +143,10 @@
     { code: 'clinique.staff', libelle: 'Renseigner la feuille de staff clinique (codes CIM, motif, projet thérapeutique, dépendance)', types: [LECTURE, 'CLINIQUE_STAFF'] },
     { code: 'clinique.notes', libelle: 'Écrire et retirer ses notes cliniques', types: [LECTURE, 'CLINIQUE_NOTE', 'CLINIQUE_NOTE_RETRAIT'] }
   ];
-  var TOUT = [LECTURE].concat(TYPES);
+  var TOUT = [LECTURE].concat(TYPES_SEJOUR);
   var DROITS = { IDE: TOUT, CADRE: TOUT, MEDECIN: TOUT, MEDECIN_CHEF_SERVICE: TOUT, MEDECIN_CHEF_POLE: TOUT };
   var D = Droits.creer({
-    roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: [], rolesFournis: M.ROLES_FOURNIS,
+    roles: M.ROLES, rolesDeService: M.ROLES_DE_SERVICE, droits: DROITS, acces: ACCES, typesAdmin: ['CLINIQUE_REFERENTIEL'], rolesFournis: M.ROLES_FOURNIS,
     ongletsMasquables: [], rolesJournalComplet: ['CADRE'], module: 'clinique', rolesEncadrement: ['CADRE'],
     lireAcces: function (r) { return r.accesModules ? r.accesModules.clinique : undefined; },
     appartenance: 'acces'
@@ -154,5 +169,5 @@
   };
   registre.declarer(contrat);
   return { contrat: contrat, reduire: reduire, separerCim: separerCim, droits: D, ACCES: ACCES, TYPES: TYPES, LECTURE: LECTURE, AVQ: AVQ, COTES: COTES, score: score, sejour: sejour, precedent: precedent, notesVisibles: notesVisibles,
-    fonctionActive: fonctionActive, controler: controler, cle: cle };
+    fonctionActive: fonctionActive, controler: controler, cle: cle, TYPES_SEJOUR: TYPES_SEJOUR };
 });

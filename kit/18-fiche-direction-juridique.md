@@ -54,6 +54,7 @@ La traçabilité informatisée des tâches d'un service améliore la qualité de
 - [ ] Information des proches des majeurs protégés (décision n° 2024-1127 QPC).
 - [ ] Droit d'accès : exclusion des informations concernant un tiers ; données des modules arrêtés.
 - [ ] Licence EUPL-1.2 et conditions de création du logiciel (annexe à la fiche projet).
+- [ ] Liste des codes CIM : conditions d'utilisation du fichier officiel par l'établissement (licence CC BY-NC-ND 3.0 IGO indiquée par l'Agence du numérique en santé, droits de l'Organisation mondiale de la santé) ; Tessera ne la fournit pas, l'établissement l'importe.
 - [ ] Usage de GitHub Pages pendant le pilote (conditions d'utilisation du service ; seul le code y est servi).
 
 ## 7. Documents de référence

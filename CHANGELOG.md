@@ -1,5 +1,11 @@
 # Journal des modifications — Tessera Santé
 
+## 0.82.0 — 16 novembre 2026
+
+Demande du porteur du 16 novembre 2026 : liste des codes CIM dans Tessera.
+- **Import par l'établissement** (*Administration → Données cliniques → Liste des codes CIM*, administrateur) : fichier officiel de la nomenclature de l'ATIH, terminologie au format JSON du serveur de l'Agence du numérique en santé, ou tableau code ; libellé ; aperçu (nombre de codes, lignes écartées, doublons), version et origine, mise en service, remplacement, retrait ; chiffré par la clé du module, tracé au journal. Tessera ne fournit pas la liste, soumise à la licence de son éditeur (droits de l'Organisation mondiale de la santé) ; la démonstration contient un extrait fictif.
+- **Feuille de staff** : codes et libellés proposés au fil de la saisie (début du code ou mots du libellé, sans accents), libellé rempli d'office, code absent de la liste signalé, codes imprécis ou de catégorie rappelés ; saisie libre conservée ; les codes séparés depuis un seul champ reçoivent aussi leur libellé.
+
 ## 0.81.1 — 16 novembre 2026 (version stable)
 
 Documentation mise à jour pour les versions 0.78 à 0.81, sans changement de l'application : architecture (§ 7 septies et octies, décisions), fiche technique (graphiques en PDF, fenêtres de l'outil), fiche projet, guides du kit (menu « Plus ▾ », messages repliés, confirmations, onglets de l'administration par thème, plusieurs codes CIM, graphiques en PDF), fiche pour les représentants du personnel (ergonomie faite), convention de code (CLAUDE.md § 5) ; PDF régénérés.

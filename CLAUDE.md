@@ -23,7 +23,7 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 
 ## 2. Données et sécurité (non négociable)
 
-- **Aucune donnée réelle** dans le dépôt, les tests, la démonstration ou les captures. Toute donnée d'exemple est inventée et marquée « (fictif) ». Aucun fichier fourni par l'établissement (export du DPI, registre) n'est ajouté au dépôt, même anonymisé : on n'en décrit que la structure.
+- **Aucune donnée réelle** dans le dépôt, les tests, la démonstration ou les captures. Toute donnée d'exemple est inventée et marquée « (fictif) ». Aucun fichier fourni par l'établissement (export du DPI, registre) n'est ajouté au dépôt, même anonymisé : on n'en décrit que la structure. La liste officielle des codes CIM n'est jamais ajoutée au dépôt (licence de l'éditeur) : l'établissement l'importe ; seul un extrait fictif sert à la démonstration.
 - Pas de données réelles avant validation par le service informatique et le délégué à la protection des données de l'établissement.
 - **Fonctions soumises à avis** (décision du porteur du 13 novembre 2026) : une fonction qui demande un avis (délégué à la protection des données, responsable de la sécurité informatique, ressources humaines, direction des soins, commission médicale, direction juridique…) **peut être développée sans attendre l'avis**, mais doit être **désactivable** par l'établissement en cas d'avis négatif. Règles :
   - les fonctions nouvelles soumises à avis sont livrées **désactivées** ; les fonctions déjà développées qui relèvent d'un avis (données du personnel des Congés et de l'Équipe, réservations des Véhicules, option « donnée clinique » des données ajoutées…) restent **activées**, pour ne rien changer à l'existant ; Isocont reste hors de ce mécanisme (registre légal) ;
