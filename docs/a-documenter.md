@@ -2,27 +2,4 @@
 
 Mise à jour des documents reportable (décision du porteur du 11 novembre 2026) : la fusion dans `main` peut se faire sans elle (`CLAUDE.md` § 6). Ce fichier garde tout ce qu'il faudra écrire, pour ne rien perdre. **Chaque nouveau développement y ajoute ses lignes**, sur `main` comme dans une branche. Il est vidé quand le porteur demande la mise à jour des documents.
 
-*Vidé le 16 novembre 2026 (version 0.77.1) : le contenu des versions 0.71 à 0.77 est repris dans les documents de référence et gardé en détail dans `docs/historique-decisions.md`.*
-
-## 0.78.0 — 16 novembre 2026 (demandes du porteur du jour)
-
-- **Plusieurs codes CIM dans un seul champ** : `SIC.clinique.separerCim(texte)` (`app/js/module-clinique.js`) → [{ code, libelle }] (50 codes au plus, doublons ignorés, code précédé d'un mot sans séparateur laissé dans le libellé) ; feuille de staff (`app/js/ui-clinique.js`) : zone repliable « Saisir plusieurs codes à la fois », bouton « Séparer en codes », lignes vides remplacées, codes présents non dupliqués. Aucune saisie ni réglage nouveaux. Tests : `tests/cim-graphiques.test.js`. À documenter : `docs/architecture.md` (Données cliniques), guide du module si un guide est écrit.
-- **Graphiques en PDF** : `SIC.pdf.Document.prototype.dessin(dessin, options)` (`app/js/pdf.js` : rectangles, traits, lignes brisées, cercles, tracés SVG avec arcs convertis en courbes de Bézier, textes ; cadre élargi pour les textes qui débordent), `segmentsTrace`, `couleurDessin` ; `U.graphiquePdf` (`app/js/ui-graphiques.js` : `svgEnDessin` lit le SVG affiché et ses styles calculés en thème clair, `legendeDe`, `ajouterAuPdf`, `exporter`, `bouton`). Boutons : statistiques d'Isocont (catégorie d'export `statistiques`), fiche patient « Mesures » (heures par mois, frise ; document confidentiel ; catégorie `graphiques`), tableur (chaque graphique, aussi en lecture seule). PDF des statistiques : graphique mensuel ajouté. Nouvelle catégorie d'export « Graphiques » (`LIB_CATEGORIES_EXPORT`). Tests : `tests/cim-graphiques.test.js` ; parcours des écrans : étapes CIM et graphique. À documenter : `docs/fiche-technique.md` (exports : graphiques en PDF, vectoriels, sans image ni bibliothèque), guide utilisateur et guide Isolement et contention (statistiques, fiche patient), guide des documents (tableur).
-- Point de vigilance : le PDF d'un graphique de patient est un export nominatif (bandeau « document confidentiel ») ; même régime que les autres exports (purge, droits du sous-dossier).
-
-## 0.79.0 — 16 novembre 2026 (ergonomie, constat E1)
-
-- En-tête sur une rangée : menu « Plus ▾ » (`menuEntete`, `app/js/ui.js`) avec Mot de passe, Exports, Affichage (ancien « Aa »), thème, installation hors réseau, À propos ; Rechercher, Signaler, Verrouiller visibles. Titre de fenêtre et onglets dans `.fenetre-tete`. Messages pour l'agent (`messagesPerso`) : complets dans « Aujourd'hui », repliés ailleurs (`App.messagesOuverts` pour la session). Aucune saisie ni réglage. Parcours et script de captures adaptés (menu).
-- À documenter : guides utilisateur (06 : « bouton *Mot de passe* » → menu « Plus » ; Exports ; Affichage), IDE / AS (08 : captures régénérées), installation (03 si un écran y est cité) ; fiche pour les représentants du personnel (19, § 4 ergonomie : E1 fait).
-
-## 0.80.0 — 16 novembre 2026 (ergonomie, constat E3)
-
-- `SIC.ui.confirmer(message, { ok, danger })` (promesse d'un booléen), `SIC.ui.demander(message, valeur)` (promesse du texte ou null), `SIC.ui.alerte(message)` (bandeau non bloquant, dans la fenêtre ouverte s'il y en a une) remplacent `confirm`, `prompt` et `alert` partout (`app/js/ui.js`, styles `.petite-fenetre`, `.zone-alertes`). Fonctions englobantes rendues asynchrones ; boucle des véhicules de l'agenda réécrite ; `verifier` des Salles attendu. `SIC.ui.reponsesAutomatiques(f)` : réponses d'office pour le parcours automatisé des écrans (et le script des captures), sans effet tant qu'il n'est pas appelé. Parcours : étapes de vérification des trois fenêtres.
-- Convention de code à ajouter (CLAUDE.md § 5 et `docs/architecture.md`) : ne plus utiliser `alert`, `confirm` ni `prompt` ; passer par `SIC.ui.alerte`, `SIC.ui.confirmer`, `SIC.ui.demander`.
-
-## 0.81.0 — 16 novembre 2026 (ergonomie, constats E2, E4, E5)
-
-- Administration : onglets groupés par thème (`groupesAdmin`, `THEMES_ADMIN`, `app/js/ui.js` ; module inconnu → « Organisation »). Contrastes : `--warn` #875c00 et `--ok` #276b43 en thème clair, `--bad-ink` (pastilles), `--accent-ink` pour l'onglet actif des rubriques, `.ct-*` mêlés à l'encre, opacités d'estompage retirées ; `SIC.ui.encreSur(couleur)` et `SIC.ui.encreSurTeinte(couleur, part)` (encre noire ou blanche sur une couleur choisie). Tailles : plancher de 12 px (`font-size` < .8rem relevées, `small`). Agenda : `aria-label` des éléments commençant par l'heure et le titre.
-- Mesure faite par un relevé automatique des écrans (contraste calculé, tailles, noms accessibles) ; reste : mise en page imprimable des transmissions (taille réglée par l'établissement) ; audit d'accessibilité (RGAA) toujours à faire (constat J6).
-- À documenter : guide d'installation ou administrateur (onglets d'administration par thème), fiche pour les représentants du personnel (19, § 4 : E2 à E5 faits), fiche projet si l'accessibilité y est citée.
-
+*Vidé le 16 novembre 2026 (version 0.81.1) : le contenu des versions 0.71 à 0.81 est repris dans les documents de référence et gardé en détail dans `docs/historique-decisions.md`.*

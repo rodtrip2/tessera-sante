@@ -99,7 +99,7 @@ Bouton **Décompte** sur la ligne de la mesure. L'aperçu reprend l'identité, l
 
 *Première page du PDF produit (mise en page selon le modèle de votre établissement).*
 
-Le bouton **Exports**, en haut de l'écran, liste les fichiers enregistrés pour vos services (décomptes, registres, statistiques…), les plus récents d'abord. Si votre établissement l'a configuré, il affiche aussi le chemin du dossier Windows du service, avec *Copier le chemin* et la marche à suivre pour créer, une fois, un raccourci sur le bureau qui ouvre ce dossier dans l'Explorateur. Dans la liste, *Ouvrir* affiche un PDF, *Télécharger* en fait une copie sur le poste. Ne copiez jamais ces fichiers hors du réseau de l'établissement (clé USB, messagerie personnelle).
+Le bouton **Exports** (menu **Plus ▾**, en haut de l'écran) liste les fichiers enregistrés pour vos services (décomptes, registres, statistiques…), les plus récents d'abord. Si votre établissement l'a configuré, il affiche aussi le chemin du dossier Windows du service, avec *Copier le chemin* et la marche à suivre pour créer, une fois, un raccourci sur le bureau qui ouvre ce dossier dans l'Explorateur. Dans la liste, *Ouvrir* affiche un PDF, *Télécharger* en fait une copie sur le poste. Ne copiez jamais ces fichiers hors du réseau de l'établissement (clé USB, messagerie personnelle).
 
 ![Fenêtre « Exports »](images/guide-ide-as/19-exports.png)
 
@@ -165,7 +165,7 @@ Bouton **Détail** sur la ligne : tout l'historique de la mesure, saisie par sai
 | Le psychiatre décide une mesure | Mesures | **+ Nouvelle mesure** |
 | Repas, douche, visite (décidés par le psychiatre) | Mesures, ligne du patient | **Pause**, puis **Reprise** |
 | Un proche est informé (à chaque cycle) | Mesures, ligne du patient | **Tiers** |
-| Pièce à joindre à l'envoi au juge | Mesures, ligne du patient | **Décompte** → **Enregistrer en PDF** (puis bouton **Exports**) |
+| Pièce à joindre à l'envoi au juge | Mesures, ligne du patient | **Décompte** → **Enregistrer en PDF** (puis **Plus ▾ → Exports**) |
 | Information ou saisine envoyée, décision reçue | Juge | **Saisir un envoi ou une décision** |
 | Début de chaque poste en CSI | Surveillance CSI | **Ajouter** (nombre fixé par l'établissement, lieux si besoin) |
 | Le psychiatre lève la mesure | Mesures, ligne du patient | **Fin** |

@@ -42,7 +42,7 @@ Ce que Tessera **ne fait pas** :
 ## 4. Conditions de travail
 
 - **Formation courte** : 20 à 30 minutes par agent, avec un mode formation sur données fictives.
-- **Accessibilité et ergonomie** : améliorations identifiées par l'audit du 15 novembre 2026 (contrastes, taille des textes, fenêtres de confirmation) et prévues pendant le pilote ; retours des agents par le bouton « Signaler ».
+- **Accessibilité et ergonomie** : améliorations identifiées par l'audit du 15 novembre 2026 faites le 16 novembre (versions 0.79 à 0.81) : en-tête sur une rangée et plus de place pour les tableaux, fenêtres de confirmation de l'outil au lieu de celles du navigateur, contrastes conformes en thème clair et sombre, textes de 12 px au moins ; audit d'accessibilité complet (référentiel général d'amélioration de l'accessibilité, RGAA) encore à faire ; retours des agents par le bouton « Signaler ».
 - **Mot de passe** : personnel, robuste (une phrase de 7 mots est acceptée) ; clé de sécurité seulement pour les rôles choisis par l'établissement.
 - **Panne** : procédure dégradée papier, puis ressaisie avec les heures réelles.
 

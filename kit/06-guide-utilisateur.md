@@ -19,7 +19,9 @@ Un bandeau signale si l'horloge de votre poste est décalée de plus de 5 minute
 
 ## 2. L'écran
 
-- **En-tête** : liste des services (seulement ceux qui vous sont affectés), votre nom et vos rôles, *Mot de passe*, *Exports*, *☾ Sombre* / *☀ Clair* (affichage mémorisé pour votre compte), *À propos*, *Verrouiller*.
+- **En-tête** (une seule rangée) : liste des services (seulement ceux qui vous sont affectés), votre nom et vos rôles, *Rechercher*, *Signaler*, *Verrouiller*, et le menu **Plus ▾** : *Mot de passe*, *Exports*, *Affichage* (taille du texte, hauteur des lignes), *☾ Sombre* / *☀ Clair* (mémorisé pour votre compte), *À propos*.
+- **Messages pour vous** (remplacement en cours, retour d'absence, fiches à confirmer) : en entier dans *Aujourd'hui* ; dans les autres fenêtres, repliés sur une ligne (« 3 messages pour vous ») que vous dépliez d'un clic.
+- **Confirmations et messages** : Tessera demande confirmation dans sa propre fenêtre (*Annuler* / *Confirmer*, bouton rouge pour une suppression ou un refus ; Échap = Annuler) ; ses messages d'information ou d'erreur s'affichent en bas à droite et se ferment d'un clic ou d'eux-mêmes.
 - **Barre des modules**, en bas de l'écran (comme la barre des tâches de Windows) : un bouton par module ouvert à vos rôles, avec son icône — *Patients*, *Isolement et contention*, *Agenda du service*, *Administration* (administrateur). Un clic ouvre la fenêtre du module ; l'onglet que vous y aviez laissé est retrouvé.
 - **Fenêtre du module** : son nom et son icône, puis **ses propres onglets** — par exemple *Liste des patients* pour Patients ; *Agenda*, *Alertes*, *Mon agenda*, *Tâches récurrentes* pour l'Agenda ; *Patients* (statistiques par patient), *Tableau de bord*, *Mesures*, *Juge*… pour l'isolement et la contention. Le *Journal* est le dernier onglet de chaque fenêtre.
 - **Onglet Journal** : les saisies que votre rôle vous permet de voir (section 6).
@@ -138,7 +140,7 @@ Fenêtre *Vue d'ensemble* : un onglet par vue ouverte à votre rôle et à vos s
 - **Rechercher** (bouton de l'en-tête ou Ctrl + K) : patients, événements, salles, documents, messages, agents… seulement ce que vous pouvez déjà consulter.
 - **Mes tâches** (fenêtre Agenda) : votre liste personnelle, lue par vous seul ; « + Ma liste » depuis un message, un document, un événement, une demande de travaux, une fiche patient.
 - **Annuler** : juste après une saisie, le message de confirmation propose « Annuler » ; vous pouvez annuler votre propre saisie dans les deux minutes.
-- **Tableaux** : clic sur un titre de colonne pour trier ; filtre rapide au-dessus des longs tableaux ; bouton « Aa » de l'en-tête : taille d'affichage et hauteur des lignes ; « ? » : raccourcis clavier.
+- **Tableaux** : clic sur un titre de colonne pour trier ; filtre rapide au-dessus des longs tableaux ; *Plus ▾ → Affichage* : taille d'affichage et hauteur des lignes ; « ? » : raccourcis clavier.
 - **Barre des modules** : si l'établissement l'active, épinglez vos modules favoris ; les autres s'ouvrent par le menu « Modules ».
 - **Contact d'un clic** : un nom d'agent ouvre sa fiche de contact (numéro à copier, « Écrire »).
 - **Classer** messages et documents : étoile, étiquettes en couleur, dossiers ; votre classement n'est vu que par vous.
@@ -155,12 +157,12 @@ Fenêtre *Vue d'ensemble* : un onglet par vue ouverte à votre rôle et à vos s
 | **Salles et bureaux** | Planning des salles du service, salles libres pour un créneau, réservation ou demande en cas de conflit (arbitrée par le cadre) ; « Occupé » : réservation d'un planning que vous ne lisez pas. |
 | **Informations du service** | Coordonnées, horaires, consignes et numéros utiles du service et de l'établissement, tenus par le cadre. |
 | **Équipe** | Annuaire, *Ma fiche* (vos coordonnées ; personnelles seulement avec votre accord), référents, messageries du service, prêts de droits pendant une absence ; *Entretiens* : ceux que votre cadre a partagés avec vous, à lire et signer si demandé (la signature ne vaut pas accord). |
-| **Documents** | Documents texte et tableurs, privés à leur création puis partagés avec qui vous choisissez ; enregistrés automatiquement, versions, validation par le cadre, modèles (champs remplis d'après le patient rattaché), suivi des modifications, exports et imports Word, Excel, PDF. |
+| **Documents** | Documents texte et tableurs (graphiques du tableur exportables en PDF : bouton *Exporter en PDF* sous chaque graphique), privés à leur création puis partagés avec qui vous choisissez ; enregistrés automatiquement, versions, validation par le cadre, modèles (champs remplis d'après le patient rattaché), suivi des modifications, exports et imports Word, Excel, PDF. |
 | **Congés** | *Mes congés* : souhaits et demandes (demi-journées), soldes indicatifs ; le validateur décide ; tableaux du service. Le logiciel de gestion du temps de l'établissement fait foi. |
 | **Contrôles** | À chaque poste : passage de surveillance des CSI occupées, contrôle des CSI libres (check-list, second agent qui confirme avec son propre compte), contrôle à la libération ; un écart demande un commentaire et peut ouvrir une demande de travaux. |
 | **Formations** | S'inscrire, suivre sa demande (validée, liste d'attente, refusée), se désister. |
 | **Heures supplémentaires** | Déclarer l'horaire prévu (boutons des postes, ou « Repos » pour un rappel) puis l'horaire effectué : Tessera calcule les heures en plus ou en moins ; motif de la liste ou écrit ; récupérations ; soldes h+, h−, différence sur le temps de travail annuel (remise à zéro en fin d'année), h+ payées à part. |
-| **Données cliniques** (si l'établissement les active) | *Feuille de staff clinique* : codes CIM, motif, projet thérapeutique, dépendance (6 variables AVQ, de 1 à 4) ; fenêtre du séjour avec le rappel du séjour précédent et les notes cliniques. Sans accès (rôle ou patient non présent) : « accès restreint » et, si votre rôle le permet, **bris de glace** justifié, tracé et relu par le cadre. Le DPI reste la référence. |
+| **Données cliniques** (si l'établissement les active) | *Feuille de staff clinique* : codes CIM (un par ligne, ou *Saisir plusieurs codes à la fois* : « F20.0 Schizophrénie ; F10.2 ; Z59.0 », séparés en lignes par *Séparer en codes*, à vérifier avant d'enregistrer), motif, projet thérapeutique, dépendance (6 variables AVQ, de 1 à 4) ; fenêtre du séjour avec le rappel du séjour précédent et les notes cliniques. Sans accès (rôle ou patient non présent) : « accès restreint » et, si votre rôle le permet, **bris de glace** justifié, tracé et relu par le cadre. Le DPI reste la référence. |
 
 Certaines fonctions (formations, heures supplémentaires, entretiens, données cliniques, bris de glace) n'apparaissent que si l'établissement les a activées après les avis prévus.
 
@@ -212,6 +214,7 @@ Sur l'écran de connexion, choisissez **Mode formation** au lieu de *Données r�
 - **Signature des saisies** (même onglet) : chaque saisie est signée par son auteur ; une saisie falsifiée, écrite au nom d'un autre ou sans en avoir le droit est écartée (jamais supprimée) et listée ici. Sur un dossier créé avant la version 0.72.0, l'administrateur exige la signature quand tous les comptes actifs ont une clé.
 - **Règles de connexion** (même onglet) : règle des mots de passe (renforcée par défaut, simple au choix), rôles pour lesquels la clé de sécurité est exigée en plus du mot de passe, code de la clé exigé ou non.
 - **Exports** : purgés après 31 jours par défaut (*Sauvegardes et exports*) ; les fichiers exportés ne sont pas chiffrés, à ranger dans un dossier réservé.
+- **Onglets de l'administration** rangés par thème : Général, Patients et soins, Organisation, Équipe.
 - **Mise en marche et arrêt des modules** (accueil de l'administration, bouton ⏻) : rien n'est effacé ; Patients et Équipe ne s'arrêtent pas.
 - **Rôles par service** : depuis la fiche du compte (administrateur) ou l'annuaire de l'Équipe (cadre, pour ses agents : IDE, aide-soignant, secrétaire, intervenant) ; chaque saisie suit les droits du service concerné.
 - **Données cliniques** (*Administration → Patients → Données cliniques*) : rôles limités aux patients présents, rôles et durée du bris de glace ; relecture mensuelle des bris de glace dans la fenêtre Patients, onglet *Bris de glace* (export pour le délégué à la protection des données).
