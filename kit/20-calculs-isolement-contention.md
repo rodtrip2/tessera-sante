@@ -1,6 +1,6 @@
 # Isolement et contention — calcul des durées, échéances du juge et inscription au registre
 
-*Document de référence du module Isolement et contention de Tessera Santé (version 0.83). Il explique, règle par règle, comment l'outil calcule le cumul d'heures, les échéances d'information, de saisine et de décision du juge, et comment il inscrit chaque mesure au registre, y compris pour les mesures complexes (isolement et contention, pauses, reprises, arrêts). Destinataires : cadres de santé, psychiatres, IDE et secrétaires, direction des soins, département d'information médicale, direction juridique. Tous les exemples sont fictifs.*
+*Document de référence du module Isolement et contention de Tessera Santé (version 0.84). Il explique, règle par règle, comment l'outil calcule le cumul d'heures, les échéances d'information, de saisine et de décision du juge, et comment il inscrit chaque mesure au registre, y compris pour les mesures complexes (isolement et contention, pauses, reprises, arrêts). Destinataires : cadres de santé, psychiatres, IDE et secrétaires, direction des soins, département d'information médicale, direction juridique. Tous les exemples sont fictifs.*
 
 Le « juge » est le magistrat du siège du tribunal judiciaire chargé du contrôle des mesures (anciennement juge des libertés et de la détention, JLD). La « chambre de soins intensifs » (CSI) est le lieu d'isolement dédié ; son nom se règle par l'établissement. Les règles appliquées découlent de l'article L. 3222-5-1 du code de la santé publique ; les choix laissés à l'établissement sont signalés, avec le réglage correspondant, dans Administration → Isolement et contention. Tessera calcule et rappelle : les décisions restent médicales et judiciaires, et le calcul est à vérifier en cas de doute.
 
@@ -12,16 +12,17 @@ Le « juge » est le magistrat du siège du tribunal judiciaire chargé du contr
 - **Une mesure débutée ailleurs** (avant l'arrivée dans le service) : les délais du juge et les cumuls partent de la décision initiale ; le registre du service part de l'arrivée.
 - **Un changement réel de lieu** termine la mesure et en commence une nouvelle au nouveau lieu. Une erreur de saisie se corrige, avec un motif.
 
-## 2. Le cumul d'heures sur 15 jours
+## 2. Le cumul d'heures : 15 jours, et suite de mesures de moins de 48 h
 
-Le cumul sert à calculer les échéances du premier cycle d'une mesure. Il compte, **pour le même patient et le même type de mesure** :
+Le cumul sert à calculer les échéances d'une mesure. Il compte, **pour le même patient et le même type de mesure** :
 
 1. toutes les périodes de mesure du même type comprises dans les **15 jours glissants** qui précèdent le début de la nouvelle mesure ; une mesure ancienne à cheval sur cette fenêtre compte seulement pour sa partie incluse ;
-2. **une seule fois** les périodes qui se chevauchent ;
-3. **jamais avant la fin de la dernière mesure levée par le juge** : après une mainlevée, le cumul repart de zéro ;
-4. **sans les pauses**, si l'établissement a choisi de déduire leur durée (§ 5) ; sinon les pauses restent comptées.
+2. et, si elle remonte plus loin, **toute la suite de mesures séparées de moins de 48 h** : une mesure prise moins de 48 h après la fin de la précédente forme avec elle **une mesure unique pour le juge** (art. L. 3222-5-1, II, et R. 3211-31, I, 2°, du code de la santé publique ; circulaire de la direction des affaires civiles et du sceau du 23 mars 2022). Les durées de la suite s'additionnent sans limite de 15 jours ; l'échéance la plus proche l'emporte. Une mesure prise 48 h ou plus après la précédente est une nouvelle mesure, qui ne garde que le cumul des 15 jours ;
+3. **une seule fois** les périodes qui se chevauchent ;
+4. **jamais avant la fin de la dernière mesure levée par le juge** : après une mainlevée, le cumul repart de zéro, même si une nouvelle mesure est prise moins de 48 h après (elle ne prolonge pas la mesure levée ; le juge en est informé sans délai, § 3) ;
+5. **sans les pauses**, si l'établissement a choisi de déduire leur durée (§ 5) ; sinon les pauses restent comptées.
 
-L'isolement et la contention ont chacun leur cumul : une contention ne s'ajoute jamais au cumul de l'isolement, et inversement. Une contention en CSI ne suspend pas l'isolement qui l'accompagne : l'isolement continue de courir pour le juge.
+L'isolement et la contention ont chacun leur cumul et leur suite : une contention ne s'ajoute jamais au cumul de l'isolement, et inversement (les textes ne disent pas le contraire). **Le registre n'est pas concerné** : chaque mesure, et chaque période entre deux pauses, y garde son entrée (§ 6). Une contention en CSI ne suspend pas l'isolement qui l'accompagne : l'isolement continue de courir pour le juge.
 
 **Exemples fictifs** (isolement débutant le lundi à 8 h) :
 
@@ -32,10 +33,12 @@ L'isolement et la contention ont chacun leur cumul : une contention ne s'ajoute 
 | Un isolement de 30 h, dont 20 h dans la fenêtre de 15 jours | 20 h |
 | Un isolement de 60 h, levé par le juge | 0 h (le cumul repart après la mesure levée) |
 | Une contention de 6 h | 0 h pour l'isolement (la contention a son propre cumul) |
+| Quatorze isolements de 4 h, un tous les jours et demi (32 h d'écart), sur 21 jours | 56 h : toute la suite compte, même au-delà de 15 jours |
+| Les mêmes isolements, mais 48 h d'écart ou plus | seulement ceux des 15 derniers jours |
 
 ## 3. Les échéances du premier cycle
 
-Chaque échéance est égale au **début de la mesure + (seuil − cumul)**, jamais avant le début de la mesure.
+Chaque échéance est égale au **début de la mesure + (seuil − cumul)**. Pour une nouvelle mesure (48 h ou plus après la précédente), jamais avant son début. Pour une mesure d'une suite (moins de 48 h), l'échéance suit le temps de la suite et peut être déjà passée : elle a alors été traitée, ou doit l'être, sur la mesure précédente (§ 4).
 
 | Seuils (cumul sur 15 jours) | Information du juge | Saisine du juge | Décision du juge |
 | --- | --- | --- | --- |
@@ -59,9 +62,9 @@ Deux règles complètent le calcul :
 
 <p class="saut"></p>
 
-![Logigramme 1 — Cumul et échéances du premier cycle](images/calculs/1-cumul-cycle1.svg)
+![Logigramme 1 — Cumul et échéances](images/calculs/1-cumul-cycle1.svg)
 
-*Logigramme 1 — Cumul et échéances du premier cycle.*
+*Logigramme 1 — Cumul (15 jours et suite de mesures) et échéances.*
 
 ## 4. Les cycles suivants et le délai de sept jours
 
@@ -71,6 +74,7 @@ Après une **décision de maintien**, la mesure passe au cycle suivant.
 - **Isolement, à partir du cycle 3** (après deux décisions de maintien) : rythme des mesures longues. Le cycle 3 part de la date prévue de décision du cycle 2 (décision du cycle 1 + 96 h) ; chaque cycle suivant ajoute 168 h. L'information et la saisine sont dues **144 h** après ce point de départ, la décision **168 h** après.
 - **Délai de sept jours compté depuis la décision** (méthode recommandée, par défaut ; *Cas particuliers*) : à partir du cycle 3, le délai est compté aussi depuis l'heure de la **précédente décision du juge** (saisine au plus tard 144 h après, décision avant 168 h ; art. L. 3222-5-1, II ; Cour de cassation, avis du 6 mars 2024, n° 23-70.017), et **l'échéance la plus proche est retenue**. Aucune pause n'est déduite de ce délai. Si la décision précédente n'est pas saisie, le calcul part du début de la mesure et un avertissement s'affiche (« décision du cycle n à saisir »). Il faut saisir l'heure de l'ordonnance, à défaut celle de sa réception par courriel. L'autre méthode, au choix de l'établissement, compte toujours depuis le début de la mesure.
 - **La contention** n'a pas de rythme des mesures longues : ses cycles se succèdent toutes les 72 h.
+- **Suite de mesures (moins de 48 h)** : le cycle du juge **se poursuit** d'une mesure à l'autre. Une décision de maintien rendue sur la mesure précédente vaut pour la suivante, et les envois et décisions saisis sur les mesures précédentes de la suite comptent pour elle. Exemple fictif : isolement de 100 h, informé à 47 h, saisi à 70 h, maintenu par le juge à 90 h, puis arrêté ; nouvel isolement 10 h plus tard : il est au **cycle 2**, information due 44 h après son début (144 h de la suite, 100 h déjà faites), saisine 68 h, décision 92 h. Si l'isolement précédent s'était arrêté à 80 h, avant la décision, le nouvel isolement serait au cycle 1, information et saisine déjà faites, décision due 16 h après son début. Le décompte du juge montre alors toute la suite, même au-delà de 15 jours.
 
 **Exemple fictif** (isolement débutant au temps 0, sans cumul ni pause, décision du cycle 2 rendue à 180 h) :
 
@@ -89,7 +93,7 @@ Après une **décision de maintien**, la mesure passe au cycle suivant.
 
 **Affichage des échéances** : « proche » 12 h avant (réglable), « dépassée » après l'heure, « faite » ou « faite en retard » une fois l'envoi saisi, et « sans objet » quand la mesure s'est terminée avant l'échéance.
 
-**Après une mainlevée**, la mesure continue jusqu'à la fin décidée par le psychiatre ; une nouvelle mesure dans les 48 h impose l'information du juge sans délai (§ 3) ; après la fin de la mesure levée, le cumul repart de zéro (§ 2).
+**Après une mainlevée**, la mesure continue jusqu'à la fin décidée par le psychiatre ; une nouvelle mesure dans les 48 h impose l'information du juge sans délai (§ 3) ; après la fin de la mesure levée, le cumul repart de zéro (§ 2) et la nouvelle mesure ne forme pas une suite avec la mesure levée.
 
 <p class="saut"></p>
 
@@ -145,7 +149,7 @@ Le registre (art. L. 3222-5-1) recense, par service et par année, chaque mesure
 3. **Pause de la contention seule** (l'isolement continue) : la contention est arrêtée pendant la pause, le patient reste à l'isolement : ce temps forme une entrée A, puis la reprise de la contention une nouvelle entrée C. Exemple : isolement et contention de 10 h à 18 h, contention arrêtée de 12 h à 13 h : **C1** 10 h – 12 h, **A2** 12 h – 13 h, **C3** 13 h – 18 h. **Pause commune** à l'isolement et à la contention, ou **pause de l'isolement** : aucune entrée pendant la pause, une nouvelle entrée à la reprise.
 4. **Transfert entre services, soins somatiques** : la mesure reste une pour le juge, mais le registre la répartit entre les services successifs ; une période de soins somatiques est inscrite au registre du service, à celui d'un service dédié, exclue (suspension), ou termine la mesure, selon le choix de l'établissement (*Cas particuliers*).
 5. **Mode d'hospitalisation retenu** : le nouveau mode si le patient passe des soins libres à des soins sans consentement dans les 12 h suivant le début (délai réglable).
-6. **Numérotation** commune aux catégories A à E, **dans l'ordre d'apparition** (ordre des débuts), attribuée **dès le début de l'entrée**, à la suite du compteur du service ; l'année est celle du début de l'entrée. Une mesure saisie après coup, débutée avant d'autres entrées de l'année, décale les numéros suivants : la note sous le registre le rappelle.
+6. **Numérotation** commune aux catégories A à E, **dans l'ordre d'apparition** (ordre des débuts), attribuée **dès le début de l'entrée**, à la suite du compteur du service ; l'année est celle du début de l'entrée. Une mesure saisie après coup, débutée avant d'autres entrées de l'année, décale les numéros suivants : la note sous le registre le rappelle, et le **cadre** (pas les autres agents) est alerté après coup, dans *Aujourd'hui* pendant 7 jours et sous le registre, avec les numéros changés (« A12 → A13 ») ; un registre déjà présenté ou exporté est à rééditer.
 7. **Durée** : durée réelle de la période, de son début (début de la mesure ou reprise) à sa fin (pause, arrêt ou fin de la mesure). Une colonne facultative « Levée temporaire » signale les entrées qui s'arrêtent pour une pause ou commencent à une reprise.
 8. **Professionnels** : traces de surveillance par poste en CSI (catégories A et C), et hors CSI si l'établissement l'a choisi.
 

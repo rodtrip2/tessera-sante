@@ -442,7 +442,7 @@
           // Mesure débutée avant l'arrivée dans le service : début de la décision initiale et lieu d'origine
           debutInitial: typeof d.debutInitial === 'number' && d.debutInitial < d.debut ? d.debutInitial : null, lieuInitial: d.lieuInitial || '',
           psychiatreDebut: d.psychiatre || '', psychiatreDebutId: d.psychiatreId || null, psychiatreFin: '', modeHospi: d.modeHospi || '',
-          cycle: 1, jld: {}, leveeJLD: false, tiers: [], pauses: [], creePar: e.by, creeLe: e.at,
+          cycle: 1, jld: {}, leveeJLD: false, tiers: [], pauses: [], creePar: e.by, creeLe: e.at, saisiLe: Date.parse(e.at) || 0,
           origine: d.origine || '', numeroOrigine: d.numeroOrigine || '', correctionImport: d.correctionImport || '', suite: d.suiteDe || '',
           // Import d'un registre : entrées d'origine (numéro, catégorie, période, soignants) et soignants cités
           entreesOrigine: d.entreesOrigine || null, professionnelsOrigine: d.professionnelsOrigine || '',
@@ -519,7 +519,7 @@
         c[d.nature] = { date: d.date, by: e.by, evt: e.id, decision: d.decision || null };
         if (d.nature === 'DECISION') {
           if (d.decision === 'LEVEE') m.leveeJLD = true;          // indicateur légal : ne clôt pas la mesure
-          else if (d.decision === 'MAINTIEN' && d.cycle === m.cycle) m.cycle += 1;
+          else if (d.decision === 'MAINTIEN' && d.cycle >= m.cycle) m.cycle = d.cycle + 1;   // cycle d'une suite de mesures : peut dépasser le cycle propre
         }
         break;
       case 'PROPOSITION':
@@ -536,6 +536,8 @@
         ['debut', 'fin', 'lieu', 'csi', 'psychiatreDebut', 'psychiatreFin', 'modeHospi', 'exception', 'type', 'debutInitial', 'lieuInitial', 'motifRecours'].forEach(function (k) {
           if (ch[k] !== undefined) m[k] = ch[k];
         });
+        // Début, type ou lieu corrigés : la place de la mesure au registre peut changer (alerte de décalage des numéros)
+        if (ch.debut !== undefined || ch.type !== undefined || ch.csi !== undefined) m.saisiLe = Date.parse(e.at) || m.saisiLe;
         // Mesure découpée (transfert, soins somatiques) : le lieu corrigé est celui de la période en cours.
         if (m.segments) ['lieu', 'csi', 'exception'].forEach(function (k) { if (ch[k] !== undefined) m.segments[m.segments.length - 1][k] = ch[k]; });
         break;
@@ -584,10 +586,30 @@
   }
 
   /** Échéances et statuts JLD d'une mesure pour un cycle (par défaut le cycle courant). */
+  /**
+   * Suite d'une mesure pour le juge (moins de 48 h entre deux mesures du même type, rules.mesuresSuite) : mesures qui la
+   * précèdent, cycle du juge en cours (le cycle se poursuit d'une mesure à l'autre) et saisies du juge de la suite
+   * (celles des mesures précédentes, complétées de celles de la mesure). Sans suite : la mesure seule.
+   */
+  function suiteJuge(st, m, maintenant) {
+    var toutes = mesuresCalcul(st, maintenant == null ? Date.now() : maintenant);
+    var x = toutes.filter(function (y) { return y.id === m.id; })[0] || m;
+    var avant = rules.mesuresSuite(toutes, x), cycle = 1, jld = {};
+    avant.concat([x]).forEach(function (y) {
+      cycle = Math.max(cycle, y.cycle || 1);
+      Object.keys(y.jld || {}).forEach(function (c) { jld[c] = Object.assign({}, jld[c] || {}, y.jld[c]); });
+    });
+    return { precedentes: avant, cycle: cycle, jld: jld, debut: avant.length ? avant[0].debut : x.debut };
+  }
+  /** Cycle du juge en cours d'une mesure (poursuivi dans une suite de mesures séparées de moins de 48 h). */
+  function cycleJuge(st, m, maintenant) { return suiteJuge(st, m, maintenant).cycle; }
+
   function suiviJLD(st, m, maintenant, cycle) {
-    cycle = cycle || m.cycle;
     var toutes = mesuresCalcul(st, maintenant);
+    var suite = suiteJuge(st, m, maintenant);
+    cycle = cycle || suite.cycle;
     m = toutes.filter(function (x) { return x.id === m.id; })[0] || m;
+    if (suite.precedentes.length) m = Object.assign({}, m, { jld: suite.jld });
     var e = rules.echeances(toutes, m, cycle, st.config.parametres, { septJours: optionsCas(st.config).septJours });
     var p = rules.params(m.type, st.config.parametres);
     var c = m.jld[cycle] || {};
@@ -607,7 +629,8 @@
       info: { echeance: e.info, effective: eff('INFO'), statut: statut(e.info, 'INFO') },
       saisine: { echeance: e.saisine, effective: eff('SAISINE'), statut: statut(e.saisine, 'SAISINE') },
       decision: { echeance: e.decision, effective: eff('DECISION'), statut: statut(e.decision, 'DECISION') },
-      cumulAvant: rules.cumulAvantMesure(toutes, m, 15)
+      cumulAvant: rules.cumulAvantMesure(toutes, m, 15),
+      suite: suite.precedentes.length ? { mesures: suite.precedentes.map(function (y) { return y.id; }), debut: suite.debut } : null
     };
   }
 
@@ -1445,6 +1468,36 @@
     });
   }
 
+  /**
+   * Numéros du registre décalés par une saisie tardive (demande du porteur du 16 novembre 2026) : une mesure saisie (ou
+   * dont le début a été corrigé) après d'autres entrées de l'année qui débutent après elle prend un numéro plus petit, et
+   * ces entrées sont renumérotées. Alerte postérieure, pour le cadre seulement. Mesures importées exclues.
+   * Retourne [{ mesureId, patientId, saisiLe, par, debut, numeros: [numéros de la saisie], decales: [{ avant, apres }] }].
+   * `depuis` : seules les saisies faites depuis cet instant.
+   */
+  function decalagesRegistre(st, service, annee, maintenant, depuis) {
+    var reg = registre(st, service, annee, maintenant), parMesure = {};
+    reg.forEach(function (e) { (parMesure[e.mesureId] = parMesure[e.mesureId] || []).push(e); });
+    function saisi(e) { var m = st.mesures[e.mesureId]; return m ? (m.saisiLe || Date.parse(m.creeLe) || 0) : 0; }
+    var res = [];
+    Object.keys(parMesure).forEach(function (id) {
+      var m = st.mesures[id];
+      if (!m || m.origine || m.numeroOrigine) return;
+      var t = saisi(parMesure[id][0]);
+      if (!t || (depuis && t < depuis)) return;
+      var siennes = parMesure[id], premier = siennes.reduce(function (a, e) { return Math.min(a, e.debut); }, Infinity);
+      // Entrées des autres patients qui existaient déjà au moment de la saisie (celles du même patient se recomposent : une
+      // contention découpe l'isolement qui l'accompagne)
+      var decales = reg.filter(function (f) { return f.patientId !== m.patientId && !f.fige && f.debut > premier && f.debut < t && saisi(f) < t; }).map(function (f) {
+        var n = siennes.filter(function (e) { return e.debut < f.debut || (e.debut === f.debut && reg.indexOf(e) < reg.indexOf(f)); }).length;
+        var mo = /^([A-E])(\d+)$/.exec(f.numero);
+        return n && mo ? { avant: mo[1] + (+mo[2] - n), apres: f.numero } : null;
+      }).filter(Boolean);
+      if (decales.length) res.push({ mesureId: id, patientId: m.patientId, saisiLe: t, par: m.creePar, debut: premier, numeros: siennes.map(function (e) { return e.numero; }), decales: decales });
+    });
+    return res.sort(function (a, b) { return b.saisiLe - a.saisiLe; });
+  }
+
   // ------------------------------------------ Statistiques annuelles par patient
   /** Colonnes annuelles de l'onglet Patients (paramétrage validé : catégories A à E connues, libellé non vide). */
   function colonnesPatients(config) {
@@ -1934,7 +1987,8 @@
   }
 
   /**
-   * Décompte JLD d'une mesure à une date de référence : lignes des mesures antérieures (15 jours glissants),
+   * Décompte JLD d'une mesure à une date de référence : lignes des mesures antérieures (15 jours glissants, ou toute la
+   * suite de mesures séparées de moins de 48 h si elle remonte plus loin),
    * puis de la mesure par tranches de 24 h (isolement) ou 12 h (contention).
    * Pauses déduites (option) : chaque pause interrompt le décompte par une ligne « pause » dont la durée est déduite du cumul,
    * et la ligne suivante reprend à l'heure de reprise. Sinon, les pauses sont signalées dans le commentaire.
@@ -1949,7 +2003,7 @@
     var tranche = options.tranche != null ? +options.tranche : (m.type === 'Isolement' ? 24 : 12);
     var pas = tranche > 0 ? tranche * H : 0;
     var noMesure = 0, mesureFinie = typeof m.fin === 'number' && m.fin <= reference;
-    var borne = Math.max(m.debut - 15 * J, rules.derniereLeveeJLD(toutes, m.patientId, m.type, m.debut));
+    var borne = rules.borneCumul(toutes, m, 15), debut15 = m.debut - 15 * J;
     var intervalles = [], lignes = [];
     function hhmm(t) { var d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
     function libPause(p) { return 'levée temporaire' + (p.motif ? ' (' + p.motif + ')' : '') + (p.psychiatre ? ', décidée par ' + p.psychiatre : ''); }
@@ -2008,7 +2062,9 @@
       if (f <= d) return;
       noMesure++;
       parcourir(x, d, f, null, function (a, b, apres) {
-        ligneMesure(x, a, b, apres ? 'Mesure antérieure : reprise après levée temporaire' : 'Mesure antérieure comptée dans les 15 jours glissants' + (x.debut < borne ? ' (partiellement)' : ''), 'TERMINÉE');
+        ligneMesure(x, a, b, apres ? 'Mesure antérieure : reprise après levée temporaire'
+          : borne < debut15 && x.debut < debut15 ? 'Mesure antérieure comptée : suite de mesures séparées de moins de 48 heures (mesure unique pour le juge, au-delà des 15 jours)'
+          : 'Mesure antérieure comptée dans les 15 jours glissants' + (x.debut < borne ? ' (partiellement)' : ''), 'TERMINÉE');
       });
     });
     var cumulAvant = rules.heuresFusionnees(intervalles);
@@ -2033,7 +2089,7 @@
     var dernier = lignes[lignes.length - 1];
     if (dernier && dernier.type === 'pause' && !mesureFinie) dernier.statut = dernier.suspension ? 'SUSPENDUE (EN COURS)' : 'PAUSE EN COURS';
     return {
-      lignes: lignes, cumulAvant: cumulAvant, total: rules.heuresFusionnees(intervalles), enCours: !mesureFinie, reference: fin, fenetreDebut: borne,
+      lignes: lignes, cumulAvant: cumulAvant, total: rules.heuresFusionnees(intervalles), enCours: !mesureFinie, reference: fin, fenetreDebut: borne, suite: borne < debut15,
       tranches: lignes.some(function (l) { return /\./.test(l.n); }), tranche: tranche, debutService: m.debutService || null, lieuInitial: m.lieuInitial || '', apresMainlevee: apresMainlevee(st, m),
       pausesRetranchees: deduire, pauses: plagesPauses(m, fin)
     };
@@ -2330,7 +2386,7 @@
     droits: D, champ: champ, ROLES: ROLES, DROITS: DROITS, ACCES: ACCES, ROLES_FOURNIS: ROLES_FOURNIS, rolesConfig: rolesConfig, libRole: libRole, accesDefaut: accesDefaut, voitTousServices: voitTousServices, exigeService: exigeService, ROLES_DE_SERVICE: ROLES_DE_SERVICE, accesFormation: accesFormation, CONFIG_DEFAUT: CONFIG_DEFAUT, LIB_CATEGORIES: LIB_CATEGORIES,
     peut: peut, servicesDe: servicesDe, periodesDe: periodesDe, estContrainte: estContrainte,
     reduire: reduire, definirControleConfig: definirControleConfig, optionsSurveillance: optionsSurveillance, agentsSurveillance: agentsSurveillance, dossierExports: dossierExports, optionsExports: optionsExports, exportsAPurger: exportsAPurger, dossierExportService: dossierExportService, cheminWindowsExports: cheminWindowsExports, DOSSIER_ETABLISSEMENT: DOSSIER_ETABLISSEMENT, CONSERVATION_EXPORTS: CONSERVATION_EXPORTS, annulabilite: annulabilite, profilAnnuelPatient: profilAnnuelPatient, libLieu: libLieu, txtLieu: txtLieu, lieuDetaille: lieuDetaille, listesConfig: listesConfig, libRaccourci: libRaccourci, optionsVigilance: optionsVigilance, optionsAffichage: optionsAffichage, comparerVersions: comparerVersions, commandesRobocopy: commandesRobocopy, cheminWindows: cheminWindows, INTERVALLES_ROBOCOPY: INTERVALLES_ROBOCOPY, registreSeul: registreSeul, ONGLETS_MASQUABLES: ONGLETS_MASQUABLES, ongletVisible: ongletVisible, NIVEAUX_JOURNAL: NIVEAUX_JOURNAL, niveauJournal: niveauJournal, servicesSaisie: servicesSaisie, servicesCibles: servicesCibles, journalVisible: journalVisible, GROUPES_REGLAGES: GROUPES_REGLAGES, REGLAGES_EXCLUS: REGLAGES_EXCLUS, exporterReglages: exporterReglages, analyserReglages: analyserReglages, reglagesAImporter: reglagesAImporter, LIEUX_ISOLEMENT: LIEUX_ISOLEMENT, cheminEvenement: cheminEvenement, filtrerIntegrite: filtrerIntegrite, trierEvenements: trierEvenements, deplier: deplier,
-    listeMesures: listeMesures, suiviJLD: suiviJLD, dureeHeures: dureeHeures,
+    listeMesures: listeMesures, suiviJLD: suiviJLD, suiteJuge: suiteJuge, decalagesRegistre: decalagesRegistre, cycleJuge: cycleJuge, dureeHeures: dureeHeures,
     tiersCycle: tiersCycle, modeA: modeA, modeRetenu: modeRetenu, estMineur: estMineur, cumulsPatient: cumulsPatient,
     postesSurveillance: postesSurveillance, bornesPeriode: bornesPeriode, dateLocaleISO: dateLocaleISO,
     registre: registre, estFigee: estFigee, explicationEntree: explicationEntree, REGLES_CATEGORIES: REGLES_CATEGORIES, compteurPour: compteurPour, colonnesPatients: colonnesPatients, statistiquesPatients: statistiquesPatients, registreCommunicable: registreCommunicable, OCCULTATION_DEFAUT: OCCULTATION_DEFAUT, OCCULTATION_CHOIX: OCCULTATION_CHOIX, trancheAge: trancheAge, ageAu: ageAu, soustraire: soustraire, statistiquesAnnee: statistiquesAnnee, decompte: decompte,

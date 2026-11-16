@@ -318,14 +318,15 @@
       opts = opts || {};
       var id = 'M' + String(++nMes).padStart(3, '0');
       var csi = lieu.indexOf('Chambre ') !== 0;   // les lieux hors CSI sont écrits « Chambre n »
-      ajouter(t(debutH), 'MESURE_DEBUT', { mesureId: id, patientId: patientId, service: service, typeMesure: type, debut: t(debutH), lieu: csi ? lieu : 'Chambre ' + lieu.replace(/^Chambre /, ''), csi: csi, psychiatre: psy, exception: !!opts.exception, modeHospi: '' });
-      if (opts.tiers) ajouter(t(debutH + 1), 'TIERS', { mesureId: id, cycle: 1, statut: opts.tiers, personne: opts.personne || '', informateur: opts.informateur || 'PSYCHIATRE', nomInformateur: opts.informateur === 'IDE' ? '' : psy, date: t(debutH + 1) });
+      // opts.saisieH : mesure saisie après coup (alerte au cadre des numéros du registre décalés)
+      ajouter(t(opts.saisieH != null ? opts.saisieH : debutH), 'MESURE_DEBUT', { mesureId: id, patientId: patientId, service: service, typeMesure: type, debut: t(debutH), lieu: csi ? lieu : 'Chambre ' + lieu.replace(/^Chambre /, ''), csi: csi, psychiatre: psy, exception: !!opts.exception, modeHospi: '' });
+      if (opts.tiers) ajouter(t(opts.saisieH != null ? opts.saisieH + 0.005 : debutH + 1), 'TIERS', { mesureId: id, cycle: 1, statut: opts.tiers, personne: opts.personne || '', informateur: opts.informateur || 'PSYCHIATRE', nomInformateur: opts.informateur === 'IDE' ? '' : psy, date: t(debutH + 1) });
       (opts.jld || []).forEach(function (j) { ajouter(t(j[2]), 'JLD', { mesureId: id, cycle: j[0], nature: j[1], date: t(j[2]), decision: j[3] || null }); });
       (opts.pauses || []).forEach(function (pz) {
         ajouter(t(pz[0]), 'PAUSE', { mesureId: id, debut: t(pz[0]), reprisePrevue: t(pz[1]), psychiatre: psy, motif: pz[3] || '' });
         if (pz[2] !== null) ajouter(t(pz[2]), 'REPRISE', { mesureId: id, date: t(pz[2]) });
       });
-      if (finH !== null) ajouter(t(finH), 'MESURE_FIN', { mesureId: id, fin: t(finH), psychiatre: psy });
+      if (finH !== null) ajouter(t(opts.saisieH != null ? Math.max(finH, opts.saisieH + 0.01) : finH), 'MESURE_FIN', { mesureId: id, fin: t(finH), psychiatre: psy });
       return id;
     }
 
@@ -346,9 +347,14 @@
       jld: [[1, 'INFO', -33], [1, 'SAISINE', -10]],
       pauses: [[-28, -27, -27, 'Repas'], [-8, -7.5, -7.25, 'Hygiène, douche']]
     });
-    // BRAVO : isolement depuis 26 h, contention en CSI depuis 20 h
+    // BRAVO : isolement depuis 26 h, contention en CSI depuis 20 h ; isolement précédent terminé 14 h avant (moins de
+    // 48 h) : pour le juge, une seule mesure, cumul de la suite (0.84.0)
+    mesure('P02', U1, 'Isolement', -50, -40, CSI2, 'Dr Benoît (fictif)', { tiers: 'INFORME', personne: 'Frère' });
     mesure('P02', U1, 'Isolement', -26, null, CSI2, 'Dr Benoît (fictif)', { tiers: 'INFORME', personne: 'Frère' });
     mesure('P02', U1, 'Contention', -20, null, CSI2, 'Dr Benoît (fictif)');
+    // ECHO : contention hors espace d'isolement d'il y a 4 jours, saisie il y a 3 heures : numéros du registre décalés,
+    // signalés au cadre (0.84.0)
+    mesure('P05', U1, 'Contention', -24 * 4, -24 * 4 + 2, 'Chambre 12', 'Dr Chen (fictif)', { exception: true, tiers: 'PAS_DE_TIERS', saisieH: -3 });
     // CHARLIE : isolement hors CSI terminé il y a 3 jours
     mesure('P03', U1, 'Isolement', -24 * 3 - 10, -24 * 3, 'Chambre 14', 'Dr Chen (fictif)', { tiers: 'PAS_DE_TIERS' });
     // DELTA (Unité 2) : isolement long, deux maintiens du JLD ; le second rendu à la 170e heure, avant la 192e : au

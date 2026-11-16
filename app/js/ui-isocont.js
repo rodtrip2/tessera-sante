@@ -45,7 +45,7 @@
   }
 
   function tiersBadge(m) {
-    var t = M.tiersCycle(m);
+    var t = M.tiersCycle(m, M.cycleJuge(st(), m));
     if (!t) return h('span', { class: 'badge warn', text: 'À renseigner' });
     var cls = t.statut === 'INFORME' ? 'ok' : '';
     return h('span', { class: 'badge ' + cls, title: (t.personne ? t.personne + ' — ' : '') + 'par ' + M.libInformateur(config(), t), text: LIB_TIERS[t.statut] || t.statut });
@@ -83,7 +83,7 @@
       if (p) aVenir.push({ m: m, j: j, p: p });
     });
     aVenir.sort(function (a, b) { return a.p.ech.echeance - b.p.ech.echeance; });
-    var tiersARenseigner = enCours.filter(function (m) { return !M.tiersCycle(m); }).length;
+    var tiersARenseigner = enCours.filter(function (m) { return !M.tiersCycle(m, M.cycleJuge(st(), m)); }).length;
     var libres = enCours.filter(function (m) { return !M.estContrainte(config(), M.modeA(st(), m.patientId, maintenant) || m.modeHospi); });
     var mineurs = enCours.filter(function (m) { return M.estMineur(st(), m.patientId, maintenant); });
     var vigilance = [];
@@ -237,7 +237,7 @@
         h('thead', {}, h('tr', {}, ['Patient', 'Type', 'Lieu', 'Début', 'Durée', 'Cycle', 'Info avant', 'Saisine avant', 'Décision avant', 'Tiers', ''].map(function (t) { return h('th', { text: t }); }))),
         tbody)),
       legendeEcheances(),
-      h('p', { class: 'muted' }, h('small', { text: 'Les échéances sont calculées depuis le début de la mesure et le cumul des 15 jours précédents (même patient, même type)' + (M.optionsCas(config()).septJours === 'decision' ? ' ; pour l’isolement, après deux décisions de maintien, le délai de sept jours est compté aussi depuis la précédente décision du juge et l’échéance la plus proche est retenue (art. L. 3222-5-1, II).' : ', jamais depuis la date des décisions du juge (réglage de l’établissement).') })));
+      h('p', { class: 'muted' }, h('small', { text: 'Les échéances sont calculées depuis le début de la mesure et le cumul des 15 jours précédents (même patient, même type) ; une mesure prise moins de 48 h après la fin de la précédente forme avec elle une mesure unique pour le juge : durées additionnées, même au-delà de 15 jours, et cycle poursuivi' + (M.optionsCas(config()).septJours === 'decision' ? ' ; pour l’isolement, après deux décisions de maintien, le délai de sept jours est compté aussi depuis la précédente décision du juge et l’échéance la plus proche est retenue (art. L. 3222-5-1, II).' : ', jamais depuis la date des décisions du juge (réglage de l’établissement).') })));
   }
 
   // ---------------------------------------------------------------- JLD
@@ -248,7 +248,7 @@
     }).sort(function (a, b) { return (a.p ? a.p.ech.echeance : Infinity) - (b.p ? b.p.ech.echeance : Infinity); });
     var tbody = h('tbody');
     enCours.forEach(function (x) {
-      var t = M.tiersCycle(x.m);
+      var t = M.tiersCycle(x.m, x.j.cycle);
       tbody.appendChild(h('tr', { class: 'en-cours' },
         h('td', {}, h('b', { text: nomPatient(x.m.patientId) }), h('br'), h('small', { text: libService(x.m.service) })),
         h('td', {}, badgeType(x.m.type), h('br'), h('small', { text: 'depuis ' + duree(M.dureeHeures(x.m, maintenant, config())) }), badgePause(x.m, maintenant) ? h('div', {}, badgePause(x.m, maintenant)) : null),
@@ -350,6 +350,13 @@
       h('div', { class: 'seulement-impression' }, h('h2', { text: (etablissement() ? etablissement() + ' — ' : '') + 'Registre des mesures d’isolement et de contention — ' + libService(svCode) + ' — ' + anneeRegistre }), h('p', { text: 'Article L. 3222-5-1 du code de la santé publique. Édité le ' + date(Date.now()) + '.' })),
       svCode ? h('p', { class: 'muted', text: libService(svCode) + ' — registre prévu par l’article L. 3222-5-1 du CSP, à présenter à la commission départementale des soins psychiatriques, au Contrôleur général des lieux de privation de liberté et aux parlementaires. Le patient y est désigné par son IPP. Pour toute autre demande (CADA), utilisez la version pour communication.' + (App.service === '*' ? ' Choisissez un service en haut de page pour changer de service.' : '') }) : null,
       notePauses ? h('p', { class: 'note-registre', text: notePauses }) : null,
+      (function () {
+        if (!svCode || !encadreRegistre()) return null;
+        var dec = M.decalagesRegistre(st(), svCode, anneeRegistre, maintenant);
+        return dec.length ? h('div', { class: 'alerte-etab information' }, h('b', { text: 'Numéros décalés par une saisie tardive (visible du cadre seulement)' }),
+          h('ul', {}, dec.slice(0, 10).map(function (x) { return h('li', { text: texteDecalage(x) }); }).concat(dec.length > 10 ? [h('li', { text: '… et ' + (dec.length - 10) + ' autre(s).' })] : [])),
+          h('small', { class: 'muted', text: 'Un registre déjà présenté ou exporté avec les anciens numéros est à rééditer.' })) : null;
+      })(),
       entrees.some(function (e) { return e.fige; }) ? h('p', { class: 'note-registre', text: 'Les entrées marquées « n° d’origine » sont des mesures importées qui gardent la catégorie et le numéro de leur document d’origine (classeur Excel ou registre importé) ; la numérotation de l’outil saute ces numéros.' }) : null,
       h('div', { class: 'indicateurs' }, Object.keys(synthese).map(function (k) {
         return h('div', { class: 'indicateur' }, h('div', { class: 'valeur', text: synthese[k] }), h('div', { class: 'libelle', text: k + ' — ' + LIB_CAT[k] }));
@@ -694,7 +701,7 @@
       h('label', {}, 'Date et heure de la décision de fin', fin), h('label', {}, 'Psychiatre décisionnaire', psy),
       h('div', { class: 'grille-2' }, h('label', {}, 'Motif de fin', motif), lblPrecision), infoMotif,
       lies.length ? h('div', { class: 'info', text: 'Autre mesure en cours pour ce patient : ' + lies.map(function (x) { return x.type + ' depuis ' + court(x.debut); }).join(', ') + '. Elle reste en cours.' }) : null,
-      m.leveeJLD ? h('div', { class: 'info', text: 'Le JLD a ordonné la levée : à compter de cette fin, le cumul des 15 jours repartira de zéro pour ce patient et ce type de mesure.' }) : null), [
+      m.leveeJLD ? h('div', { class: 'info', text: 'Le JLD a ordonné la levée : à compter de cette fin, le cumul repartira de zéro pour ce patient et ce type de mesure (une nouvelle mesure, même prise moins de 48 h après, ne prolonge pas celle-ci ; le juge en est informé sans délai).' }) : null), [
       { texte: 'Annuler' },
       { texte: 'Enregistrer la fin', classe: 'primaire', action: async function () {
         var t = depuisSaisie(fin.value);
@@ -892,7 +899,8 @@
     var historique = m.tiers.length ? h('div', { class: 'recap' }, h('b', { text: 'Déjà saisi' }), m.tiers.map(function (t) {
       return h('div', { text: 'Cycle ' + t.cycle + ' — ' + (LIB_TIERS[t.statut] || t.statut) + (t.personne ? ' (' + t.personne + ')' : '') + ' le ' + date(t.date) + ', par ' + M.libInformateur(config(), t) });
     })) : null;
-    modale('Information du tiers — cycle ' + m.cycle, h('div', { class: 'pile' }, recapMesure(m), historique,
+    var cycleT = M.cycleJuge(st(), m);
+    modale('Information du tiers — cycle ' + cycleT, h('div', { class: 'pile' }, recapMesure(m), historique,
       h('p', { class: 'muted' }, h('small', { text: 'L’article L. 3222-5-1 confie cette information au médecin ; l’établissement précise qui la réalise selon son organisation. Elle doit être renouvelée à chaque cycle, en même temps que l’information ou la saisine du juge.' })),
       patient(m.patientId).protection ? h('div', { class: 'alerte-etab information' }, h('b', { text: 'Patient sous ' + patient(m.patientId).protection.toLowerCase() + ' : à chaque renouvellement, informer aussi la personne chargée de la mesure de protection (tuteur, curateur…), en plus de la famille. Voir « À savoir » sous le texte de loi.' })) : null,
       extraitLoiTiers(false),
@@ -902,7 +910,7 @@
       { texte: 'Annuler' },
       { texte: 'Enregistrer', classe: 'primaire', action: async function () {
         var parPsy = informateur.value === 'PSYCHIATRE';
-        await App.session.enregistrer('TIERS', { mesureId: m.id, cycle: m.cycle, statut: statut.value, personne: personne.value.trim(), informateur: informateur.value, nomInformateur: parPsy ? psy.valeur() : nomAutre.value.trim(), date: depuisSaisie(quand.value), motif: motif.value.trim() }, base);
+        await App.session.enregistrer('TIERS', { mesureId: m.id, cycle: cycleT, statut: statut.value, personne: personne.value.trim(), informateur: informateur.value, nomInformateur: parPsy ? psy.valeur() : nomAutre.value.trim(), date: depuisSaisie(quand.value), motif: motif.value.trim() }, base);
         toast('Information du tiers enregistrée.');
       } }]);
   }
@@ -920,7 +928,7 @@
     var infoLevee = h('div', { class: 'info', hidden: true, text: 'La levée est un indicateur légal : la mesure reste en cours jusqu’au report de la décision médicale de fin. Aucune nouvelle mesure ne pourra être prise pendant 48 h, sauf éléments nouveaux (le JLD est alors informé sans délai).' });
     function maj() { blocDecision.hidden = nature.value !== 'DECISION'; infoLevee.hidden = blocDecision.hidden || decision.value !== 'LEVEE'; }
     nature.addEventListener('change', maj); decision.addEventListener('change', maj); maj();
-    var tiers = M.tiersCycle(m);
+    var tiers = M.tiersCycle(m, M.cycleJuge(st(), m));
     modale('Envoi au JLD ou décision reçue — cycle ' + j.cycle, h('div', { class: 'pile' }, recapMesure(m, maintenant),
       h('div', { class: 'recap' },
         h('div', {}, 'Information avant : ', cellEcheance(j.info)),
@@ -948,7 +956,8 @@
     var peutCorriger = App.session.peut('CORRECTION');
     var corps = h('div', { class: 'pile' }, recapMesure(m, maintenant),
       h('div', { class: 'recap' },
-        h('div', { text: 'Cycle JLD en cours : ' + j.cycle + (j.rythmeLong ? ' (rythme des mesures longues)' : '') + ' · cumul des 15 jours avant la mesure : ' + duree(j.cumulAvant) }),
+        h('div', { text: 'Cycle JLD en cours : ' + j.cycle + (j.rythmeLong ? ' (rythme des mesures longues)' : '') + ' · ' + (j.suite ? 'cumul de la suite de mesures (moins de 48 h entre deux mesures) et des 15 jours, avant la mesure : ' : 'cumul des 15 jours avant la mesure : ') + duree(j.cumulAvant) }),
+        j.suite ? h('div', { class: 'info', text: 'Mesure prise moins de 48 h après la fin de la précédente : pour le juge, elle prolonge la même mesure depuis le ' + date(j.suite.debut) + ' (' + j.suite.mesures.length + ' mesure(s) précédente(s)). Le cycle se poursuit ; les saisies du juge de ces mesures valent pour elle.' }) : null,
         j.depuisDecision ? h('div', { text: 'Délai de sept jours compté depuis la décision du juge du ' + date(j.depuisDecision) + ' : saisine avant le ' + date(j.saisine.echeance) + ', décision avant le ' + date(j.decision.echeance) + '.' }) : null,
         j.decisionManquante ? h('div', { class: 'texte-bad', text: 'Décision du juge du cycle ' + (j.cycle - 1) + ' non saisie : les échéances sont calculées depuis le début de la mesure et peuvent être plus tardives que l’échéance légale. Saisissez la décision avec son heure (à défaut, l’heure de réception de l’ordonnance).' }) : null,
         h('div', { text: 'Mode d’hospitalisation retenu : ' + (M.modeRetenu(st(), m).mode || '—') }),
@@ -1780,10 +1789,36 @@
     };
   }
 
+  // ================================================================ Numéros du registre décalés (cadre)
+  /** Cadre (ou cadre supérieur, administrateur) : seul destinataire de l'alerte de décalage des numéros du registre. */
+  function encadreRegistre() { var r = App.session.roles() || []; return ['CADRE', 'CADRE_SUP', 'ADMIN'].some(function (x) { return r.indexOf(x) >= 0; }); }
+  function texteDecalage(x) {
+    return 'mesure du ' + date(x.debut) + ' (patient ' + ((patient(x.patientId) || {}).ipp || '—') + ')' + ', saisie le ' + date(x.saisiLe) + (x.par ? ' par ' + App.session.nomAuteur(x.par) : '')
+      + ' (' + x.numeros.join(', ') + ') : ' + x.decales.map(function (d) { return d.avant + ' → ' + d.apres; }).join(', ');
+  }
+  /** Informations du module (page Aujourd'hui) : saisies tardives des 7 derniers jours qui ont décalé des numéros. */
+  function informationsIsocont() {
+    var res = [];
+    try {
+      if (!encadreRegistre()) return res;
+      var maintenant = Date.now(), an = new Date(maintenant).getFullYear();
+      services().forEach(function (sv) {
+        [an - 1, an].forEach(function (a) {
+          M.decalagesRegistre(st(), sv.code, a, maintenant, maintenant - 7 * J).forEach(function (x) {
+            res.push({ id: 'reg-dec-' + x.mesureId + '-' + x.saisiLe, niveau: 'warn', titre: 'Registre ' + a + ' (' + libService(sv.code) + ') : ' + x.decales.length + ' numéro(s) décalé(s) par une saisie tardive',
+              detail: texteDecalage(x), ouvrir: function () { anneeRegistre = a; App.ongletsFenetres.isocont = 'registre'; U.ouvrirFenetre('isocont'); } });
+          });
+        });
+      });
+    } catch (e) { /* registre illisible : rien à signaler */ }
+    return res;
+  }
+
   // ================================================================ Déclaration auprès de la coquille
   U.vues.tableau = vueTableau; U.vues.mesures = vueMesures; U.vues.jld = vueJLD; U.vues.surveillance = vueSurveillance; U.vues.registre = vueRegistre;
   // Interface ajoutée au contrat du module (module-isocont.js) ; Patients et Statistiques s'ajoutent à U.vues depuis leurs fichiers
-  SIC.modules.completerInterface('isocont', { vues: U.vues, journal: journal, admin: { panneaux: panneauxAdmin } });
+  SIC.modules.completerInterface('isocont', { vues: U.vues, journal: journal, admin: { panneaux: panneauxAdmin }, informations: informationsIsocont,
+    pastille: function () { try { return informationsIsocont().length; } catch (e) { return 0; } } });
   Object.assign(U, {
     mesuresVisibles: mesuresVisibles, badgeType: badgeType, badgePause: badgePause, alerteChamp: alerteChamp, tiersBadge: tiersBadge,
     detailMesure: function (m) { modaleDetail(m); }, cellEcheance: cellEcheance, selectPsychiatre: selectPsychiatre, recapMesure: recapMesure,
