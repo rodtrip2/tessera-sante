@@ -87,7 +87,9 @@ test('Attestation : coffre neuf signé, ancre dans chaque emballage, empreintes 
   const r = await A.verifier(cf, await C.ancreDe(cf.attestation.publique));
   assert.deepEqual(r.anomalies, []);
   assert.ok(r.etat.n >= 2 && r.etat.agents[id('ide.a')] && r.etat.empreintes.isocont[1] && r.etat.maitresses.plateforme);
-  assert.ok(!/IDE|ADMIN/.test(cf.attestation.etat), 'aucun rôle lisible en clair');
+  // Rôles entre guillemets : « IDE » peut apparaître par hasard dans le base64 du chiffré (test instable avant 0.77.2)
+  const enClair = (s) => /"(IDE|ADMIN)"/.test(s);
+  assert.ok(!enClair(cf.attestation.etat) && !enClair(Buffer.from(String(cf.attestation.etat), 'base64').toString('latin1')), 'aucun rôle lisible en clair');
   const emb = cf.emballages.find((e) => e.userId === id('ide.a') && e.methode === 'mdp');
   const p = C.ouvrirPaquet(await C.deballerMotDePasse(emb, 'mot de passe ide a', true));
   assert.equal(p.ancre, await C.ancreDe(cf.attestation.publique));

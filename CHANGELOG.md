@@ -1,5 +1,9 @@
 # Journal des modifications — Tessera Santé
 
+## 0.77.2 — 16 novembre 2026
+
+Test de l'attestation rendu stable : il pouvait échouer par hasard quand les lettres « IDE » apparaissaient dans le texte chiffré (base64). Sans changement de l'application.
+
 ## 0.77.1 — 16 novembre 2026
 
 Documentation mise à jour (versions 0.71 à 0.77), sans changement de l'application.
