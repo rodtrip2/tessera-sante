@@ -1,5 +1,12 @@
 # Journal des modifications — Tessera Santé
 
+## 0.85.1 — 16 novembre 2026 (version stable)
+
+Documentation, sans changement de l'application (demande du porteur du 16 novembre 2026) :
+- **Évolutions futures** (§ R) : suites du test de charge — chargement par année, vérification des signatures gardée sur le poste (avis du responsable de la sécurité informatique), quotas des documents et des pièces jointes, espacement des versions des gros documents, garde-fou anti-emballement, tableau de la place occupée, lecture complète du partage, regroupement des mois clos.
+- **Présentation synthétique des fonctionnalités** de Tessera (12 diapositives).
+- Fiche projet et architecture : version stable 0.85.1.
+
 ## 0.85.0 — 16 novembre 2026
 
 Les trois limites du test de charge (demande du porteur du 16 novembre 2026), sans changement des résultats :
