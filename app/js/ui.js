@@ -194,6 +194,27 @@
     while (zone.children.length > 4) zone.firstChild.remove();
     setTimeout(function () { t.remove(); }, 12000);
   }
+  /**
+   * Encre lisible sur une couleur choisie par l'établissement (0.81.0, constat E4) : presque noir ou blanc, selon celui
+   * qui contraste le plus ; null si la couleur n'est pas un code « #rgb » ou « #rrggbb ».
+   */
+  function encreSur(couleur) {
+    var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(couleur || '').trim());
+    if (!m) return null;
+    var hx = m[1].length === 3 ? m[1].replace(/(.)/g, '$1$1') : m[1];
+    var l = [0, 2, 4].map(function (i) { var v = parseInt(hx.slice(i, i + 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    var L = 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2];
+    return (L + 0.05) / 0.0607 >= 1.05 / (L + 0.05) ? '#16191a' : '#ffffff';
+  }
+  /** Encre lisible sur une teinte (couleur mêlée à `part` % au fond des fenêtres du thème affiché). */
+  function encreSurTeinte(couleur, part) {
+    var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(couleur || '').trim());
+    var f = /^#([0-9a-f]{6})$/i.exec(getComputedStyle(document.documentElement).getPropertyValue('--surface').trim());
+    if (!m || !f) return null;
+    var c = m[1].length === 3 ? m[1].replace(/(.)/g, '$1$1') : m[1], k = Math.max(0, Math.min(100, part)) / 100;
+    var mel = [0, 2, 4].map(function (i) { var v = Math.round(parseInt(c.slice(i, i + 2), 16) * k + parseInt(f[1].slice(i, i + 2), 16) * (1 - k)); return ('0' + v.toString(16)).slice(-2); }).join('');
+    return encreSur('#' + mel);
+  }
   /** Petite fenêtre modale : message, champ éventuel, deux boutons ; Échap = Annuler. Promesse de la réponse. */
   function petiteFenetre(message, champ, ok, danger) {
     return new Promise(function (resoudre) {
@@ -878,6 +899,17 @@
     if (limiteAuxSiens() && id === 'agenda') res = res.filter(function (o) { return o[0] === 'agenda' || o[0] === 'mon-agenda'; });
     return res;
   }
+  /** Thèmes des onglets de l'administration (0.81.0, constat E2) : un module inconnu rejoint « Organisation ». */
+  var THEMES_ADMIN = { patients: 'Patients et soins', isocont: 'Patients et soins', suivi: 'Patients et soins', clinique: 'Patients et soins', vue: 'Patients et soins', controles: 'Patients et soins',
+    equipe: 'Équipe', conges: 'Équipe', formations: 'Équipe', heures: 'Équipe' };
+  function groupesAdmin(liste) {
+    var ordre = ['Général', 'Patients et soins', 'Organisation', 'Équipe'], g = {};
+    liste.forEach(function (o) {
+      var m = /^(admin|cadre)-(.+)$/.exec(o[0]), t = m && m[2] !== 'accueil' ? (THEMES_ADMIN[m[2]] || 'Organisation') : 'Général';
+      (g[t] = g[t] || []).push(o);
+    });
+    return ordre.filter(function (t) { return g[t]; }).map(function (t) { return { titre: t, onglets: g[t] }; });
+  }
   App.ongletsFenetres = {};
   /** Ouvre la fenêtre d'un module : son dernier onglet affiché, sinon le premier ; choix retenu sur le poste. */
   // Retour sur sa dernière position (0.26.4) : onglet et service de chaque fenêtre, retenus sur le poste
@@ -1172,12 +1204,18 @@
     if (nAtt && !s.apercu && !(App.onglet === 'admin' && App.sousOngletAdmin === 'comptes')) zoneEntete.appendChild(h('div', { class: 'bandeau-apercu', role: 'status' },
       h('span', { text: 'Des clés ou des comptes attendent votre confirmation avant d’être remis.' }),
       h('button', { class: 'btn petit', type: 'button', onclick: function () { App.onglet = 'admin'; App.sousOngletAdmin = 'comptes'; rendreContenu(); } }, 'Voir')));
-    var nav = h('nav', { class: 'onglets', 'aria-label': 'Sections' });
-    onglets().forEach(function (o) {
-      if (!affichable(o[0])) return;
-      nav.appendChild(h('button', { 'aria-current': App.onglet === o[0] ? 'page' : null, onclick: function () { App.onglet = o[0]; rendreContenu(); } },
-        lieu(o[1]), o[0] === 'journal' && conflits ? h('span', { class: 'pastille', text: conflits }) : null));
-    });
+    var nav = h('nav', { class: 'onglets' + (App.fenetre === 'admin' ? ' onglets-groupes' : ''), 'aria-label': 'Sections' });
+    function boutonOnglet(o) {
+      return h('button', { 'aria-current': App.onglet === o[0] ? 'page' : null, onclick: function () { App.onglet = o[0]; rendreContenu(); } },
+        lieu(o[1]), o[0] === 'journal' && conflits ? h('span', { class: 'pastille', text: conflits }) : null);
+    }
+    var visibles = onglets().filter(function (o) { return affichable(o[0]); });
+    if (App.fenetre === 'admin') {
+      // Administration (0.81.0, constat E2 de l'audit) : onglets rangés par thème, tous visibles sur quelques rangées
+      groupesAdmin(visibles).forEach(function (g) {
+        nav.appendChild(h('div', { class: 'groupe-onglets', role: 'group', 'aria-label': g.titre }, h('span', { class: 'groupe-onglets-titre', text: g.titre }), g.onglets.map(boutonOnglet)));
+      });
+    } else visibles.forEach(function (o) { nav.appendChild(boutonOnglet(o)); });
     var barre = barreModules();
     document.body.classList.toggle('avec-barre-modules', !!barre);
     if (barre) zoneEntete.appendChild(barre);
@@ -2533,7 +2571,7 @@
     vues: (SIC.ui && SIC.ui.vues) || {}, actions: (SIC.ui && SIC.ui.actions) || {},
     rendreRepliable: rendreRepliable, replierVue: replierVue, controleRepli: controleRepli, deplier: deplier, replierPanneaux: replierPanneaux, ongletsLocaux: ongletsLocaux,
     h: h, vider: vider, date: date, court: court, duree: duree, relatif: relatif, versSaisie: versSaisie, depuisSaisie: depuisSaisie,
-    ouvrirFenetre: ouvrirFenetre, toast: toast, alerte: alerte, confirmer: confirmer, demander: demander, reponsesAutomatiques: reponsesAutomatiques, modale: modale, imprimer: imprimer, imprimerPage: imprimerPage, impressionNB: impressionNB, erreurDans: erreurDans, fmtJour: fmtJour,
+    ouvrirFenetre: ouvrirFenetre, toast: toast, alerte: alerte, encreSur: encreSur, encreSurTeinte: encreSurTeinte, confirmer: confirmer, demander: demander, reponsesAutomatiques: reponsesAutomatiques, modale: modale, imprimer: imprimer, imprimerPage: imprimerPage, impressionNB: impressionNB, erreurDans: erreurDans, fmtJour: fmtJour,
     App: App, st: st, config: config, affiche: affiche, services: services, tousServices: tousServices, libService: libService, etablissement: etablissement,
     patient: patient, nomPatient: nomPatient, modeActuel: modeActuel, dansService: dansService, idMesure: idMesure,
     boutonEnregistrer: boutonEnregistrer, enregistrerConfig: enregistrerConfig, lignesDe: lignesDe, zoneTexte: zoneTexte, periodeDepuis: periodeDepuis, changerDossier: function () { return changerDossier(); },

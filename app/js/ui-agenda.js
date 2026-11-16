@@ -61,6 +61,8 @@
     var pe = ep.prochaineEcheance, retard = ep.niveau === 'retard';
     var el = h('span', { class: 'badge ag-etape-badge' + (retard ? ' retard' : ''), title: ep.processus.etapes.map(function (e, i) { return (i <= ep.index && !ep.refusee ? '✓ ' : '· ') + e.libelle; }).join('\n') + (ep.mention ? '\n' + ep.mention : '') + (pe ? '\nÀ faire : ' + (pe.etape.tache || pe.etape.libelle) + ' avant ' + libJour(pe.quand) + ' ' + hm(pe.quand) : ''),
       text: ep.libelle + (retard ? ' — délai dépassé' : '') + (ep.mention ? ' *' : '') });
+    var encre = U.encreSur(ep.couleur || '#6b7280');
+    if (encre) el.style.color = encre;
     return teinter(el, ep.couleur);
   }
   var occurrenceCourante = null;   // occurrence du bloc en cours de dessin (statut de la permission de cette date)
@@ -106,7 +108,7 @@
     var r = x.rdv, sp = baseNature(r.nature, r.service) === 'permission' ? A.statutPermission(r, x.occurrence) : null, plage = (x.debut < jour ? '…' : hm(x.debut)) + (x.fin ? '–' + (x.fin >= plusJours(jour, 1) ? '…' : hm(x.fin)) : '');
     var cl = x.checklist.items.length ? A.etatChecklist(r, x.occurrence, Date.now()) : null;
     var el = h('article', { class: 'ag-bloc nature-' + (r.nature || 'autre') + (x.externe ? ' externe' : '') + (sp && sp !== 'validee' ? ' demande' : '') + (x.annulee ? ' annulee' : '') + (A.enAttente(r, U.config()) ? ' en-attente' : ''), tabindex: 0, role: 'button',
-      'aria-label': libNature(r.nature, r.service) + ' ' + libelleElement(r) + ' ' + plage, onclick: function () { ouvrirElement(x); }, onkeydown: function (ev) { if (ev.key === 'Enter') ouvrirElement(x); } },
+      'aria-label': plage + ' ' + libelleElement(r) + ' — ' + libNature(r.nature, r.service), onclick: function () { ouvrirElement(x); }, onkeydown: function (ev) { if (ev.key === 'Enter') ouvrirElement(x); } },
       h('div', { class: 'ag-bloc-tete' }, h('b', { text: plage + ' ' + libelleElement(r) })),
       x.patients.length ? h('div', { class: 'ag-ligne', text: nomsPatients(x.patients).join(', ') }) : null,
       r.lieu ? h('div', { class: 'ag-ligne muted', text: r.lieu }) : null,
@@ -491,7 +493,7 @@
     var plage = (x.debut < jour ? '…' : hm(x.debut)) + (x.fin ? ' – ' + (x.fin >= plusJours(jour, 1) ? '…' : hm(x.fin)) : '');
     var modifiable = peut('RDV') && (!x.externe || opts().modifAutresServices);
     return h('article', { class: 'agenda-element nature-' + (r.nature || 'autre') + (x.externe ? ' externe' : ''), tabindex: 0, role: 'button',
-      'aria-label': libNature(r.nature, r.service) + ' ' + (r.titre || '') + ' ' + plage,
+      'aria-label': plage + ' ' + (r.titre || '') + ' — ' + libNature(r.nature, r.service),
       onclick: function () { modaleElement(r, null, !modifiable, x.externe ? x.patients : null, x.externe, x.occurrence); },
       onkeydown: function (ev) { if (ev.key === 'Enter') modaleElement(r, null, !modifiable, x.externe ? x.patients : null, x.externe, x.occurrence); } },
       h('div', { class: 'agenda-plage', text: plage }),
