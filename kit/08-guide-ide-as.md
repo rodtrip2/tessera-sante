@@ -2,7 +2,7 @@
 
 *Tessera Santé, module Isolement et contention — les gestes du quotidien, pas à pas. Les captures sont faites en mode démonstration, avec des données fictives.*
 
-L'outil ne remplace pas le dossier patient informatisé (DPI) : la prescription et la surveillance clinique y restent. Ici, vous **reportez les décisions du psychiatre** (début, pause, reprise, fin) et vous **tracez** ce que la loi demande : information du tiers, communications au juge des libertés et de la détention (JLD), professionnels présents auprès du patient. Les échéances sont calculées pour vous.
+L'outil ne remplace pas le dossier patient informatisé (DPI) : la prescription et la surveillance clinique y restent. Ici, vous **reportez les décisions du psychiatre** (début, pause, reprise, fin) et vous **tracez** ce que la loi demande : information du tiers, communications au juge (magistrat du siège du tribunal judiciaire, anciennement juge des libertés et de la détention, JLD), professionnels présents auprès du patient. Les échéances sont calculées pour vous.
 
 > Les noms des onglets et des lieux peuvent différer légèrement dans votre établissement (par exemple « chambre d'isolement » au lieu de « chambre de soins intensifs (CSI) »). Selon l'organisation locale, certaines actions peuvent être réservées à d'autres fonctions.
 
@@ -18,7 +18,7 @@ Ouvrez le lien de l'outil, saisissez votre identifiant et votre mot de passe, la
 
 Si vous avez accès à plusieurs modules (Agenda, Isolement et contention…), cliquez sur **Isolement et contention** dans la barre des modules, en bas de l'écran : chaque module s'ouvre dans sa fenêtre, avec ses propres onglets. La liste des patients a sa propre fenêtre (*Patients*) ; l'onglet *Patients* du module Isolement et contention montre les cumuls et statistiques par patient.
 
-Le tableau de bord est la première page du module. Il résume ce qui demande votre attention : mesures en cours, **échéances JLD** proches ou dépassées, **tiers à renseigner**, **postes de surveillance incomplets**, points de vigilance (cumuls élevés, patient en soins libres…). Les boutons *Saisir* et *Compléter* mènent directement à la bonne fenêtre.
+Le tableau de bord est la première page du module. Il résume ce qui demande votre attention : mesures en cours, **échéances du juge** proches ou dépassées, **tiers à renseigner**, **postes de surveillance incomplets**, points de vigilance (cumuls élevés, patient en soins libres…). Les boutons *Saisir* et *Compléter* mènent directement à la bonne fenêtre.
 
 ![Tableau de bord](images/guide-ide-as/02-tableau-de-bord.png)
 
@@ -41,7 +41,7 @@ Onglet **Mesures** → **+ Nouvelle mesure**, dès que le psychiatre a décidé 
 
 **Contention en CSI** : l'outil propose de créer en même temps l'isolement qui l'accompagne (case cochée). **Contention hors CSI** : cochez l'exception seulement si elle est prévue par le plan de soins (contention ambulatoire).
 
-La mesure apparaît dans la liste, avec ses trois échéances JLD : *Info avant* (information du juge), *Saisine avant*, *Décision avant*.
+La mesure apparaît dans la liste, avec ses trois échéances du juge : *Info avant* (information du juge), *Saisine avant*, *Décision avant*.
 
 ![Liste des mesures](images/guide-ide-as/04-liste-mesures.png)
 
@@ -79,10 +79,10 @@ Au retour du patient : **Reprise** → heure réelle de reprise → **Enregistre
 
 ![Fenêtre « Information du tiers »](images/guide-ide-as/08-tiers.png)
 
-*Tant que rien n'est enregistré pour le cycle, la colonne « Tiers » indique « À renseigner » ; dans l'onglet JLD : « Proche à informer avant le…, comme le juge ». Pour un patient sous tutelle ou curatelle, informez aussi le tuteur ou le curateur.*
+*Tant que rien n'est enregistré pour le cycle, la colonne « Tiers » indique « À renseigner » ; dans l'onglet juge : « Proche à informer avant le…, comme le juge ». Pour un patient sous tutelle ou curatelle, informez aussi le tuteur ou le curateur.*
 
 
-## 6. Le décompte JLD et la traçabilité de l'envoi
+## 6. Le décompte du juge et la traçabilité de l'envoi
 
 ### 6.1 Produire le décompte
 
@@ -91,7 +91,7 @@ Bouton **Décompte** sur la ligne de la mesure. L'aperçu reprend l'identité, l
 - **Enregistrer en PDF** : le fichier est créé et **rangé automatiquement dans le dossier des exports** de l'outil, sur le réseau de l'établissement (un message indique son nom). Joignez-le ensuite à la communication au juge selon la procédure du service, en le prenant dans ce dossier ;
 - **Imprimer** : si un envoi papier est nécessaire. Tessera demande *Couleur* ou *Noir et blanc* ; votre choix est retenu pour vos prochaines impressions et vos PDF.
 
-![Fenêtre « Décompte JLD »](images/guide-ide-as/09-decompte.png)
+![Fenêtre « Décompte du juge »](images/guide-ide-as/09-decompte.png)
 
 *Le document contient des données nominatives.*
 
@@ -105,13 +105,13 @@ Le bouton **Exports**, en haut de l'écran, liste les fichiers enregistrés pour
 
 ### 6.2 Tracer l'envoi
 
-Une fois l'envoi fait (information du juge, saisine) ou la décision reçue : onglet **JLD** → **Saisir un envoi ou une décision** sur la ligne du patient. Les mesures sont classées par urgence.
+Une fois l'envoi fait (information du juge, saisine) ou la décision reçue : onglet **Juge** → **Saisir un envoi ou une décision** sur la ligne du patient. Les mesures sont classées par urgence.
 
-![Onglet JLD](images/guide-ide-as/10-onglet-jld.png)
+![Onglet Juge](images/guide-ide-as/10-onglet-jld.png)
 
-Dans la fenêtre : la **nature** (*Information du JLD*, *Saisine du JLD* ou *Décision reçue du JLD*, avec alors maintien ou levée), la **date et l'heure réelles** de l'envoi, puis **Enregistrer**.
+Dans la fenêtre : la **nature** (*Information du juge*, *Saisine du juge* ou *Décision reçue du juge*, avec alors maintien ou levée), la **date et l'heure réelles** de l'envoi, puis **Enregistrer**.
 
-![Fenêtre « Envoi au JLD ou décision reçue »](images/guide-ide-as/11-envoi-jld.png)
+![Fenêtre « Envoi au juge ou décision reçue »](images/guide-ide-as/11-envoi-jld.png)
 
 L'échéance passe en bleu, avec la mention « fait le … » : l'envoi est tracé.
 
@@ -166,7 +166,7 @@ Bouton **Détail** sur la ligne : tout l'historique de la mesure, saisie par sai
 | Repas, douche, visite (décidés par le psychiatre) | Mesures, ligne du patient | **Pause**, puis **Reprise** |
 | Un proche est informé (à chaque cycle) | Mesures, ligne du patient | **Tiers** |
 | Pièce à joindre à l'envoi au juge | Mesures, ligne du patient | **Décompte** → **Enregistrer en PDF** (puis bouton **Exports**) |
-| Information ou saisine envoyée, décision reçue | JLD | **Saisir un envoi ou une décision** |
+| Information ou saisine envoyée, décision reçue | Juge | **Saisir un envoi ou une décision** |
 | Début de chaque poste en CSI | Surveillance CSI | **Ajouter** (nombre fixé par l'établissement, lieux si besoin) |
 | Le psychiatre lève la mesure | Mesures, ligne du patient | **Fin** |
 | Erreur de saisie | Mesures → **Détail** | **Proposer une correction…** |

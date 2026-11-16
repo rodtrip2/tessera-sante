@@ -21,6 +21,8 @@
 2. Enregistrer une clé de remplacement.
 3. Vérifier qu'il reste au moins deux clés d'administration ou une clé et le code de secours.
 
+**Clé exigée en second facteur** (agent dont le rôle demande mot de passe et clé) : sans sa clé, l'agent ne peut plus se connecter. L'administrateur réinitialise son mot de passe (fiche du compte) ; à la connexion suivante, l'agent associe sa nouvelle clé. Pour un dépannage ponctuel, la réinitialisation peut dispenser du second facteur jusqu'au prochain changement de mot de passe.
+
 ## Départ d'un agent, retrait d'un droit
 
 1. *Administration → Comptes et sécurité → Modifier* : décocher *Compte actif*. Son mot de passe et sa clé personnelle sont retirés du coffre : il ne déverrouille plus rien. Une **nouvelle génération des clés** des modules auxquels il avait accès est créée : même s'il avait gardé une copie du dossier, il ne lirait pas les saisies faites après son départ.
@@ -68,7 +70,7 @@ Si l'établissement a mis en place un **dossier de secours** (*Administration �
 **Isolement et contention** :
 
 1. Poursuivre la traçabilité **sur papier** avec la fiche ci-dessous (une par mesure), en reportant les heures réelles.
-2. Les échéances du juge des libertés et de la détention (JLD) se calculent à la main à partir du début de la mesure : information à 48 h (isolement) ou 24 h (contention) de cumul sur 15 jours, saisine à 72 h ou 48 h, décision à 96 h ou 72 h. En cas de doute, informer le JLD sans attendre.
+2. Les échéances du juge (magistrat du siège du tribunal judiciaire, anciennement juge des libertés et de la détention, JLD) se calculent à la main à partir du début de la mesure : information à 48 h (isolement) ou 24 h (contention) de cumul sur 15 jours, saisine à 72 h ou 48 h, décision à 96 h ou 72 h. **Isolement, après deux décisions de maintien** : délai de sept jours compté aussi depuis l'heure de la précédente décision du juge (saisine au plus tard 144 h après cette décision) ; retenir l'échéance la plus proche. En cas de doute, informer le juge sans attendre.
 3. Au retour du service, ressaisir chaque élément avec sa **date et son heure réelles** (les écrans acceptent une saisie rétroactive). Le journal garde la date de saisie.
 
 ### Fiche de traçabilité dégradée
@@ -82,9 +84,9 @@ Si l'établissement a mis en place un **dossier de secours** (*Administration �
 | Lieu | ☐ CSI n° ____ ☐ Chambre n° ____ |
 | Début : date, heure, psychiatre | |
 | Tiers informé : qui, par qui, quand | |
-| Information du JLD : date, heure | |
-| Saisine du JLD : date, heure | |
-| Décision du JLD : date, heure, maintien ou mainlevée | |
+| Information du juge : date, heure | |
+| Saisine du juge : date, heure | |
+| Décision du juge : date, heure, maintien ou mainlevée | |
 | Fin : date, heure, psychiatre | |
 | Professionnels en CSI (poste, nom, fonction) | |
 | Ressaisi dans l'outil le, par | |
@@ -164,6 +166,14 @@ Merci de nous prévenir une fois la restauration faite : nous relancerons le con
 2. Les fichiers de saisie sont indépendants : une restauration partielle est sans danger. Le dossier `instantanes` peut être supprimé : il est reconstruit automatiquement. Les dossiers `coffre-historique` et `reperes` de chaque journal (`socle`, `modules\…`) doivent être restaurés avec le reste. Si `coffre.json` a été restauré lui aussi, l'administrateur renouvelle les clés (*Intégrité du coffre*).
 3. *Administration → Sauvegardes et exports → Vérifier maintenant* : l'application signale les fichiers encore illisibles ou manquants (voir « Alerte d'intégrité » ci-dessus).
 4. Ressaisir ce qui a été fait depuis la sauvegarde, avec les heures réelles, puis prendre acte des pertes définitives.
+
+## Saisie écartée ou hors droit
+
+Le panneau *Signature des saisies* (*Réglages généraux → Comptes*) liste les saisies non signées, altérées, écrites au nom d'un autre agent ou sans en avoir le droit. Elles ne sont appliquées sur aucun poste et restent dans le dossier (jamais supprimées). Une ou deux saisies isolées après une mise à jour : vérifier avec l'agent concerné. Plusieurs saisies au nom d'autres agents : traiter comme une **suspicion de compromission** (ci-dessus) et prévenir le responsable de la sécurité informatique.
+
+## Horloge d'un poste décalée
+
+Un bandeau signale un écart de plus de 5 minutes entre l'horloge du poste et celle du serveur du partage (tracé au journal). Les échéances légales en dépendent : faire corriger la synchronisation horaire du poste par le service informatique, puis vérifier les heures saisies pendant l'écart.
 
 ## Saisies en conflit
 

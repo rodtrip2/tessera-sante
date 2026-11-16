@@ -50,7 +50,7 @@ Avant de confirmer, l'écran d'import :
 
 ## Ce que le registre ne contient pas
 
-Les cycles du juge des libertés et de la détention, JLD (information, saisine, décisions), l'information des tiers et la surveillance poste par poste ne figurent pas au registre : ils ne sont pas repris. Pour les mesures en cours au moment de la reprise, saisissez-les dans l'onglet JLD. Les soignants cités par le registre restent affichés dans le registre de l'outil.
+Les cycles du juge (magistrat du siège du tribunal judiciaire, anciennement juge des libertés et de la détention, JLD) (information, saisine, décisions), l'information des tiers et la surveillance poste par poste ne figurent pas au registre : ils ne sont pas repris. Pour les mesures en cours au moment de la reprise, saisissez-les dans l'onglet juge. Les soignants cités par le registre restent affichés dans le registre de l'outil.
 
 Complétez ensuite dans l'onglet Patients les fiches des nouveaux patients (nom, date de naissance), et affectez les services créés aux comptes concernés.
 

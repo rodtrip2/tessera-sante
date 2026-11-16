@@ -148,8 +148,9 @@ Les modules qui concernent des patients (Isocont, Agenda) **dépendent** du modu
 - À chaque nouvelle session, le navigateur peut redemander l'autorisation d'accéder au dossier : c'est un comportement normal.
 - Si le site est hébergé sur l'intranet, aucune extension de navigateur ne doit injecter de script dans la page (politique de sécurité stricte).
 
-### Clés de sécurité (optionnel, recommandé pour l'administration)
+### Clés de sécurité (optionnel ; second facteur exigible par rôle)
 - YubiKey série 5 (FIDO2, fonction *hmac-secret*), micrologiciel 5.2 ou plus récent, ou toute clé FIDO2 compatible PRF.
+- Deux usages *(existant, 0.75.0)* : clé qui ouvre seule la session (en remplacement du mot de passe), ou **second facteur** — mot de passe **et** clé, exigible par l'administrateur rôle par rôle (désactivé par défaut) ; code (PIN) de la clé exigible. Une clé par agent concerné ; page servie en HTTPS.
 - Ports USB autorisés pour les clés de sécurité par la politique de l'établissement.
 - Sous Windows, la prise en charge de PRF dépend de la version du système et du navigateur : **test obligatoire sur un poste type**.
 
@@ -177,6 +178,20 @@ Les modules qui concernent des patients (Isocont, Agenda) **dépendent** du modu
 | Exports de documents | PDF, Word, RTF, Excel, CSV écrits dans le navigateur sans bibliothèque ; rangés **en clair** dans le dossier des exports, tracés au journal ; imports Word, Excel, CSV lus sur le poste, jamais copiés sur le partage |
 | Modules désactivés par défaut | `Droits.creer({ inactifParDefaut })` (Contrôles) ; arrêt d'un module sans effacement (clé gardée par les agents) |
 
+### Mécanismes ajoutés les 15 et 16 novembre 2026, à la suite de l'audit *(existant, versions 0.71 à 0.77)*
+
+| Mécanisme | Mise en œuvre |
+| --- | --- |
+| Remise des clés confirmée | Une clé qu'un compte ne détient pas encore n'est remise d'office que si elle découle d'un acte de l'administrateur dans sa session ; sinon elle attend sa confirmation (panneau « Clés à remettre » : Remettre, Refuser avec motif montré au cadre, Lever le refus). Demandes de comptes d'intervenants confirmées ou refusées de même. Le cadre et l'agent voient les clés en attente et les refus (0.71.0, 0.72.0) |
+| Signature des saisies | Chaque saisie est signée (ECDSA P-256) par une clé tirée de la clé personnelle de l'agent (HKDF, une clé par usage, rien n'est stocké en plus), attestée par l'administrateur dans l'état signé du coffre ; changement de mot de passe : nouvelle clé reliée à la précédente par un lien signé. À la lecture, sur chaque poste, une saisie non signée, altérée ou écrite au nom d'un autre agent est **écartée** (masquée, jamais supprimée) et signalée (0.72.0) |
+| Droits contrôlés à la lecture | Une saisie signée n'est appliquée que si son auteur pouvait l'écrire, d'après ses rôles et les réglages **à la date de la saisie** (traces signées de l'administrateur) ; une annulation hors droit n'annule rien. Acceptés sans contrôle à la lecture, pour ne jamais masquer une saisie légitime : permissions qui dépendent de l'état du module (déclarées par le module), données ajoutées, traces des comptes (0.73.0, 0.74.0) |
+| Connexion | Règle des mots de passe d'après la recommandation de la CNIL (délibération n° 2022-100) appliquée d'office : 12 caractères et 4 familles, 14 et 3, ou phrase de 7 mots, mots de passe courants refusés ; règle simple au choix. Second facteur : seconde enveloppe fermée par le secret PRF de la clé autour de l'emballage par mot de passe — sans la clé, aucun essai de mot de passe n'est possible, même sur une copie du coffre. Règles inscrites dans l'état attesté (0.75.0) |
+| Délai de sept jours | Isolement, après deux décisions de maintien : échéances comptées aussi depuis la précédente décision du juge (168 h), échéance la plus proche retenue ; réglage par établissement (0.76.0) |
+| Exports et CSV | Purge après 31 jours par défaut ; toute cellule de CSV commençant par =, +, - ou @ est neutralisée (injection de formule) ; mots de passe provisoires jamais exportés (0.77.0) |
+| Horloge du poste | Date d'écriture donnée par le système de fichiers comparée à l'horloge du poste ; écart de plus de 5 minutes signalé et tracé (0.77.0) |
+| Robustesse | Saisies portant un identifiant réservé (« __proto__ »…) écartées ; décompression des classeurs importés plafonnée (0.77.0) |
+| Publication | Flux de publication : tests et empreintes bloquants, signature vérifiée exigée pour les versions stable et bêta, approbation du porteur, actions épinglées par empreinte ; branches publiées protégées (0.74.0) |
+
 ## 5. Dossier de données et droits
 
 - Créer un dossier dédié, par exemple `\\serveur\donnees\TesseraSante`, **un par périmètre de confidentialité** (un établissement, un pôle). Tous les modules y sont rangés.
@@ -184,7 +199,7 @@ Les modules qui concernent des patients (Isocont, Agenda) **dépendent** du modu
 - Les droits NTFS s'appliquent au dossier entier : ils ne distinguent pas les modules. La séparation entre modules est assurée par le chiffrement (une clé par module).
 - L'application ne supprime jamais un fichier de données. Une suppression manuelle est détectée lorsqu'elle crée un trou dans la chaîne des saisies d'un poste, et les sauvegardes permettent de restaurer le fichier.
 - Les droits Windows sont une seconde barrière, indépendante du chiffrement : un fichier copié hors du dossier reste illisible sans moyen de déverrouillage.
-- **Exports** (`exports\<service>\<catégorie>`) : décomptes JLD, registres, statistiques, données d'un patient y sont écrits **en clair** (PDF, CSV), jamais écrasés, tracés au journal, purgés selon la durée de conservation réglée par l'établissement (aucune purge par défaut). Le rangement par service permet, si l'établissement le souhaite, des droits NTFS par service sur ces sous-dossiers. *(existant)*
+- **Exports** (`exports\<service>\<catégorie>`) : décomptes JLD, registres, statistiques, données d'un patient y sont écrits **en clair** (PDF, CSV), jamais écrasés, tracés au journal, purgés selon la durée de conservation réglée par l'établissement (**31 jours par défaut** depuis 0.77.0 ; « aucune purge » au choix). Les cellules des CSV sont neutralisées contre l'injection de formule. **Recommandation** : réserver par des droits NTFS le sous-dossier des exports (et, si l'établissement le souhaite, chaque sous-dossier de service) aux agents concernés, car ces fichiers ne sont pas chiffrés. *(existant)*
 
 ## 6. Cryptographie
 
@@ -194,7 +209,9 @@ Les modules qui concernent des patients (Isocont, Agenda) **dépendent** du modu
 | Clé personnelle de l'agent | Paire de clés ECDH (courbe P-256, Web Crypto API) créée par l'agent à son premier changement de mot de passe (l'administrateur ne la connaît jamais) ; partie publique en clair dans le coffre ; partie privée emballée par le mot de passe ou la clé de sécurité ; le code de secours ouvre une clé de secours distincte | existant |
 | Clé de plateforme | AES-GCM 256 ; chiffre les comptes, les services, les rôles et le journal du socle (aucune donnée de patient) ; remise à tous les comptes actifs | existant |
 | Clé d'un module | AES-GCM 256 ; chiffre les saisies et réglages du module ; remise, chiffrée pour lui (ECDH + HKDF-SHA-256), à chaque agent qui y a droit (rôle dans le module et service où il est activé) | existant |
-| Remise d'une clé | L'administrateur chiffre la clé du module avec la partie publique de l'agent : il n'a pas besoin de connaître son mot de passe, et rien ne passe par un serveur | existant |
+| Remise d'une clé | L'administrateur chiffre la clé du module avec la partie publique de l'agent : il n'a pas besoin de connaître son mot de passe, et rien ne passe par un serveur. Une clé nouvelle qui ne découle pas d'un acte de l'administrateur attend sa confirmation | existant (confirmation : 0.71.0) |
+| Signature des saisies | ECDSA P-256, SHA-256 ; clé tirée de la clé personnelle (HKDF-SHA-256, contexte propre) ; parties publiques attestées dans l'état signé (`signatures`, `admins`, `saisiesSignees`) ; chaîne de liens signés au changement de mot de passe ; vérification de chaque saisie à la lecture (≈ 0,15 ms par saisie) | existant (0.72.0) |
+| Second facteur | Emballage par mot de passe (PBKDF2) refermé dans une seconde enveloppe AES-GCM dont la clé est tirée du secret PRF de la clé de sécurité ; code de la clé exigible (`userVerification: required`) | existant (0.75.0), désactivé par défaut |
 | Retrait d'un droit | Suppression de l'enveloppe de l'agent, puis **nouvelle génération** de la clé du module pour les saisies à venir. Les générations précédentes restent remises aux agents qui gardent l'accès et à tout nouvel agent : ils lisent tout l'historique ; seul l'agent retiré ne reçoit pas la nouvelle. Automatique (retrait d'un rôle, compte désactivé, module désactivé pour ses services). Générations tirées d'une clé maîtresse (HKDF-SHA-256) détenue par l'administrateur et le code de secours ; nouvelle clé maîtresse au retrait d'un administrateur | existant |
 | Emballage par mot de passe | PBKDF2-SHA-256, 600 000 itérations, sel aléatoire de 128 bits | existant |
 | Emballage par clé de sécurité | Secret WebAuthn PRF (*hmac-secret*) calculé dans la clé, dérivé par HKDF-SHA-256 | existant |
@@ -279,7 +296,11 @@ Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre
 | Lecture par un agent sans droit sur le partage | Droits NTFS ; chiffrement |
 | Agent lisant un module auquel il n'a pas droit | **Impossible sans la clé du module** : la séparation est cryptographique |
 | Agent lisant un autre service du même module | Filtré par l'interface seulement (choix assumé, voir § 3) ; consultations non tracées, saisies nominatives et chaînées |
-| Agent autorisé outrepassant son rôle dans un module | Rôles appliqués par l'interface ; **sans serveur, ce contrôle n'est pas inviolable** pour un utilisateur techniquement compétent disposant d'un compte valide, mais toute saisie est nominative et visible au journal |
+| Agent autorisé outrepassant son rôle dans un module | Rôles appliqués par l'interface, **et à la lecture sur chaque poste** depuis 0.74.0 : une saisie signée hors des droits de son auteur (à la date de la saisie) n'est appliquée nulle part et est signalée à l'administrateur. Restent permises, faute de pouvoir les rejouer : les permissions qui dépendent de l'état du module, les données ajoutées, les contrôles fins (service, règles métier) |
+| Agent écrivant une saisie ou un réglage au nom d'un autre (journal du socle, clé de plateforme détenue par tous) | **Signature des saisies** (0.72.0) : écartée et signalée sur tous les postes ; remise des clés confirmée par l'administrateur (0.71.0) |
+| Copie du coffre et essais de mots de passe hors ligne | PBKDF2 600 000 itérations, règle renforcée des mots de passe (0.75.0) ; second facteur exigible par rôle : sans la clé, aucun essai possible |
+| Formule piégée dans un export CSV ouvert dans un tableur | Cellules neutralisées (0.77.0) |
+| Horloge d'un poste décalée (échéances légales faussées) | Écart avec le serveur du partage signalé et tracé (0.77.0) |
 | Agent retiré ayant gardé une ancienne clé en mémoire | Nouvelle génération de clé : il ne lit pas les saisies postérieures au retrait |
 | Agent gardant un accès en écriture au partage et la clé de plateforme, qui modifie le coffre (partie publique substituée, rôles ajoutés, fausse génération, version antérieure recopiée) | **Attestation du coffre** : signature vérifiée par chaque agent, comptes et clés personnelles vérifiés par l'administrateur avant toute remise de clé ; anomalie signalée, réparation guidée (dernière version attestée, renouvellement des clés). Il peut encore rendre le coffre inutilisable (suppression, altération) : les sauvegardes et l'historique du coffre y répondent |
 | Altération d'un fichier | Rejetée (chiffrement authentifié) et signalée |
@@ -298,7 +319,7 @@ Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre
 
 ## 11. Mise à jour et vérification
 
-1. Télécharger la version (dépôt GitHub, étiquette de version).
+1. Télécharger la version (dépôt GitHub, étiquette de version). Depuis 0.74.0, une version stable ou bêta n'est publiée que si les tests passent, si son commit porte une signature vérifiée et après approbation du porteur.
 2. Vérifier les empreintes : `Get-FileHash -Algorithm SHA256 .\app\js\*.js` (PowerShell), à comparer avec le fichier d'empreintes publié.
 3. Remplacer le dossier `app` sur le serveur web. Les données ne sont pas touchées. **En phase pilote sur GitHub Pages**, ces étapes sont faites par le porteur du projet à chaque publication ; les postes affichent le bandeau *Recharger la page*.
 4. Le format des données est versionné, module par module : une nouvelle version lit les données des versions antérieures.
@@ -321,7 +342,9 @@ Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre
 - Pas de notification hors de l'application (courriel, SMS) : les alertes s'affichent à l'ouverture.
 - Firefox et Safari ne permettent pas d'ouvrir un dossier réseau.
 - Pas de connexion avec la session Windows à ce stade (étudiée pour plus tard).
-- Les saisies d'un journal sont écrites avec la clé de ce journal : tout détenteur de la clé de plateforme pourrait forger une saisie du journal du socle (réglage commun) ; le coffre et la remise des clés en sont protégés par l'attestation, pas l'affichage qui découle de ces réglages. Les enveloppes, en clair dans le coffre, laissent voir quels comptes détiennent les clés maîtresses (administrateurs).
+- Les saisies sont signées et les droits de leur auteur contrôlés à la lecture (0.72.0 à 0.74.0). Restent hors de ce contrôle : les permissions « pour soi » qui dépendent de l'état du module, les données ajoutées, les traces des comptes ; un coffre ancien n'exige la signature qu'après décision de l'administrateur. Les enveloppes, en clair dans le coffre, laissent voir quels comptes détiennent les clés maîtresses (administrateurs). Les identifiants de connexion sont lisibles dans `coffre.json`.
+- Second facteur essayé avec l'authentificateur virtuel de Chrome : essai avec une vraie clé à faire en recette ; une seule clé par agent associée au mot de passe.
+- Horloge du poste : si le partage reprend la date du poste au lieu de la sienne, aucun écart n'est mesurable.
 - Une donnée protégée « par l'écran » (droits plus restreints que son module) reste chiffrée par la clé du module : un agent du module techniquement compétent pourrait la lire ; seule la protection par clé propre l'en empêche.
 - Consultation tracée d'un message chiffré, bris de glace, limites « patients présents » : garanties par l'application et la traçabilité, pas par la cryptographie (la clé est détenue par les rôles concernés).
 - Entretiens des agents chiffrés : restent lisibles en clair l'auteur, les dates et la liste des clés lectrices (donc l'agent concerné si l'entretien est partagé avec lui).
@@ -340,7 +363,10 @@ Le prénom est affiché avec une initiale majuscule (« Marie », « Jean-Pierre
 - [ ] Agent sans droit sur un module : les fichiers de ce module restent illisibles pour son compte.
 - [ ] Retrait d'un droit : l'agent retiré ne lit plus les nouvelles saisies ; un autre agent lit tout l'historique.
 - [ ] Import d'une liste de patients exportée du DPI (données fictives) : colonnes attribuées, aperçu, annulation.
-- [ ] Clé de sécurité enregistrée puis utilisée pour déverrouiller (si retenue).
+- [ ] Clé de sécurité enregistrée puis utilisée pour déverrouiller (si retenue) ; second facteur : clé associée au mot de passe, connexion refusée sans la clé (si retenu).
+- [ ] Signature des saisies : panneau « Signature des saisies » sans saisie écartée après la recette ; exigence en vigueur.
+- [ ] Horloge : un poste volontairement décalé de 10 minutes affiche le bandeau d'écart.
+- [ ] Droits NTFS du sous-dossier des exports restreints ; durée de conservation des exports confirmée.
 - [ ] Sauvegarde puis restauration du dossier testées.
 - [ ] Vérification qu'aucune requête sortante n'est émise (outils de développement, onglet Réseau).
 - [ ] Mode formation : seules les données fictives s'affichent.

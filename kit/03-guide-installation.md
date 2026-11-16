@@ -24,6 +24,8 @@
    - droits du dossier limités aux comptes des agents habilités (pas de suppression possible par d'autres utilisateurs) ;
    - test de restauration annuel (voir les procédures de secours, document 04).
 4. Rendre le dossier accessible depuis les postes : lecteur réseau mappé ou chemin UNC.
+5. **Exports** (`exports\` sous le dossier) : les fichiers exportés (décomptes, registres, CSV) ne sont pas chiffrés ; réserver ce sous-dossier, par des droits NTFS, aux agents qui en ont besoin (par service si besoin). Purge après 31 jours par défaut, réglable.
+6. **Horloge des postes** : synchronisation horaire du domaine active ; Tessera signale un écart de plus de 5 minutes avec le serveur du partage.
 
 ## 3. Publier l'application (service informatique)
 
@@ -59,10 +61,12 @@ Le coffre est **attesté** : l'administrateur le signe à chaque changement des 
 1. *Enregistrer une clé de sécurité* : brancher la première clé (YubiKey ou équivalent compatible), la nommer, la toucher quand le navigateur le demande.
 2. Recommencer avec une seconde clé, à conserver avec le code de secours.
 3. Tester : *Verrouiller*, puis *Déverrouiller avec une clé de sécurité*.
+4. *Réglages généraux → Comptes → Règles de connexion* : règle des mots de passe (renforcée, d'après la recommandation de la CNIL, par défaut) ; si l'établissement le décide, rôles pour lesquels la **clé de sécurité est exigée en plus du mot de passe** (second facteur, désactivé par défaut ; une clé par agent concerné ; essai sur un poste type obligatoire) et code de la clé exigé.
+5. Dossier créé avant la version 0.72.0 : *Signature des saisies → Exiger la signature des saisies* dès que tous les comptes actifs ont une clé de signature (chaque agent s'est connecté une fois).
 
 ## 6. Paramétrer (administrateur)
 
-Onglet *Administration* : l'onglet général porte les éléments communs ; chaque module a son propre sous-onglet (*Agenda*, et pour Isocont les sous-onglets *Règles et pauses*, *Alertes*, *Cas particuliers*, *Registre et statistiques*, *Décompte JLD*, *Reprise des données*).
+Onglet *Administration* : l'onglet général porte les éléments communs ; chaque module a son propre sous-onglet (*Agenda*, et pour Isocont les sous-onglets *Règles et pauses*, *Alertes*, *Cas particuliers*, *Registre et statistiques*, *Décompte du juge*, *Reprise des données*).
 
 | Section | À renseigner |
 | --- | --- |
@@ -71,7 +75,7 @@ Onglet *Administration* : l'onglet général porte les éléments communs ; chaq
 | Rôles et accès | Rôles fournis (IDE, AS, secrétaire, cadre de santé ; administrateur fixe) et rôles propres à l'établissement. Les accès sont **groupés par module** : un rôle sans aucun accès dans un module n'y entre pas et n'en reçoit pas la clé. Droits proposés par défaut : voir le guide utilisateur (06). |
 | Comptes | Un compte par agent, avec ses rôles et ses **services affectés**. Pour toute une équipe : *Créer des comptes en lot…* (ci-dessous). Chaque compte reçoit un mot de passe provisoire tiré au hasard ; l'agent le remplace à sa première connexion. Comptes temporaires (intérimaires, stagiaires) : date de fin de validité. |
 | Agenda | Désignation des patients dans l'agenda (initiales par défaut, IPP, nom complet, ou « patient ») ; modification des éléments d'un autre service (non par défaut) ; ce que les autres rôles peuvent ajuster sur les tâches du service ; modèles de check-lists et délai d'alerte de chaque point ; types d'alertes (liste de l'établissement, listes propres à certains services). |
-| Isolement et contention | Lieux d'isolement par service et leur appellation, liste des psychiatres, organisation des envois au juge des libertés et de la détention (JLD), postes de surveillance, pauses (levées temporaires), masques du décompte JLD, alertes de l'établissement, cas particuliers. Règles légales : valeurs conformes aux textes, à ne modifier qu'en cas d'évolution réglementaire. Détail des réglages : `docs/consignes-isocont.md`. |
+| Isolement et contention | Lieux d'isolement par service et leur appellation, liste des psychiatres, organisation des envois au juge (magistrat du siège du tribunal judiciaire, anciennement juge des libertés et de la détention, JLD), postes de surveillance, pauses (levées temporaires), masques du décompte du juge, alertes de l'établissement, cas particuliers. Règles légales : valeurs conformes aux textes, à ne modifier qu'en cas d'évolution réglementaire. Détail des réglages : `docs/consignes-isocont.md`. |
 
 ### Reprendre un paramétrage préparé ailleurs
 
@@ -99,7 +103,7 @@ Le mode formation ne demande aucune installation : un jeu de données entièreme
 
 Tessera démarre **sans aucune donnée**. Deux reprises sont possibles, dans cet ordre :
 
-1. **Historique de l'isolement et de la contention**, à partir du **registre du service** : *Administration → Reprise des données → Importer un registre…* (document 07). L'import crée aussi les fiches patient correspondantes. Cas particulier : les établissements qui utilisaient le classeur Excel « Suivi_Isolement_Contention » disposent d'un import spécifique (*Importer un classeur V1.3…*), qui reprend en plus les cycles JLD, l'information des tiers et la surveillance.
+1. **Historique de l'isolement et de la contention**, à partir du **registre du service** : *Administration → Reprise des données → Importer un registre…* (document 07). L'import crée aussi les fiches patient correspondantes. Cas particulier : les établissements qui utilisaient le classeur Excel « Suivi_Isolement_Contention » disposent d'un import spécifique (*Importer un classeur V1.3…*), qui reprend en plus les cycles juge, l'information des tiers et la surveillance.
 2. **Liste des patients présents**, exportée du dossier patient informatisé (DPI) : onglet *Patients → Importer la liste…* (document 11). Elle complète les fiches (séjour, unité, chambre) et crée celles des patients présents sans mesure.
 
 Chaque import est un lot unique, annulable depuis le journal, et ne crée pas de doublon s'il est relancé. Le fichier importé est lu dans le navigateur, jamais copié sur le partage.
@@ -110,8 +114,8 @@ Chaque import est un lot unique, annulable depuis le journal, et ne crée pas de
 - [ ] Un compte IDE ne voit que ses services, et seulement les modules activés dans ces services et ouverts à son rôle.
 - [ ] Un rôle sans accès à un module ne voit pas ce module (barre des modules en bas de l'écran).
 - [ ] Fiche patient : création, correction, séjour ; import d'une liste de test (patients fictifs), puis annulation du lot.
-- [ ] Isolement et contention : création d'une mesure de test, information du tiers, envoi JLD, décompte imprimé, fin de mesure ; échéances JLD vérifiées sur un cas connu (isolement débuté le 1er à 8 h 45 sans cumul antérieur : information avant le 3 à 8 h 45, saisine avant le 4, décision avant le 5).
-- [ ] Agenda : élément répété, check-list, tâche du service cochée par un IDE, absence ; l'échéance JLD de la mesure de test apparaît dans l'onglet *Alertes* pour un rôle qui a l'accès aux envois au JLD, et pas pour un rôle qui ne l'a pas.
+- [ ] Isolement et contention : création d'une mesure de test, information du tiers, envoi au juge, décompte imprimé, fin de mesure ; échéances du juge vérifiées sur un cas connu (isolement débuté le 1er à 8 h 45 sans cumul antérieur : information avant le 3 à 8 h 45, saisine avant le 4, décision avant le 5).
+- [ ] Agenda : élément répété, check-list, tâche du service cochée par un IDE, absence ; l'échéance du juge de la mesure de test apparaît dans l'onglet *Alertes* pour un rôle qui a l'accès aux envois au juge, et pas pour un rôle qui ne l'a pas.
 - [ ] Retrait d'un accès à un rôle : l'agent concerné ne lit plus les saisies nouvelles du module à sa connexion suivante.
 - [ ] Première connexion d'un agent : le mot de passe provisoire doit être remplacé.
 - [ ] Mot de passe oublié : réinitialisation par l'administrateur.

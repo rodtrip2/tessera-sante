@@ -1,5 +1,12 @@
 # Journal des modifications — Tessera Santé
 
+## 0.77.1 — 16 novembre 2026
+
+Documentation mise à jour (versions 0.71 à 0.77), sans changement de l'application.
+- **Documents de référence** : architecture (remises de clés, signature des saisies, droits contrôlés à la lecture, connexion, corrections de l'audit), fiche technique (mécanismes existants, modèle de menace, limites, recette), fiche projet, règles du module Isolement et contention (délai de sept jours, désignation du juge).
+- **Kit** : guides mis à jour (juge, connexion et second facteur, clés à remettre, signature des saisies, exports, horloge, délai de sept jours, procédures de secours) ; **fiches pour chaque décideur** (documents 13 à 19 : délégué à la protection des données, responsable de la sécurité informatique, service informatique, ressources humaines, direction des soins et commission médicale, direction juridique, représentants du personnel), avec la comparaison aux fichiers Word et Excel des partages et l'apport de la traçabilité des tâches à la qualité des soins.
+- Notes de travail reprises dans `docs/historique-decisions.md`.
+
 ## 0.77.0 — 16 novembre 2026
 
 Points de l'audit réglés avant les données réelles (décision du porteur du 16 novembre 2026).

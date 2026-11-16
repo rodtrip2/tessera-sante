@@ -43,6 +43,8 @@ with sync_playwright() as p:
     if a.locator('button', has_text='Données réelles').count(): a.locator('button', has_text='Données réelles').first.click(); time.sleep(2)
     time.sleep(1)
     if a.locator('select[aria-label=Module]').count(): a.locator('select[aria-label=Module]').select_option('isocont'); time.sleep(1)
+    elif not a.locator('.indicateurs').count(): a.get_by_role('button', name='Isolement et contention').first.click(); time.sleep(1.5)
+    if not a.locator('.indicateurs').count() and a.locator('nav.onglets button', has_text='Tableau de bord').count(): a.locator('nav.onglets button', has_text='Tableau de bord').click(); time.sleep(1)
     a.wait_for_selector('.indicateurs'); time.sleep(1)
     shot(a, '02-tableau-de-bord')
     print('OK connexion')
