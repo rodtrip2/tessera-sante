@@ -101,7 +101,7 @@ with sync_playwright() as p:
     b64 = a.evaluate("async () => { const s = SIC.ui.App.session; const f = (await s.listerExports()).find(x => /\\.pdf$/.test(x.nom)); const o = await s.lireExport(f.chemin); let t = ''; o.forEach(c => t += String.fromCharCode(c)); return btoa(t); }")
     open(OUT + '/decompte.pdf', 'wb').write(base64.b64decode(b64))
     d.get_by_role('button', name='Fermer').last.click(); time.sleep(0.5)
-    a.get_by_role('button', name='Exports').click(); time.sleep(1.2)
+    a.get_by_role('button', name='Plus ▾').click(); time.sleep(0.3); a.get_by_role('menuitem', name='Exports').click(); time.sleep(1.2)
     shot(a.locator('dialog'), '19-exports')
     a.locator('dialog').get_by_role('button', name='Fermer').last.click(); time.sleep(0.5)
     # ---------------- JLD

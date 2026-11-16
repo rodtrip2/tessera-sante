@@ -1086,14 +1086,16 @@
       h('div', { class: 'statut-synchro', title: s.evts.length + ' saisies dans le journal' }, h('span', { class: 'point' }), age !== null ? 'Synchronisé' : '—'),
       h('div', { class: 'utilisateur' }, h('b', { text: s.utilisateur.nom }), s.utilisateur.roles.map(function (r) { return droits().libRole(config(), r); }).join(' · ')),
       selApercu(s),
-      s.utilisateur.id !== 'secours' ? h('button', { class: 'btn petit', onclick: modaleMonMotDePasse }, 'Mot de passe') : null,
-      anonyme ? null : h('button', { class: 'btn petit', title: 'Fichiers exportés (décomptes, registres, statistiques…)', onclick: modaleExports }, 'Exports'),
-      SIC.ui.horsReseau.boutonInstaller(),
       SIC.ui.modaleRecherche && !anonyme ? h('button', { class: 'btn petit', type: 'button', title: 'Rechercher dans Tessera (Ctrl + K)', onclick: function () { SIC.ui.modaleRecherche(); } }, 'Rechercher') : null,
-      boutonAffichage(), boutonTheme(),
+      // En-tête sur une seule rangée (0.79.0, constat E1 de l'audit) : actions moins fréquentes dans le menu « Plus »
+      menuEntete([
+        s.utilisateur.id !== 'secours' ? h('button', { class: 'btn petit', type: 'button', onclick: modaleMonMotDePasse }, 'Mot de passe') : null,
+        anonyme ? null : h('button', { class: 'btn petit', type: 'button', title: 'Fichiers exportés (décomptes, registres, statistiques…)', onclick: modaleExports }, 'Exports'),
+        boutonAffichage(), boutonTheme(),
+        SIC.ui.horsReseau.boutonInstaller(),
+        h('button', { class: 'btn petit', type: 'button', title: 'Licence, crédits, signaler un problème', onclick: function () { SIC.ui.apropos.modale(); } }, 'À propos')]),
       // Retours sur Tessera (lot O, 14 novembre 2026) : signaler un défaut ou une idée depuis n'importe quelle fenêtre
       SIC.ui.retours && SIC.ui.retours.disponible() ? h('button', { class: 'btn petit', type: 'button', title: 'Signaler un défaut ou proposer une amélioration de Tessera (l’écran ouvert est joint)', onclick: function () { SIC.ui.retours.modaleSignaler(); } }, 'Signaler') : null,
-      h('button', { class: 'btn petit', title: 'Licence, crédits, signaler un problème', onclick: function () { SIC.ui.apropos.modale(); } }, 'À propos'),
       h('button', { class: 'btn petit', onclick: function () { verrouiller(); } }, 'Verrouiller')));
     zoneEntete.appendChild(h('div', { id: 'actualisation-attente', class: 'actualisation-attente', hidden: !App.miseAJourEnAttente },
       'Nouvelles saisies depuis un autre poste. ',
@@ -1134,7 +1136,7 @@
     zoneContenu.style.minHeight = zoneContenu.offsetHeight + 'px';   // évite que la page se replie pendant la reconstruction
     vider(zoneContenu);
     var corps = h('div', { class: 'fenetre-corps' });
-    zoneContenu.appendChild(h('section', { class: 'fenetre', 'aria-label': 'Fenêtre du module' }, titreFenetre(), nav, corps));
+    zoneContenu.appendChild(h('section', { class: 'fenetre', 'aria-label': 'Fenêtre du module' }, h('div', { class: 'fenetre-tete' }, titreFenetre(), nav), corps));
     var vues = { aucun: function () { return h('p', { class: 'muted', text: 'Aucun onglet n’est ouvert à vos rôles : demandez à l’administrateur de vérifier vos accès.' }); }, journal: vueJournal, admin: function () { return vueAdmin('general'); }, groupes: function () { return SIC.ui.vueGroupes ? SIC.ui.vueGroupes() : h('p', { class: 'muted', text: 'Groupes indisponibles.' }); } };
     modulesAdmin().forEach(function (x) { vues['admin-' + x[0]] = function () { return vueAdmin(x[0]); }; });
     vues.aujourdhui = function () { return SIC.ui.vueAujourdhui ? SIC.ui.vueAujourdhui() : vues.aucun(); };
@@ -1156,13 +1158,30 @@
     if (!mesSv.length && !estAdmin) { corps.appendChild(h('div', { class: 'panneau vide', text: 'Aucun service ne vous est affecté. Demandez à l’administrateur de vous en attribuer un.' })); return; }
     // Agent ajouté à un groupe d'agents : information affichée dans toutes les fenêtres jusqu'à « Vu »
     // Prêts de droits (0.31.0) : « Vous remplacez… », et au retour de l'absent « Pendant votre absence… »
-    try { var bpr = SIC.ui.delegations && SIC.ui.delegations.bandeau ? SIC.ui.delegations.bandeau() : null; if (bpr) corps.appendChild(bpr); } catch (e) { /* sans effet sur la vue */ }
-    try { var bg = SIC.ui.bandeauAjoutsGroupes ? SIC.ui.bandeauAjoutsGroupes() : null; if (bg) corps.appendChild(bg); } catch (e) { /* sans effet sur la vue */ }
+    var messages = [];
+    try { var bpr = SIC.ui.delegations && SIC.ui.delegations.bandeau ? SIC.ui.delegations.bandeau() : null; if (bpr) messages.push(bpr); } catch (e) { /* sans effet sur la vue */ }
+    try { var bg = SIC.ui.bandeauAjoutsGroupes ? SIC.ui.bandeauAjoutsGroupes() : null; if (bg) messages.push(bg); } catch (e) { /* sans effet sur la vue */ }
     // Médecins non répertoriés à confirmer : information des gestionnaires de la liste (cadre et secrétaire par défaut)
-    try { var bm = SIC.ui.medecins && SIC.ui.medecins.bandeauAConfirmer ? SIC.ui.medecins.bandeauAConfirmer() : null; if (bm) corps.appendChild(bm); } catch (e) { /* sans effet sur la vue */ }
-    try { var bp = SIC.ui.psychologues && SIC.ui.psychologues.bandeauAConfirmer ? SIC.ui.psychologues.bandeauAConfirmer() : null; if (bp) corps.appendChild(bp); } catch (e) { /* sans effet sur la vue */ }
+    try { var bm = SIC.ui.medecins && SIC.ui.medecins.bandeauAConfirmer ? SIC.ui.medecins.bandeauAConfirmer() : null; if (bm) messages.push(bm); } catch (e) { /* sans effet sur la vue */ }
+    try { var bp = SIC.ui.psychologues && SIC.ui.psychologues.bandeauAConfirmer ? SIC.ui.psychologues.bandeauAConfirmer() : null; if (bp) messages.push(bp); } catch (e) { /* sans effet sur la vue */ }
+    if (messages.length) corps.appendChild(messagesPerso(messages));
     try { var vueEl = vue(maintenant); corps.appendChild(vueEl); if (!estOngletAdmin(App.onglet)) replierVue(vueEl, App.fenetre + '|' + App.onglet); }
     catch (e) { corps.appendChild(h('div', { class: 'erreur', text: 'Erreur d’affichage : ' + e.message })); console.error(e); }
+  }
+  /**
+   * Messages pour l'agent (remplacement, retour d'absence, groupes, médecins et psychologues à confirmer) : en entier dans
+   * « Aujourd'hui », repliés sur une ligne dans les autres fenêtres (0.79.0, constat E1 de l'audit) ; l'agent les
+   * déplie au besoin, et ce choix vaut pour la session.
+   */
+  function messagesPerso(messages) {
+    var nb = messages.reduce(function (n, m) { return n + Math.max(1, m.classList && m.classList.contains('pile') ? m.children.length : 1); }, 0);
+    if (App.fenetre === 'aujourdhui') return h('div', { class: 'pile messages-perso' }, messages);
+    var rempl = null;
+    messages.forEach(function (m) { var b = m.querySelector && m.querySelector('b'); if (!rempl && b && /^Vous remplacez/.test(b.textContent)) rempl = b.textContent; });
+    var d = h('details', { class: 'messages-perso', open: !!App.messagesOuverts, ontoggle: function () { App.messagesOuverts = d.open; } },
+      h('summary', {}, h('b', { text: nb > 1 ? nb + ' messages pour vous' : 'Un message pour vous' }), rempl ? ' — ' + rempl : null),
+      h('div', { class: 'pile' }, messages));
+    return d;
   }
   /**
    * Même logique partout (décision du porteur du 12 novembre 2026) : une page de module ou une fiche à partir de trois
@@ -2380,7 +2399,26 @@
     [{ texte: 'Fermer', classe: 'primaire', action: async function () { if (App.session && App.session.utilisateur && !App.session.apercu) { try { await App.session.enregistrerPreference('affichage', a); } catch (e) { toast('Affichage appliqué sur ce poste ; il n’a pas pu être enregistré pour votre compte.'); } } } }]);
   }
   try { appliquerAffichage(affichageActuel()); } catch (e) { /* affichage par défaut */ }
-  function boutonAffichage() { return h('button', { class: 'btn petit', type: 'button', title: 'Taille d’affichage et hauteur des lignes des tableaux', 'aria-label': 'Affichage', onclick: modaleAffichage }, 'Aa'); }
+  /**
+   * Menu « Plus » de l'en-tête (0.79.0, constat E1) : liste déroulante de boutons, fermée par un clic ailleurs, par
+   * Échap ou après le choix d'une action.
+   */
+  function menuEntete(items) {
+    items = items.filter(Boolean);
+    var liste = h('div', { class: 'menu-entete-liste', role: 'menu', hidden: true }, items);
+    var b = h('button', { class: 'btn petit', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', title: 'Mot de passe, exports, affichage, thème, à propos', onclick: function () { basculer(liste.hidden); } }, 'Plus ▾');
+    var boite = h('div', { class: 'menu-entete' }, b, liste);
+    function fermer(e) { if (!boite.isConnected || !boite.contains(e.target)) basculer(false); }
+    function basculer(ouvrir) {
+      liste.hidden = !ouvrir; b.setAttribute('aria-expanded', String(!!ouvrir));
+      document.removeEventListener('click', fermer, true);
+      if (ouvrir) { document.addEventListener('click', fermer, true); var p = liste.querySelector('button:not([hidden])'); if (p) p.focus(); }
+    }
+    items.forEach(function (it) { it.setAttribute('role', 'menuitem'); it.addEventListener('click', function () { basculer(false); }); });
+    boite.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !liste.hidden) { e.stopPropagation(); basculer(false); b.focus(); } });
+    return boite;
+  }
+  function boutonAffichage() { return h('button', { class: 'btn petit', type: 'button', title: 'Taille d’affichage et hauteur des lignes des tableaux', onclick: modaleAffichage }, 'Affichage'); }
 
   // ---------------------------------------------------------------- Formulaires plus courts (0.26.4)
   /** Champs rarement utilisés repliés sous « Plus d'options » (ouverts d'emblée si l'un d'eux est déjà rempli). */

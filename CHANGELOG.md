@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.79.0 — 16 novembre 2026
+
+Ergonomie (constat E1 de l'audit du 15 novembre 2026) : plus de place pour les tableaux sur un écran de 1 366 × 768.
+- **En-tête sur une seule rangée** : Rechercher, Signaler et Verrouiller restent visibles ; Mot de passe, Exports, Affichage, thème clair ou sombre et À propos passent dans le menu « Plus ▾ » (fermé par Échap, un clic ailleurs ou le choix d'une action). Listes de l'en-tête moins larges ; le bouton « Aa » s'appelle désormais « Affichage ».
+- **Titre de la fenêtre et onglets sur la même rangée** (rangées séparées sur un écran étroit).
+- **Messages pour l'agent** (remplacement, retour d'absence, groupes, médecins et psychologues à confirmer) : en entier dans « Aujourd'hui », repliés sur une ligne dans les autres fenêtres (« 3 messages pour vous — Vous remplacez … »), dépliables pour la session.
+- Résultat : le contenu du tableau de bord d'Isolement et contention commence à 212 px du haut de l'écran au lieu de 479 px.
+
 ## 0.78.0 — 16 novembre 2026
 
 Demandes du porteur du 16 novembre 2026.
