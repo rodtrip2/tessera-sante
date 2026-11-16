@@ -41,7 +41,8 @@ hr + p { font-size: 8.5pt; color: #555; }
 img { display: block; max-width: 100%; max-height: 95mm; margin: 2mm auto 1mm; border: 1px solid #c9cfca; border-radius: 3px; break-inside: avoid; }
 img + em, p > em:only-child { display: block; text-align: center; font-size: 8.5pt; color: #555; margin-bottom: 3mm; }
 h2 { break-before: auto; }
-.saut { break-before: page; }
+.saut { break-before: page; margin: 0; }
+img[src$=".svg"] { max-height: 232mm; border: none; }
 """
 
 

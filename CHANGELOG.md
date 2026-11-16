@@ -1,5 +1,9 @@
 # Journal des modifications — Tessera Santé
 
+## 0.82.1 — 16 novembre 2026
+
+Documentation, sans changement de l'application : nouveau document du kit **« Isolement et contention — calcul des durées, échéances du juge et inscription au registre »** (`kit/20`, avec PDF) : cumul sur 15 jours, échéances du premier cycle et des suivants (délai de sept jours), pauses selon le réglage de l'établissement, catégories et règles d'inscription au registre, exemple complet (isolement, contention avec pause et reprise, arrêt, pause et reprise de l'isolement, seconde contention) calculé par l'outil ; cinq logigrammes (`kit/images/calculs/`, produits par `scripts/logigrammes-calculs.py`).
+
 ## 0.82.0 — 16 novembre 2026
 
 Demande du porteur du 16 novembre 2026 : liste des codes CIM dans Tessera.
