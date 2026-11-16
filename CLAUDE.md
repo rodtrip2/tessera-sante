@@ -61,6 +61,7 @@ Ce fichier rassemble les consignes du porteur du projet et les conventions de tr
 
 - HTML, CSS et JavaScript **sans dépendance ni étape de construction**. Construction du DOM avec l'aide `h()`, **jamais `innerHTML`** ; styles par classes CSS ou CSSOM, jamais d'attribut `style` ni de `<style>` (CSP).
 - La logique métier reste hors de l'interface, testable sous Node ; l'interface ne fait qu'afficher.
+- Jamais `alert`, `confirm` ni `prompt` (0.80.0) : `SIC.ui.alerte`, `await SIC.ui.confirmer(...)`, `await SIC.ui.demander(...)` ; textes de 12 px au moins et contraste conforme en thème clair et sombre (0.81.0).
 - Chaque module déclare son contrat (identité, accès, saisies, réglages, vues, migrations, formation, fournitures, besoins) : `docs/architecture.md` § 3.
 - Les paramètres ont une valeur par défaut et sont validés à la lecture ; tout nouveau paramètre va dans le jeu de formation, dans les libellés du journal et dans un groupe de l'export des réglages (ou ses exclusions).
 - Sélecteur de dossier (`showDirectoryPicker`) toujours appelé directement par le clic de l'agent, sans fenêtre avant lui.

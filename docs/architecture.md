@@ -403,6 +403,12 @@ Feuille de staff clinique et notes cliniques rattachées au séjour (décisions 
 - **Délai de sept jours** (0.76.0) : isolement, après deux décisions de maintien, échéances comptées aussi depuis la précédente décision du juge (168 h, saisine 24 h avant ; art. L. 3222-5-1, II, CSP ; Cass., avis, 6 mars 2024, n° 23-70.017), échéance la plus proche retenue ; réglage `casParticuliers.septJours` (méthode recommandée par défaut, méthode du classeur V1.3 au choix) ; message type au greffe (*Cas particuliers*).
 - **Avant les données réelles** (0.77.0) : exports purgés après 31 jours par défaut ; cellules des CSV neutralisées contre l'injection de formule (`csv.js`) ; mots de passe provisoires jamais exportés ; désignation du juge réglable (`libelleJuge`, « juge » par défaut, appliquée aux écrans, CSV et PDF) ; écart d'horloge du poste signalé ; identifiants réservés écartés du journal (`saisieSure`) ; décompression des classeurs plafonnée.
 - **Propriété du logiciel** : annexe descriptive à la fiche projet ; non bloquante pour les données réelles (décision du porteur du 16 novembre 2026).
+- **Ergonomie** (0.79.0 à 0.81.0, constats E1 à E5) : en-tête sur une rangée (menu « Plus ▾ » : `menuEntete`), titre de fenêtre et onglets réunis (`.fenetre-tete`), messages pour l'agent complets dans « Aujourd'hui » et repliés ailleurs (`messagesPerso`) ; fenêtres de l'outil à la place de `alert`, `confirm`, `prompt` (`SIC.ui.alerte`, `SIC.ui.confirmer`, `SIC.ui.demander` ; `SIC.ui.reponsesAutomatiques` pour le parcours automatisé) ; onglets de l'administration par thème (`groupesAdmin`) ; contrastes conformes en thème clair et sombre (`--bad-ink`, encre calculée sur les couleurs choisies : `SIC.ui.encreSur`, `encreSurTeinte`) ; textes de 12 px au moins.
+
+## 7 octies. Demandes du porteur du 16 novembre 2026 (version 0.78.0)
+
+- **Plusieurs codes CIM dans un seul champ** (feuille de staff) : `SIC.clinique.separerCim(texte)` — chaque code (une lettre, deux chiffres, éventuellement un point et jusqu'à trois caractères, ou une suite collée ; + * † admis) ouvre une ligne, le texte qui suit en est le libellé ; séparateurs : point-virgule, virgule, retour à la ligne, tiret, barre ; un code précédé d'un mot sans séparateur reste dans le libellé ; doublons ignorés ; 50 codes au plus. L'agent vérifie puis enregistre ; aucune saisie nouvelle.
+- **Graphiques en PDF** : `SIC.pdf.Document.prototype.dessin` (formes, tracés SVG avec arcs en courbes de Bézier, textes ; cadre élargi pour les textes qui débordent), `U.graphiquePdf` (`app/js/ui-graphiques.js` : relit le SVG affiché et ses styles en thème clair, légende de la figure). Boutons « Exporter en PDF » : statistiques d'Isocont, graphiques de l'année d'un patient (document confidentiel), graphiques du tableur ; graphique mensuel ajouté au PDF des statistiques. Catégorie d'export « Graphiques ».
 
 ## 8. Imports
 
@@ -515,6 +521,7 @@ Sept étapes, chacune publiable seule avec tous les tests au vert.
 | Phase 4 | Faite : droit d'accès des modules arrêtés, formalités, Formations, Heures supplémentaires, entretiens des agents (0.62 à 0.66) ; fichiers joints et photos des demandes de travaux remis à plus tard |
 | Phase 5 | Faite : rôles selon le service, accès réglable aux données cliniques et bris de glace, données cliniques du séjour (0.67 à 0.69) |
 | Version stable 0.70.0 (15 novembre 2026) | Documentation mise à jour, étiquette signée `v0.70.0` |
+| Version stable 0.81.1 (16 novembre 2026) | Codes CIM groupés, graphiques en PDF, ergonomie (E1 à E5), documentation à jour |
 | Corrections de l'audit (15 et 16 novembre 2026) | Faites (0.71 à 0.77) : remises de clés confirmées, signature des saisies, droits contrôlés à la lecture, publication protégée, mots de passe et second facteur, délai de sept jours, points avant les données réelles (§ 7 septies) |
 
 Restent propres à Isocont dans la coquille : quelques aides d'affichage liées aux patients et aux mesures (`patient`, `lieu`, réglages d'affichage de l'accueil), à reprendre avec le module Patients (étape 5) ; textes (titre, « Informations techniques », fichier lisez-moi du jeu de formation), à généraliser avec l'écran d'accueil des modules (étape 6). À l'étape 3 : le panneau « Règles légales et sécurité » d'Isocont porte aussi le verrouillage après inactivité, réglage du socle.
@@ -627,5 +634,7 @@ Points de vigilance : `ui.js` est le découpage le plus long, à faire par blocs
 | Délai de sept jours | Réglage par établissement, méthode recommandée par défaut ; échéance la plus prudente ; contention non concernée ; message type au greffe | 16 nov. 2026 |
 | Propriété du logiciel | Annexe descriptive à la fiche projet ; non bloquante pour les données réelles | 16 nov. 2026 |
 | Avant les données réelles | Exports, CSV, désignation du juge, horloge du poste, robustesse corrigés avant les documents des décideurs et la version stable | 16 nov. 2026 |
+| Codes CIM, graphiques | Plusieurs codes CIM dans un seul champ, séparés ensuite ; graphiques exportables en PDF | 16 nov. 2026 |
+| Ergonomie | Points E1 à E5 de l'audit traités avant la version stable ; ensemble passé en version stable | 16 nov. 2026 |
 
 **Questions restantes** : ajout de l'IPP à l'export de Sillage (à demander à l'administrateur du DPI) ; devenir du dépôt `Suivi-mesures-isocont` une fois Tessera en service.

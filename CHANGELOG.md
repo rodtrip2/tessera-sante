@@ -1,5 +1,9 @@
 # Journal des modifications — Tessera Santé
 
+## 0.81.1 — 16 novembre 2026 (version stable)
+
+Documentation mise à jour pour les versions 0.78 à 0.81, sans changement de l'application : architecture (§ 7 septies et octies, décisions), fiche technique (graphiques en PDF, fenêtres de l'outil), fiche projet, guides du kit (menu « Plus ▾ », messages repliés, confirmations, onglets de l'administration par thème, plusieurs codes CIM, graphiques en PDF), fiche pour les représentants du personnel (ergonomie faite), convention de code (CLAUDE.md § 5) ; PDF régénérés.
+
 ## 0.81.0 — 16 novembre 2026
 
 Ergonomie et lisibilité (constats E2, E4 et E5 de l'audit du 15 novembre 2026).
