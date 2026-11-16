@@ -4,6 +4,8 @@
  * Reprise fidèle des calculs de la V1.3 (Module_Actualisation_V1_3) :
  *  - cumul glissant 15 jours par patient et par type, périodes fusionnées,
  *    jamais avant la fin de la dernière mesure levée par le JLD ;
+ *  - suite de mesures séparées de moins de 48 h (0.84.0) : mesure unique pour le juge, durées additionnées sans limite
+ *    de 15 jours, cycle poursuivi (art. L. 3222-5-1, II, et R. 3211-31, I, 2°, CSP) ;
  *  - échéances JLD ancrées sur le DÉBUT de la mesure ; à partir du rythme des mesures longues (isolement, après deux
  *    décisions de maintien), délai de sept jours compté aussi depuis la précédente décision du juge, l'échéance la plus
  *    proche étant retenue (option `septJours`, 0.76.0 ; art. L. 3222-5-1, II, CSP ; Cass. avis, 6 mars 2024, n° 23-70.017) ;
@@ -110,10 +112,51 @@
     return d;
   }
 
-  /** Cumul (heures) des mesures du même type commencées avant `mesure`, sur `jours` glissants avant son début. */
-  function cumulAvantMesure(mesures, mesure, jours) {
+  /**
+   * Suite de mesures pour le juge (art. L. 3222-5-1, II, et R. 3211-31, I, 2°, CSP) : mesures du même patient et du même
+   * type dont chacune débute moins de 48 heures après la fin de la précédente. Pour le calcul des délais, la suite forme une
+   * mesure unique (circulaire de la Justice du 23 mars 2022) : ses durées s'additionnent sans limite de 15 jours et le cycle
+   * du juge se poursuit. Une mainlevée ordonnée par le juge interrompt la suite (remise à zéro, décision du porteur du
+   * 16 novembre 2026). Le registre n'est pas concerné. Retourne les mesures qui précèdent `mesure` dans sa suite, de la plus
+   * ancienne à la plus récente.
+   */
+  function mesuresSuite(mesures, mesure) {
+    var levee = derniereLeveeJLD(mesures, mesure.patientId, mesure.type, mesure.debut);
+    var candidates = mesures.filter(function (m) {
+      return m.id !== mesure.id && memePatientType(m, mesure.patientId, mesure.type) && m.debut < mesure.debut && m.debut >= levee;
+    });
+    var debut = mesure.debut, suite = [], vues = {}, change = true;
+    while (change) {
+      change = false;
+      candidates.forEach(function (m) {
+        if (vues[m.id]) return;
+        var fin = typeof m.fin === 'number' ? m.fin : Infinity;
+        if (m.debut < debut && fin > debut - 48 * H) { vues[m.id] = true; suite.push(m); debut = Math.min(debut, m.debut); change = true; }
+        else if (m.debut >= debut) { vues[m.id] = true; suite.push(m); change = true; }   // mesure incluse dans la suite déjà parcourue
+      });
+    }
+    return suite.sort(function (a, b) { return a.debut - b.debut; });
+  }
+
+  /** Début de la suite de mesures d'une mesure (son propre début si aucune mesure ne la précède à moins de 48 h). */
+  function debutSuite(mesures, mesure) {
+    var s = mesuresSuite(mesures, mesure);
+    return s.length ? Math.min(mesure.debut, s[0].debut) : mesure.debut;
+  }
+
+  /**
+   * Borne de départ du cumul d'une mesure pour le juge : 15 jours glissants avant son début, ou le début de sa suite de
+   * mesures séparées de moins de 48 h s'il est plus ancien (l'échéance la plus proche l'emporte) ; jamais avant la fin de la
+   * dernière mesure levée par le juge.
+   */
+  function borneCumul(mesures, mesure, jours) {
     jours = jours || 15;
-    var borne = Math.max(mesure.debut - jours * J, derniereLeveeJLD(mesures, mesure.patientId, mesure.type, mesure.debut));
+    return Math.max(Math.min(mesure.debut - jours * J, debutSuite(mesures, mesure)), derniereLeveeJLD(mesures, mesure.patientId, mesure.type, mesure.debut));
+  }
+
+  /** Cumul (heures) des mesures du même type commencées avant `mesure` : 15 jours glissants, ou toute sa suite de mesures (moins de 48 h). */
+  function cumulAvantMesure(mesures, mesure, jours) {
+    var borne = borneCumul(mesures, mesure, jours);
     var iv = [];
     mesures.forEach(function (m) {
       if (m.id === mesure.id || !memePatientType(m, mesure.patientId, mesure.type)) return;
@@ -184,7 +227,10 @@
     var p = params(mesure.type, surcharge);
     cycle = Math.max(1, cycle || 1);
     var cumul = cumulAvantMesure(mesures, mesure, 15);
-    function e1(nature) { return mesure.debut + Math.max(0, seuil(p, nature) - cumul) * H; }
+    // Mesure d'une suite (moins de 48 h) : les échéances suivent le temps de la suite, même déjà passées (le cycle se
+    // poursuit) ; mesure distincte (cumul des 15 jours) : au plus tôt à son début.
+    var enSuite = mesuresSuite(mesures, mesure).length > 0;
+    function e1(nature) { var reste = seuil(p, nature) - cumul; return mesure.debut + (enSuite ? reste : Math.max(0, reste)) * H; }
     var i1 = e1('INFO'), s1 = e1('SAISINE'), d1 = e1('DECISION');
     if (p.rythmeLongCycle >= 2 && cycle >= p.rythmeLongCycle) {
       var base = d1 + (p.rythmeLongCycle - 2) * p.intervalleCycle * H + (cycle - p.rythmeLongCycle) * p.rythmeLongDecision * H;
@@ -218,6 +264,9 @@
     heuresEffectives: heuresEffectives,
     instantEffectif: instantEffectif,
     derniereLeveeJLD: derniereLeveeJLD,
+    mesuresSuite: mesuresSuite,
+    debutSuite: debutSuite,
+    borneCumul: borneCumul,
     cumulAvantMesure: cumulAvantMesure,
     cumulHeures: cumulHeures,
     echeances: echeances,

@@ -199,7 +199,7 @@
           h('td', { class: 'nowrap' }, enCours ? h('b', { text: 'en cours' }) : U.date(m.fin), enCours ? null : h('br'), enCours ? null : h('small', { text: (m.psychiatreFin || '') + (m.motifFin ? ' — ' + m.motifFin : '') })),
           h('td', { class: 'nowrap', text: fd(M.dureeHeures(m, maintenant, cfg)) }),
           h('td', { class: 'nowrap', text: (m.pauses || []).length ? m.pauses.length + ' — ' + fd(hp) + (op.retrancher ? ' (déduites)' : '') : '—' }),
-          h('td', { text: String(m.cycle) }),
+          h('td', { text: String(M.cycleJuge(U.st(), m, maintenant)) }),
           h('td', {}, U.tiersBadge(m)),
           h('td', { class: 'actions-ligne' },
             h('button', { class: 'btn petit', onclick: function () { ouvrir(function () { U.detailMesure(m); }); } }, 'Détail'), ' ',

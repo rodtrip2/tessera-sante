@@ -634,3 +634,125 @@ test('Décompte : mise en forme des titres (taille, position, espace), héritage
   const sv1 = M.masqueDecompte({ decompte: { '*': { titres: { etab: { taille: 12, gras: true, serviceALaLigne: true } } }, U1: { titres: { service: { taille: 9, italique: true, aligne: 'droite' } } } } }, 'U1').titres.service;
   assert.deepEqual(sv1, { taille: 9, aligne: 'droite', avant: 0, gras: true, italique: true });
 });
+
+test('Juge : suite de mesures séparées de moins de 48 h — mesure unique, cumul au-delà de 15 jours, cycle poursuivi', () => {
+  const d = h => local(2026, 6, 1, 0) + h * H;
+  const base = [
+    evt('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1' }] }),
+    evt('PATIENT', { patientId: 'P' }),
+    evt('MODE_HOSPI', { patientId: 'P', mode: 'SDT', date: d(-100) })
+  ];
+  // Isolements de 4 h, un par jour et demi (écart de 32 h), pendant 21 jours : toute la suite compte
+  const suite = [];
+  for (let i = 0; i < 14; i++) {
+    suite.push(evt('MESURE_DEBUT', { mesureId: 'S' + i, patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: d(i * 36), csi: true }));
+    suite.push(evt('MESURE_FIN', { mesureId: 'S' + i, fin: d(i * 36 + 4) }));
+  }
+  suite.push(evt('MESURE_DEBUT', { mesureId: 'N', patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: d(14 * 36), csi: true }));
+  const st = M.reduire(base.concat(suite));
+  const t = d(14 * 36 + 1);
+  assert.equal(M.suiviJLD(st, st.mesures.N, t).cumulAvant, 56);                 // 14 × 4 h, dont une partie au-delà de 15 jours
+  assert.ok(M.suiviJLD(st, st.mesures.N, t).suite);
+  assert.equal(M.suiviJLD(st, st.mesures.N, t).info.echeance, d(14 * 36) - 8 * H);   // 48 h atteintes avant la mesure : information due
+  // Même rythme mais écart de 48 h ou plus : mesures distinctes, cumul des 15 jours seulement
+  const distinctes = [];
+  for (let i = 0; i < 8; i++) {
+    distinctes.push(evt('MESURE_DEBUT', { mesureId: 'D' + i, patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: d(i * 52), csi: true }));
+    distinctes.push(evt('MESURE_FIN', { mesureId: 'D' + i, fin: d(i * 52 + 4) }));
+  }
+  distinctes.push(evt('MESURE_DEBUT', { mesureId: 'N', patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: d(8 * 52), csi: true }));
+  const st2 = M.reduire(base.concat(distinctes));
+  const j2 = M.suiviJLD(st2, st2.mesures.N, d(8 * 52 + 1));
+  assert.equal(j2.suite, null);
+  assert.equal(j2.cumulAvant, 24);                                                // 15 jours avant N (360 h) : D2 à D7, D1 finit juste à la borne
+  // Le registre n'est pas concerné : une entrée par mesure
+  assert.equal(M.registre(st, 'U1', 2026, t).length, 15);
+});
+
+test('Juge : cycle poursuivi dans la suite, saisies de la mesure précédente reprises ; mainlevée : remise à zéro', () => {
+  const d = h => local(2026, 7, 1, 0) + h * H;
+  const ev = [
+    evt('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1' }] }),
+    evt('PATIENT', { patientId: 'P' }),
+    evt('MODE_HOSPI', { patientId: 'P', mode: 'SDT', date: d(-100) }),
+    evt('MESURE_DEBUT', { mesureId: 'A', patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: d(0), csi: true }),
+    evt('JLD', { mesureId: 'A', cycle: 1, nature: 'INFO', date: d(47) }),
+    evt('JLD', { mesureId: 'A', cycle: 1, nature: 'SAISINE', date: d(70) }),
+    evt('JLD', { mesureId: 'A', cycle: 1, nature: 'DECISION', date: d(90), decision: 'MAINTIEN' }),
+    evt('MESURE_FIN', { mesureId: 'A', fin: d(100) }),
+    evt('MESURE_DEBUT', { mesureId: 'B', patientId: 'P', service: 'U1', typeMesure: 'Isolement', debut: d(110), csi: true })
+  ];
+  const st = M.reduire(ev);
+  const j = M.suiviJLD(st, st.mesures.B, d(111));
+  assert.equal(j.cycle, 2);                                                      // le maintien du juge vaut pour la suite
+  assert.equal(M.cycleJuge(st, st.mesures.B, d(111)), 2);
+  assert.equal(j.info.echeance, d(110) + 44 * H);                                // 48 + 96 = 144 h de la suite, 100 h déjà faites
+  assert.equal(j.saisine.echeance, d(110) + 68 * H);
+  assert.equal(j.decision.echeance, d(110) + 92 * H);
+  // Mesure reprise pendant le cycle 1 (avant la décision) : information et saisine déjà faites sur la mesure précédente
+  const st1 = M.reduire(ev.filter(e => !(e.type === 'JLD' && e.data.nature === 'DECISION')).map(e => e.type === 'MESURE_FIN' ? evt('MESURE_FIN', { mesureId: 'A', fin: d(80) }) : e)
+    .map(e => e.type === 'MESURE_DEBUT' && e.data.mesureId === 'B' ? evt('MESURE_DEBUT', Object.assign({}, e.data, { debut: d(85) })) : e));
+  const j1 = M.suiviJLD(st1, st1.mesures.B, d(86));
+  assert.equal(j1.cycle, 1);
+  assert.deepEqual([j1.info.statut, j1.saisine.statut], ['fait', 'fait']);
+  assert.equal(j1.decision.echeance, d(85) + 16 * H);                           // 96 h de la suite, 80 h déjà faites
+  // Mainlevée du juge : la suite est interrompue, la nouvelle mesure repart de zéro (information sans délai)
+  const st3 = M.reduire(ev.map(e => e.type === 'JLD' && e.data.nature === 'DECISION' ? evt('JLD', Object.assign({}, e.data, { decision: 'LEVEE' })) : e));
+  const j3 = M.suiviJLD(st3, st3.mesures.B, d(111));
+  assert.deepEqual([j3.cycle, j3.cumulAvant, j3.suite], [1, 0, null]);
+  assert.equal(j3.saisine.echeance, d(110) + 72 * H);
+  // Une contention reprise moins de 48 h après un isolement ne forme pas une suite avec lui (type par type)
+  const st4 = M.reduire(ev.slice(0, 8).concat([evt('MESURE_DEBUT', { mesureId: 'C', patientId: 'P', service: 'U1', typeMesure: 'Contention', debut: d(110), csi: true })]));
+  assert.equal(M.suiviJLD(st4, st4.mesures.C, d(111)).suite, null);
+  // Décompte : toute la suite, même au-delà de 15 jours
+  const dc = M.decompte(st, st.mesures.B, d(111));
+  assert.ok(dc.lignes.some(l => l.type === 'mesure' && /Mesure antérieure/.test(l.commentaire)));
+});
+
+test('Décompte : suite de mesures au-delà de 15 jours, mesures antérieures signalées comme suite', () => {
+  const d = h => local(2026, 8, 1, 0) + h * H;
+  const ev = [evt('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1' }] }), evt('PATIENT', { patientId: 'P' })];
+  for (let i = 0; i < 12; i++) {
+    ev.push(evt('MESURE_DEBUT', { mesureId: 'S' + i, patientId: 'P', service: 'U1', typeMesure: 'Contention', debut: d(i * 40), csi: true }));
+    ev.push(evt('MESURE_FIN', { mesureId: 'S' + i, fin: d(i * 40 + 1) }));
+  }
+  ev.push(evt('MESURE_DEBUT', { mesureId: 'N', patientId: 'P', service: 'U1', typeMesure: 'Contention', debut: d(12 * 40), csi: true }));
+  const st = M.reduire(ev);
+  const dc = M.decompte(st, st.mesures.N, d(12 * 40 + 1));
+  const ant = dc.lignes.filter(l => l.type === 'mesure' && /Mesure antérieure/.test(l.commentaire));
+  assert.equal(ant.length, 12);
+  assert.ok(ant.some(l => /suite de mesures séparées de moins de 48 heures/.test(l.commentaire)));
+  assert.equal(ant[ant.length - 1].cumul, 12);
+});
+
+test('Registre : numéros décalés par une saisie tardive, signalés au cadre (mesures importées et même patient exclus)', () => {
+  const d = h => local(2026, 9, 1, 0) + h * H;
+  const at = h => new Date(d(h)).toISOString();
+  const st = M.reduire([
+    evt('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1' }] }, { at: at(-10) }),
+    evt('PATIENT', { patientId: 'P1' }, { at: at(-9) }), evt('PATIENT', { patientId: 'P2' }, { at: at(-9) }),
+    evt('MESURE_DEBUT', { mesureId: 'A', patientId: 'P1', service: 'U1', typeMesure: 'Isolement', debut: d(10), csi: true }, { at: at(10) }),
+    evt('MESURE_FIN', { mesureId: 'A', fin: d(20) }, { at: at(20) }),
+    evt('MESURE_DEBUT', { mesureId: 'B', patientId: 'P1', service: 'U1', typeMesure: 'Contention', debut: d(30), csi: false }, { at: at(30) }),
+    evt('MESURE_FIN', { mesureId: 'B', fin: d(32) }, { at: at(32) }),
+    // Saisie tardive (le lendemain) d'un isolement de P2 débuté avant A
+    evt('MESURE_DEBUT', { mesureId: 'L', patientId: 'P2', service: 'U1', typeMesure: 'Isolement', debut: d(5), csi: false }, { at: at(40) }),
+    evt('MESURE_FIN', { mesureId: 'L', fin: d(8) }, { at: at(40.1) })
+  ]);
+  const reg = M.registre(st, 'U1', 2026, d(50));
+  assert.deepEqual(reg.map(e => e.numero), ['B1', 'A2', 'D3']);
+  const dec = M.decalagesRegistre(st, 'U1', 2026, d(50));
+  assert.equal(dec.length, 1);
+  assert.equal(dec[0].mesureId, 'L');
+  assert.deepEqual(dec[0].numeros, ['B1']);
+  assert.deepEqual(dec[0].decales, [{ avant: 'A1', apres: 'A2' }, { avant: 'D2', apres: 'D3' }]);
+  assert.equal(M.decalagesRegistre(st, 'U1', 2026, d(50), d(45)).length, 0);   // saisies d'avant la période demandée : rien
+  // Contention saisie à l'heure pendant un isolement du même patient : l'isolement se recompose, aucun décalage signalé
+  const st2 = M.reduire([
+    evt('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1' }] }, { at: at(-10) }),
+    evt('PATIENT', { patientId: 'P1' }, { at: at(-9) }),
+    evt('MESURE_DEBUT', { mesureId: 'I', patientId: 'P1', service: 'U1', typeMesure: 'Isolement', debut: d(10), csi: true }, { at: at(10) }),
+    evt('MESURE_DEBUT', { mesureId: 'C', patientId: 'P1', service: 'U1', typeMesure: 'Contention', debut: d(12), csi: true }, { at: at(12) })
+  ]);
+  assert.equal(M.decalagesRegistre(st2, 'U1', 2026, d(13)).length, 0);
+});

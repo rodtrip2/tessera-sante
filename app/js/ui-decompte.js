@@ -46,7 +46,7 @@
       mesure: m.type + ' - décidée le ' + U.date(m.debut), lieu: M.lieuDetaille(etat.config, m.lieu, m.csi), psychiatre: (m.psychiatreDebut && SIC.medecins ? SIC.medecins.nomActuel(etat.config, m.psychiatreDebut) : m.psychiatreDebut) || '—'
     };
     var identite = masque.identite.map(function (k) { return [LIB_IDENTITE[k].replace(/ \(.*\)$/, ''), valeurs[k]]; });
-    if (masque.sections.periode) identite.push(['Période analysée', 'du ' + U.date(d.fenetreDebut) + ' au ' + U.date(d.reference) + ' (15 jours glissants avant le début de la mesure, puis la mesure)']);
+    if (masque.sections.periode) identite.push(['Période analysée', 'du ' + U.date(d.fenetreDebut) + ' au ' + U.date(d.reference) + (d.suite ? ' (suite de mesures séparées de moins de 48 h, mesure unique pour le juge, puis la mesure)' : ' (15 jours glissants avant le début de la mesure, puis la mesure)')]);
     if (masque.sections.situation) identite.push(['Situation', 'Dernière mesure initiée le ' + U.date(m.debut) + (d.enCours ? ' — EN COURS au ' + U.date(d.reference) : ' — TERMINÉE le ' + U.date(m.fin))]);
     function cellule(l, c) {
       switch (c) {
@@ -97,7 +97,7 @@
       typesLignes: d.lignes.map(function (l) { return l.type; }),
       actuelles: d.lignes.map(function (l) { return !!l.actuelle; }),
       explicationPauses: explicationPauses,
-      total: 'Cumul des mesures antérieures sur 15 jours : ' + formatDuree(d.cumulAvant, masque.formatCumul) + ' — Durée totale retenue : ' + formatDuree(d.total, masque.formatCumul) + '.',
+      total: (d.suite ? 'Cumul des mesures antérieures (suite de mesures séparées de moins de 48 h, et 15 jours) : ' : 'Cumul des mesures antérieures sur 15 jours : ') + formatDuree(d.cumulAvant, masque.formatCumul) + ' — Durée totale retenue : ' + formatDuree(d.total, masque.formatCumul) + '.',
       cycle: 'Cycle de contrôle n° ' + j.cycle + ' — information avant le ' + U.date(j.info.echeance) + ', saisine avant le ' + U.date(j.saisine.echeance) + ', décision avant le ' + U.date(j.decision.echeance) + '.',
       envois: envois, tiers: tiers, pauses: pauses
     };

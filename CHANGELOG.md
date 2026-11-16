@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.84.0 — 16 novembre 2026
+
+Calcul pour le juge et registre (décisions du porteur du 16 novembre 2026, après vérification des textes et de la jurisprudence).
+- **Suite de mesures séparées de moins de 48 h** : mesure unique pour le juge (art. L. 3222-5-1, II, et R. 3211-31, I, 2°, CSP ; circulaire de la Justice du 23 mars 2022). Durées additionnées sans limite de 15 jours (l'échéance la plus proche l'emporte avec le cumul des 15 jours), cycle du juge poursuivi d'une mesure à l'autre (maintien, envois et décisions des mesures précédentes repris), décompte montrant toute la suite. Type par type ; remise à zéro après une mainlevée du juge. Le registre légal n'est pas concerné.
+- **Numéros du registre décalés par une saisie tardive** : alerte postérieure au cadre seulement (cadre, cadre supérieur, administrateur), dans *Aujourd'hui* pendant 7 jours et sous le registre, avec les numéros changés ; mesures importées exclues.
+- Démonstration : isolement repris moins de 48 h après le précédent (BRAVO), contention saisie après coup (ECHO).
+- Documentation : document 20 du kit (§ 2 à 4 et 6, logigramme 1) et son PDF, consignes Isocont (§ 4 et 6), guide du module.
+
 ## 0.83.0 — 16 novembre 2026
 
 Registre d'isolement et de contention (demande du porteur du 16 novembre 2026 : « le registre ne prend légalement pas en compte la différence entre un arrêt et une pause »).
