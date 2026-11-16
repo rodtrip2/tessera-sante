@@ -536,6 +536,55 @@ Pistes proposées le 13 novembre 2026, inscrites à la demande du porteur. Elles
 - **Fonctionnement envisagé** : enveloppe annuelle des activités et sorties thérapeutiques ; dépenses par activité (date, objet, montant, justificatif joint quand les fichiers joints existeront, lot D) ; solde et consommation par période ; avances et retours de monnaie validés à deux agents ; export pour la régie.
 - **À trancher** : règles de la régie de l'établissement ; lien avec les activités de l'agenda.
 
+## R. Montée en charge et place sur le partage (test de charge du 16 novembre 2026)
+
+Suites du test de charge (`docs/test-de-charge.md`), versées ici à la demande du porteur du 16 novembre 2026. La version 0.85.0 a déjà traité la connexion, le recalcul et la mémoire.
+
+### Chargement par année
+
+- **Fonctionnement envisagé** : chaque poste charge l'année en cours et la précédente ; les années plus anciennes sont lues à la demande, pour le registre, les statistiques et le droit d'accès. La fiche patient garde ce qu'il faut de l'historique (séjours, modes).
+- **Pourquoi** : la mémoire et le temps de connexion croissent avec le nombre de services et d'années, car chaque poste charge tout l'établissement. Vers 10 services sur 5 ans (2,6 millions de saisies), il faudrait environ 2,8 Go, près de la limite d'un onglet de navigateur.
+- **À trancher** : à décider avant un déploiement de plus de quelques services ; autre possibilité : un dossier par pôle.
+
+### Vérification des signatures gardée sur le poste
+
+- **Fonctionnement envisagé** : le poste garde l'empreinte des saisies déjà vérifiées ; à la connexion suivante, seules les saisies nouvelles ou modifiées sont vérifiées.
+- **Gain attendu** : connexion beaucoup plus courte au bout de quelques années.
+- **À trancher** : choix de sécurité à soumettre au responsable de la sécurité informatique (où garder ces empreintes, comment empêcher leur falsification sur le poste).
+
+### Quotas des documents et des pièces jointes
+
+- **Fonctionnement envisagé** :
+  - **par agent**, réglable par l'administrateur : place des versions de documents, des images et des pièces jointes sur un mois glissant (proposé : 200 Mo), message à 80 %, puis refus d'une nouvelle version ou pièce, sans rien perdre de ce qui est en cours ;
+  - **par service** (proposé : 2 Go par an), avec une alerte à l'administrateur et au cadre ;
+  - **exceptions** par agent, rôle sans quota ;
+  - **jamais de quota** sur Isolement et contention, les décisions du juge, les fiches patient, les congés et les heures.
+- **Pourquoi** : les saisies ordinaires ne pèsent presque rien ; seuls les documents (un gros classeur modifié toute une journée peut écrire plusieurs centaines de Mo) et les pièces jointes peuvent remplir le partage.
+- **À trancher** : valeurs par défaut ; agents et rôles exemptés.
+
+### Espacement des versions des gros documents
+
+- **Fonctionnement envisagé** : au-delà de 200 Ko, enregistrement automatique au plus toutes les 2 minutes (l'enregistrement manuel reste immédiat).
+- **Gain attendu** : place d'un gros classeur divisée par 8, sans quota.
+
+### Garde-fou anti-emballement
+
+- **Fonctionnement envisagé** : au-delà d'un débit anormal (proposé : 2 000 saisies par heure pour un même agent), les saisies non dues sont suspendues et l'administrateur est alerté ; les saisies dues (Isolement et contention, juge) ne sont jamais bloquées.
+
+### Tableau de la place occupée
+
+- **Fonctionnement envisagé** : pour l'administrateur (*Sauvegardes et exports*), place occupée par module, par service, et par agent pour les documents et les pièces jointes, avec son évolution et une alerte avant la limite du partage.
+
+### Lecture complète du partage
+
+- **À mesurer sur place** avec le service informatique : la lecture complète, toutes les 10 minutes, liste tous les fichiers (2,6 millions à 10 services sur 5 ans).
+- **Piste** : lecture complète des 3 derniers mois toutes les 10 minutes, et de tout l'historique une fois par jour.
+
+### Regroupement des mois clos
+
+- **Fonctionnement envisagé** : les fichiers des mois clos rangés dans une archive unique, pour diviser le nombre de fichiers (sauvegarde, antivirus, copie de secours) et la place perdue en blocs de 4 Ko (place occupée 4 fois le contenu).
+- **À trancher** : touche au principe « fichiers jamais modifiés » ; décision à prendre avec le service informatique et le responsable de la sécurité informatique.
+
 ## Écartée pour l'instant
 
 ### Agenda : échéances des certificats légaux

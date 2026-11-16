@@ -186,7 +186,7 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 
 ## 9. État d'avancement
 
-- **Socle commun et les dix-huit modules** : développés et vérifiés par plus de 530 tests automatiques et un parcours complet des écrans (version stable 0.81.1 du 16 novembre 2026, ergonomie revue), démonstration sur données fictives. Audit complet le 15 novembre 2026, points bloquants corrigés. Aucune utilisation avec des données réelles à ce jour.
+- **Socle commun et les dix-huit modules** : développés et vérifiés par plus de 540 tests automatiques et un parcours complet des écrans (version stable 0.85.1 du 16 novembre 2026, ergonomie revue), démonstration sur données fictives. Audit complet le 15 novembre 2026, points bloquants corrigés. Aucune utilisation avec des données réelles à ce jour.
 - **Documents pour chaque décideur** : délégué à la protection des données, responsable de la sécurité informatique, service informatique, ressources humaines, direction des soins et commission médicale, direction juridique, représentants du personnel (`kit/`).
 - **Kit de déploiement** : guide d'installation, procédures de secours, éléments RGPD (un traitement par module), guides utilisateur et guide pratique illustré, imports (dossier `kit/` du dépôt).
 

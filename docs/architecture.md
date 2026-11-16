@@ -523,6 +523,7 @@ Sept étapes, chacune publiable seule avec tous les tests au vert.
 | Phase 5 | Faite : rôles selon le service, accès réglable aux données cliniques et bris de glace, données cliniques du séjour (0.67 à 0.69) |
 | Version stable 0.70.0 (15 novembre 2026) | Documentation mise à jour, étiquette signée `v0.70.0` |
 | Version stable 0.81.1 (16 novembre 2026) | Codes CIM groupés, graphiques en PDF, ergonomie (E1 à E5), documentation à jour |
+| Version stable 0.85.1 (16 novembre 2026) | Liste des codes CIM importée, document des calculs et du registre, registre légal (pause = arrêt, numérotation dans l'ordre d'apparition), suite de mesures de moins de 48 h pour le juge, test de charge et ses trois limites traitées, présentation des fonctionnalités |
 | Corrections de l'audit (15 et 16 novembre 2026) | Faites (0.71 à 0.77) : remises de clés confirmées, signature des saisies, droits contrôlés à la lecture, publication protégée, mots de passe et second facteur, délai de sept jours, points avant les données réelles (§ 7 septies) |
 
 Restent propres à Isocont dans la coquille : quelques aides d'affichage liées aux patients et aux mesures (`patient`, `lieu`, réglages d'affichage de l'accueil), à reprendre avec le module Patients (étape 5) ; textes (titre, « Informations techniques », fichier lisez-moi du jeu de formation), à généraliser avec l'écran d'accueil des modules (étape 6). À l'étape 3 : le panneau « Règles légales et sécurité » d'Isocont porte aussi le verrouillage après inactivité, réglage du socle.
