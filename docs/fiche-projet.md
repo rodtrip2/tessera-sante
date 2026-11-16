@@ -2,7 +2,7 @@
 
 *Plateforme de suivi et d'organisation d'un service de soins : patients, mesures d'isolement et de contention, agenda du service. Logiciel libre (licence EUPL-1.2), gratuit. Document présenté au cadre supérieur de santé et au directeur des soins.*
 
-*Porteur : Roddy Ricart, faisant fonction cadre de santé (pôle santé mentale, UHP). Version du 5 novembre 2026.*
+*Porteur : Roddy Ricart, faisant fonction cadre de santé (pôle santé mentale, UHP). Version du 16 novembre 2026.*
 
 | En bref | |
 | --- | --- |
@@ -15,7 +15,7 @@
 
 ## 1. Contexte
 
-**Une obligation légale exigeante.** L'article L. 3222-5-1 du code de la santé publique encadre strictement l'isolement et la contention en psychiatrie : décisions médicales pour des durées limitées, renouvellements, information du juge des libertés et de la détention (JLD) puis saisine au-delà de seuils de durée cumulée, information des proches, et tenue d'un **registre** dans chaque établissement. Ce registre, sans données nominatives, est consultable par la commission départementale des soins psychiatriques (CDSP), le Contrôleur général des lieux de privation de liberté (CGLPL) et les parlementaires ; il alimente un **rapport annuel**. Les délais reposent sur des calculs délicats (cumul sur quinze jours glissants, mesures qui se succèdent, rythme particulier des mesures longues). Une erreur ou un retard peut conduire le juge à ordonner la mainlevée de la mesure.
+**Une obligation légale exigeante.** L'article L. 3222-5-1 du code de la santé publique encadre strictement l'isolement et la contention en psychiatrie : décisions médicales pour des durées limitées, renouvellements, information du juge (magistrat du siège du tribunal judiciaire, anciennement juge des libertés et de la détention, JLD) puis saisine au-delà de seuils de durée cumulée, information des proches, et tenue d'un **registre** dans chaque établissement. Ce registre, sans données nominatives, est consultable par la commission départementale des soins psychiatriques (CDSP), le Contrôleur général des lieux de privation de liberté (CGLPL) et les parlementaires ; il alimente un **rapport annuel**. Les délais reposent sur des calculs délicats (cumul sur quinze jours glissants, mesures qui se succèdent, rythme particulier des mesures longues). Une erreur ou un retard peut conduire le juge à ordonner la mainlevée de la mesure.
 
 **Une organisation du service mal outillée.** La liste des patients du service est disponible dans le DPI. En revanche, quel psychiatre suit tel patient en première ligne, quels soignants sont ses référents, quelles échéances tombent dans la semaine : ces informations sont dispersées entre des tableaux, des cahiers et la mémoire des équipes.
 
@@ -165,8 +165,9 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 - **Les données restent dans l'établissement**, sur un dossier du réseau, chiffrées (AES-256) sur le poste avant d'y être écrites.
 - **Aucun serveur à installer, aucune connexion sortante** : l'application est un ensemble de fichiers qui ne peuvent rien envoyer sur Internet. Elle fonctionne avec Edge ou Chrome.
 - **Un module, une clé de chiffrement** : un agent ne peut déchiffrer que les modules auxquels il a accès. Quand un droit est retiré, l'agent perd l'accès aux nouvelles saisies ; les autres agents gardent l'accès à tout l'historique.
-- **Accès nominatifs**, mot de passe personnel imposé à la première connexion, verrouillage automatique, clés matérielles (YubiKey) et code de secours papier pour l'administration.
-- **Traçabilité** : chaque saisie est nominative, horodatée, jamais effacée ; les corrections et annulations sont elles-mêmes tracées. Plusieurs postes saisissent en même temps sans perte.
+- **Accès nominatifs**, mot de passe personnel robuste imposé à la première connexion (règle de la CNIL), verrouillage automatique, clés matérielles (YubiKey) et code de secours papier pour l'administration ; connexion par mot de passe **et** clé matérielle exigible pour les rôles choisis par l'établissement.
+- **Traçabilité** : chaque saisie est nominative, horodatée, **signée par son auteur**, jamais effacée ; les corrections et annulations sont elles-mêmes tracées. Une saisie falsifiée, écrite au nom d'un autre ou sans en avoir le droit est écartée et signalée. Plusieurs postes saisissent en même temps sans perte.
+- **Audit du 15 novembre 2026** : sécurité, droit, fonctionnalités, ergonomie ; les points bloquants avant toute donnée réelle ont été corrigés (versions 0.71 à 0.77), dont le calcul du délai de sept jours depuis la décision du juge.
 - **Sauvegardes et secours** : copies complètes, dossier de secours, travail hors réseau, procédure dégradée papier.
 - **Hébergement de données de santé** : les données n'étant confiées à aucun prestataire, la certification d'hébergeur de données de santé (HDS) ne devrait pas s'appliquer ; la qualification revient au délégué à la protection des données et au service informatique.
 - **RGPD** : un traitement par module, à inscrire au registre des traitements ; une analyse d'impact est probablement requise (données de santé de personnes vulnérables). **Aucune donnée réelle avant l'avis du service informatique et du délégué à la protection des données.**
@@ -185,7 +186,8 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 
 ## 9. État d'avancement
 
-- **Socle commun et les dix-huit modules** : développés et vérifiés par près de 500 tests automatiques et un parcours complet des écrans (version stable 0.70.0 du 15 novembre 2026), démonstration sur données fictives. Aucune utilisation avec des données réelles à ce jour.
+- **Socle commun et les dix-huit modules** : développés et vérifiés par plus de 520 tests automatiques et un parcours complet des écrans (version 0.77.0 du 16 novembre 2026), démonstration sur données fictives. Audit complet le 15 novembre 2026, points bloquants corrigés. Aucune utilisation avec des données réelles à ce jour.
+- **Documents pour chaque décideur** : délégué à la protection des données, responsable de la sécurité informatique, service informatique, ressources humaines, direction des soins et commission médicale, direction juridique, représentants du personnel (`kit/`).
 - **Kit de déploiement** : guide d'installation, procédures de secours, éléments RGPD (un traitement par module), guides utilisateur et guide pratique illustré, imports (dossier `kit/` du dépôt).
 
 ## 10. Démarche
