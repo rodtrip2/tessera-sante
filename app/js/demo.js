@@ -351,10 +351,11 @@
     mesure('P02', U1, 'Contention', -20, null, CSI2, 'Dr Benoît (fictif)');
     // CHARLIE : isolement hors CSI terminé il y a 3 jours
     mesure('P03', U1, 'Isolement', -24 * 3 - 10, -24 * 3, 'Chambre 14', 'Dr Chen (fictif)', { tiers: 'PAS_DE_TIERS' });
-    // DELTA (Unité 2) : isolement long, maintien du JLD au cycle 1
-    mesure('P04', U2, 'Isolement', -110, null, CSIA, 'Dr Diallo (fictif)', {
+    // DELTA (Unité 2) : isolement long, deux maintiens du JLD ; le second rendu à la 170e heure, avant la 192e : au
+    // cycle 3, le délai de sept jours court depuis cette décision (0.76.0) et l'échéance tombe 22 h plus tôt
+    mesure('P04', U2, 'Isolement', -300, null, CSIA, 'Dr Diallo (fictif)', {
       tiers: 'INFORME', personne: 'Curateur',
-      jld: [[1, 'INFO', -64], [1, 'SAISINE', -40], [1, 'DECISION', -16, 'MAINTIEN']],
+      jld: [[1, 'INFO', -254], [1, 'SAISINE', -230], [1, 'DECISION', -210, 'MAINTIEN'], [2, 'INFO', -160], [2, 'SAISINE', -150], [2, 'DECISION', -130, 'MAINTIEN']],
       pauses: [[-0.75, 1.25, null, 'Visite']]
     });
 

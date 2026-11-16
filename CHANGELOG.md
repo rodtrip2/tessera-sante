@@ -1,5 +1,11 @@
 # Journal des modifications — Tessera Santé
 
+## 0.76.0 — 16 novembre 2026
+
+- **Délai de sept jours depuis la décision du juge** (constat J2 de l'audit, décision du porteur du 16 novembre 2026). Pour un isolement, après deux décisions de maintien, les échéances sont désormais comptées aussi depuis la précédente décision du juge (168 heures, saisine 24 heures avant, article L. 3222-5-1, II, du code de la santé publique), et l'échéance la plus proche est retenue. Réglage par établissement dans *Cas particuliers* (méthode recommandée par défaut ; méthode du classeur V1.3 au choix), avec une note explicative. Si la décision n'est pas saisie, un avertissement s'affiche. La contention n'est pas concernée.
+- **Message type au greffe du tribunal** (*Cas particuliers*) pour faire valider le calcul ; Tessera n'envoie rien.
+- Tests : `tests/sept-jours.test.js`.
+
 ## 0.75.0 — 15 novembre 2026
 
 - **Mots de passe renforcés** (constat S3 de l'audit, décision du porteur du 15 novembre 2026 : appliqué d'office). Tout nouveau mot de passe suit la recommandation de la CNIL : 12 caractères mêlant majuscules, minuscules, chiffres et caractères spéciaux, ou 14 caractères avec trois de ces familles, ou une phrase d'au moins 7 mots. Les mots de passe courants ou devinables (nom, identifiant, suites du clavier…) sont refusés. L'administrateur peut revenir à la règle simple (12 caractères). Les mots de passe actuels restent valables jusqu'à leur changement.

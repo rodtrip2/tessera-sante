@@ -19,6 +19,9 @@
     var rMeme = h('input', { type: 'radio', name: nom, checked: o.mainleveeType === 'meme' });
     var cbInfo = h('input', { type: 'checkbox', checked: o.mainleveeInfoSansDelai });
     var cbAilleurs = h('input', { type: 'checkbox', checked: o.debutAilleurs });
+    var nomSept = 'sept-' + Math.random().toString(36).slice(2, 7);
+    var rSeptDecision = h('input', { type: 'radio', name: nomSept, checked: o.septJours === 'decision' });
+    var rSeptDebut = h('input', { type: 'radio', name: nomSept, checked: o.septJours === 'debut' });
     var nomSoma = 'soma-' + Math.random().toString(36).slice(2, 7);
     var CHOIX_SOMA = [
       ['poursuite-service', 'La mesure continue, avec changement de lieu ; elle reste comptée au registre du service (isolement en B, contention en D pour cette période)'],
@@ -40,6 +43,13 @@
         h('label', { class: 'case' }, rTout, h('span', { text: 'Alerter pour toute nouvelle mesure (isolement ou contention) dans les 48 h (recommandé)' })),
         h('label', { class: 'case' }, rMeme, h('span', { text: 'Alerter seulement pour une mesure du même type que celle levée' }))),
       h('label', { class: 'case' }, cbInfo, h('span', { text: 'Information du JLD due sans délai pour cette nouvelle mesure (échéance « Info avant » ramenée à son début)' })),
+      h('h3', { text: 'Délai de sept jours (isolement, après deux décisions de maintien)' }),
+      h('p', { class: 'muted', text: 'Article L. 3222-5-1, II, du code de la santé publique : après deux décisions de maintien, le juge est saisi au moins 24 heures avant l’expiration d’un délai de sept jours « à compter de sa précédente décision », et statue avant cette expiration. La Cour de cassation fixe ce délai à 168 heures après la précédente décision (avis du 6 mars 2024, n° 23-70.017). Le classeur V1.3 comptait ces échéances depuis le début de la mesure : quand le juge statue avant la dernière heure, l’échéance légale tombe plus tôt.' }),
+      h('div', { class: 'pile serre' },
+        h('label', { class: 'case' }, rSeptDecision, h('span', { text: 'Compter aussi depuis la précédente décision du juge, et retenir l’échéance la plus proche (recommandé)' })),
+        h('label', { class: 'case' }, rSeptDebut, h('span', { text: 'Compter depuis le début de la mesure seulement (méthode du classeur V1.3)' }))),
+      h('p', { class: 'muted', text: 'Avec la méthode recommandée, saisissez la décision du juge avec son heure (à défaut, l’heure de réception de l’ordonnance, par exemple par courriel) : tant qu’elle n’est pas saisie, l’échéance reste calculée depuis le début de la mesure et un avertissement s’affiche. Aucune pause n’est déduite du délai compté depuis la décision. La contention n’est pas concernée.' }),
+      h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: function () { modaleGreffe(); } }, 'Message type au greffe du tribunal…')),
       h('h3', { text: 'Mesure débutée avant l’arrivée dans le service' }),
       h('label', { class: 'case' }, cbAilleurs, h('span', { text: 'Proposer, dans la nouvelle mesure, la saisie d’une mesure débutée ailleurs (urgences, autre établissement, unité pour malades difficiles…)' })),
       h('p', { class: 'muted', text: 'On saisit l’heure de la décision initiale et le lieu d’origine. Les délais JLD et les cumuls partent de la décision initiale (durée totale de la mesure) ; le registre et les statistiques du service partent de l’arrivée. Le décompte JLD présente la partie antérieure sur une ligne distincte. Les étapes JLD déjà faites se saisissent ensuite avec le bouton JLD, à leur date.' }),
@@ -54,7 +64,7 @@
       U.boutonEnregistrer(async function () {
         if (radiosSoma[1].r.checked && !selRegistre.value) throw new Error('Choisissez le service qui porte le registre dédié aux soins somatiques ou aux urgences.');
         await U.enregistrerConfig([['casParticuliers', Object.assign({}, U.config().casParticuliers || {}, {
-          mainleveeType: rMeme.checked ? 'meme' : 'tout', mainleveeInfoSansDelai: cbInfo.checked, debutAilleurs: cbAilleurs.checked,
+          mainleveeType: rMeme.checked ? 'meme' : 'tout', mainleveeInfoSansDelai: cbInfo.checked, debutAilleurs: cbAilleurs.checked, septJours: rSeptDebut.checked ? 'debut' : 'decision',
           somatique: radiosSoma.filter(function (x) { return x.r.checked; })[0].v, serviceSomatique: selRegistre.value
         })]]);
       }));
@@ -63,10 +73,40 @@
   function resumeConfig(v) {
     var o = M.optionsCas({ casParticuliers: v });
     return 'alerte après mainlevée : ' + (o.mainleveeType === 'tout' ? 'toute nouvelle mesure' : 'même type') + ', information du JLD ' + (o.mainleveeInfoSansDelai ? 'sans délai' : 'selon les délais habituels') +
+      ', délai de sept jours ' + (o.septJours === 'decision' ? 'compté aussi depuis la décision du juge' : 'compté depuis le début de la mesure') +
       ', mesure débutée ailleurs ' + (o.debutAilleurs ? 'proposée' : 'non proposée') + ', soins somatiques ou urgences : ' + LIB_SOMA[o.somatique] + (o.somatique === 'poursuite-registre' ? ' (' + U.libService(o.serviceSomatique) + ')' : '');
   }
 
   var LIB_SOMA = { 'poursuite-service': 'mesure poursuivie, comptée au registre du service', 'poursuite-registre': 'mesure poursuivie, comptée au registre dédié', suspension: 'mesure suspendue jusqu’au retour', arret: 'fin de la mesure' };
+
+  // ------------------------------------------------------------ Message type au greffe (0.76.0)
+  /**
+   * Question au greffe du tribunal judiciaire sur le point de départ du délai de sept jours (décision du porteur du
+   * 16 novembre 2026 : faire valider le calcul par le greffe). Texte à copier dans la messagerie de l'établissement ;
+   * aucune donnée de patient.
+   */
+  function texteGreffe() {
+    var etab = U.etablissement() || '[établissement]', u = U.App.session && U.App.session.utilisateur ? U.App.session.utilisateur.nom : '[nom, fonction]';
+    return 'Objet : Isolement — point de départ du délai de sept jours (article L. 3222-5-1, II, du code de la santé publique)\n\n' +
+      'Madame, Monsieur,\n\n' +
+      'Le ' + etab + ' tient un suivi informatisé des mesures d’isolement et de contention, qui calcule les échéances de saisine du magistrat du siège du tribunal judiciaire. Afin de nous assurer que nos saisines vous parviennent dans les délais attendus, nous souhaiterions confirmer avec vous le calcul suivant.\n\n' +
+      '1. Pour les deux premières saisines, les échéances sont calculées depuis le début de la mesure (décision avant la 96e heure, puis avant la 192e heure d’isolement), en tenant compte des mesures prises dans les 48 heures suivant une précédente mesure.\n\n' +
+      '2. Après deux décisions de maintien, le délai de sept jours est compté à partir de la précédente décision du magistrat : expiration 168 heures après l’heure de cette décision (avis de la Cour de cassation du 6 mars 2024, n° 23-70.017), saisine au plus tard 24 heures avant. Lorsque l’ordonnance ne mentionne pas d’heure, nous retenons l’heure de sa réception par courriel.\n\n' +
+      '3. Si ce calcul et celui depuis le début de la mesure diffèrent, nous retenons l’échéance la plus proche.\n\n' +
+      'Pourriez-vous nous indiquer si ce mode de calcul correspond à la pratique du tribunal, en particulier l’heure retenue comme point de départ (heure de l’ordonnance, de sa notification ou de sa réception) ? Toute précision sur vos attentes concernant le délai de transmission des requêtes nous serait également utile.\n\n' +
+      'Je vous remercie par avance et vous prie d’agréer, Madame, Monsieur, l’expression de mes salutations distinguées.\n\n' + u;
+  }
+  function modaleGreffe() {
+    var zone = h('textarea', { rows: 18, 'aria-label': 'Message au greffe' }, texteGreffe());
+    U.modale('Message type au greffe du tribunal judiciaire', h('div', { class: 'pile' },
+      h('p', { class: 'muted', text: 'Question sur le point de départ du délai de sept jours, à adapter puis à envoyer depuis la messagerie de l’établissement (Tessera n’envoie rien). Aucune donnée de patient. Consignez ensuite la réponse dans « Organisation des envois au JLD ».' }),
+      zone), [
+      { texte: 'Fermer' },
+      { texte: 'Copier le message', classe: 'primaire', action: async function () {
+        try { await navigator.clipboard.writeText(zone.value); U.toast('Message copié : collez-le dans votre messagerie.'); }
+        catch (e) { zone.select(); throw new Error('Copie impossible ici : le message est sélectionné, copiez-le avec Ctrl+C.'); }
+      } }], { large: true });
+  }
 
   // ------------------------------------------------------------ Saisie
   /** Texte de l'alerte « mainlevée récente » (ou null). */
@@ -186,5 +226,5 @@
     return res;
   }
 
-  U.cas = { LIB_SOMA: LIB_SOMA, panneauAdmin: panneauAdmin, resumeConfig: resumeConfig, alerteMainlevee: alerteMainlevee, alerteDoublons: alerteDoublons, modaleFusion: modaleFusion, pairesProches: pairesProches, libFiche: libFiche };
+  U.cas = { LIB_SOMA: LIB_SOMA, panneauAdmin: panneauAdmin, modaleGreffe: modaleGreffe, texteGreffe: texteGreffe, resumeConfig: resumeConfig, alerteMainlevee: alerteMainlevee, alerteDoublons: alerteDoublons, modaleFusion: modaleFusion, pairesProches: pairesProches, libFiche: libFiche };
 })();

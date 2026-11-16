@@ -4,7 +4,9 @@
  * Reprise fidèle des calculs de la V1.3 (Module_Actualisation_V1_3) :
  *  - cumul glissant 15 jours par patient et par type, périodes fusionnées,
  *    jamais avant la fin de la dernière mesure levée par le JLD ;
- *  - échéances JLD ancrées sur le DÉBUT de la mesure (jamais sur les décisions du juge) ;
+ *  - échéances JLD ancrées sur le DÉBUT de la mesure ; à partir du rythme des mesures longues (isolement, après deux
+ *    décisions de maintien), délai de sept jours compté aussi depuis la précédente décision du juge, l'échéance la plus
+ *    proche étant retenue (option `septJours`, 0.76.0 ; art. L. 3222-5-1, II, CSP ; Cass. avis, 6 mars 2024, n° 23-70.017) ;
  *  - rythme des mesures longues (isolement, à partir du cycle 3).
  * Option : les plages `exclusions` d'une mesure (pauses retranchées) sont
  * soustraites de toutes les durées, et les échéances sont reportées d'autant.
@@ -146,12 +148,36 @@
    * Cycle 1 : début + (seuil cumul 15 j − cumul déjà réalisé avant la mesure).
    * Cycles suivants : cycle 1 + (n − 1) × intervalle, puis rythme long éventuel.
    */
-  function echeances(mesures, mesure, cycle, surcharge) {
+  function echeances(mesures, mesure, cycle, surcharge, options) {
     var e = echeancesBrutes(mesures, mesure, cycle, surcharge);
-    if (!mesure.exclusions || !mesure.exclusions.length) return e;
-    // Pauses retranchées : chaque échéance est reportée de la durée des pauses qui la précèdent.
-    var conv = function (t) { return instantEffectif(mesure.debut, (t - mesure.debut) / H, mesure.exclusions); };
-    return { cycle: e.cycle, info: conv(e.info), saisine: conv(e.saisine), decision: conv(e.decision), rythmeLong: e.rythmeLong };
+    if (mesure.exclusions && mesure.exclusions.length) {
+      // Pauses retranchées : chaque échéance est reportée de la durée des pauses qui la précèdent.
+      var conv = function (t) { return instantEffectif(mesure.debut, (t - mesure.debut) / H, mesure.exclusions); };
+      e = { cycle: e.cycle, info: conv(e.info), saisine: conv(e.saisine), decision: conv(e.decision), rythmeLong: e.rythmeLong };
+    }
+    return septJours(e, mesure, surcharge, options);
+  }
+
+  /**
+   * Délai de sept jours (0.76.0) : après deux décisions de maintien, le juge est saisi au moins 24 heures avant
+   * l'expiration d'un délai de sept jours compté depuis sa précédente décision, et statue avant cette expiration
+   * (art. L. 3222-5-1, II, CSP) ; le délai expire 168 heures après la précédente décision (Cass. avis, 6 mars 2024,
+   * n° 23-70.017). Option `septJours` : 'decision' — échéances du rythme long comptées aussi depuis la décision du
+   * cycle précédent quand elle est saisie, l'échéance la plus proche étant retenue (jamais hors délai) ; 'debut' (ou
+   * absente) — depuis le début de la mesure seulement (classeur V1.3). Aucune pause n'est retranchée du délai compté
+   * depuis la décision (calcul prudent). Résultat complété de `depuisDecision` (instant de la décision retenue) ou de
+   * `decisionManquante` (décision du cycle précédent non saisie : calcul depuis le début de la mesure).
+   */
+  function septJours(e, mesure, surcharge, options) {
+    if (!e.rythmeLong || !options || options.septJours !== 'decision') return e;
+    var p = params(mesure.type, surcharge), prec = mesure.jld && mesure.jld[e.cycle - 1] && mesure.jld[e.cycle - 1].DECISION;
+    var d = prec && typeof prec.date === 'number' ? prec.date : null;
+    if (d === null) return Object.assign({}, e, { decisionManquante: true });
+    var saisine = d + p.rythmeLongInfoSaisine * H, decision = d + p.rythmeLongDecision * H;
+    return Object.assign({}, e, {
+      info: Math.min(e.info, saisine), saisine: Math.min(e.saisine, saisine), decision: Math.min(e.decision, decision),
+      depuisDecision: decision < e.decision || saisine < e.saisine ? d : null, decisionPrecedente: d
+    });
   }
 
   function echeancesBrutes(mesures, mesure, cycle, surcharge) {

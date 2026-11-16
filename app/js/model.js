@@ -236,7 +236,10 @@
     // lieu changé, comptée au registre du service), 'poursuite-registre' (comptée au registre du service `serviceSomatique`,
     // ex. « Hébergement somatique » ou « Urgences »), 'suspension' (mesure suspendue jusqu'au retour, période non comptée),
     // 'arret' (la mesure prend fin ; une nouvelle mesure est saisie au retour si besoin).
-    casParticuliers: { mainleveeType: 'tout', mainleveeInfoSansDelai: true, debutAilleurs: true, somatique: 'poursuite-service', serviceSomatique: '' },
+    // septJours (0.76.0) : délai de sept jours des mesures d'isolement longues (après deux décisions de maintien) —
+    // 'decision' (recommandé, par défaut) : compté aussi depuis la précédente décision du juge, échéance la plus proche
+    // retenue ; 'debut' : depuis le début de la mesure seulement, comme le classeur V1.3 (voir rules.septJours).
+    casParticuliers: { mainleveeType: 'tout', mainleveeInfoSansDelai: true, debutAilleurs: true, somatique: 'poursuite-service', serviceSomatique: '', septJours: 'decision' },
     // Qualité (Administration → Registre et statistiques), voir optionsQualite : motif du recours et entretien après
     // la mesure, facultatifs ; traces de surveillance aussi pour les mesures hors CSI ; durée de conservation (années).
     qualite: { motifRecours: false, motifsRecours: ['Prévention d’une violence imminente envers autrui', 'Prévention d’un passage à l’acte auto-agressif imminent', 'Agitation avec mise en danger', 'Risque de fugue avec mise en danger', 'Autre'],
@@ -580,7 +583,7 @@
     cycle = cycle || m.cycle;
     var toutes = mesuresCalcul(st, maintenant);
     m = toutes.filter(function (x) { return x.id === m.id; })[0] || m;
-    var e = rules.echeances(toutes, m, cycle, st.config.parametres);
+    var e = rules.echeances(toutes, m, cycle, st.config.parametres, { septJours: optionsCas(st.config).septJours });
     var p = rules.params(m.type, st.config.parametres);
     var c = m.jld[cycle] || {};
     var eff = function (n) { return c[n] && typeof c[n].date === 'number' ? c[n].date : undefined; };
@@ -595,6 +598,7 @@
     if (ml && cycle === 1 && optionsCas(st.config).mainleveeInfoSansDelai) e.info = Math.min(e.info, m.debut);
     return {
       cycle: cycle, rythmeLong: e.rythmeLong, apresMainlevee: ml, debutService: m.debutService || null,
+      depuisDecision: e.depuisDecision || null, decisionManquante: !!e.decisionManquante && !termine,
       info: { echeance: e.info, effective: eff('INFO'), statut: statut(e.info, 'INFO') },
       saisine: { echeance: e.saisine, effective: eff('SAISINE'), statut: statut(e.saisine, 'SAISINE') },
       decision: { echeance: e.decision, effective: eff('DECISION'), statut: statut(e.decision, 'DECISION') },
@@ -690,6 +694,7 @@
     o.mainleveeType = o.mainleveeType === 'meme' ? 'meme' : 'tout';
     o.mainleveeInfoSansDelai = o.mainleveeInfoSansDelai !== false;
     o.debutAilleurs = o.debutAilleurs !== false;
+    o.septJours = o.septJours === 'debut' ? 'debut' : 'decision';
     if (['poursuite-service', 'poursuite-registre', 'suspension', 'arret'].indexOf(o.somatique) < 0) o.somatique = 'poursuite-service';
     o.serviceSomatique = String(o.serviceSomatique || '');
     if (o.somatique === 'poursuite-registre' && !o.serviceSomatique) o.somatique = 'poursuite-service';
@@ -1683,6 +1688,7 @@
     } else if (cle === 'casParticuliers') {
       var ca = optionsCas(a), cb = optionsCas(b);
       if (ca.somatique !== cb.somatique || ca.serviceSomatique !== cb.serviceSomatique) res.push('règle des soins somatiques : ' + ca.somatique + ' → ' + cb.somatique + ' (départs suivants seulement)');
+      if (ca.septJours !== cb.septJours) res.push('délai de sept jours (isolement, mesures longues) : ' + (ca.septJours === 'decision' ? 'depuis la décision du juge' : 'depuis le début de la mesure') + ' → ' + (cb.septJours === 'decision' ? 'depuis la décision du juge' : 'depuis le début de la mesure') + ' (échéances en cours recalculées)');
     } else if (cle === 'delaiModeHospiHeures') {
       if ((avant || 12) !== (apres || 12)) res.push('délai de bascule du mode d’hospitalisation : ' + (avant || 12) + ' h → ' + (apres || 12) + ' h');
     } else if (cle === 'statsMethode') {
