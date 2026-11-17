@@ -1147,3 +1147,25 @@ Décision du porteur du 16 novembre 2026 : corriger S4, S7, S8 et J1, ainsi que 
 - Administration : onglets groupés par thème (`groupesAdmin`, `THEMES_ADMIN`, `app/js/ui.js` ; module inconnu → « Organisation »). Contrastes : `--warn` #875c00 et `--ok` #276b43 en thème clair, `--bad-ink` (pastilles), `--accent-ink` pour l'onglet actif des rubriques, `.ct-*` mêlés à l'encre, opacités d'estompage retirées ; `SIC.ui.encreSur(couleur)` et `SIC.ui.encreSurTeinte(couleur, part)` (encre noire ou blanche sur une couleur choisie). Tailles : plancher de 12 px (`font-size` < .8rem relevées, `small`). Agenda : `aria-label` des éléments commençant par l'heure et le titre.
 - Mesure faite par un relevé automatique des écrans (contraste calculé, tailles, noms accessibles) ; reste : mise en page imprimable des transmissions (taille réglée par l'établissement) ; audit d'accessibilité (RGAA) toujours à faire (constat J6).
 - À documenter : guide d'installation ou administrateur (onglets d'administration par thème), fiche pour les représentants du personnel (19, § 4 : E2 à E5 faits), fiche projet si l'accessibilité y est citée.
+
+## Versions 0.86.0 et 0.87.0 (17 novembre 2026) — reprises de `docs/a-documenter.md`
+
+### 0.86.0 — Contrôles périodiques (17 novembre 2026)
+
+Décisions du porteur du 17 novembre 2026 : modèles par défaut chariot d'urgence, réfrigérateur à médicaments, sac ou trousse d'urgence (pas de modèle défibrillateur) ; affichage dans l'Agenda et Aujourd'hui ; valeur hors des seuils : écart seulement (pas de second relevé imposé) ; péremptions : alerte avant (30 jours, réglable), écart si dépassée.
+
+- `docs/architecture.md` : module Contrôles (§ 7 sexies) — contrôles périodiques, saisie `CONTROLE_UTILISATION`, fourniture `controles.periodiques` (lue par l'Agenda), réglage `controles[service].periodiques` (cadre pour ses services) ; état du plan (lot K en partie fait).
+- `docs/fiche-projet.md` : fonction ajoutée aux contrôles (matériel d'urgence, chaîne du froid).
+- Kit : guide du cadre (régler un contrôle périodique), guide IDE / AS (faire un contrôle, signaler une utilisation) ; captures `controles-periodiques`, `controles-periodiques-reglages`.
+- Points à valider : modèles et listes à remplacer par la procédure de l'établissement (pharmacie, référent du matériel d'urgence) ; seuils de température ; conservation du registre (celle des contrôles des CSI).
+
+### 0.87.0 — Audits internes (17 novembre 2026)
+
+Décisions du porteur du 17 novembre 2026 : audits seuls (plans d'action plus tard ; écarts vers « Mes tâches ») ; grilles par défaut : circuit du médicament, tenue du dossier, isolement et contention ; une grille remplie une fois par audit ; auditeurs : le cadre et les agents qu'il désigne.
+
+- `docs/architecture.md` : nouveau module `audits` (§ 7 sexies) — journal `modules\audits\`, clé propre, désactivé par défaut ; saisies `AUDIT`, `AUDIT_ANNULE` ; réglage `audits` (`'*'` : grilles de l'établissement ; service : grilles et auditeurs, réglé par le cadre) ; fonction soumise à avis `audit-dossier` ; élément rattachable `audits/audit` (Mes tâches, messagerie) ; état du plan (lot P en partie fait).
+- `docs/fiche-projet.md` : module Audits internes.
+- `docs/fiche-technique.md` : module (clé propre, référence du séjour sans nom).
+- Kit : document du délégué à la protection des données et de la direction des soins (`kit/13`, `kit/17`) — audit de la tenue du dossier : finalité, référence pseudonyme, conservation ; guide du cadre (grilles, auditeurs, résultats) ; captures `audits`, `audits-resultats`.
+- Points à valider : grilles à remplacer par celles de l'établissement (pharmacie, qualité, référent isolement et contention) ; audit du dossier (avis) ; durée de conservation des audits.
+- `CLAUDE.md` : § 1 (liste des modules : Audits internes) et § 7 (fonction soumise à avis « audit-dossier » : délégué à la protection des données, direction des soins et commission médicale).

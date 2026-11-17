@@ -59,9 +59,10 @@ Le cœur de Tessera est la traçabilité des actions d'un service : échéances 
 
 - [ ] Fiches du registre des traitements, une par module (document 05) ; inscription des données ajoutées par l'établissement.
 - [ ] Analyse d'impact : nécessité (liste de la CNIL), périmètre, gravité et vraisemblance des risques.
-- [ ] Durées de conservation : réservations de véhicules, instantanés de la Vue d'ensemble, registres des contrôles et des bris de glace, exports (31 jours proposés).
+- [ ] Durées de conservation : réservations de véhicules, instantanés de la Vue d'ensemble, registres des contrôles et des bris de glace, audits internes, exports (31 jours proposés).
 - [ ] Droit d'accès : données des modules arrêtés, documents rattachés, formalités ; exclusion des informations concernant un tiers.
 - [ ] Option « donnée clinique » des données ajoutées, données cliniques du séjour et bris de glace : conditions d'activation (information préalable, registre, conservation).
+- [ ] Audit de la tenue du dossier du patient (module Audits internes, fonction soumise à avis livrée désactivée) : finalité qualité, référence du séjour sans nom, conservation, inscription au registre (traitement 19).
 - [ ] Données du personnel : formations, heures supplémentaires, entretiens des agents ; frontière avec le dossier administratif (avec les ressources humaines).
 - [ ] Mesure d'usage anonyme de l'outil (nombre de saisies par module et par semaine, jamais l'identité des agents ; avec les représentants du personnel).
 - [ ] Agenda exporté en fichier `.ics` vers une messagerie éventuellement hébergée hors de l'établissement.

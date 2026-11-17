@@ -59,7 +59,8 @@ Présentation, avis du service informatique, du responsable de la sécurité inf
 - [ ] Rôle « médecin » quand les médecins utiliseront Tessera ; droits par défaut du suivi médical (présences : secrétaire et cadre ; entretiens : IDE et cadre) ; délais d'alerte selon la durée d'hospitalisation.
 - [ ] Agenda : identité des patients affichée par défaut (proposé : initiales) ; délais de validation des permissions pour les soins sans consentement (proposé : 24 h).
 - [ ] Isolement et contention : déduction des pauses, méthode du délai de sept jours (méthode recommandée par défaut), formulation des alertes, règle en cas de passage en soins somatiques.
-- [ ] Contrôles : check-list des CSI (fournie par le porteur).
+- [ ] Contrôles : check-list des CSI (fournie par le porteur) ; listes des contrôles périodiques (chariot d'urgence, réfrigérateur à médicaments, sac d'urgence) et seuils de température, avec la pharmacie et le référent du matériel d'urgence.
+- [ ] Audits internes : grilles de l'établissement (circuit du médicament, isolement et contention) à substituer aux grilles proposées ; activation de l'audit de la tenue du dossier (fonction soumise à avis, avec le délégué à la protection des données) ; plans d'action, prévus plus tard.
 - [ ] Désignation de l'administrateur fonctionnel et des détenteurs des clés de secours.
 
 ## 7. Documents de référence
