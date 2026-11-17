@@ -1,5 +1,9 @@
 # Journal des modifications — Tessera Santé
 
+## 0.87.1 — 17 novembre 2026 (version stable)
+
+Documentation des versions 0.86.0 et 0.87.0 : architecture (§ 7 nonies, tableau des modules, plan, décisions), fiche projet, fiche technique (modules désactivés par défaut, audit de la tenue du dossier), kit (traitements 15 et 19 du registre, guide de l'utilisateur, fiches du délégué à la protection des données et de la direction des soins), `CLAUDE.md`, historique des décisions ; PDF régénérés. Aucun changement de l'application.
+
 ## 0.87.0 — 17 novembre 2026
 
 **Audits internes** (lot P, demande du porteur du 17 novembre 2026), nouveau module, désactivé par défaut et activé service par service :
