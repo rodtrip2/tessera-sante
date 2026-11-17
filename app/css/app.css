@@ -1518,3 +1518,10 @@ small { font-size: max(12px, .85em); }
 .cl-cim-choix { display: block; width: 100%; text-align: left; padding: 6px 10px; background: none; border: 0; color: var(--ink); font: inherit; cursor: pointer; }
 .cl-cim-choix:hover, .cl-cim-choix:focus { background: var(--accent-soft); outline: none; }
 .cl-cim-note:empty { display: none; }
+/* Contrôles périodiques (0.86.0) */
+.texte-attention { color: var(--warn); }
+small.bloc, .muted.bloc { display: block; }
+.ag-puce.ag-controle { --c: var(--accent); }
+.ag-puce.ag-controle.retard { --c: var(--bad); }
+.ag-puce.ag-controle.fait { opacity: .7; }
+.controles-bloc { margin-top: 14px; }

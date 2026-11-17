@@ -268,6 +268,14 @@
         ajouter(x.jour, puce('travaux', 'Travaux : ' + T.lib(T.options(U.config(), x.service).types, x.type) + ' — ' + T.libLieu(t, U.config()), function () { if (U.travaux) U.travaux.modaleDemande(t); }));
       });
     } catch (e) { /* module des travaux absent ou illisible : rien à afficher */ }
+    // Contrôles périodiques à faire (0.86.0 : chariot d'urgence, réfrigérateur…), lus à la volée si l'agent a la clé du module
+    try {
+      var stC = U.App.session.ouvert && U.App.session.ouvert('controles') ? U.App.session.etatModule('controles') : null;
+      (stC ? SIC.modules.lire('controles.periodiques', stC, { services: svs, debut: A.jourISO(debut), fin: A.jourISO(plusJours(debut, n - 1)), config: U.config(), maintenant: maintenant }) || [] : []).forEach(function (x) {
+        var lib = { fait: ' (fait)', retard: ' (non fait)', aConfirmer: ' (à confirmer)' }[x.etat] || '';
+        ajouter(x.jour, puce('controle ' + x.etat, 'Contrôle : ' + x.libelle + lib, function () { U.App.ongletsFenetres.controles = 'periodiques'; U.ouvrirFenetre('controles'); }, null, x.libelle + (x.lieu ? ' — ' + x.lieu : '') + lib));
+      });
+    } catch (e) { /* module des contrôles absent ou illisible : rien à afficher */ }
     A.alertesChecklists(st(), fiches(), svs, maintenant).forEach(function (c) { ajouter(aujourdhui, puce('alerte', 'Check-list en retard : ' + c.item.libelle + ' (' + libelleElement(c.rdv) + ')', function () { modaleElement(c.rdv, null, !peut('RDV'), null, false, c.occurrence); }, couleurs().alerte)); });
     return res;
   }
