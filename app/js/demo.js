@@ -777,7 +777,11 @@
     // (taux en progrès, écarts, un audit annulé), références fictives, aucun nom de patient
     if (SIC.audits) (function () {
       var AU = SIC.audits, gm = AU.depuisModele('medicament', 'ga-medicament'), gi = AU.depuisModele('isocont', 'ga-isocont'), gd = AU.depuisModele('dossier', 'ga-dossier');
-      if (!reel) cfg('audits', { '*': { grilles: [gm] }, U1: { grilles: [gi, gd], auditeurs: ['demo-a'] } });
+      var gf = AU.grille({ id: 'ga-flash', modele: 'libre', libelle: 'Audit flash mensuel (fictif)', theme: 'Audit importé', criteres: [
+        { libelle: 'Personne de confiance identifiée', mode: 'ratio' }, { libelle: 'Examen somatique d’entrée', mode: 'ratio' },
+        { libelle: 'Évaluation de la douleur dans les 48 h', mode: 'ratio' }, { libelle: 'Lettre de liaison remise à la sortie', mode: 'ratio' },
+        { libelle: 'Utilisation de l’espace d’apaisement', mode: 'indicateur' }, { libelle: 'Rangement du chariot de médicaments', mode: 'reponse' }] });
+      if (!reel) cfg('audits', { '*': { grilles: [gm] }, U1: { grilles: [gi, gd, gf], auditeurs: ['demo-a'] } });
       var n = 0;
       function audit(g, sv, jours, nonConformes, ref, par, com) {
         var id = 'AU-D' + String(++n).padStart(3, '0'), date = SIC.model.dateLocaleISO(now - jours * J);
@@ -791,6 +795,20 @@
       [[60, [4]], [25, []], [6, [2, 7]]].forEach(function (x, i) { audit(gi, U1, x[0], x[1], 'Mesure n° ' + (14 + i * 9) + ' du registre (fictif)', cadre); });
       [[45, [1, 9]], [30, [9]], [9, [1, 9, 10]], [3, []]].forEach(function (x, i) { audit(gd, U1, x[0], x[1], 'Séjour 9000' + (21 + i) + ' (fictif)', agA); });
       var an = audit(gd, U1, 2, [0], 'Séjour 900099 (fictif)', agA);
+      // Audit « flash » mensuel importé d'un classeur de synthèse (0.88.0) : proportions, OK / KO, indicateur chiffré ;
+      // de janvier de l'an dernier au mois dernier (graphiques sur l'année), valeurs fictives
+      var d0 = new Date(now), anC = d0.getFullYear(), moisC = d0.getMonth();
+      for (var k = 0; k < 12 + moisC; k++) {
+        var an2 = anC - 1 + Math.floor(k / 12), m2 = k % 12, date2 = an2 + '-' + String(m2 + 1).padStart(2, '0') + '-01', prog = k / (11 + moisC);
+        var vals = [40 + 40 * prog + (k % 3) * 10, 100 - (k % 4 === 1 ? 20 : 0), 60 + 30 * prog, 20 + (k * 37 % 50) + 20 * prog];
+        var items = gf.criteres.map(function (c, i) {
+          if (c.mode === 'ratio') return { libelle: c.libelle, rubrique: '', mode: 'ratio', pourcentage: Math.min(100, Math.round(vals[i] / 20) * 20), reponse: 'na', commentaire: '' };
+          if (c.mode === 'indicateur') return { libelle: c.libelle, rubrique: '', mode: 'indicateur', valeur: k % 5 === 2 ? 0 : 3 + (k * 7) % 9, reponse: 'na', commentaire: '' };
+          return { libelle: c.libelle, rubrique: '', mode: 'reponse', reponse: k % 3 === 0 ? 'non' : 'oui', commentaire: '' };
+        });
+        ajouter(now - (12 + moisC - k) * 3 * J, 'AUDIT', { id: 'AU-F' + String(k).padStart(3, '0'), service: U1, grille: 'ga-flash', libelle: gf.libelle, theme: gf.theme, date: date2, reference: '', items: items,
+          commentaire: k % 3 === 0 ? 'Réserve mélangée dans le chariot (fictif)' : '', origine: 'import', fichier: 'synthese-audit-mensuel (fictif).xlsx', nom: cadre[0] }, cadre[1]);
+      }
       ajouter(now - 2 * J + 11 * H, 'AUDIT_ANNULE', { audit: an, service: U1, motif: 'Audit saisi sur la mauvaise grille (fictif)', nom: 'Agent A (fictif)' }, 'demo-a');
     })();
     file.sort(function (a, b) { return a.at - b.at || a.n - b.n; });

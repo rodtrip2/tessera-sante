@@ -1358,6 +1358,24 @@ with sync_playwright() as p:
     capture(a, 'audits-resultats')
     a.locator('nav.onglets button', has_text='Registre').first.click(); time.sleep(1)
     verifier(a.locator('tr.ligne-annulee').count() >= 1, 'Audits : registre avec l’audit annulé barré')
+    # Import d'un tableau d'audit mensuel (0.88.0) : classeur fictif créé pour le parcours, puis graphiques sur l'année
+    import openpyxl, tempfile, os
+    wbf = openpyxl.Workbook(); sf = wbf.active; sf.title = 'synthèse 2026'
+    for i, x in enumerate(['Critère fictif A', 'Critère fictif B', 'Contrôle fictif\n1 = OK; 0=KO', 'Indicateur fictif']): sf.cell(3, 2 + i, x)
+    for i, m in enumerate(['Octobre n-1 %', 'Janvier %', 'Février %', 'Mars %', 'Décembre %']): sf.cell(4 + i, 1, m)
+    for r, v in [(4, [0.6, 0.4, 'OK', 2]), (5, [0.8, 0.2, 'KO', 5]), (6, [1, 0.6, 'OK', None]), (7, [0.4, '3/5', 'OK', 1])]:
+        for i, x in enumerate(v):
+            if x is not None: sf.cell(r, 2 + i, x)
+    fic = os.path.join(tempfile.mkdtemp(), 'synthese-fictive-2026.xlsx'); wbf.save(fic)
+    a.locator('nav.onglets button', has_text='Audits').first.click(); time.sleep(0.8)
+    a.get_by_role('button', name='Importer un tableau d’audit…').first.click(); time.sleep(0.8)
+    dlg = a.locator('dialog[open]').last
+    dlg.locator('input[type=file]').set_input_files(fic); time.sleep(1.2)
+    verifier(dlg.locator('tbody tr').count() == 4 and 'Conforme / non conforme' in dlg.locator('tbody tr').nth(2).inner_text(), 'Audits : classeur de synthèse lu, colonnes reconnues (proportion, OK / KO, nombre)')
+    dlg.get_by_role('button', name='Importer', exact=True).click(); time.sleep(2.5)
+    a.locator('nav.onglets button', has_text='Résultats').first.click(); time.sleep(1.2)
+    verifier(a.locator('.au-annee figure').count() == 5 and 'Audit mensuel' in a.locator('.au-annee h2').first.inner_text(), 'Audits : import d’un tableau mensuel, graphiques de l’année (global, critères, indicateur)')
+    capture(a, 'audits-annee')
     fenetre(a, 'Administration'); time.sleep(1)
     a.locator('nav.onglets button', has_text='Audits internes').first.click(); time.sleep(1)
     verifier(a.locator('h2', has_text='Grilles d’audit et auditeurs').count() == 1, 'Audits : réglage des grilles et des auditeurs')

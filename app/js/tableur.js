@@ -140,6 +140,7 @@
     var toutes = [].concat.apply([], d.series.map(function (x) { return x.valeurs; })).filter(function (v) { return v !== null; });
     var max = Math.max(0, Math.max.apply(null, toutes.length ? toutes : [0])), min = Math.min(0, Math.min.apply(null, toutes.length ? toutes : [0]));
     var echelle = arrondiAxe(Math.max(Math.abs(max), Math.abs(min))), haute = max > 0 ? Math.ceil(max / (echelle / 5)) * (echelle / 5) : 0, basse = min < 0 ? Math.floor(min / (echelle / 5)) * (echelle / 5) : 0;
+    if (g.yMax > 0 && max <= g.yMax) haute = g.yMax;   // échelle fixe (ex. 0 à 100 %), audits internes
     if (haute === basse) haute = basse + 1;
     var gauche = 48, bas = 28 + (legende ? 18 : 0), x0 = gauche, x1 = W - 12, y0 = haut + 4, y1 = H - bas, Y = function (v) { return y1 - (v - basse) / (haute - basse) * (y1 - y0); };
     for (var k = 0; k <= 5; k++) {
@@ -154,7 +155,13 @@
       var coul = COULEURS_GRAPHIQUE[j % COULEURS_GRAPHIQUE.length];
       if (g.type === 'barres') {
         var lb = pas * 0.8 / ns;
-        s.valeurs.forEach(function (v, i) { if (v === null) return; var xa = x0 + pas * i + pas * 0.1 + lb * j, ya = Y(Math.max(v, 0)), yb = Y(Math.min(v, 0)); el.push({ e: 'rect', x: xa, y: ya, w: Math.max(1, lb - 1), h: Math.max(0.5, yb - ya), couleur: coul }); });
+        s.valeurs.forEach(function (v, i) {
+          if (v === null) return;
+          var xa = x0 + pas * i + pas * 0.1 + lb * j, ya = Y(Math.max(v, 0)), yb = Y(Math.min(v, 0));
+          el.push({ e: 'rect', x: xa, y: ya, w: Math.max(1, lb - 1), h: Math.max(0.5, yb - ya), couleur: coul });
+          // Valeur écrite au-dessus de la barre (option `etiquettes`, audits internes) : un 0 reste ainsi visible
+          if (g.etiquettes && ns === 1) el.push({ e: 'text', x: xa + lb / 2, y: ya - 3, t: fmtNombre(v) + (typeof g.etiquettes === 'string' ? g.etiquettes : ''), ancre: 'middle', taille: 9 });
+        });
       } else {
         var pts = []; s.valeurs.forEach(function (v, i) { if (v !== null) pts.push((x0 + pas * (i + 0.5)).toFixed(1) + ',' + Y(v).toFixed(1)); });
         if (pts.length > 1) el.push({ e: 'polyline', points: pts.join(' '), couleur: coul });

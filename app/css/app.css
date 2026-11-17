@@ -1542,3 +1542,8 @@ pre.au-ecarts { white-space: pre-wrap; font: inherit; }
 .filtres { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; margin: 6px 0 10px; }
 .filtres > label { flex: 0 1 220px; }
 .sans-coupure { white-space: nowrap; }
+/* Audits internes : évolution sur l'année (0.88.0) */
+.au-figures { display: flex; flex-wrap: wrap; gap: 12px; }
+.au-figures .au-figure { margin: 0; max-width: 100%; }
+.au-figures .au-figure svg { max-width: 100%; height: auto; }
+.au-figures .au-figure figcaption { font-size: 12px; max-width: 360px; }

@@ -60,7 +60,7 @@ test('Saisie : réponses complètes, date, référence, rien d’évaluable', ()
   assert.throws(() => A.controler('AUDIT', Object.assign({}, base, { reference: '' }), ctx({ audits: {} }, ide)), /registre/);
   assert.throws(() => A.controler('AUDIT', Object.assign({}, base, { date: '2026-11-18' }), ctx({ audits: {} }, ide)), /avenir/);
   assert.throws(() => A.controler('AUDIT', Object.assign({}, base, { items: base.items.map((x, i) => i ? x : Object.assign({}, x, { reponse: '' })) }), ctx({ audits: {} }, ide)), /chaque critère/);
-  assert.throws(() => A.controler('AUDIT', Object.assign({}, base, { items: base.items.map(x => Object.assign({}, x, { reponse: 'na' })) }), ctx({ audits: {} }, ide)), /non concerné/);
+  assert.throws(() => A.controler('AUDIT', Object.assign({}, base, { items: base.items.map(x => Object.assign({}, x, { reponse: 'na' })) }), ctx({ audits: {} }, ide)), /rien à auditer/);
   assert.throws(() => A.controler('AUDIT', Object.assign({}, base, { grille: 'ga-inconnue' }), ctx({ audits: {} }, ide)), /inconnue/);
 });
 
