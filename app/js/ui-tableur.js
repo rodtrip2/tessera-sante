@@ -753,5 +753,5 @@
     U.imprimer(article);
   }
 
-  U.tableur = { surface: surface, apercu: apercu, imprimer: imprimer };
+  U.tableur = { surface: surface, apercu: apercu, imprimer: imprimer, svgGraphique: svgGraphique };
 })();

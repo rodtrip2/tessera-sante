@@ -1,5 +1,14 @@
 # Journal des modifications — Tessera Santé
 
+## 0.88.0 — 17 novembre 2026
+
+**Audits internes : import d'un tableau d'audit mensuel et évolution sur l'année** (demande du porteur du 17 novembre 2026) :
+- **Import** (onglet « Audits », bouton *Importer un tableau d'audit…*, cadre et administrateur) d'un classeur Excel tenu par le service : feuille de synthèse avec les mois en première colonne (« Janvier % », « Octobre n-1 % »…) et un critère par colonne. Le bloc de mois le plus rempli et sa ligne de critères sont repérés ; chaque colonne est lue comme proportion (fraction, pourcentage, « 3/5 »), conforme / non conforme (« OK » / « KO »), nombre (indicateur), commentaire ou ignorée, au choix. Grille existante (critères rapprochés par leur libellé) ou créée d'après les colonnes. Un audit par mois rempli, daté du 1er du mois ; cases vides ou en erreur (#DIV/0!) non évaluées ; mois à venir et mois déjà importés écartés ; « Vérifier avant d'importer ». Le fichier est lu sur le poste, jamais copié ; seul son nom est gardé avec l'audit.
+- **Critères en proportion et indicateurs** : réponse attendue réglable par critère (conforme ou non ; X conformes sur N vérifiés ; nombre, hors du taux) ; saisie « X sur N » dans la fenêtre d'audit. Taux d'un audit : moyenne des critères évalués (identique au calcul précédent pour des réponses conforme / non conforme).
+- **Résultats → Évolution sur l'année** (affichage par défaut) : graphique de la conformité globale mois par mois, un graphique par critère et par indicateur, barres colorées (vert 90 % et plus, orange de 70 à 89 %, rouge en dessous) avec leur valeur ; détail de l'année ; impression et **export en PDF** au papier de l'établissement. « Tableaux par période » garde l'affichage précédent.
+- Saisie `AUDIT` : éléments `mode` (`reponse`, `ratio` avec `conformes`, `evalues` ou `pourcentage`, `indicateur` avec `valeur`), `origine: 'import'` et `fichier`. Tableur : option d'échelle fixe et valeurs au-dessus des barres des graphiques.
+- Démonstration : « Audit flash mensuel (fictif) » importé, de janvier de l'an dernier au mois en cours.
+
 ## 0.87.1 — 17 novembre 2026 (version stable)
 
 Documentation des versions 0.86.0 et 0.87.0 : architecture (§ 7 nonies, tableau des modules, plan, décisions), fiche projet, fiche technique (modules désactivés par défaut, audit de la tenue du dossier), kit (traitements 15 et 19 du registre, guide de l'utilisateur, fiches du délégué à la protection des données et de la direction des soins), `CLAUDE.md`, historique des décisions ; PDF régénérés. Aucun changement de l'application.
