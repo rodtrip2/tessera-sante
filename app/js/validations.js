@@ -67,6 +67,9 @@
     { code: 'dossier-clinique', libelle: 'Données cliniques du séjour : feuille de staff clinique (codes CIM, motif, projet thérapeutique, dépendance) et notes cliniques', categorie: 'clinique', interlocuteurs: ['dpo', 'rssi', 'soins'], existante: false, modules: ['clinique'],
       description: 'Données de santé rattachées au séjour, écrites et lues par les rôles réglés (IDE, cadre, médecins par défaut), avec les limites communes (patients présents, bris de glace). Le dossier patient informatisé reste la référence clinique : risque de double saisie et de divergence à examiner avec la direction des soins et la commission médicale. Désactivé : la fenêtre Données cliniques est masquée ; les données sont conservées.',
       ou: 'Administration → Rôles et accès ; Données cliniques' },
+    { code: 'audit-dossier', libelle: 'Audits de la tenue du dossier du patient', categorie: 'clinique', interlocuteurs: ['dpo', 'soins'], existante: false,
+      description: 'Audit interne réalisé sur le dossier d’un patient (grille « Tenue du dossier » du module Audits internes) : la saisie garde la référence du séjour, jamais le nom, et les réponses aux critères. Le dossier patient informatisé reste la référence ; l’audit en vérifie la tenue. Désactivé : la grille est masquée et ne peut plus être remplie ; les audits faits sont conservés.',
+      ou: 'Administration → Audits internes' },
     { code: 'mesure-usage', libelle: 'Mesure d’usage anonyme', categorie: 'autre', interlocuteurs: ['representants', 'dpo'], existante: false,
       description: 'Nombre de saisies par module et par semaine, et nombre d’agents ayant saisi (jamais leur identité ; masqué sous 3 agents), calculés à partir du journal, pour évaluer le pilote. Information des agents et des représentants du personnel avant activation.',
       ou: 'Administration → Mesure d’usage' }

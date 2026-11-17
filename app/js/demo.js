@@ -28,7 +28,7 @@
     var periodes = [['M', 7], ['AM', 14], ['N', 21]];
     if (reel) {
       // Jeu de formation : mêmes services, CSI et postes que les données réelles, contenu fictif.
-      ['services', 'libelleJuge', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail', 'comptesPoles', 'controles', 'formalites', 'formations', 'heures', 'rolesServices', 'accesClinique'].forEach(function (k) {
+      ['services', 'libelleJuge', 'modulesServices', 'fichePatient', 'importPatients', 'patientsListe', 'patientsChamps', 'champsAjoutes', 'reglagesDonnees', 'capacites', 'vuesEnsemble', 'psychologues', 'largeursColonnes', 'vehicules', 'vehiculesInformation', 'travaux', 'messagerie', 'salles', 'infos', 'poles', 'chambres', 'delegations', 'charteIntervenants', 'groupes', 'medecins', 'suiviMedical', 'agenda', 'lieuxCSI', 'periodes', 'periodesService', 'modesHospitalisation', 'parametres', 'delaiModeHospiHeures', 'decompte', 'inactiviteMinutes', 'pauses', 'imagesDecompte', 'colonnesPatients', 'casParticuliers', 'qualite', 'statsMethode', 'informateursTiers', 'lieuIsolement', 'organisationJLD', 'verificationVersion', 'listes', 'vigilance', 'affichage', 'roles', 'surveillance', 'exports', 'validations', 'etiquettesCommunes', 'barreModules', 'boitesMail', 'comptesPoles', 'controles', 'audits', 'formalites', 'formations', 'heures', 'rolesServices', 'accesClinique'].forEach(function (k) {
         if (reel[k] !== undefined) cfg(k, reel[k]);
       });
       // Alertes : seules les mesures saisies pendant la formation les déclenchent.
@@ -47,7 +47,7 @@
       cfg('services', [{ code: 'U1', libelle: 'Unité 1 (fictive)' }, { code: 'U2', libelle: 'Unité 2 (fictive)' }]);
       cfg('etablissement', 'Établissement fictif de démonstration');
       cfg('poles', [{ code: 'PSM', libelle: 'Pôle santé mentale (fictif)', services: ['U1', 'U2'] }]);   // 0.27.2
-      cfg('modulesServices', { controles: { tous: false, services: ['U1'] } });   // module Contrôles (désactivé par défaut) activé pour l'Unité 1
+      cfg('modulesServices', { controles: { tous: false, services: ['U1'] }, audits: { tous: false, services: ['U1', 'U2'] } });   // modules Contrôles et Audits (désactivés par défaut) activés pour la démonstration
       // Chambres et lits (0.29.0) : Unité 1 (chambres doubles et simples, deux CSI, pièces dont un espace d'apaisement
       // utilisé par les patients), Unité 2 (chambres simples, une CSI) ; plan du service en grille
       var ch = function (nom, lits, x, y, w) { return { id: 'c' + nom, nom: nom, type: 'chambre', lits: lits, x: x, y: y, w: w || 1, h: 1 }; };
@@ -172,6 +172,7 @@
         entretiens: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
         'dossier-clinique': { etat: 'accord', date: jourIso(-1), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote (démonstration, fictif)', dpoInforme: jourIso(-2) },
         heures: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
+        'audit-dossier': { etat: 'accord', date: jourIso(-1), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote (démonstration, fictif)', dpoInforme: jourIso(-2) },
         'mesure-usage': { etat: 'accord', date: jourIso(-7), auteur: 'Cadre supérieur de santé (fictif)', reference: 'Agents informés en réunion d’équipe (fictif)' }
       } });
       // Catégories : préréglages de l'établissement, une catégorie ajoutée pour tous, une propre à l'Unité 2 (fictives)
@@ -770,6 +771,27 @@
         if (d.deuxAgents) ajouter(at + 3 * 60000, 'CONTROLE_CONFIRME', { controle: id, service: U1, nom: 'Agent B (fictif)' }, 'demo-b');
       });
       ajouter(now - 90 * 60000, 'CONTROLE_UTILISATION', { id: 'UT-D001', service: U1, def: 'cp-chariot', libelle: 'Chariot d’urgence', commentaire: 'Ouvert pour un malaise en salle commune ; deux ampoules utilisées (fictif)', nom: 'Agent C (fictif)' }, 'demo-c');
+    })();
+    // Audits internes (0.87.0) : grille du circuit du médicament commune à l'établissement, grilles de l'isolement et de
+    // la contention et de la tenue du dossier pour l'Unité 1, Agent A désigné auditeur ; audits des six derniers mois
+    // (taux en progrès, écarts, un audit annulé), références fictives, aucun nom de patient
+    if (SIC.audits) (function () {
+      var AU = SIC.audits, gm = AU.depuisModele('medicament', 'ga-medicament'), gi = AU.depuisModele('isocont', 'ga-isocont'), gd = AU.depuisModele('dossier', 'ga-dossier');
+      if (!reel) cfg('audits', { '*': { grilles: [gm] }, U1: { grilles: [gi, gd], auditeurs: ['demo-a'] } });
+      var n = 0;
+      function audit(g, sv, jours, nonConformes, ref, par, com) {
+        var id = 'AU-D' + String(++n).padStart(3, '0'), date = SIC.model.dateLocaleISO(now - jours * J);
+        ajouter(now - jours * J + 10 * H, 'AUDIT', { id: id, service: sv, grille: g.id, libelle: g.libelle, theme: g.theme, date: date, reference: ref || '', nom: par[0], commentaire: com || '',
+          items: g.criteres.map(function (k, i) { var nc = nonConformes.indexOf(i) >= 0; return { libelle: k.libelle, rubrique: k.rubrique, reponse: nc ? 'non' : (i === g.criteres.length - 1 && i % 3 === 0 ? 'na' : 'oui'), commentaire: nc ? 'À reprendre avec l’équipe (fictif)' : '' }; }) }, par[1]);
+        return id;
+      }
+      var cadre = ['Cadre Démo (fictif)', (options.moi && options.moi.id) || 'demo'], agA = ['Agent A (fictif)', 'demo-a'];
+      [[170, [1, 3, 7, 10]], [140, [3, 7, 10]], [110, [7, 10]], [80, [3, 7]], [50, [7]], [20, [7]]].forEach(function (x, i) { audit(gm, U1, x[0], x[1], '', i % 2 ? agA : cadre, i === 5 ? 'Nette progression ; reste la traçabilité en temps réel (fictif)' : ''); });
+      audit(gm, U2, 35, [2, 4, 8], '', cadre);
+      [[60, [4]], [25, []], [6, [2, 7]]].forEach(function (x, i) { audit(gi, U1, x[0], x[1], 'Mesure n° ' + (14 + i * 9) + ' du registre (fictif)', cadre); });
+      [[45, [1, 9]], [30, [9]], [9, [1, 9, 10]], [3, []]].forEach(function (x, i) { audit(gd, U1, x[0], x[1], 'Séjour 9000' + (21 + i) + ' (fictif)', agA); });
+      var an = audit(gd, U1, 2, [0], 'Séjour 900099 (fictif)', agA);
+      ajouter(now - 2 * J + 11 * H, 'AUDIT_ANNULE', { audit: an, service: U1, motif: 'Audit saisi sur la mauvaise grille (fictif)', nom: 'Agent A (fictif)' }, 'demo-a');
     })();
     file.sort(function (a, b) { return a.at - b.at || a.n - b.n; });
     // Congés (0.44.0) : types (dont un ajouté), fériés à récupérer pour les IDE et AS de l'Unité 1, message d'avertissement

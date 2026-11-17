@@ -843,6 +843,7 @@
     travaux: ['M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z'],
     retours: ['M4 4h16v12H8l-4 4z', 'M12 7v4', 'M12 13.5v.5'],
     controles: ['M9 4h6v3H9z', 'M7 5H5v15h14V5h-2', 'M8.5 12.5l2 2 4-4.5'],
+    audits: ['M10.5 17a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13z', 'M15.5 15.5L20 20', 'M8 10.5l1.8 1.8 3.2-3.6'],
     clinique: ['M9 3h6v6h6v6h-6v6H9v-6H3V9h6z'],
     heures: ['M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z', 'M12 7v5l3 2', 'M17 3l2 2'],
     formations: ['M3 9l9-5 9 5-9 5z', 'M7 11.5V16c0 1.5 2.5 3 5 3s5-1.5 5-3v-4.5', 'M21 9v6'],
@@ -900,7 +901,7 @@
     return res;
   }
   /** Thèmes des onglets de l'administration (0.81.0, constat E2) : un module inconnu rejoint « Organisation ». */
-  var THEMES_ADMIN = { patients: 'Patients et soins', isocont: 'Patients et soins', suivi: 'Patients et soins', clinique: 'Patients et soins', vue: 'Patients et soins', controles: 'Patients et soins',
+  var THEMES_ADMIN = { patients: 'Patients et soins', isocont: 'Patients et soins', suivi: 'Patients et soins', clinique: 'Patients et soins', vue: 'Patients et soins', controles: 'Patients et soins', audits: 'Patients et soins',
     equipe: 'Équipe', conges: 'Équipe', formations: 'Équipe', heures: 'Équipe' };
   function groupesAdmin(liste) {
     var ordre = ['Général', 'Patients et soins', 'Organisation', 'Équipe'], g = {};

@@ -336,7 +336,7 @@
               } }, 'Retirer'))));
         })))) : h('p', { class: 'muted', text: 'Aucun contrôle périodique pour ce service.' }));
       var choix = h('select', { 'aria-label': 'Modèle' }, Object.keys(K.MODELES_PERIODIQUES).map(function (k) { return h('option', { value: k, text: K.MODELES_PERIODIQUES[k].libelle }); }).concat([h('option', { value: 'libre', text: 'Contrôle vide (à composer)' })]));
-      zone.appendChild(h('div', { class: 'en-ligne' }, h('label', { class: 'en-ligne' }, 'Ajouter :', choix),
+      zone.appendChild(h('div', { class: 'en-ligne' }, h('label', { class: 'en-ligne' }, h('span', { class: 'sans-coupure', text: 'Ajouter :' }), choix),
         h('button', { class: 'btn', type: 'button', onclick: function () {
           if (liste.length >= 60) return SIC.ui.alerte('60 contrôles périodiques au plus par service.');
           var n = K.depuisModele(choix.value, nouvelId());
