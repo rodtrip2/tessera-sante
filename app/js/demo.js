@@ -745,6 +745,32 @@
         if (x.modele === 'csiLibre' && !cours) ajouter(at + 2 * 60000, 'CONTROLE_CONFIRME', { controle: id, service: U1, nom: a2[0] }, a2[1]);
       });
     })();
+    // Contrôles périodiques (0.86.0), Unité 1 : chariot d'urgence (hebdomadaire, à deux agents, contrôlé et confirmé,
+    // une péremption proche, une utilisation signalée à contrôler), réfrigérateur (quotidien : relevé conforme avant-hier,
+    // 9 °C hier, écart signalé au cadre ; aujourd'hui à faire), sac d'urgence (mensuel, contrôlé le 1er)
+    if (SIC.controles) (function () {
+      var K = SIC.controles, defs = [K.depuisModele('chariot', 'cp-chariot'), K.depuisModele('refrigerateur', 'cp-frigo'), K.depuisModele('trousse', 'cp-sac')];
+      if (!reel) cfg('controles', { U1: { periodiques: defs } });
+      var cfgP = { controles: { U1: { periodiques: defs } } }, ech = K.echeancesPeriodiques({ controles: {}, utilisations: {} }, cfgP, { service: U1, maintenant: now, jours: 2 });
+      function iso(n) { return SIC.model.dateLocaleISO(now + n * J); }
+      function items(d, f) { return d.points.map(function (p) { var it = { libelle: p.libelle, type: p.type, ok: true }; f(p, it); if (p.type === 'case') delete it.type; return it; }); }
+      var n = 0;
+      ech.forEach(function (x) {
+        var d = x.def, id = 'CT-P' + String(++n).padStart(3, '0'), at = Math.min(x.debut + 9 * 3600000 + n * 60000, now - 3600000);
+        if (x.date === iso(0) && d.id === 'cp-frigo') return;              // relevé du jour : à faire
+        if (at < x.debut) return;
+        var hier = d.id === 'cp-frigo' && x.date === iso(-1);
+        var it = items(d, function (p, i) {
+          if (p.type === 'valeur') { i.valeur = hier && /relevée|maximale/.test(p.libelle) ? 9 : (/minimale/.test(p.libelle) ? 3.5 : 5); i.unite = p.unite; i.min = p.min; i.max = p.max; i.ok = !(i.valeur > p.max); }
+          if (p.type === 'peremption') i.peremption = d.id === 'cp-chariot' && /Électrodes/.test(p.libelle) ? iso(20) : iso(240);
+          if (p.type === 'texte') i.texte = d.id === 'cp-chariot' ? 'S-104 (fictif)' : 'S-221 (fictif)';
+        });
+        ajouter(at, 'CONTROLE', { id: id, modele: 'periodique', def: d.id, service: U1, lieu: d.libelle, date: x.date, poste: x.poste, libellePoste: x.libellePoste, deuxAgents: d.deuxAgents, items: it,
+          ecart: hier ? 'Porte restée entrouverte après la livraison de la pharmacie : refermée, pharmacien prévenu, produits mis de côté (fictif)' : '', nom: 'Agent A (fictif)' }, 'demo-a');
+        if (d.deuxAgents) ajouter(at + 3 * 60000, 'CONTROLE_CONFIRME', { controle: id, service: U1, nom: 'Agent B (fictif)' }, 'demo-b');
+      });
+      ajouter(now - 90 * 60000, 'CONTROLE_UTILISATION', { id: 'UT-D001', service: U1, def: 'cp-chariot', libelle: 'Chariot d’urgence', commentaire: 'Ouvert pour un malaise en salle commune ; deux ampoules utilisées (fictif)', nom: 'Agent C (fictif)' }, 'demo-c');
+    })();
     file.sort(function (a, b) { return a.at - b.at || a.n - b.n; });
     // Congés (0.44.0) : types (dont un ajouté), fériés à récupérer pour les IDE et AS de l'Unité 1, message d'avertissement
     // activé ; tableaux de l'année et de l'année suivante, règles (une non respectée), période bloquée, à éviter, vacances

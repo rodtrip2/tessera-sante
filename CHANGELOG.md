@@ -1,5 +1,16 @@
 # Journal des modifications — Tessera Santé
 
+## 0.86.0 — 17 novembre 2026
+
+**Contrôles périodiques** (lot K, demande du porteur du 17 novembre 2026), dans le module Contrôles :
+- **Réglage par service** (Administration → Contrôles, et le cadre pour ses services) : contrôles ajoutés depuis un modèle — **chariot d'urgence** (chaque lundi et après chaque utilisation, à deux agents), **réfrigérateur à médicaments** (chaque jour, températures entre 2 et 8 °C), **sac d'urgence** (le 1er du mois et après utilisation) — ou vides ; rythme (à chaque poste, chaque jour, chaque semaine, chaque mois), contrôle après utilisation (délai en heures), second agent, alerte avant péremption (30 jours par défaut) ; points de quatre types : conforme ou non, valeur relevée avec seuils, date de péremption, texte court (numéro de scellé). Modèles à adapter à la procédure de l'établissement.
+- **Onglet « Contrôles périodiques »** : contrôles à faire maintenant, en retard, péremptions relevées au dernier contrôle, contrôles réglés (dernier et prochain), bouton « Signaler une utilisation ».
+- **Saisie** : une valeur hors des seuils ou une date dépassée est un écart (commentaire obligatoire, signalé au cadre, demande de travaux proposée), sans relevé de contrôle imposé (décision du porteur) ; péremption proche rappelée à l'avance.
+- **Aujourd'hui** : contrôles à faire pour l'équipe ; retards, écarts et péremptions pour le cadre. **Agenda** : échéances du jour (à chaque poste : une ligne par jour avec le décompte), lues à la volée.
+- **Registre** : relevés (valeurs, dates, scellé) affichés, imprimables et exportés.
+- Saisies : `CONTROLE` (modèle `periodique`, avec `def`, `utilisation`, relevés typés), nouvelle saisie `CONTROLE_UTILISATION` ; réglage `controles[service].periodiques`.
+- Démonstration : trois contrôles pour l'Unité 1 (fictifs) — relevé du réfrigérateur hors des seuils hier, relevé du jour à faire, chariot contrôlé avec une péremption proche et une utilisation à contrôler.
+
 ## 0.85.1 — 16 novembre 2026 (version stable)
 
 Documentation, sans changement de l'application (demande du porteur du 16 novembre 2026) :
