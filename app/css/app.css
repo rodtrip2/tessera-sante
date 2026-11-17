@@ -1525,3 +1525,20 @@ small.bloc, .muted.bloc { display: block; }
 .ag-puce.ag-controle.retard { --c: var(--bad); }
 .ag-puce.ag-controle.fait { opacity: .7; }
 .controles-bloc { margin-top: 14px; }
+/* Audits internes (0.87.0) */
+.au-barre { display: inline-block; width: 90px; height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; vertical-align: middle; }
+.au-barre-plein { display: block; height: 100%; width: 0; background: var(--ink-2); }
+.au-bon .au-barre-plein { background: var(--ok); }
+.au-moyen .au-barre-plein { background: var(--warn); }
+.au-faible .au-barre-plein { background: var(--bad); }
+span.au-bon, td.au-bon { color: var(--ok); font-weight: 600; }
+span.au-moyen, td.au-moyen { color: var(--warn); font-weight: 600; }
+span.au-faible, td.au-faible { color: var(--bad); font-weight: 600; }
+.au-grille .au-rubrique th { text-align: left; background: var(--accent-soft); padding-top: 8px; }
+.au-grille td:first-child { width: 50%; }
+.au-choix { flex-wrap: wrap; gap: 4px 14px; }
+.au-com { width: 100%; margin-top: 4px; }
+pre.au-ecarts { white-space: pre-wrap; font: inherit; }
+.filtres { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; margin: 6px 0 10px; }
+.filtres > label { flex: 0 1 220px; }
+.sans-coupure { white-space: nowrap; }

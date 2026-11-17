@@ -32,7 +32,7 @@
   var REPONSES = { auteur: 'À l’auteur seulement', tous: 'À tous les destinataires', aucune: 'Pas de réponse' };
   // Modules dont on peut rattacher un élément (décision du 11 novembre 2026, liste à compléter plus tard)
   // Documents et messages (14 novembre 2026) : rattachables à une tâche personnelle, et un document à un message
-  var RATTACHABLES = { salles: 'Salles et bureaux', agenda: 'Agenda', vehicules: 'Véhicules', travaux: 'Demandes de travaux', suivi: 'Suivi médical', patients: 'Patients', documents: 'Documents', messagerie: 'Messagerie' };
+  var RATTACHABLES = { salles: 'Salles et bureaux', agenda: 'Agenda', vehicules: 'Véhicules', travaux: 'Demandes de travaux', audits: 'Audits internes', suivi: 'Suivi médical', patients: 'Patients', documents: 'Documents', messagerie: 'Messagerie' };
   // Modules qui peuvent afficher leurs informations dans l'onglet Informations (réglage de l'établissement, désactivé par défaut)
   var INFORMATIONS = { agenda: 'Agenda (réponses attendues, informations)', vehicules: 'Véhicules (informations sur vos réservations)', travaux: 'Demandes de travaux (urgences, suivi de vos demandes)', suivi: 'Suivi médical (alertes)', salles: 'Salles et bureaux (décisions sur vos demandes, arbitrages)' };
   var TYPES_PIECES_DEFAUT = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'doc', 'docx', 'odt', 'xls', 'xlsx', 'ods', 'ppt', 'pptx', 'odp', 'txt', 'csv'];

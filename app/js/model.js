@@ -285,6 +285,8 @@
     boitesMail: {},
     // Contrôles des CSI (module-controles.js, 14 novembre 2026) : { '*': { csiLibre: { actif, liste, deuxAgents }, surveillance: { actif } }, <service>: ... }
     controles: {},
+    // Audits internes (module-audits.js, 17 novembre 2026) : { '*': { grilles: [...] }, <service>: { grilles: [...], auditeurs: [comptes] } }
+    audits: {},
     // Formalités d'admission et de sortie (formalites.js, 14 novembre 2026) : { '*': { active (non par défaut), liste }, <service>: ... }
     formalites: {},
     // Formations (module-formations.js, 14 novembre 2026) : { etapeGtt, rolesGtt, validateurs }
@@ -2262,7 +2264,8 @@
     { code: 'heures', libelle: 'Heures supplémentaires : motifs, heures payées et plafond, enregistrement dans le logiciel de gestion du temps', cles: ['heures'] },
     { code: 'formations', libelle: 'Formations : étape d’enregistrement dans le logiciel de gestion du temps, rôles qui la confirment', cles: ['formations'] },
     { code: 'formalites', libelle: 'Formalités d’admission et de sortie : activation, liste, délais', cles: ['formalites'] },
-    { code: 'controles', libelle: 'Contrôles des chambres de soins intensifs : check-list, second agent, surveillance', cles: ['controles'] },
+    { code: 'controles', libelle: 'Contrôles des chambres de soins intensifs et contrôles périodiques : check-list, second agent, surveillance', cles: ['controles'] },
+    { code: 'audits', libelle: 'Audits internes : grilles et auditeurs désignés', cles: ['audits'] },
     { code: 'roles', libelle: 'Rôles et accès, verrouillage après inactivité', cles: ['roles', 'inactiviteMinutes'] },
     { code: 'groupes', libelle: 'Groupes d’agents (équipes, groupes de travail)', cles: ['groupes'] },
     { code: 'legal', libelle: 'Règles légales (seuils et cycles JLD)', cles: ['parametres'], prudence: true },

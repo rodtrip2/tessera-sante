@@ -167,6 +167,18 @@
       },
       ouvrir: function (r) { var e = etat('travaux'); if (e && e.demandes[r.id] && U.travaux) U.travaux.modaleDemande(e.demandes[r.id]); else U.ouvrirFenetre('travaux'); }
     },
+    audits: {
+      lister: function () {
+        var e = etat('audits'); if (!e) return [];
+        return SIC.audits.liste(e, { services: mesServicesModule('audits') }).map(function (a) { return { genre: 'audit', id: a.id, service: a.service, quand: Date.parse(a.le) }; });
+      },
+      resoudre: function (r) {
+        var e = etat('audits'), a = e && e.audits[r.id]; if (!a) return null;
+        var t = SIC.audits.taux(a.items);
+        return { titre: 'Audit : ' + a.libelle + (a.reference ? ' (' + a.reference + ')' : ''), detail: a.date.split('-').reverse().join('/') + (t.taux === null ? '' : ' — ' + t.taux + ' % de conformité') + (t.non ? ', ' + t.non + ' écart(s)' : '') };
+      },
+      ouvrir: function (r) { var e = etat('audits'); if (e && e.audits[r.id] && U.audits) U.audits.ouvrirAudit(e.audits[r.id]); else U.ouvrirFenetre('audits'); }
+    },
     suivi: {
       lister: function () {
         var e = etat('suivi'); if (!e) return [];

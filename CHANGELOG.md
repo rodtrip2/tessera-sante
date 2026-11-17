@@ -1,5 +1,18 @@
 # Journal des modifications — Tessera Santé
 
+## 0.87.0 — 17 novembre 2026
+
+**Audits internes** (lot P, demande du porteur du 17 novembre 2026), nouveau module, désactivé par défaut et activé service par service :
+- **Grilles** réglées par l'établissement (communes à tous les services) et par le cadre pour ses services : critères rangés par rubrique, aide facultative, référence demandée à chaque audit (numéro de la mesure au registre, du séjour). Grilles proposées, à adapter : **circuit du médicament**, **tenue du dossier du patient**, **isolement et contention**.
+- **Tenue du dossier** : fonction soumise à avis (délégué à la protection des données, direction des soins et commission médicale), **livrée désactivée** (onglet « Validations ») ; la référence du séjour, jamais le nom du patient.
+- **Un audit = une grille remplie une fois** (décision du porteur) : chaque critère conforme, non conforme ou non concerné, avec un commentaire ; taux de conformité = conformes / (conformes + non conformes).
+- **Auditeurs** : le cadre et les agents qu'il désigne (décision du porteur) ; contrôle à l'enregistrement.
+- **Onglets** : « Audits » (grilles, dernier résultat, derniers audits), « Résultats » (conformité globale, par mois, trimestre ou année, par critère du moins au plus conforme ; impression, export), « Registre » (détail, impression, annulation motivée).
+- **Écarts** : ajoutés sur demande à « Mes tâches » (l'audit est l'élément rattaché) ; plans d'action plus tard (décision du porteur). Aujourd'hui : audits des 7 derniers jours avec des écarts, pour le cadre.
+- Saisies `AUDIT`, `AUDIT_ANNULE` ; réglage `audits` (`'*'` et services : `grilles`, `auditeurs`) ; fonction soumise à avis `audit-dossier`.
+- Démonstration : audits fictifs des six derniers mois (Unités 1 et 2), un audit annulé.
+- Filtres des registres (contrôles, audits) sur une ligne.
+
 ## 0.86.0 — 17 novembre 2026
 
 **Contrôles périodiques** (lot K, demande du porteur du 17 novembre 2026), dans le module Contrôles :
