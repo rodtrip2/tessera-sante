@@ -1,5 +1,9 @@
 # Journal des modifications — Tessera Santé
 
+## 0.88.4 — 23 novembre 2026
+
+**`docs/evolutions-futures.md` nettoyé** (demande du porteur du 23 novembre 2026) : retrait de tout ce qui est déjà réalisé. Lots A, B et I retirés entièrement ; parties faites retirées des lots C, D, E, F, G, H, K, N, O et P (formalités d'admission et de sortie, faites en 0.63.0, comprises) ; état au 23 novembre 2026 et tableau des lots réduits à ce qui reste à faire. Aucun changement de l'application.
+
 ## 0.88.3 — 23 novembre 2026
 
 **Flux de publication : actions GitHub à jour** (avertissement « Node.js 20 is deprecated » signalé par le porteur le 23 novembre 2026). Aucun changement de l'application.

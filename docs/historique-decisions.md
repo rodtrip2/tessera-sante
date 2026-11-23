@@ -1196,3 +1196,7 @@ Demande du porteur du 23 novembre 2026 : exécuter directement le script depuis 
 ### 0.88.3 — Actions GitHub pour Node.js 24 (23 novembre 2026)
 
 Avertissement « Node.js 20 is deprecated » relevé par le porteur lors de la publication de la 0.88.2. Actions du flux passées à leurs versions pour Node.js 24, toujours épinglées par empreinte de commit (`checkout` 7.0.1, `setup-node` 7.1.0, `configure-pages` 6.0.0, `upload-pages-artifact` 5.0.0 avec `include-hidden-files`, `deploy-pages` 5.0.1) ; tests du flux sous Node.js 22 ; cache de `setup-node` désactivé.
+
+### 0.88.4 — Évolutions futures nettoyées (23 novembre 2026)
+
+Demande du porteur du 23 novembre 2026 : retirer de `docs/evolutions-futures.md` ce qui est déjà fait. Document ramené de 592 à environ 380 lignes ; restent les reliquats (graphiques dans l'export et l'import Excel, référents par domaine, administrateur de garde limité à ses gardes, notes libres du cadre, plans d'action reliés aux écarts d'audit), les pistes « plus tard » et les lots écartés.
