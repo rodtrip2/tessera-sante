@@ -1192,3 +1192,7 @@ Demande du porteur du 23 novembre 2026, dans la réflexion sur une version limit
 ### 0.88.2 — Mise à jour en un double-clic (23 novembre 2026)
 
 Demande du porteur du 23 novembre 2026 : exécuter directement le script depuis le dossier de Tessera sur le partage. Lanceur `kit/outils/mettre-a-jour-tessera.cmd` (vérification `-Simulation`, confirmation `choice`, installation) ; dossier `app` situé à côté du script par défaut (`$PSScriptRoot`), première installation confirmée ; `.gitattributes` (CRLF des `.cmd`). Point à valider : essai du lanceur sur un poste Windows, depuis le partage, avec *Exécuter en tant qu'autre utilisateur*.
+
+### 0.88.3 — Actions GitHub pour Node.js 24 (23 novembre 2026)
+
+Avertissement « Node.js 20 is deprecated » relevé par le porteur lors de la publication de la 0.88.2. Actions du flux passées à leurs versions pour Node.js 24, toujours épinglées par empreinte de commit (`checkout` 7.0.1, `setup-node` 7.1.0, `configure-pages` 6.0.0, `upload-pages-artifact` 5.0.0 avec `include-hidden-files`, `deploy-pages` 5.0.1) ; tests du flux sous Node.js 22 ; cache de `setup-node` désactivé.

@@ -1,5 +1,11 @@
 # Journal des modifications — Tessera Santé
 
+## 0.88.3 — 23 novembre 2026
+
+**Flux de publication : actions GitHub à jour** (avertissement « Node.js 20 is deprecated » signalé par le porteur le 23 novembre 2026). Aucun changement de l'application.
+- Actions épinglées par empreinte de commit, passées sur leurs versions pour Node.js 24 : `actions/checkout` 7.0.1, `actions/setup-node` 7.1.0, `actions/configure-pages` 6.0.0, `actions/upload-pages-artifact` 5.0.0 (avec `include-hidden-files` pour garder `.nojekyll`), `actions/deploy-pages` 5.0.1.
+- Tests du flux exécutés avec Node.js 22 (Node.js 20 n'est plus maintenu) ; cache automatique de `setup-node` désactivé (`package-manager-cache: false`, aucun paquet à mettre en cache, recommandé pour un flux qui publie).
+
 ## 0.88.2 — 23 novembre 2026
 
 **Mise à jour de l'application sur le partage en un double-clic** (demande du porteur du 23 novembre 2026). Aucun changement de l'application.
