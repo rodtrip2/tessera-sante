@@ -466,3 +466,19 @@ test('Fichiers joints : octets chiffrés par la clé du document, rangés avec l
   const cadre = await co(racine, 'cadre', 'mot de passe cadre');   // même module, sans la clé du document
   assert.equal(await cadre.dechiffrerFichierDocument('DC0000000c', ch.g, await cadre.lirePiece('documents', piece)), null);
 });
+
+// ------------------------------------------------------------ Repères et liens vers l'agenda (23 novembre 2026)
+test('Repères : passage d’un document texte et cases d’un tableur, extrait, retrait ; liens validés', () => {
+  const c = DM.contenu({ blocs: [{ t: 'p', runs: [{ x: 'Avant ' }, { x: 'passage lié (fictif)', an: 'an0test01', g: true }, { x: ' après' }] }, { t: 'p', runs: [{ x: 'x', an: 'mauvais' }] }] });
+  assert.deepEqual(c.blocs[0].runs.map((r) => r.an || ''), ['', 'an0test01', '']);
+  assert.equal(c.blocs[1].runs[0].an, undefined);
+  assert.equal(DM.ancres(c).an0test01.extrait, 'passage lié (fictif)');
+  assert.deepEqual(DM.retirerAncre(c, 'an0test01').blocs[0].runs, [{ x: 'Avant ' }, { x: 'passage lié (fictif)', g: true }, { x: ' après' }]);
+  // Tableur : repère sur une plage, gardé par les cases (même vides), suit les lignes insérées
+  let t = DM.contenu({ genre: 'tableur', feuilles: [{ nom: 'Budget', cellules: { A1: { v: 12 } } }] });
+  t = DM.ancrerCases(t, 0, { l1: 0, c1: 0, l2: 1, c2: 1 }, 'an0test02');
+  assert.deepEqual(DM.ancres(t).an0test02.cases, ['A1', 'B1', 'A2', 'B2']); assert.equal(DM.ancres(t).an0test02.extrait, 'Budget ! A1:B2');
+  const T2 = require('../app/js/tableur.js'), t2 = T2.inserer(t, 0, 'l', 0, 1);
+  assert.deepEqual(DM.ancres(t2).an0test02.cases, ['A2', 'B2', 'A3', 'B3']);
+  assert.deepEqual(Object.keys(DM.retirerAncre(t, 'an0test02').feuilles[0].cellules), ['A1']);
+});

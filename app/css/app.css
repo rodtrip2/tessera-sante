@@ -1126,6 +1126,14 @@ dialog.doc-editeur { width: 100vw; max-width: 100vw; height: 100vh; max-height: 
 .doc-selection { padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .doc-refus { color: var(--bad); }
 .doc-fichier-image { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+/* Repères et liens vers les tâches et l'agenda (23 novembre 2026) */
+.doc-ancre { background: var(--done-soft); border-bottom: 2px dotted var(--done); border-radius: 2px; }
+.doc-ancre-active { background: var(--warn-soft); outline: 2px solid var(--warn); }
+.tb-table td.tb-ancre { box-shadow: inset 0 -3px 0 var(--done); }
+@media print { .doc-ancre { background: none; border-bottom: 0; } }
+.liens-choix { margin-left: 26px; }
+.liens-choix select { max-width: 100%; }
+.mt-partagee { display: block; color: var(--done); }
 .doc-section { border-top: 1px solid var(--line); padding-top: .5rem; }
 @page doc-texte { size: A4 portrait; margin: 20mm; }
 .doc-imprime { page: doc-texte; color: #000; }

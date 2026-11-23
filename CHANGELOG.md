@@ -1,5 +1,14 @@
 # Journal des modifications — Tessera Santé
 
+## 0.90.0 — 23 novembre 2026
+
+**Passages, cases et pages d'un document liés aux tâches et à l'agenda ; tâches partagées** (demande du porteur du 23 novembre 2026).
+- **« Lier à… »** dans un document : le passage sélectionné (texte), les cases sélectionnées (tableur), une page (fichier joint PDF) ou le document entier est lié à une **nouvelle tâche** (personnelle ou partagée), une **tâche existante**, une **tâche de l'équipe ou du service** (nouvelle ou existante) ou un **événement de l'agenda** (nouveau ou existant). Le passage reçoit un repère, surligné dans le document, qui suit le texte modifié autour ; la tâche ou l'événement ne garde qu'un lien et un libellé court, jamais le texte.
+- **Liens** du document : passages repérés et tâches ou événements liés (ceux que l'agent peut voir) ; Alt + clic sur un passage surligné ; ouverture d'une tâche ou d'un événement depuis la liste, et du document sur le passage (surligné) depuis la tâche ou l'événement.
+- **Mes tâches** : plusieurs éléments liés par tâche ; **tâches partagées** avec une ou plusieurs personnes, chiffrées pour les seuls participants, modifiées et cochées faites pour tous, quittées par chacun.
+- **Agenda** : éléments liés des événements et des tâches de l'équipe et du service (fenêtres de modification ; bouton 🔗 sur les tâches du jour).
+- Démonstration : compte rendu de réunion lié à une tâche, une tâche de l'équipe et un événement. Tests : repères, tâches partagées, liens ; parcours des écrans complété. Documentation reportée (`docs/a-documenter.md`).
+
 ## 0.89.0 — 23 novembre 2026
 
 **Documents : fichiers joints, import, étiquetage, rattachement et export en lots** (demande du porteur du 23 novembre 2026).

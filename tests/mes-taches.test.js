@@ -98,3 +98,53 @@ test('Mes tâches : contenu lisible par le seul agent (pas l’administrateur), 
   assert.equal(st.perso.T.chiffre, 'abc');   // une tâche n'appartient qu'à son agent
   assert.equal(SIC.agenda.tachesPerso(st, 'u').length, 1);
 });
+
+test('Tâches partagées (23 novembre 2026) : chiffrées pour les participants seuls, modifiées et quittées par eux, jamais par un autre agent', async () => {
+  const racine = new Repertoire('TesseraSante');
+  const admin = new Session(new Dossier(racine, 'reseau'));
+  await admin.initialiser({ nom: 'Admin (fictif)', login: 'admin', motDePasse: 'mot de passe solide' });
+  await admin.enregistrer('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1 (fictif)' }] });
+  await admin.creerComptes([{ nom: 'IDE A (fictif)', login: 'ide.a', motDePasse: 'mot de passe ide a', roles: ['IDE'], services: ['U1'] },
+    { nom: 'IDE B (fictif)', login: 'ide.b', motDePasse: 'mot de passe ide b', roles: ['IDE'], services: ['U1'] },
+    { nom: 'AS C (fictif)', login: 'as.c', motDePasse: 'mot de passe as c', roles: ['AS'], services: ['U1'] }]);
+  await admin.creerClesManquantes();
+  const id = (l) => admin.comptes.find((c) => c.login === l).id;
+  const a = await co(racine, 'ide.a', 'mot de passe ide a'); a.choisirModule('agenda');
+  const ps = [id('ide.a'), id('ide.b')];
+  const lienDoc = { module: 'documents', genre: 'extrait', id: 'DC00000001', ancre: 'an0test01', libelle: 'Classeur (fictif)', texte: 'jamais gardé' };
+  const env = await a.chiffrerEnveloppe('tache:TS0000aa11', ps.map((x) => 't-a.' + x), { titre: 'Préparer la réunion (fictif)', elements: SIC.agenda.liens([lienDoc]) });
+  assert.ok(!JSON.stringify(env).includes('Préparer'));
+  await a.enregistrer('TACHE_PARTAGEE', { id: 'TS0000aa11', participants: ps, env });
+  const b = await co(racine, 'ide.b', 'mot de passe ide b'); b.choisirModule('agenda');
+  const tb = SIC.agenda.tachesPartagees(b.etatModule('agenda'), id('ide.b'));
+  assert.equal(tb.length, 1);
+  const lu = await b.ouvrirEnveloppe('tache:TS0000aa11', tb[0].env);
+  assert.equal(lu.titre, 'Préparer la réunion (fictif)'); assert.equal(lu.elements[0].ancre, 'an0test01'); assert.equal(lu.elements[0].texte, undefined);
+  // Un agent qui n'y participe pas : ni lecture, ni modification
+  const c = await co(racine, 'as.c', 'mot de passe as c'); c.choisirModule('agenda');
+  assert.equal(SIC.agenda.tachesPartagees(c.etatModule('agenda'), id('as.c')).length, 0);
+  assert.equal(await c.ouvrirEnveloppe('tache:TS0000aa11', tb[0].env), null);
+  await assert.rejects(c.enregistrer('TACHE_PARTAGEE', { id: 'TS0000aa11', participants: ps.concat([id('as.c')]), env }), /participants|rôle/);
+  // Un participant modifie (coche faite pour tous), puis quitte : la tâche reste à l'autre… qui reste seul : retirée
+  const env2 = await b.chiffrerEnveloppe('tache:TS0000aa11', ps.map((x) => 't-a.' + x), Object.assign({}, lu, { fait: true }));
+  await b.enregistrer('TACHE_PARTAGEE', { id: 'TS0000aa11', participants: ps, env: env2 });
+  await assert.rejects(b.enregistrer('TACHE_PARTAGEE', { id: 'TS0000aa12', participants: [id('ide.b')], env: env2 }), /au moins deux/);
+  await b.enregistrer('TACHE_PARTAGEE', { id: 'TS0000aa11', participants: ps, supprime: true });
+  assert.equal(SIC.agenda.tachesPartagees(b.etatModule('agenda'), id('ide.a')).length, 0);
+  // Saisie fabriquée par un non-participant : ignorée à la reconstitution de l'état
+  const st = SIC.agenda.reduire([{ v: 1, id: 'x1', at: '2026-11-23T08:00:00.000Z', by: 'u1', type: 'TACHE_PARTAGEE', data: { id: 'TS0000bb22', participants: ['u1', 'u2'], env: { ct: 'a' } } },
+    { v: 1, id: 'x2', at: '2026-11-23T09:00:00.000Z', by: 'u3', type: 'TACHE_PARTAGEE', data: { id: 'TS0000bb22', participants: ['u3'], supprime: true } }]);
+  assert.deepEqual(st.partagees.TS0000bb22.participants, ['u1', 'u2']); assert.equal(st.partagees.TS0000bb22.supprime, false);
+});
+
+test('Liens des tâches et des événements : format validé, contenu jamais gardé', () => {
+  const A = SIC.agenda;
+  assert.deepEqual(A.lien({ module: 'documents', genre: 'extrait', id: 'DC1', ancre: 'an0test01', page: 3, libelle: '  Points   à revoir ', texte: 'secret' }), { module: 'documents', genre: 'extrait', id: 'DC1', service: '', ancre: 'an0test01', page: 3, libelle: 'Points à revoir' });
+  assert.equal(A.lien({ module: 'Documents', genre: 'x', id: 'DC1' }), null);
+  assert.equal(A.liens(new Array(30).fill({ module: 'documents', genre: 'document', id: 'DC1' })).length, A.MAX_LIENS);
+  const st = A.reduire([{ v: 1, id: 'x1', at: '2026-11-23T08:00:00.000Z', by: 'u', type: 'RDV', data: { id: 'R1', nature: 'reunion', debut: 1, service: 'U1', liens: [{ module: 'documents', genre: 'document', id: 'DC1', texte: 'x' }] } },
+    { v: 1, id: 'x2', at: '2026-11-23T08:00:00.000Z', by: 'u', type: 'TACHE_EQUIPE', data: { id: 'T1', titre: 'T', service: 'U1', liens: [{ module: 'documents', genre: 'extrait', id: 'DC1', ancre: 'an0test02' }] } }]);
+  assert.deepEqual(st.rdv.R1.liens, [{ module: 'documents', genre: 'document', id: 'DC1', service: '' }]);
+  assert.equal(st.taches.T1.liens[0].ancre, 'an0test02');
+  assert.throws(() => A.contrat.saisies.controler('RDV', { id: 'R1', liens: [{ module: 'x' }] }, { etat: st, config: {}, peut: () => true, compte: { id: 'u', services: [] } }), /mal formés/);
+});

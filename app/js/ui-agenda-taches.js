@@ -55,7 +55,8 @@
       modifiable ? h('button', { class: 'btn lien tache-titre', type: 'button', title: 'Modifier la tâche', onclick: function () { modaleTache(t, t.niveau === 'service' ? 'TACHE' : 'TACHE_EQUIPE'); } }, (t.heure ? t.heure + ' ' : '') + t.titre) : null,
       x.affecte ? h('small', { class: 'muted', text: ' → ' + (x.affecte.nom || U.App.session.nomAuteur(x.affecte.agent)) }) : null,
       x.fait ? h('small', { class: 'muted', text: ' ' + U.App.session.nomAuteur(x.fait.par) + ', ' + hm(Date.parse(x.fait.le)) }) : null,
-      peutAffecter && !x.fait ? h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleAjustement(t, x.occurrence); } }, 'Affecter') : null);
+      peutAffecter && !x.fait ? h('button', { class: 'btn lien', type: 'button', onclick: function () { modaleAjustement(t, x.occurrence); } }, 'Affecter') : null,
+      U.liens ? U.liens.bouton(t.liens) : null);
   }
 
   /** Absence (motif facultatif) : chacun la sienne ; l'équipe avec l'accès « Absences de l'équipe ». */
@@ -118,9 +119,9 @@
         })))) : h('div', { class: 'panneau vide', text: 'Aucune tâche.' }));
   }
 
-  function modaleTache(t, type, jour) {
+  function modaleTache(t, type, jour, init) {
     var equipe = type === 'TACHE_EQUIPE', recurrentes = !equipe || A.optionsTaches(U.config()).equipeRecurrentes || peut('TACHE');
-    var x = t || {}, reg = A.regularite(x.regularite || { type: recurrentes ? 'jour' : 'aucune' }), pour = x.pour || {};
+    var x = t || Object.assign({}, init || {}, { regularite: init && init.liens ? { type: 'aucune' } : undefined }), reg = A.regularite(x.regularite || { type: recurrentes ? 'jour' : 'aucune' }), pour = x.pour || {};
     var titre = h('input', { type: 'text', maxlength: 120, value: x.titre || '', placeholder: 'ex. Vérifier le chariot d’urgence' });
     var consigne = h('input', { type: 'text', maxlength: 200, value: x.consigne || '', placeholder: 'Précision (facultatif, pas de donnée clinique)' });
     var sv = h('select', {}, U.services().map(function (v) { return h('option', { value: v.code, text: v.libelle, selected: v.code === (x.service || (U.App.service !== '*' ? U.App.service : '')) }); }));
@@ -138,6 +139,8 @@
     }
     sv.addEventListener('change', dessinerGroupes);
     dessinerGroupes();
+    // Éléments liés (23 novembre 2026) : documents, passages, éléments d'autres modules
+    var zl = U.liens ? U.liens.zone(x.liens || [], true) : null;
     var boutons = [{ texte: 'Annuler' }];
     if (t) boutons.push({ texte: 'Supprimer', classe: 'danger', action: async function () {
       if (!await SIC.ui.confirmer('Supprimer la tâche « ' + x.titre + ' » ? Les dates déjà cochées restent au journal.')) return false;
@@ -150,7 +153,8 @@
       var rg = rep.lire();
       if (rg.type === 'semaine' && !rg.jours.length) rg.jours = [new Date(A.depuisISO(debut.value)).getDay()];
       await U.App.session.enregistrer(type, { id: x.id || 'T' + C.hex(C.aleatoire(5)), titre: titre.value.trim(), consigne: consigne.value.trim(), service: sv.value, debut: debut.value, heure: heure.value || '', regularite: rg,
-        pour: { roles: casesRoles.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.code; }), agents: (pour.agents || []), groupes: casesGroupes.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.code; }) } });
+        pour: { roles: casesRoles.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.code; }), agents: (pour.agents || []), groupes: casesGroupes.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.code; }) },
+        liens: zl ? zl.valeur() : A.liens(x.liens) });
       U.toast(t ? 'Tâche modifiée.' : 'Tâche ajoutée.');
     } });
     U.modale((t ? 'Modifier la tâche' : 'Nouvelle tâche') + (equipe ? ' de l’équipe' : ' du service'), h('div', { class: 'pile' },
@@ -158,7 +162,8 @@
       h('label', {}, 'Tâche', titre), h('label', {}, 'Précision', consigne),
       h('div', { class: 'grille-3' }, h('label', {}, 'Service', sv), h('label', {}, 'Première date', debut), h('label', {}, 'Heure (facultatif)', heure)),
       rep.noeuds,
-      h('div', { class: 'pile' }, h('b', { text: 'Pour (aucune case : toute l’équipe du service)' }), h('div', { class: 'actions gauche' }, casesRoles.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: c.libelle })); })), zoneGroupes)), boutons, { large: true });
+      h('div', { class: 'pile' }, h('b', { text: 'Pour (aucune case : toute l’équipe du service)' }), h('div', { class: 'actions gauche' }, casesRoles.map(function (c) { return h('label', { class: 'case' }, c.cb, h('span', { text: c.libelle })); })), zoneGroupes),
+      zl ? h('div', { class: 'pile' }, h('b', { text: 'Éléments liés' }), zl.el, h('small', { class: 'muted', text: 'Chacun ne voit que les éléments auxquels il a déjà accès.' })) : null), boutons, { large: true });
   }
 
   /**

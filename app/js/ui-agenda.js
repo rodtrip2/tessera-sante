@@ -636,7 +636,9 @@
     var codesNature = naturesPour(serviceInitial || null); if (codesNature.indexOf(natureInitiale) < 0) codesNature.push(natureInitiale);
     var nature = h('select', disCommun, codesNature.map(function (k) { return h('option', { value: k, text: libNature(k, serviceInitial), selected: natureInitiale === k }); }));
     function baseCat() { return baseNature(nature.value, sv.value); }
-    var titre = h('input', Object.assign({ type: 'text', maxlength: 120, value: x.titre || '' }, dis));
+    var titre = h('input', Object.assign({ type: 'text', maxlength: 120, value: x.titre || ini.titre || '' }, dis));
+    // Éléments liés (23 novembre 2026) : documents, passages, éléments d'autres modules ; communs à toutes les dates
+    var zoneLiens = U.liens ? U.liens.zone(x.liens || ini.liens || [], !lecture && !parDate) : null;
     // Entretien : médical ou infirmier, individuel ou avec la famille
     var ent = x.entretien || {};
     var selEnt = h('select', dis, Object.keys(A.ENTRETIENS).map(function (k) { return h('option', { value: k, text: 'Entretien ' + A.ENTRETIENS[k], selected: (ent.type || 'medical') === k }); }));
@@ -1189,7 +1191,7 @@
       if (rg.type === 'semaine' && !rg.jours.length) rg.jours = [new Date(d0).getDay()];
       if (validations.some(function (v) { return v.type !== 'permission' && !String(v.libelle || '').trim(); })) throw new Error('Précisez l’intitulé de chaque validation médicale ou autre (ex. avis du psychiatre).');
       var d = { id: x.id || 'R' + C.hex(C.aleatoire(6)), nature: nv, titre: titre.value.trim(), debut: d0, fin: d1, lieu: lieu.value.trim(), salle: selSalle ? selSalle.valeur() : (x.salle || ''), service: sv.value,
-        patients: visibles.patients ? patients : [], professionnels: profs, regularite: rg, checklist: checklist,
+        patients: visibles.patients ? patients : [], professionnels: profs, regularite: rg, checklist: checklist, liens: zoneLiens ? zoneLiens.valeur() : A.liens(x.liens),
         services: autresSv.filter(function (c) { return c !== sv.value; }), partage: autresSv.length ? partage : '',
         accompagnateurs: Math.min(20, part.nombre), consigneAccompagnateurs: consigneAcc.trim(),
         participation: sansAncien(P.reglage({ participation: Object.assign({}, part, visibles.patients ? {} : { patientsMin: 0, patientsMax: 0 }) })),
@@ -1238,6 +1240,7 @@
       if (!nouveau && !d.consigneAccompagnateurs && !x.consigneAccompagnateurs) delete d.consigneAccompagnateurs;
       if (!nouveau && JSON.stringify(d.participation) === JSON.stringify(partAvant)) delete d.participation;
       if (!d.services.length && !(x.services || []).length) delete d.services;
+      if (d.liens && !d.liens.length && !A.liens(x.liens).length) delete d.liens;
       if ((d.partage || '') === (x.partage || '')) delete d.partage;
       if (partageVu) delete d.service;
       if (!nouveau && d.accompagnateurs === Math.min(20, partAvant.nombre)) delete d.accompagnateurs;
@@ -1289,6 +1292,7 @@
       barreAjout, secPatients,
       section('Quel(s) professionnel(s) ?', h('div', { class: 'pile' }, zonePro, zoneAcc)), secTransports, secVal,
       section('Check-list (à réaliser avant l’événement)', zoneCheck),
+      zoneLiens && (!lecture || A.liens(x.liens).length) ? section('Éléments liés' + (parDate ? ' (communs à toutes les dates)' : ''), zoneLiens.el) : null,
       nouveau ? null : section('Commentaires', zoneCom),
       h('small', { class: 'muted', text: 'Aucune donnée clinique : le motif et le contenu de la prise en charge restent dans le dossier du patient.' })), boutons, { large: true });
     majNature();

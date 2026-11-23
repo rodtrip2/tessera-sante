@@ -205,8 +205,14 @@
     // Documents et messages (lot I, 14 novembre 2026) : liens avec une tâche ; un document se rattache aussi à un message
     documents: {
       lister: function () { return U.documents && U.documents.listeRattachables ? U.documents.listeRattachables().map(function (d) { return { genre: 'document', id: d.id, service: '', quand: Date.parse(d.modifie) || 0 }; }) : []; },
-      resoudre: function (r) { var x = U.documents && U.documents.infos ? U.documents.infos(r.id) : null; return x ? { titre: (x.modele ? 'Modèle : ' : 'Document : ') + x.titre, detail: '' } : null; },
-      ouvrir: function (r) { if (U.documents) U.documents.ouvrir(r.id); }
+      resoudre: function (r) {
+        var x = U.documents && U.documents.infos ? U.documents.infos(r.id) : null;
+        if (!x) return null;
+        // Extrait (23 novembre 2026) : passage, cases ou page d'un document ; seul le libellé choisi est gardé, jamais le texte
+        if (r.ancre || r.page) return { titre: (r.page ? 'Page ' + r.page + ' de « ' : 'Extrait de « ') + x.titre + ' »', detail: r.libelle || '' };
+        return { titre: (x.modele ? 'Modèle : ' : 'Document : ') + x.titre, detail: r.libelle || '' };
+      },
+      ouvrir: function (r) { if (U.documents) U.documents.ouvrir(r.id, { ancre: r.ancre, page: r.page }); }
     },
     messagerie: {
       lister: function () {

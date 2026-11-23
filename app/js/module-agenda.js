@@ -15,7 +15,7 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, P, Pm) {
   'use strict';
 
-  var TYPES = ['RDV', 'OCCURRENCE', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'PATIENT_INSCRIT', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE', 'TACHE_PERSO'];
+  var TYPES = ['RDV', 'OCCURRENCE', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'PATIENT_INSCRIT', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE', 'TACHE_PERSO', 'TACHE_PARTAGEE'];
   // Types d'éléments (décisions du porteur du 7 novembre 2026 : entretien médical ou infirmier, individuel ou avec la
   // famille ; permission de sortie demandée puis validée, distincte de la sortie du patient)
   // Audience JLD (services de psychiatrie) et Examen : décisions du porteur du 8 novembre 2026
@@ -785,6 +785,7 @@
         var r = st.rdv[d.id] || { id: d.id, cree: e.at, par: e.by, evts: [] };
         ['nature', 'titre', 'debut', 'fin', 'lieu', 'salle', 'service', 'patients', 'professionnels', 'motif', 'supprime', 'regularite', 'exceptions', 'checklist',
           'entretien', 'accompagnateurs', 'consigneAccompagnateurs', 'participation', 'services', 'partage', 'statut', 'validation', 'examen', 'transports', 'validations'].forEach(function (k) { if (d[k] !== undefined) r[k] = d[k]; });
+        if (d.liens !== undefined) r.liens = liens(d.liens);
         r.evts.push(e.id);
         st.rdv[d.id] = r;
         break;
@@ -879,6 +880,7 @@
         t = t || { id: d.id, cree: e.at, par: e.by, faites: {}, affectations: {}, affectationsJours: {}, evts: [], niveau: niveau };
         if (niveau === 'service') t.niveau = 'service';
         ['titre', 'service', 'debut', 'heure', 'regularite', 'pour', 'consigne', 'supprime'].forEach(function (k) { if (d[k] !== undefined) t[k] = d[k]; });
+        if (d.liens !== undefined) t.liens = liens(d.liens);
         t.evts.push(e.id);
         st.taches[d.id] = t;
         break;
@@ -914,13 +916,23 @@
         if (st.perso[d.id] && st.perso[d.id].agent !== d.agent) break;
         st.perso[d.id] = { id: d.id, agent: d.agent, chiffre: typeof d.chiffre === 'string' ? d.chiffre : '', supprime: !!d.supprime, cree: (st.perso[d.id] && st.perso[d.id].cree) || e.at, le: e.at, evt: e.id };
         break;
+      case 'TACHE_PARTAGEE':
+        // Tâche partagée (23 novembre 2026) : contenu chiffré pour les seuls participants (clé de liste de chacun) ;
+        // participants en clair ; seuls les participants en place la modifient
+        if (!/^TS[0-9a-f]{8,24}$/.test(d.id || '') || !Array.isArray(d.participants)) break;
+        var tsp = st.partagees[d.id];
+        if (tsp && tsp.participants.indexOf(e.by) < 0) break;
+        if (!tsp && d.participants.indexOf(e.by) < 0) break;
+        st.partagees[d.id] = { id: d.id, participants: d.participants.filter(function (x, i, l) { return typeof x === 'string' && x && l.indexOf(x) === i; }).slice(0, 20), env: d.env && typeof d.env === 'object' ? d.env : (tsp && tsp.env) || null,
+          supprime: !!d.supprime, auteur: tsp ? tsp.auteur : e.by, cree: tsp ? tsp.cree : e.at, le: e.at, par: e.by, evt: e.id };
+        break;
       case 'ALERTE_VUE':
         if (st.alertes[d.alerte]) st.alertes[d.alerte].vue = d.annule ? null : { par: e.by, le: e.at, evt: e.id };
         break;
     }
   }
   function reduire(evts) {
-    return N.reduire(evts, { cle: 'agenda', etat: function () { return { rdv: {}, taches: {}, absences: {}, alertes: {}, avis: [], perso: {} }; }, appliquer: appliquer });
+    return N.reduire(evts, { cle: 'agenda', etat: function () { return { rdv: {}, taches: {}, absences: {}, alertes: {}, avis: [], perso: {}, partagees: {} }; }, appliquer: appliquer });
   }
 
   /** Services sur lesquels agit une saisie de l'Agenda (activation du module par service). */
@@ -938,12 +950,33 @@
    * Saisies permises sans accès particulier à qui a un rôle dans l'Agenda (et donc sa clé) : ses propres absences, et
    * un commentaire sur un élément (décisions du porteur du 7 novembre 2026).
    */
-  function permisPourSoi(type, data, compte) {
+  function permisPourSoi(type, data, compte, ctx) {
     if (type === 'COMMENTAIRE') return !!compte && !!data && !data.supprime;   // retrait : annulation depuis le journal
     if (type === 'INSCRIPTION') return !!compte && !!data && data.agent === compte.id;   // chacun s'inscrit lui-même
     if (type === 'TACHE_PERSO') return !!compte && !!data && data.agent === compte.id;   // sa propre liste de tâches
+    if (type === 'TACHE_PARTAGEE') {   // tâche partagée : ses participants (23 novembre 2026)
+      var tx = ctx && ctx.etat && ctx.etat.partagees && data && ctx.etat.partagees[data.id];
+      return !!compte && !!data && Array.isArray(data.participants) && (tx ? tx.participants.indexOf(compte.id) >= 0 : data.participants.indexOf(compte.id) >= 0);
+    }
     return type === 'ABSENCE' && !!compte && !!data && data.agent === compte.id;
   }
+  /**
+   * Éléments liés à un événement ou à une tâche (23 novembre 2026) : { module, genre, id, service, ancre (repère d'un
+   * passage ou de cases d'un document), page (page d'un fichier joint), libelle (court, saisi par l'agent) } ; jamais le
+   * contenu de l'élément lié. Lus à la volée, selon les droits de chacun.
+   */
+  var MAX_LIENS = 20;
+  function lien(x) {
+    if (!x || typeof x !== 'object' || !/^[a-z]{2,20}$/.test(x.module || '') || !/^[a-z-]{2,40}$/.test(x.genre || '') || typeof x.id !== 'string' || !x.id || x.id.length > 80) return null;
+    var r = { module: x.module, genre: x.genre, id: x.id, service: typeof x.service === 'string' ? x.service.slice(0, 30) : '' };
+    if (/^an[0-9a-z]{4,20}$/.test(x.ancre || '')) r.ancre = x.ancre;
+    var pg = Math.round(+x.page); if (pg >= 1 && pg <= 9999) r.page = pg;
+    if (typeof x.libelle === 'string' && x.libelle.trim()) r.libelle = x.libelle.replace(/\s+/g, ' ').trim().slice(0, 120);
+    return r;
+  }
+  function liens(l) { return (Array.isArray(l) ? l : []).map(lien).filter(Boolean).slice(0, MAX_LIENS); }
+  /** Tâches partagées dont l'agent est participant (contenu chiffré), hors retirées. */
+  function tachesPartagees(st, agent) { return Object.keys((st && st.partagees) || {}).map(function (k) { return st.partagees[k]; }).filter(function (t) { return !t.supprime && t.participants.indexOf(agent) >= 0; }); }
   /** Tâches personnelles d'un agent (contenu chiffré), hors retirées. */
   function tachesPerso(st, agent) { return Object.keys((st && st.perso) || {}).map(function (k) { return st.perso[k]; }).filter(function (t) { return t.agent === agent && !t.supprime; }); }
 
@@ -953,6 +986,16 @@
    * une tâche d'équipe récurrente demande le réglage, ou le droit de régler les tâches. ctx : { etat, config, peut }.
    */
   function controler(type, d, ctx) {
+    if (type === 'TACHE_PARTAGEE') {
+      var tx = ctx.etat && ctx.etat.partagees && ctx.etat.partagees[d.id], cp = ctx.compte;
+      if (!/^TS[0-9a-f]{8,24}$/.test(d.id || '') || !Array.isArray(d.participants) || !cp) throw new Error('Tâche partagée mal formée.');
+      if (tx ? tx.participants.indexOf(cp.id) < 0 : d.participants.indexOf(cp.id) < 0) throw new Error('Seuls les participants modifient une tâche partagée.');
+      if (!d.supprime && d.participants.length < 2) throw new Error('Une tâche partagée réunit au moins deux personnes.');
+      if (d.participants.length > 20) throw new Error('Vingt participants au plus.');
+      if (!d.supprime && (!d.env || typeof d.env !== 'object' || typeof d.env.ct !== 'string' || d.env.ct.length > 60000)) throw new Error('Tâche partagée mal formée.');
+      return;
+    }
+    if ((type === 'RDV' || type === 'TACHE' || type === 'TACHE_EQUIPE') && d.liens !== undefined && (!Array.isArray(d.liens) || d.liens.length > MAX_LIENS || liens(d.liens).length !== d.liens.length)) throw new Error('Éléments liés mal formés.');
     if (type === 'TACHE_PERSO') {
       var tp = ctx.etat && ctx.etat.perso && ctx.etat.perso[d.id], c = ctx.compte;
       if (!d.id || !c || d.agent !== c.id) throw new Error('Une tâche personnelle n’appartient qu’à son agent.');
@@ -1009,7 +1052,7 @@
     icone: 'AG',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, permisPourSoi: permisPourSoi, pourSoiSelonEtat: [], controler: controler,
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['TACHE_PARTAGEE'], controler: controler,
       services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { agendaReglages: controlerCadreReglages } },
     // Onglet « Tâches du service » : affiché à qui peut régler les tâches (décision du porteur du 7 novembre 2026)
@@ -1042,7 +1085,7 @@
     });
     return res.sort(function (a, b) { return (a.debut || 0) - (b.debut || 0); });
   }
-  return { droitAcces: droitAcces, contrat: contrat, reduire: reduire, tachesPerso: tachesPerso, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
+  return { lien: lien, liens: liens, MAX_LIENS: MAX_LIENS, tachesPartagees: tachesPartagees, droitAcces: droitAcces, contrat: contrat, reduire: reduire, tachesPerso: tachesPerso, NATURES: NATURES, CATEGORIES_ABSENCE: CATEGORIES_ABSENCE, ACCES: ACCES, droits: D,
     IDENTITES: IDENTITES, TYPES_ALERTE_DEFAUT: TYPES_ALERTE_DEFAUT, optionsAgenda: optionsAgenda, identite: identite, serviceDuPatient: serviceDuPatient, elements: elements,
     REGULARITES: REGULARITES, RANGS: RANGS, PERIODES: PERIODES, GENRES_JOUR: GENRES_JOUR, ENTRETIENS: ENTRETIENS, AVEC: AVEC, STATUTS_PERMISSION: STATUTS_PERMISSION, COULEURS_DEFAUT: COULEURS_DEFAUT, DELAIS_PERMISSION_DEFAUT: DELAIS_PERMISSION_DEFAUT,
     libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, suggestions: suggestions, tachesSuggerees: tachesSuggerees, SUGGESTIONS_DEFAUT: SUGGESTIONS_DEFAUT, EVENEMENTS_SUGGESTION: EVENEMENTS_SUGGESTION, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, echangesIcs: echangesIcs, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,

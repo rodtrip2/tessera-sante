@@ -57,7 +57,9 @@
       var as = style(a.s); if (as) av.s = as;   // mise en forme d'avant (0.38.0)
       r.suivi = { p: texte(x.suivi.p, 60), n: texte(x.suivi.n, 80), le: texte(x.suivi.le, 30), avant: av };
     }
-    return r.f !== undefined || r.v !== undefined || r.s || r.suivi ? r : null;
+    // Repères (23 novembre 2026) : case liée à une tâche ou à un événement de l'agenda (5 au plus)
+    if (Array.isArray(x.an)) { var an = x.an.filter(function (a, i, t) { return /^an[0-9a-z]{4,20}$/.test(a) && t.indexOf(a) === i; }).slice(-5); if (an.length) r.an = an; }
+    return r.f !== undefined || r.v !== undefined || r.s || r.suivi || r.an ? r : null;
   }
   function nomFeuille(n, i) { var x = texte(n, 31).replace(/[\[\]:*?\/\\!']/g, '').trim(); return x || 'Feuille' + (i + 1); }
   function feuille(f, i) {

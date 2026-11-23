@@ -1018,7 +1018,7 @@
         // Documents (0.34.0) : chaque document a sa propre clé, créée avant ses versions chiffrées. Règlement de salle validé
         // (date de révision), procédure à valider, modèle du cadre, document rattaché à un patient, document à réviser,
         // document d'un autre agent partagé avec l'agent connecté, document dans la corbeille
-        var DMd = SIC.documents, SVd = (moiT && moiT.services && moiT.services[0]) || 'U1';
+        var DMd = SIC.documents, SVd = (moiT && moiT.services && moiT.services[0]) || 'U1', demoLiens = null;
         if (moiT && DMd && session.creerCleDocument && !session.clesDocumentManquantes(['k-a.' + moiT.id]).length) {
           var p = function (texte, o) { return Object.assign({ t: 'p', runs: [{ x: texte }] }, o || {}); }, ti = function (n, texte) { return { t: 'h' + n, runs: [{ x: texte }] }; };
           var li = function (texte, liste) { return { t: 'li', liste: liste || 'ul', runs: [{ x: texte }] }; };
@@ -1036,6 +1036,7 @@
             var e = await session.enregistrerLot(lotD, { libelle: 'Document fictif : ' + o.titre, by: 'demo', sansControle: true });
             var suite = (o.suite || []).map(function (x) { var d = Object.assign({ doc: id }, x.data); if (x.data.version !== undefined) d.version = e.id + '.' + String(x.data.version + 1).padStart(5, '0'); return { at: at(x.h), by: x.par || auteur, type: x.type, data: d }; });
             if (suite.length) await session.enregistrerLot(suite, { libelle: 'Suivi du document fictif : ' + o.titre, by: 'demo', sansControle: true });
+            return id;
           };
           var regl = { blocs: [ti(1, 'Règlement d’utilisation de la salle de réunion (fictif)'), p('La salle de réunion est réservée dans Tessera (module Salles et bureaux). Elle accueille au plus 14 personnes.'),
             ti(2, 'Avant la réunion'), li('Réserver au moins la veille.'), li('Prévenir le cadre pour toute réunion avec des personnes extérieures.'),
@@ -1151,6 +1152,20 @@
           await docD({ titre: 'Ancienne note sur les visites (fictif)', h: -24 * 90,
             versions: [{ h: -24 * 90, contenu: { blocs: [p('Note remplacée par le règlement intérieur. (fictif)')] } }],
             suite: [{ h: -24 * 25, type: 'DOC_CORBEILLE', data: { corbeille: true } }] });
+          // Repères (23 novembre 2026) : compte rendu de réunion dont deux passages sont liés à une tâche personnelle, à une
+          // tâche de l'équipe et à un événement de l'agenda (créés plus bas)
+          var idCR = await docD({ titre: 'Compte rendu de la réunion d’équipe (fictif)', h: -24 * 2, partage: [{ genre: 'service', code: SVd, droit: 'modifier' }],
+            versions: [{ h: -24 * 2, contenu: { blocs: [ti(1, 'Réunion d’équipe du mardi (fictif)'), p('Présents : équipe de jour, cadre de santé (fictif).'), ti(2, 'Décisions'),
+              { t: 'p', runs: [{ x: '1. ' }, { x: 'Mettre à jour le classeur des protocoles avant la fin du mois', an: 'an0demo01' }, { x: ' ; le cadre en fait le point à la prochaine réunion.' }] },
+              { t: 'p', runs: [{ x: '2. ' }, { x: 'Organiser une séance de rappel sur le chariot d’urgence pour les nouveaux agents', an: 'an0demo02' }, { x: '.' }] },
+              p('Document d’exemple, entièrement fictif.', { al: 'd' })] } }] });
+          demoLiens = { doc: idCR, a1: { module: 'documents', genre: 'extrait', id: idCR, ancre: 'an0demo01', libelle: 'Classeur des protocoles', service: '' }, a2: { module: 'documents', genre: 'extrait', id: idCR, ancre: 'an0demo02', libelle: 'Rappel chariot d’urgence', service: '' } };
+          try {
+            await session.enregistrerLot([
+              { at: at(-24), by: moiT.id, type: 'TACHE_EQUIPE', data: { id: 'T-DEMO-LIEN', titre: 'Préparer la séance de rappel du chariot d’urgence (fictif)', consigne: '', service: SVd, debut: jC(3), heure: '14:00', regularite: { type: 'aucune' }, pour: { roles: [], agents: [], groupes: [] }, liens: [demoLiens.a2] } },
+              { at: at(-24), by: moiT.id, type: 'RDV', data: { id: 'R-DEMO-LIEN', nature: 'reunion', titre: 'Point sur le classeur des protocoles (fictif)', debut: Date.parse(jC(7) + 'T13:30:00'), fin: Date.parse(jC(7) + 'T14:00:00'), lieu: 'Salle de réunion', service: SVd, patients: [], professionnels: [], regularite: { type: 'aucune' }, checklist: [], liens: [demoLiens.a1] } }
+            ], { libelle: 'Tâche et événement fictifs liés à un compte rendu', by: 'demo', sansControle: true });
+          } catch (e) { /* démonstration sans liens */ }
           // Fichiers joints (23 novembre 2026) : attestation PDF rattachée à un agent sans lui être partagée (privée au
           // cadre), plan en image partagé avec le service ; octets chiffrés par la clé du document, rangés avec les pièces
           if (session.chiffrerFichierDocument && session.enregistrerPiece && !session.formation) {
@@ -1188,6 +1203,8 @@
           await tp(-20, { titre: 'Préparer le planning de décembre (fictif)', echeance: jC(2), heure: '', rappel: '2', note: 'Penser aux congés de fin d’année.', element: null, fait: false, faitLe: '' });
           await tp(-48, { titre: 'Relancer les services techniques pour le salon (fictif)', echeance: jC(-1), heure: '10:00', rappel: '0', note: '', element: { module: 'travaux', genre: 'demande', id: 'TR-SAL', service: 'U1' }, fait: false, faitLe: '' });
           await tp(-10, { titre: 'Lire la nouvelle note de service (fictif)', echeance: '', heure: '', rappel: '', note: '', element: null, fait: false, faitLe: '' });
+          // Tâche liée à un passage d'un document (23 novembre 2026)
+          if (demoLiens) await tp(-20, { titre: 'Mettre à jour le classeur des protocoles (fictif)', echeance: jC(6), heure: '', rappel: '1', note: '', elements: [demoLiens.a1], fait: false, faitLe: '' });
           await tp(-72, { titre: 'Commander les badges des stagiaires (fictif)', echeance: jC(-2), heure: '', rappel: '', note: '', element: null, fait: true, faitLe: at(-24) });
           // Tâches rattachées à un message et à un document (lot I, 14 novembre 2026) : l'élément affiche sa tâche
           var stM0 = session.etatModule && session.etatModule('messagerie'), msCles = Object.keys((stM0 && stM0.messages) || {}).filter(function (k) { return stM0.messages[k].objet === 'Nouvelle procédure de remise des clés de la pharmacie'; })[0];

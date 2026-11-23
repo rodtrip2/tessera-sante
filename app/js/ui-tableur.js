@@ -137,7 +137,7 @@
           var x = f.cellules[T.nom(l, c)], v = calc.valeur(fi, l, c), u = fusionDe(f, l, c), val = T.validationDe(f, l, c), ok = T.conforme(val, v);
           var st = Object.assign({}, x && x.s, T.styleConditionnel(f, l, c, v, maintenant));
           var mc = f.colonnesSuivies[c];
-          var td = h('td', { class: classesCase(st, v) + (ok ? '' : ' tb-nonconforme') + (x && x.suivi ? ' tb-suivi' : '') + (mc ? ' tb-td-' + mc.op : ''), 'data-l': l, 'data-c': c, rowspan: u ? u.nl : null, colspan: u ? u.nc : null,
+          var td = h('td', { class: classesCase(st, v) + (ok ? '' : ' tb-nonconforme') + (x && x.suivi ? ' tb-suivi' : '') + (x && x.an ? ' tb-ancre' : '') + (mc ? ' tb-td-' + mc.op : ''), 'data-l': l, 'data-c': c, rowspan: u ? u.nl : null, colspan: u ? u.nc : null,
             title: x && x.suivi ? 'Modifié par ' + (x.suivi.n || (o.nomAgent ? o.nomAgent(x.suivi.p) : x.suivi.p)) + ' le ' + new Date(Date.parse(x.suivi.le)).toLocaleDateString('fr-FR') + ' ; avant : ' + (T.texteSaisie(x.suivi.avant) || '(vide)') : T.estErr(v) ? messageErreur(v, l, c) : !ok ? 'Valeur non conforme : ' + (T.controlerSaisie(val, typeof v === 'number' ? { v: v, fmt: val.genre === 'date' ? 'date' : undefined } : { v: v }) || '') : null }, T.afficher(v, x && x.s));
           // Filtre : bouton dans chaque titre de colonne filtrée
           if (fl && l === fl.l && c >= fl.c1 && c <= fl.c2) td.appendChild(boutonFiltre(c, !!fl.masques[c]));
@@ -687,6 +687,15 @@
       occupe: function () { return !!edition; },
       remplacer: function (x) { finirEdition(false); C = T.contenu(x); fi = Math.min(fi, C.feuilles.length - 1); this.page = C.page; recalculer(); dessiner(); },
       modifsSuivies: function () { return T.modificationsSuivies(C); },
+      // Repères (23 novembre 2026) : sélection courante, et retour sur des cases liées
+      selection: function () { finirEdition(true); var p = { feuille: fi, l1: sel.l1, c1: sel.c1, l2: sel.l2, c2: sel.c2 }; p.texte = C.feuilles[fi].nom + ' ! ' + T.nom(p.l1, p.c1) + (p.l1 !== p.l2 || p.c1 !== p.c2 ? ':' + T.nom(p.l2, p.c2) : ''); return p; },
+      allerA: function (f, cases) {
+        if (!C.feuilles[f] || !cases || !cases.length) return;
+        finirEdition(true); fi = f;
+        var ps = cases.map(T.lire), l1 = Math.min.apply(null, ps.map(function (p) { return p.l; })), l2 = Math.max.apply(null, ps.map(function (p) { return p.l; })), c1 = Math.min.apply(null, ps.map(function (p) { return p.c; })), c2 = Math.max.apply(null, ps.map(function (p) { return p.c; }));
+        sel = { l1: l1, c1: c1, l2: l2, c2: c2, l: l1, c: c1 }; ancre = { l: l1, c: c1 }; vue = { l: Math.max(vue.l, l2 + 5), c: Math.max(vue.c, c2 + 3) }; dessiner();
+        var td = grille.querySelector('td[data-l="' + l1 + '"][data-c="' + c1 + '"]'); if (td) td.scrollIntoView({ block: 'center', inline: 'center' });
+      },
       resoudre: function (accepter, cible) { memoriser(); C = T.resoudreSuivi(C, accepter, cible); fi = Math.min(fi, C.feuilles.length - 1); modifie(); },
       marques: function (oui) { grille.classList.toggle('tb-sans-marques', !oui); },
       annulerEdition: function () { finirEdition(false); grille.focus(); },

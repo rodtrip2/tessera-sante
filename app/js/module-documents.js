@@ -67,6 +67,8 @@
     if (TAILLES.indexOf(+r.z) >= 0) x.z = +r.z;
     if (COULEURS[r.c] && r.c) x.c = r.c;
     if (FONDS[r.f] && r.f) x.f = r.f;
+    // Repère (23 novembre 2026) : passage lié à une tâche ou à un événement de l'agenda ; il suit le texte modifié autour
+    if (ID_ANCRE.test(r.an || '')) x.an = r.an;
     // Suivi des modifications (0.37.0) : texte ajouté (ins) ou supprimé (del) par un agent, à accepter ou refuser
     var m = marque(r.ins); if (m) x.ins = m;
     var d = marque(r.del); if (d) x.del = d;
@@ -104,9 +106,52 @@
     var res = [];
     (runs || []).map(run).filter(Boolean).forEach(function (r) {
       var p = res[res.length - 1];
-      if (p && ['g', 'i', 's', 'b', 'p', 'z', 'c', 'f'].every(function (k) { return p[k] === r[k]; }) && memeMarque(p.ins, r.ins) && memeMarque(p.del, r.del) && ((!p.fmt && !r.fmt) || (p.fmt && r.fmt && p.fmt.id === r.fmt.id))) p.x += r.x; else res.push(r);
+      if (p && ['g', 'i', 's', 'b', 'p', 'z', 'c', 'f', 'an'].every(function (k) { return p[k] === r[k]; }) && memeMarque(p.ins, r.ins) && memeMarque(p.del, r.del) && ((!p.fmt && !r.fmt) || (p.fmt && r.fmt && p.fmt.id === r.fmt.id))) p.x += r.x; else res.push(r);
     });
     return res;
+  }
+  var ID_ANCRE = /^an[0-9a-z]{4,20}$/;
+  /**
+   * Repères d'un document (23 novembre 2026) : passages d'un document texte (morceaux portant `an`) ou cases d'un
+   * tableur (`an` des cases) ; { id: { extrait (texte, 120 caractères au plus), onglet, feuille, cases } }. L'extrait sert
+   * à l'affichage dans le document seulement : il n'est jamais copié dans la tâche ou l'événement lié.
+   */
+  function ancres(c) {
+    var x = contenu(c), res = {};
+    if (x.genre === 'fichier') return res;
+    if (x.genre === 'tableur') {
+      x.feuilles.forEach(function (f, fi) {
+        Object.keys(f.cellules).forEach(function (k) {
+          (f.cellules[k].an || []).forEach(function (id) { var a = res[id] = res[id] || { extrait: '', feuille: fi, nomFeuille: f.nom, cases: [] }; if (a.feuille === fi) a.cases.push(k); });
+        });
+      });
+      Object.keys(res).forEach(function (id) { var a = res[id]; a.cases.sort(function (u, v) { var p = T.lire(u), q = T.lire(v); return p.l - q.l || p.c - q.c; }); a.extrait = a.nomFeuille + ' ! ' + (a.cases.length > 1 ? a.cases[0] + ':' + a.cases[a.cases.length - 1] : a.cases[0]); });
+      return res;
+    }
+    ongletsDe(x).forEach(function (o) {
+      function runs(rs) { (rs || []).forEach(function (r) { if (!r.an) return; var a = res[r.an] = res[r.an] || { extrait: '', onglet: o.id }; if (a.extrait.length < 120) a.extrait = (a.extrait + r.x).replace(/\s+/g, ' ').slice(0, 120); }); }
+      o.blocs.forEach(function (b) { if (b.t === 'table') b.lignes.forEach(function (l) { l.forEach(function (y) { runs(y.runs); }); }); else runs(b.runs); });
+    });
+    return res;
+  }
+  /** Contenu sans le repère `id` (le passage ou les cases restent, seul le repère est retiré). */
+  function retirerAncre(c, id) {
+    var x = JSON.parse(JSON.stringify(contenu(c)));
+    if (x.genre === 'fichier') return x;
+    if (x.genre === 'tableur') { x.feuilles.forEach(function (f) { Object.keys(f.cellules).forEach(function (k) { var y = f.cellules[k]; if (y.an) { y.an = y.an.filter(function (a) { return a !== id; }); if (!y.an.length) delete y.an; } }); }); return contenu(x); }
+    function runs(rs) { (rs || []).forEach(function (r) { if (r.an === id) delete r.an; }); }
+    (x.onglets || [{ blocs: x.blocs }]).forEach(function (o) { o.blocs.forEach(function (b) { if (b.t === 'table') b.lignes.forEach(function (l) { l.forEach(function (y) { runs(y.runs); }); }); else runs(b.runs); }); });
+    return x.onglets ? contenu({ onglets: x.onglets, page: x.page }) : contenu({ blocs: x.blocs, page: x.page });
+  }
+  /** Repère posé sur des cases d'un tableur : { l1, c1, l2, c2 } de la feuille `fi` (cases vides comprises). */
+  function ancrerCases(c, fi, plage, id) {
+    var x = JSON.parse(JSON.stringify(contenu(c))), f = x.feuilles[fi];
+    if (!f || !ID_ANCRE.test(id || '')) return x;
+    for (var l = plage.l1; l <= plage.l2; l++) for (var k = plage.c1; k <= plage.c2; k++) {
+      var n = T.nom(l, k), y = f.cellules[n] = f.cellules[n] || {};
+      y.an = (y.an || []).filter(function (a) { return a !== id; }).concat([id]).slice(-5);
+    }
+    return T.contenu(x);
   }
   function cellule(c) { return { runs: fusionner(c && c.runs), al: ALIGNEMENTS[c && c.al] ? c.al : 'g' }; }
   function bloc(b) {
@@ -782,7 +827,7 @@
 
   registre.declarer(contrat);
 
-  return { contenuFichier: contenuFichier, extension: extension, affichable: affichable, sortImport: sortImport, nomFichierSur: nomFichierSur, nomsUniques: nomsUniques, TYPES_FICHIERS: TYPES_FICHIERS, FICHIER_MAX_MO: FICHIER_MAX_MO, ID_PIECE: ID_PIECE, masques: masques, masquesPour: masquesPour, controlerMasques: controlerMasques, ID_IMAGE: ID_IMAGE, MAX_IMAGE: MAX_IMAGE, peutExporter: peutExporter, MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, etatParagraphe: etatParagraphe, libEtatParagraphe: libEtatParagraphe, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
+  return { ID_ANCRE: ID_ANCRE, ancres: ancres, retirerAncre: retirerAncre, ancrerCases: ancrerCases, contenuFichier: contenuFichier, extension: extension, affichable: affichable, sortImport: sortImport, nomFichierSur: nomFichierSur, nomsUniques: nomsUniques, TYPES_FICHIERS: TYPES_FICHIERS, FICHIER_MAX_MO: FICHIER_MAX_MO, ID_PIECE: ID_PIECE, masques: masques, masquesPour: masquesPour, controlerMasques: controlerMasques, ID_IMAGE: ID_IMAGE, MAX_IMAGE: MAX_IMAGE, peutExporter: peutExporter, MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, etatParagraphe: etatParagraphe, libEtatParagraphe: libEtatParagraphe, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
     POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
     run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
     entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,
