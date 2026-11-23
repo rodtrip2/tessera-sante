@@ -35,8 +35,14 @@
     var o = (config && config.documents) || {}, j = Math.round(+o.corbeilleJours);
     // transfertPrives (0.34.2, désactivé par défaut) : les documents privés (partagés avec personne) d'un compte retiré
     // sont aussi transférés au cadre ; sinon ils restent illisibles (seul leur auteur les ouvrait)
-    return { corbeilleJours: j >= 7 && j <= 365 ? j : CORBEILLE_JOURS, transfertPrives: o.transfertPrives === true };
+    // Fichiers joints (23 novembre 2026, fonction soumise à avis « documents-fichiers ») : taille maximale par fichier
+    // (1 à 50 Mo, 20 par défaut) et types acceptés (extensions ; liste par défaut)
+    var mo = +o.fichierMaxMo, ty = Array.isArray(o.typesFichiers) ? o.typesFichiers.map(function (x) { return String(x).toLowerCase().replace(/^\./, ''); }).filter(function (x) { return /^[a-z0-9]{1,8}$/.test(x); }) : [];
+    return { corbeilleJours: j >= 7 && j <= 365 ? j : CORBEILLE_JOURS, transfertPrives: o.transfertPrives === true,
+      fichierMaxMo: isFinite(mo) && mo >= 1 && mo <= 50 ? Math.round(mo) : FICHIER_MAX_MO, typesFichiers: ty.length ? ty.slice(0, 60) : TYPES_FICHIERS.slice() };
   }
+  var FICHIER_MAX_MO = 20;
+  var TYPES_FICHIERS = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'doc', 'docx', 'odt', 'rtf', 'xls', 'xlsx', 'xlsm', 'ods', 'csv', 'ppt', 'pptx', 'odp', 'txt', 'msg', 'eml'];
   function joursCorbeille(config) { return options(config).corbeilleJours; }
   var ID = /^DC[0-9a-f]{8,32}$/, JOUR = /^\d{4}-\d{2}-\d{2}$/;
   var MAX_VERSION = 2500000;  // caractères du contenu chiffré d'une version (≈ 1,8 Mo : texte long ou grand classeur)
@@ -175,11 +181,53 @@
     function sien(m) { return m && Array.isArray(m.services) && m.services.length && m.services.every(function (s) { return sv.indexOf(s) >= 0; }); }
     return Object.keys(Object.assign({}, a, n)).every(function (k) { return JSON.stringify(a[k]) === JSON.stringify(n[k]) || ((!a[k] || sien(a[k])) && (!n[k] || sien(n[k]))); });
   }
-  var GENRES = { texte: 'Document texte', tableur: 'Tableur' };
+  var GENRES = { texte: 'Document texte', tableur: 'Tableur', fichier: 'Fichier joint' };
+  /**
+   * Fichier joint (23 novembre 2026) : fichier gardé tel quel (PDF, image, Word, Excel…), chiffré par la clé du document
+   * puis rangé avec les pièces du module (`modules\documents\pieces\`), jamais dans la saisie. La version ne porte que
+   * sa description : { genre: 'fichier', nom, type, taille, empreinte (SHA-256), piece, g (génération de la clé) }.
+   */
+  var ID_PIECE = /^PJ[0-9a-f]{8,32}$/;
+  function contenuFichier(c) {
+    var t = Math.round(+c.taille), g = Math.round(+c.g);
+    return { genre: 'fichier', nom: texte(c.nom, 200) || 'fichier', type: /^[a-z0-9.+-]{1,40}\/[a-z0-9.+-]{1,80}$/i.test(c.type || '') ? String(c.type).toLowerCase() : 'application/octet-stream',
+      taille: t > 0 ? t : 0, empreinte: /^[0-9a-f]{64}$/.test(c.empreinte || '') ? c.empreinte : '', piece: ID_PIECE.test(c.piece || '') ? c.piece : '', g: g > 0 ? g : 1 };
+  }
+  /** Extension d'un nom de fichier, en minuscules. */
+  function extension(nom) { var m = /\.([A-Za-z0-9]{1,8})$/.exec(String(nom || '')); return m ? m[1].toLowerCase() : ''; }
+  /** Fichier affichable dans l'application : type d'affichage (image ou PDF) ou null (téléchargement seulement). */
+  var AFFICHABLES = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
+  function affichable(nom) { return AFFICHABLES[extension(nom)] || null; }
+  /**
+   * Sort d'un fichier à l'import en lots : 'texte' ou 'tableur' (converti en document modifiable), 'fichier' (gardé tel
+   * quel), ou { refus } avec la raison. `o` : { convertir, fichiers (fonction activée), options (de l'établissement) }.
+   */
+  function sortImport(nom, taille, o) {
+    var e = extension(nom), op = (o && o.options) || options({});
+    var conv = e === 'docx' ? 'texte' : e === 'xlsx' || e === 'xlsm' || e === 'csv' ? 'tableur' : null;
+    if (conv && o && o.convertir !== false) return conv;
+    if (!(o && o.fichiers)) return { refus: conv ? 'Fichiers joints non activés : seule la conversion est possible.' : 'Fichiers joints non activés dans l’établissement (Administration → Validations) : seuls Word (.docx), Excel (.xlsx, .xlsm) et CSV sont importés, convertis.' };
+    if (!e || op.typesFichiers.indexOf(e) < 0) return { refus: 'Type de fichier non accepté (' + (e ? '.' + e : 'sans extension') + ').' };
+    if (taille > op.fichierMaxMo * 1048576) return { refus: 'Fichier trop volumineux (' + op.fichierMaxMo + ' Mo au plus).' };
+    if (!taille) return { refus: 'Fichier vide.' };
+    return 'fichier';
+  }
+  /** Nom de fichier sans caractère interdit sous Windows, pour l'export. */
+  function nomFichierSur(nom) { return String(nom || 'document').replace(/[\u0000-\u001f<>:"/\\|?*]+/g, '_').replace(/[. ]+$/, '').slice(0, 120) || 'document'; }
+  /** Noms uniques dans une archive (« titre (2).pdf »…). */
+  function nomsUniques(noms) {
+    var vus = {};
+    return noms.map(function (n) {
+      var k = n.toLowerCase(), i = 1, m = /^(.*?)(\.[^.]*)?$/.exec(n), base = m[1], ext = m[2] || '', r = n;
+      while (vus[k]) { i++; r = base + ' (' + i + ')' + ext; k = r.toLowerCase(); }
+      vus[k] = 1; return r;
+    });
+  }
   /** Contenu d'un document, validé à la lecture : texte (blocs, page) ou tableur (feuilles, page, 0.35.0). */
   function contenu(c) {
     c = c && typeof c === 'object' ? c : {};
     if (c.genre === 'tableur' && T) return T.contenu(c);
+    if (c.genre === 'fichier') return contenuFichier(c);
     function blocsDe(l) { var b = (Array.isArray(l) ? l : []).slice(0, 5000).map(bloc).filter(Boolean); return b.length ? b : [{ t: 'p', runs: [], al: 'g' }]; }
     // Onglets (0.39.0) : un document texte peut être découpé en onglets { id, titre, blocs } ; sans onglet, `blocs`
     if (Array.isArray(c.onglets) && c.onglets.length) {
@@ -204,9 +252,9 @@
     if (b.t === 'table') return b.lignes.map(function (l) { return l.map(function (c) { return c.runs.map(function (r) { return r.x; }).join(''); }).join(' | '); }).join('\n');
     return (b.runs || []).map(function (r) { return r.x; }).join('');
   }
-  function texteContenu(c) { var x = contenu(c); if (x.genre === 'tableur') return T.textesCases(x).map(function (y) { return y.valeur; }).join('\n'); return ongletsDe(x).map(function (o) { return (o.titre ? o.titre + '\n' : '') + o.blocs.map(texteBloc).join('\n'); }).join('\n'); }
+  function texteContenu(c) { var x = contenu(c); if (x.genre === 'fichier') return x.nom; if (x.genre === 'tableur') return T.textesCases(x).map(function (y) { return y.valeur; }).join('\n'); return ongletsDe(x).map(function (o) { return (o.titre ? o.titre + '\n' : '') + o.blocs.map(texteBloc).join('\n'); }).join('\n'); }
   /** Titres du document (sommaire). */
-  function sommaire(c) { var x = contenu(c); if (x.genre === 'tableur') return []; return [].concat.apply([], ongletsDe(x).map(function (o) { return o.blocs; })).map(function (b, i) { return /^h[123]$/.test(b.t) ? { niveau: +b.t.slice(1), texte: texteBloc(b), index: i } : null; }).filter(function (x) { return x && x.texte; }); }
+  function sommaire(c) { var x = contenu(c); if (x.genre === 'tableur' || x.genre === 'fichier') return []; return [].concat.apply([], ongletsDe(x).map(function (o) { return o.blocs; })).map(function (b, i) { return /^h[123]$/.test(b.t) ? { niveau: +b.t.slice(1), texte: texteBloc(b), index: i } : null; }).filter(function (x) { return x && x.texte; }); }
   /** Métadonnées chiffrées avec le contenu : titre, rattachements. */
   function meta(m) {
     m = m && typeof m === 'object' ? m : {};
@@ -220,6 +268,10 @@
    * [{ etat: 'egal' | 'ajout' | 'retrait', texte }].
    */
   function comparer(a, b) {
+    if ((a && a.genre === 'fichier') || (b && b.genre === 'fichier')) {
+      var fa = a && a.genre === 'fichier' ? contenuFichier(a) : null, fb = b && b.genre === 'fichier' ? contenuFichier(b) : null, la = fa ? fa.nom + ' (' + fa.empreinte.slice(0, 12) + ')' : '', lb = fb ? fb.nom + ' (' + fb.empreinte.slice(0, 12) + ')' : '';
+      return la === lb ? [{ etat: 'egal', texte: la }] : [{ etat: 'retrait', texte: la }, { etat: 'ajout', texte: lb }].filter(function (x) { return x.texte; });
+    }
     if ((a && a.genre === 'tableur') || (b && b.genre === 'tableur')) return T.comparer(contenu(Object.assign({ genre: 'tableur' }, a)), contenu(Object.assign({ genre: 'tableur' }, b)));
     var ca = contenu(a), cb = contenu(b);
     if (ca.onglets || cb.onglets) {
@@ -380,6 +432,7 @@
     var r = fusionObjet(mb.rattaches, mm.rattaches, ma.rattaches);
     var m2 = Object.assign({}, mm, { titre: t.valeur, rattaches: r.valeur });
     var cb = contenu(base.contenu), cm = contenu(mien.contenu), ca = contenu(autre.contenu), c;
+    if (cm.genre === 'fichier' || ca.genre === 'fichier') { var fm = JSON.stringify(cm) !== JSON.stringify(cb); if (fm && JSON.stringify(ca) !== JSON.stringify(cb) && JSON.stringify(ca) !== JSON.stringify(cm)) conflits++; return { meta: meta(m2), contenu: fm ? cm : ca, conflits: conflits }; }
     if (cm.genre === 'tableur' || ca.genre === 'tableur') { var f = T.fusionner(cb.genre === 'tableur' ? cb : T.contenu({}), T.contenu(cm), T.contenu(ca)); c = f.contenu; conflits += f.conflits; }
     else {
       // Onglet par onglet (repérés par leur identifiant) : ajoutés d'un côté gardés, retirés d'un côté sans changement de l'autre retirés
@@ -729,7 +782,7 @@
 
   registre.declarer(contrat);
 
-  return { masques: masques, masquesPour: masquesPour, controlerMasques: controlerMasques, ID_IMAGE: ID_IMAGE, MAX_IMAGE: MAX_IMAGE, peutExporter: peutExporter, MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, etatParagraphe: etatParagraphe, libEtatParagraphe: libEtatParagraphe, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
+  return { contenuFichier: contenuFichier, extension: extension, affichable: affichable, sortImport: sortImport, nomFichierSur: nomFichierSur, nomsUniques: nomsUniques, TYPES_FICHIERS: TYPES_FICHIERS, FICHIER_MAX_MO: FICHIER_MAX_MO, ID_PIECE: ID_PIECE, masques: masques, masquesPour: masquesPour, controlerMasques: controlerMasques, ID_IMAGE: ID_IMAGE, MAX_IMAGE: MAX_IMAGE, peutExporter: peutExporter, MAX_ONGLETS: MAX_ONGLETS, ongletsDe: ongletsDe, avecOnglets: avecOnglets, OPS_BLOC: OPS_BLOC, etatParagraphe: etatParagraphe, libEtatParagraphe: libEtatParagraphe, GENRES: GENRES, modificationsSuivies: modificationsSuivies, resoudreSuivi: resoudreSuivi, fusion3: fusion3, fusionnerVersions: fusionnerVersions, contrat: contrat, reduire: reduire, droits: D, ACCES: ACCES, TYPES: TYPES, DROITS_DOC: DROITS_DOC, LIB_DROITS: LIB_DROITS, STATUTS: STATUTS, CORBEILLE_JOURS: CORBEILLE_JOURS,
     POLICES: POLICES, TAILLES: TAILLES, COULEURS: COULEURS, FONDS: FONDS, BLOCS: BLOCS, ALIGNEMENTS: ALIGNEMENTS, CHAMPS_PAGE: CHAMPS_PAGE, ID: ID,
     run: run, fusionner: fusionner, bloc: bloc, page: page, contenu: contenu, texteBloc: texteBloc, texteContenu: texteContenu, sommaire: sommaire, meta: meta, comparer: comparer,
     entree: entree, partage: partage, nomCle: nomCle, clesDocument: clesDocument, clesNecessaires: clesNecessaires, aDroitCle: aDroitCle, droitDe: droitDe, peut: peut, retraitDe: retraitDe,

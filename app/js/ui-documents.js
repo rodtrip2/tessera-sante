@@ -336,6 +336,7 @@
   function ouvrirEditeur(id) {
     var d = doc(id);
     if (!d) return U.toast('Document introuvable.');
+    if (d.genre === 'fichier') return ouvrirFichier(id);
     var v0 = DM.derniere(d);
     lireVersion(d, v0).then(async function (lu) {
       if (v0 && !lu) return U.toast('Vous n’avez pas la clé de ce document.');
@@ -1116,6 +1117,268 @@
       } }]);
   }
 
+  // ------------------------------------------------------------ Fichiers joints et lots (23 novembre 2026)
+  /*
+   * Demande du porteur du 23 novembre 2026 : déposer des documents par lots (Word, Excel, PDF…), les étiqueter, les
+   * rattacher à un agent sans les lui partager, et les exporter par lots. Word, Excel et CSV sont convertis en documents
+   * modifiables ; les autres fichiers sont gardés tels quels (« fichier joint », fonction soumise à avis
+   * « documents-fichiers », livrée désactivée), chiffrés par la clé propre du document puis rangés avec les pièces du module.
+   */
+  function fichiersActifs() { return !!(SIC.validations && SIC.validations.actif(cfg(), 'documents-fichiers')); }
+  function tailleLisible(o) { return o < 1024 ? o + ' o' : o < 1048576 ? Math.round(o / 1024) + ' Ko' : (o / 1048576).toFixed(1).replace('.', ',') + ' Mo'; }
+  async function empreinte(octets) { var b = new Uint8Array(await crypto.subtle.digest('SHA-256', octets)), x = ''; for (var i = 0; i < b.length; i++) x += b[i].toString(16).padStart(2, '0'); return x; }
+  /** Images de Word d'un document importé : réduites, chiffrées par la clé du nouveau document ; nombre d'échecs. */
+  async function ajouterImagesImport(id, r) {
+    var ims = r.images || {}, echecs = 0;
+    for (var k in ims) {
+      try { var du = await new Promise(function (ok, ko) { var fr = new FileReader(); fr.onload = function () { ok(fr.result); }; fr.onerror = ko; fr.readAsDataURL(new Blob([ims[k].octets], { type: ims[k].type })); });
+        var red = await reduireImage(du, 1600, ims[k].type); red.nom = ims[k].nom; await ajouterImage(id, red, k); } catch (e) { echecs++; }
+    }
+    return echecs;
+  }
+  /**
+   * Fichier joint : document de genre « fichier » ; ses octets sont chiffrés par la clé du document, rangés avec les
+   * pièces du module, et la version décrit le fichier (nom, type, taille, empreinte). Privé à son auteur, comme tout
+   * document nouveau ; les rattachements ne donnent aucun accès.
+   */
+  async function creerFichier(nom, type, octets, o) {
+    o = o || {};
+    var id = 'DC' + hex(8), me = moi(), p = DM.partage(o.partage || []);
+    var noms = DM.clesDocument(me.id, p), manq = s().clesDocumentManquantes(noms);
+    if (manq.indexOf('k-a.' + me.id) >= 0) throw new Error('Votre clé de documents n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.');
+    await s().creerCleDocument(id, noms);
+    var emp = await empreinte(octets), ch = await s().chiffrerFichierDocument(id, octets), piece = await s().enregistrerPiece('documents', ch.octets);
+    await s().enregistrer('DOC', { id: id, nom: me.nom, genre: 'fichier', modele: false, partage: p, services: [], depuis: '' });
+    var contenu = DM.contenu({ genre: 'fichier', nom: nom, type: type || DM.affichable(nom) || 'application/octet-stream', taille: octets.length, empreinte: emp, piece: piece, g: ch.g });
+    var m = DM.meta({ titre: o.titre || nom.replace(/\.[^.]+$/, ''), rattaches: o.rattaches || [] });
+    var c = await s().chiffrerDocument(id, { meta: m, contenu: contenu });
+    var e = await s().enregistrer('DOC_VERSION', { doc: id, g: c.g, ct: c.ct, nom: me.nom });
+    cache[e.id] = { meta: m, contenu: contenu };
+    return id;
+  }
+  /** Octets d'un fichier joint, déchiffrés et vérifiés (empreinte). */
+  async function octetsFichier(d, c) {
+    var o = await s().lirePiece('documents', c.piece);
+    if (!o) throw new Error('Fichier introuvable sur le partage (pas encore copié depuis un autre poste, ou dossier incomplet).');
+    var x = await s().dechiffrerFichierDocument(d.id, c.g, o);
+    if (!x) throw new Error('Fichier illisible : vous n’avez pas la clé de ce document.');
+    if (c.empreinte && await empreinte(x) !== c.empreinte) throw new Error('Fichier altéré : son empreinte ne correspond plus à celle enregistrée.');
+    return x;
+  }
+  /** Afficher (image, PDF) ou télécharger (droit d'export du document, tracé au journal) un fichier joint. */
+  async function ouvrirOctets(d, c, telecharger) {
+    var aff = !telecharger && DM.affichable(c.nom), w = null;
+    if (aff === 'application/pdf') w = window.open('', '_blank');
+    try {
+      var o = await octetsFichier(d, c);
+      if (!aff) {
+        if (!DM.peutExporter(d, moi(), cfg())) throw new Error('Vous ne pouvez pas télécharger ce fichier (droit d’export du document).');
+        var der = DM.derniere(d);
+        await s().enregistrer('DOC_EXPORT', { doc: d.id, format: DM.extension(c.nom) || 'fichier', version: der ? der.id : '', nom: moi().nom });
+        await U.exporter('documents', DM.nomFichierSur(c.nom), o, c.type);
+        return;
+      }
+      if (aff === 'application/pdf') { var url = URL.createObjectURL(new Blob([o], { type: aff })); if (w) w.location = url; else U.telechargerOctets(c.nom, o, aff); return; }
+      var b = ''; for (var i = 0; i < o.length; i += 32768) b += String.fromCharCode.apply(null, o.subarray(i, i + 32768));
+      U.modale(c.nom, h('img', { class: 'doc-fichier-image', src: 'data:' + aff + ';base64,' + btoa(b), alt: c.nom }), [{ texte: 'Fermer' }], { large: true });
+    } catch (e) { if (w) w.close(); SIC.ui.alerte(e.message); }
+  }
+  /** Fenêtre d'un fichier joint : titre, rattachements, affichage ou téléchargement, partage, classement, corbeille. */
+  async function ouvrirFichier(id) {
+    var d = doc(id), v = DM.derniere(d), lu = await lireVersion(d, v);
+    if (!lu) return U.toast('Vous n’avez pas la clé de ce document.');
+    var c = lu.contenu, meta = { titre: lu.meta.titre, rattaches: lu.meta.rattaches.slice() }, modif = DM.peut(d, moi(), cfg(), 'modifier') && !d.corbeille && !s().apercu;
+    var gere = DM.peut(d, moi(), cfg(), 'gerer') && !s().apercu, exp = DM.peutExporter(d, moi(), cfg()) && !s().apercu, aff = DM.affichable(c.nom);
+    var titre = h('input', { type: 'text', maxlength: 160, value: meta.titre, 'aria-label': 'Titre du document', disabled: !modif });
+    var zoneR = h('p', {});
+    function dessinerR() { U.vider(zoneR).appendChild(document.createTextNode(meta.rattaches.length ? 'Rattaché à : ' + meta.rattaches.map(function (r) { return r.libelle || r.id; }).join(' · ') : 'Aucun rattachement.')); }
+    dessinerR();
+    async function enregistrerMeta() {
+      var m = DM.meta({ titre: titre.value.trim() || c.nom, rattaches: meta.rattaches });
+      if (JSON.stringify(m) === JSON.stringify(DM.meta(lu.meta))) return;
+      var x = await s().chiffrerDocument(id, { meta: m, contenu: c });
+      var e = await s().enregistrer('DOC_VERSION', { doc: id, g: x.g, ct: x.ct, nom: moi().nom });
+      cache[e.id] = { meta: m, contenu: c }; lu = cache[e.id];
+    }
+    var stt = DM.statut(d);
+    U.modale('Fichier joint', h('div', { class: 'pile' },
+      h('label', {}, 'Titre', titre),
+      h('p', {}, h('span', { class: 'badge doc-badge-fichier', text: (DM.extension(c.nom) || 'fichier').toUpperCase() }), ' ', h('b', { text: c.nom }), ' — ' + tailleLisible(c.taille) + ' — déposé par ' + (d.auteur === moi().id ? 'vous' : nomAgent(d.auteur, d)) + ' le ' + jourFr(d.cree)),
+      h('p', { class: 'muted', text: 'Partagé avec : ' + ((d.partage || []).length ? d.partage.map(libEntree).join(', ') : 'personne (privé)') + ' ; statut : ' + DM.STATUTS[stt.statut] + '.' }),
+      zoneR,
+      d.corbeille ? h('p', { class: 'alerte', text: 'Dans la corbeille depuis le ' + dateCourte(d.corbeille.le) + ' : effacé définitivement dans ' + DM.joursAvantEffacement(d, Date.now(), jc()) + ' jour(s).' }) : null,
+      h('div', { class: 'actions gauche' },
+        aff ? h('button', { class: 'btn', type: 'button', onclick: function () { ouvrirOctets(d, c, false); } }, 'Afficher') : null,
+        exp ? h('button', { class: 'btn', type: 'button', onclick: function () { ouvrirOctets(d, c, true); } }, 'Télécharger') : null,
+        modif ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleRattacher(meta, dessinerR); } }, 'Rattacher…') : null,
+        gere ? h('button', { class: 'btn', type: 'button', onclick: function () { modalePartage(id); } }, 'Partager…') : null,
+        U.classement && U.classement.disponible() ? h('button', { class: 'btn', type: 'button', onclick: function () { U.classement.modaleClasser('documents', id, meta.titre); } }, 'Classer…') : null,
+        gere && !d.corbeille ? h('button', { class: 'btn danger', type: 'button', onclick: function () { mettreACorbeille(id); } }, 'Corbeille') : null),
+      h('p', { class: 'muted' }, h('small', { text: 'Fichier chiffré par la clé de ce document, lisible des seules personnes avec qui il est partagé ; un rattachement (agent, patient, salle) ne donne aucun accès. ' + (aff ? 'Affiché dans l’application ; ' : '') + 'téléchargé, il n’est plus chiffré par Tessera (tracé au journal). Aucune donnée clinique.' }))),
+      modif ? [{ texte: 'Fermer' }, { texte: 'Enregistrer', classe: 'primaire', action: enregistrerMeta }] : [{ texte: 'Fermer' }], { large: true });
+  }
+
+  // ---- Import en lots
+  function accepteImport() {
+    var l = ['.docx', '.xlsx', '.xlsm', '.csv'];
+    if (fichiersActifs()) DM.options(cfg()).typesFichiers.forEach(function (x) { if (l.indexOf('.' + x) < 0) l.push('.' + x); });
+    return l.join(',');
+  }
+  /** « Importer des fichiers… » : un ou plusieurs fichiers ; `o.rattache` : rattachement proposé (fiche d'un agent…). */
+  function choisirImportLot(o) {
+    var champ = h('input', { type: 'file', multiple: true, accept: accepteImport(), 'aria-label': 'Fichiers à importer', class: 'cache-fichier' });
+    champ.addEventListener('change', async function () {
+      var l = Array.prototype.slice.call(champ.files || []); champ.remove(); if (!l.length) return;
+      // Un seul fichier Word, Excel ou CSV : import détaillé (titre, résumé, révisions de Word), puis ouverture du document
+      var sort = DM.sortImport(l[0].name, l[0].size, { fichiers: fichiersActifs(), options: DM.options(cfg()) });
+      if (l.length === 1 && (sort === 'texte' || sort === 'tableur')) {
+        try { modaleImport(await SIC.documentsImport.importer(l[0].name, new Uint8Array(await l[0].arrayBuffer())), l[0].name, o || {}); return; } catch (e) { if (!fichiersActifs()) return U.toast('Import impossible : ' + e.message); }
+      }
+      modaleImportLot(l, o || {});
+    });
+    document.body.appendChild(champ); champ.click();
+  }
+  /** Choix d'un rattachement facultatif : { el, valeur() } (null : aucun). */
+  function choixRattache(defaut) {
+    var genre = h('select', { 'aria-label': 'Rattacher à' }, [h('option', { value: '', text: 'Aucun rattachement' })].concat(['agent', 'patient', 'salle'].map(function (k) { return h('option', { value: k, text: GENRES_RATTACHE[k][2] }); })));
+    var item = h('select', { 'aria-label': 'Élément rattaché' });
+    function remplir() { U.vider(item); item.hidden = !genre.value; if (genre.value) itemsRattache(genre.value).forEach(function (x) { item.appendChild(h('option', { value: x[0], text: x[1] })); }); }
+    genre.addEventListener('change', remplir);
+    if (defaut) { var g0 = Object.keys(GENRES_RATTACHE).filter(function (k) { return GENRES_RATTACHE[k][0] === defaut.module; })[0]; if (g0) { genre.value = g0; remplir(); item.value = defaut.id; } } else remplir();
+    return { el: h('div', { class: 'actions gauche' }, genre, item),
+      valeur: function () { if (!genre.value) return null; var g = GENRES_RATTACHE[genre.value], x = itemsRattache(genre.value).filter(function (y) { return y[0] === item.value; })[0]; return x ? { module: g[0], genre: g[1], id: x[0], libelle: g[2] + ' : ' + x[1], service: x[2] } : null; } };
+  }
+  function modaleImportLot(fichiers, o) {
+    var op = DM.options(cfg()), actifs = fichiersActifs();
+    var cbConv = h('input', { type: 'checkbox', checked: true, disabled: !actifs, 'aria-label': 'Convertir Word, Excel et CSV' });
+    var corps = h('tbody'), resume = h('p', {}), prog = h('p', { class: 'info', 'aria-live': 'polite', hidden: true });
+    function sortDe(f) { return DM.sortImport(f.name, f.size, { convertir: cbConv.checked, fichiers: actifs, options: op }); }
+    var LIB_SORT = { texte: 'Document texte (converti, modifiable)', tableur: 'Tableur (converti, modifiable)', fichier: 'Fichier joint (gardé tel quel)' };
+    function dessiner() {
+      U.vider(corps); var n = 0;
+      fichiers.forEach(function (f) { var x = sortDe(f); if (typeof x === 'string') n++; corps.appendChild(h('tr', {}, h('td', { text: f.name }), h('td', { text: tailleLisible(f.size) }), h('td', { class: typeof x === 'string' ? '' : 'doc-refus', text: typeof x === 'string' ? LIB_SORT[x] : x.refus }))); });
+      U.vider(resume).appendChild(document.createTextNode(n + ' fichier(s) sur ' + fichiers.length + ' seront importés.'));
+    }
+    cbConv.addEventListener('change', dessiner); dessiner();
+    var ratt = choixRattache(o.rattache), cl = U.classement && U.classement.disponible() ? U.classement.selecteur('documents') : null;
+    U.modale('Importer des fichiers', h('div', { class: 'pile' },
+      h('div', { class: 'table-wrap' }, h('table', { class: 'table-documents' }, h('thead', {}, h('tr', {}, ['Fichier', 'Taille', 'Import'].map(function (t) { return h('th', { text: t }); }))), corps)), resume,
+      h('label', { class: 'case' }, cbConv, h('span', { text: 'Convertir Word, Excel et CSV en documents modifiables dans Tessera' + (actifs ? ' (décoché : gardés tels quels, comme fichiers joints)' : '') })),
+      actifs ? null : h('p', { class: 'muted', text: 'Fichiers joints (PDF, images…) non activés dans l’établissement : seuls Word, Excel et CSV sont importés, convertis (Administration → Validations).' }),
+      h('fieldset', { class: 'pile' }, h('legend', { text: 'Rattacher tous les documents à' }), ratt.el,
+        h('small', { class: 'muted', text: 'Un rattachement range le document avec l’agent, le patient ou la salle (fiche de l’agent dans l’Équipe…) ; il ne le partage avec personne.' })),
+      cl ? cl.el : null, prog,
+      h('p', { class: 'muted', text: 'Les fichiers sont lus sur ce poste. Chaque document créé est chiffré par sa propre clé et reste privé (vous seul le lisez) jusqu’à son partage. Aucune donnée clinique.' })),
+      [{ texte: 'Annuler' }, { texte: 'Importer', classe: 'primaire', action: async function () {
+        var r = ratt.valeur(), rattaches = r ? [r] : [], crees = [], echecs = [], l = fichiers.filter(function (f) { return typeof sortDe(f) === 'string'; });
+        if (!l.length) throw new Error('Aucun fichier à importer.');
+        prog.hidden = false;
+        for (var i = 0; i < l.length; i++) {
+          var f = l[i], sort = sortDe(f);
+          U.vider(prog).appendChild(document.createTextNode('Import ' + (i + 1) + ' sur ' + l.length + ' : ' + f.name + '…'));
+          try {
+            var oct = new Uint8Array(await f.arrayBuffer()), id = null;
+            if (sort === 'fichier') id = await creerFichier(f.name, f.type, oct, { rattaches: rattaches });
+            else {
+              var res = null;
+              try { res = await SIC.documentsImport.importer(f.name, oct); } catch (e) { if (!actifs || !DM.options(cfg()).typesFichiers.length) throw e; }
+              if (res) { id = await creer({ meta: { titre: res.titre || f.name.replace(/\.[^.]+$/, ''), rattaches: rattaches }, contenu: res.contenu }); var ec = await ajouterImagesImport(id, res); if (ec) echecs.push(f.name + ' : ' + ec + ' image(s) de Word non reprise(s)'); }
+              else { id = await creerFichier(f.name, f.type, oct, { rattaches: rattaches }); echecs.push(f.name + ' : conversion impossible, gardé tel quel (fichier joint)'); }
+            }
+            crees.push(id);
+          } catch (e) { echecs.push(f.name + ' : ' + e.message); }
+        }
+        if (cl && crees.length) { try { await U.classement.classerLot('documents', crees, cl.valeur()); } catch (e) { echecs.push('Classement : ' + e.message); } }
+        U.rendreContenu();
+        if (echecs.length) SIC.ui.alerte(crees.length + ' document(s) créé(s).\n' + echecs.join('\n'));
+        else U.toast(crees.length + ' document(s) créé(s), privés jusqu’à leur partage.');
+      } }], { large: true });
+  }
+
+  // ---- Sélection, export, étiquetage et rattachement en lots
+  var selection = {};
+  function selectionnes() { var ids = Object.keys(selection).filter(function (k) { return selection[k] && doc(k) && !doc(k).efface; }); return ids.map(doc); }
+  function caseSelection(d) {
+    return h('input', { type: 'checkbox', checked: !!selection[d.id], 'aria-label': 'Sélectionner « ' + ((metaConnue(d) || {}).titre || 'document') + ' »', onchange: function (ev) { if (ev.target.checked) selection[d.id] = true; else delete selection[d.id]; U.rendreContenu(); } });
+  }
+  function barreSelection() {
+    var l = selectionnes();
+    if (!l.length) return null;
+    return h('div', { class: 'actions gauche doc-selection', role: 'group', 'aria-label': 'Documents sélectionnés' },
+      h('b', { text: l.length + ' document(s) sélectionné(s)' }),
+      SIC.documentsExport ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleExportLot(selectionnes()); } }, 'Exporter…') : null,
+      U.classement && U.classement.disponible() ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleClasserLot(selectionnes()); } }, 'Étiqueter…') : null,
+      !s().apercu ? h('button', { class: 'btn', type: 'button', onclick: function () { modaleRattacherLot(selectionnes()); } }, 'Rattacher…') : null,
+      h('button', { class: 'btn', type: 'button', onclick: function () { selection = {}; U.rendreContenu(); } }, 'Tout désélectionner'));
+  }
+  /** Export en lots : une archive ZIP ; format choisi à chaque export (format d'origine ou PDF). */
+  function modaleExportLot(ds) {
+    var ok = ds.filter(function (d) { return DM.peutExporter(d, moi(), cfg()); }), refus = ds.length - ok.length;
+    var fmt = h('select', { 'aria-label': 'Format' }, [['origine', 'Format modifiable : Word pour les textes, Excel pour les tableurs'], ['pdf', 'PDF pour les textes et les tableurs']].map(function (x) { return h('option', { value: x[0], text: x[1] }); }));
+    var prog = h('p', { class: 'info', 'aria-live': 'polite', hidden: true });
+    U.modale('Exporter ' + ds.length + ' document(s)', h('div', { class: 'pile' },
+      h('label', {}, 'Format', fmt),
+      h('p', { class: 'muted', text: 'Les fichiers joints sortent tels quels. Version la plus récente de chaque document, modifications suivies acceptées. Une archive ZIP réunit les fichiers.' }),
+      refus ? h('p', { class: 'alerte', text: refus + ' document(s) ne seront pas exportés : leur partage ne vous donne pas le droit d’exporter.' }) : null, prog,
+      h('p', { class: 'alerte', text: 'Les fichiers exportés ne sont plus chiffrés par Tessera : rangez-les sur le réseau de l’établissement, jamais sur un support personnel. Chaque export est inscrit au journal.' })),
+      [{ texte: 'Annuler' }, { texte: 'Exporter', classe: 'primaire', action: async function () {
+        if (!ok.length) throw new Error('Aucun document exportable.');
+        var X = SIC.documentsExport, fichiers = [], echecs = []; prog.hidden = false;
+        for (var i = 0; i < ok.length; i++) {
+          var d = ok[i], der = DM.derniere(d);
+          U.vider(prog).appendChild(document.createTextNode('Préparation ' + (i + 1) + ' sur ' + ok.length + '…'));
+          try {
+            var lu = await lireVersion(d, der); if (!lu) throw new Error('clé du document absente');
+            var c = lu.contenu, f, format;
+            if (c.genre === 'fichier') { f = { nom: DM.nomFichierSur(lu.meta.titre) + (DM.extension(c.nom) ? '.' + DM.extension(c.nom) : ''), octets: await octetsFichier(d, c) }; format = DM.extension(c.nom) || 'fichier'; }
+            else {
+              format = fmt.value === 'pdf' ? 'pdf' : c.genre === 'tableur' ? 'xlsx' : 'docx';
+              await chargerImages(d);
+              var luE = { meta: lu.meta, contenu: c };
+              f = X.exporter(luE, { format: format, suivi: 'final', valeurs: valeursPage(d, lu.meta, ''), feuille: 0, auteur: moi().nom, images: await imagesExport(d.id, luE.contenu, format === 'pdf') });
+              f = { nom: DM.nomFichierSur(lu.meta.titre) + '.' + format, octets: f.octets };
+            }
+            await s().enregistrer('DOC_EXPORT', { doc: d.id, format: format, version: der ? der.id : '', nom: moi().nom });
+            fichiers.push(f);
+          } catch (e) { echecs.push(((metaConnue(d) || {}).titre || d.id) + ' : ' + e.message); }
+        }
+        if (!fichiers.length) throw new Error('Aucun fichier préparé.\n' + echecs.join('\n'));
+        var noms = DM.nomsUniques(fichiers.map(function (x) { return x.nom; }));
+        var zip = X.zip(fichiers.map(function (x, k) { return { nom: noms[k], contenu: x.octets }; }));
+        await U.exporter('documents', 'Documents ' + DM.jourISO(Date.now()) + ' (' + fichiers.length + ').zip', zip, 'application/zip');
+        if (echecs.length) SIC.ui.alerte(fichiers.length + ' document(s) exporté(s).\nNon exportés :\n' + echecs.join('\n'));
+      } }], { large: true });
+  }
+  function modaleClasserLot(ds) {
+    var cl = U.classement.selecteur('documents');
+    U.modale('Étiqueter ' + ds.length + ' document(s)', h('div', { class: 'pile' }, cl.el, h('p', { class: 'muted', text: 'Les étiquettes cochées sont ajoutées aux documents sélectionnés (celles qu’ils ont déjà restent).' })),
+      [{ texte: 'Annuler' }, { texte: 'Appliquer', classe: 'primaire', action: async function () { var v = cl.valeur(); if (!v.etiquettes.length && !v.dossier) throw new Error('Cochez au moins une étiquette ou choisissez un dossier.'); await U.classement.classerLot('documents', ds.map(function (d) { return d.id; }), v); U.toast('Classement appliqué à ' + ds.length + ' document(s).'); } }]);
+  }
+  /** Rattachement ajouté à plusieurs documents (droit de modifier) : une nouvelle version de chacun, contenu inchangé. */
+  function modaleRattacherLot(ds) {
+    var ok = ds.filter(function (d) { return DM.peut(d, moi(), cfg(), 'modifier') && !d.corbeille; }), ratt = choixRattache(null), prog = h('p', { class: 'info', 'aria-live': 'polite', hidden: true });
+    U.modale('Rattacher ' + ds.length + ' document(s)', h('div', { class: 'pile' }, ratt.el,
+      ds.length > ok.length ? h('p', { class: 'alerte', text: (ds.length - ok.length) + ' document(s) ne seront pas modifiés : vous ne pouvez pas les modifier.' }) : null, prog,
+      h('p', { class: 'muted', text: 'Le rattachement range les documents avec l’agent, le patient ou la salle ; il ne les partage avec personne. Une nouvelle version de chaque document est enregistrée.' })),
+      [{ texte: 'Annuler' }, { texte: 'Rattacher', classe: 'primaire', action: async function () {
+        var r = ratt.valeur(); if (!r) throw new Error('Choisissez à quoi rattacher.');
+        var n = 0, echecs = []; prog.hidden = false;
+        for (var i = 0; i < ok.length; i++) {
+          var d = ok[i];
+          U.vider(prog).appendChild(document.createTextNode('Document ' + (i + 1) + ' sur ' + ok.length + '…'));
+          try {
+            var lu = await lireVersion(d, DM.derniere(d)); if (!lu) throw new Error('clé du document absente');
+            if (lu.meta.rattaches.some(function (x) { return x.module === r.module && x.id === r.id; })) continue;
+            var m = DM.meta({ titre: lu.meta.titre, rattaches: lu.meta.rattaches.concat([r]), resume: lu.meta.resume }), x = await s().chiffrerDocument(d.id, { meta: m, contenu: lu.contenu });
+            var e = await s().enregistrer('DOC_VERSION', { doc: d.id, g: x.g, ct: x.ct, nom: moi().nom });
+            cache[e.id] = { meta: m, contenu: lu.contenu }; n++;
+          } catch (e) { echecs.push(((metaConnue(d) || {}).titre || d.id) + ' : ' + e.message); }
+        }
+        U.rendreContenu();
+        if (echecs.length) SIC.ui.alerte(n + ' document(s) rattaché(s).\n' + echecs.join('\n')); else U.toast(n + ' document(s) rattaché(s).');
+      } }]);
+  }
+
   // ------------------------------------------------------------ Partage
   function libEntree(p) {
     if (p.genre === 'agent') return nomAgent(p.code);
@@ -1381,8 +1644,10 @@
   var filtre = { texte: '' };
   function ligne(d, apres) {
     var m = metaConnue(d), stt = DM.statut(d), der = DM.derniere(d), droit = DM.droitDe(d, moi(), cfg());
-    return h('tr', { class: 'doc-ligne' },
-      h('td', {}, U.classement ? U.classement.etoile('documents', d.id) : null, h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…'), d.genre === 'tableur' ? h('span', { class: 'badge', text: 'Tableur' }) : null,
+    var cf = d.genre === 'fichier' && der && cache[der.id] ? cache[der.id].contenu : null;
+    return h('tr', { class: 'doc-ligne' + (selection[d.id] ? ' selectionnee' : '') },
+      h('td', { class: 'doc-case' }, caseSelection(d)),
+      h('td', {}, U.classement ? U.classement.etoile('documents', d.id) : null, d.genre === 'fichier' ? h('span', { class: 'badge doc-badge-fichier', title: 'Fichier joint' + (cf ? ' : ' + cf.nom + ' (' + tailleLisible(cf.taille) + ')' : ''), text: cf ? (DM.extension(cf.nom) || 'fichier').toUpperCase() : 'FICHIER' }) : null, h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…'), d.genre === 'tableur' ? h('span', { class: 'badge', text: 'Tableur' }) : null,
         U.classement ? U.classement.marques('documents', d.id) : null,
         U.mesTaches && U.mesTaches.rappelElement ? U.mesTaches.rappelElement('documents', d.id) : null,
         m && m.rattaches.length ? h('div', {}, h('small', { class: 'muted', text: m.rattaches.map(function (r) { return r.libelle; }).join(' · ') })) : null),
@@ -1396,7 +1661,9 @@
   }
   function table(ds, vide) {
     if (!ds.length) return h('p', { class: 'muted', text: vide });
-    return h('div', { class: 'table-wrap' }, h('table', { class: 'table-documents' }, h('thead', {}, h('tr', {}, ['Titre', 'Statut', 'Auteur', 'Partagé avec', 'Dernière version', 'Votre droit', ''].map(function (t) { return h('th', { text: t }); }))), h('tbody', {}, ds.map(function (d) { return ligne(d); }))));
+    var tous = ds.every(function (d) { return selection[d.id]; });
+    var cbTous = h('input', { type: 'checkbox', checked: tous, 'aria-label': 'Sélectionner tous les documents de la liste', onchange: function (ev) { ds.forEach(function (d) { if (ev.target.checked) selection[d.id] = true; else delete selection[d.id]; }); U.rendreContenu(); } });
+    return h('div', { class: 'table-wrap' }, h('table', { class: 'table-documents' }, h('thead', {}, h('tr', {}, [h('th', { class: 'doc-case' }, cbTous)].concat(['Titre', 'Statut', 'Auteur', 'Partagé avec', 'Dernière version', 'Votre droit', ''].map(function (t) { return h('th', { text: t }); })))), h('tbody', {}, ds.map(function (d) { return ligne(d); }))));
   }
   // Classement personnel (lot I, 14 novembre 2026) : favoris, étiquette, dossier
   var classeDocs = { favoris: false, etiquette: '', dossier: '' };
@@ -1420,8 +1687,9 @@
       h('div', { class: 'barre' }, h('h1', { text: 'Documents' }), recherche(), h('div', { class: 'espace' }),
         !s().apercu ? h('button', { class: 'btn primaire', type: 'button', disabled: !cle, onclick: function () { modaleNouveau(); } }, '+ Nouveau document') : null,
         !s().apercu ? h('button', { class: 'btn', type: 'button', disabled: !cle, onclick: function () { modaleNouveau({ genre: 'tableur' }); } }, '+ Nouveau tableur') : null,
-        !s().apercu && SIC.documentsImport ? h('button', { class: 'btn', type: 'button', disabled: !cle, onclick: function () { choisirImport(); } }, 'Importer un fichier…') : null),
+        !s().apercu && SIC.documentsImport ? h('button', { class: 'btn', type: 'button', disabled: !cle, title: fichiersActifs() ? 'Word, Excel et CSV convertis ; PDF, images et autres fichiers gardés tels quels' : 'Word, Excel et CSV, convertis en documents modifiables', onclick: function () { choisirImportLot(); } }, 'Importer des fichiers…') : null),
       U.classement ? U.classement.barre('documents', classeDocs, 'Hors dossiers') : null,
+      barreSelection(),
       cle ? null : h('p', { class: 'alerte', text: 'Votre clé de documents n’est pas encore créée : elle le sera à la prochaine connexion d’un administrateur.' }),
       demandes.length ? h('div', { class: 'alerte' }, h('b', { text: 'Validation qui vous est demandée : ' }), demandes.map(function (d, i) { var m = metaConnue(d); return [i ? ', ' : '', h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, m ? m.titre : '…')]; })) : null,
       aReviser.length ? h('p', { class: 'alerte', text: aReviser.length + ' document(s) à réviser : ' + aReviser.map(function (d) { var m = metaConnue(d); return m ? m.titre : '…'; }).join(', ') + '.' }) : null,
@@ -1532,7 +1800,8 @@
     Promise.all(ds.map(function (d) { return lireVersion(d, DM.derniere(d)).catch(function () { return null; }); })).then(function () {
       var l = ds.filter(function (d) { var m = metaConnue(d); return m && m.rattaches.some(function (r) { return r.module === module && r.id === idEl; }); });
       zone.appendChild(l.length ? h('ul', { class: 'liste-simple' }, l.map(function (d) { return h('li', {}, h('button', { class: 'btn lien', type: 'button', onclick: function () { ouvrirEditeur(d.id); } }, metaConnue(d).titre), ' ', h('span', { class: 'badge statut-' + DM.statut(d).statut, text: DM.STATUTS[DM.statut(d).statut] })); })) : h('p', { class: 'muted', text: 'Aucun document rattaché.' }));
-      if (!s().apercu && s().clesDocumentManquantes(['k-a.' + moi().id]).length === 0) zone.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleNouveau({ rattache: { module: module, genre: genre, id: idEl, libelle: libelle, service: service || '' } }); } }, '+ Document rattaché')));
+      if (!s().apercu && s().clesDocumentManquantes(['k-a.' + moi().id]).length === 0) zone.appendChild(h('div', { class: 'actions gauche' }, h('button', { class: 'btn petit', type: 'button', onclick: function () { modaleNouveau({ rattache: { module: module, genre: genre, id: idEl, libelle: libelle, service: service || '' } }); } }, '+ Document rattaché'),
+        SIC.documentsImport ? h('button', { class: 'btn petit', type: 'button', title: 'Plusieurs fichiers à la fois, rattachés ici sans être partagés', onclick: function () { choisirImportLot({ rattache: { module: module, genre: genre, id: idEl, libelle: libelle, service: service || '' } }); } }, 'Importer des fichiers…') : null));
     });
     return zone;
   }
@@ -1557,13 +1826,24 @@
     var o = DM.options(cfg()), adm = s().roles().indexOf('ADMIN') >= 0 && !s().apercu;
     var j = h('input', { type: 'number', min: 7, max: 365, value: o.corbeilleJours, class: 'champ-court', 'aria-label': 'Durée de la corbeille (jours)', disabled: !adm });
     var tp = h('input', { type: 'checkbox', checked: o.transfertPrives, disabled: !adm, 'aria-label': 'Transférer aussi les documents privés' });
+    var mo = h('input', { type: 'number', min: 1, max: 50, value: o.fichierMaxMo, class: 'champ-court', 'aria-label': 'Taille maximale d’un fichier joint (Mo)', disabled: !adm });
+    var ty = h('input', { type: 'text', value: o.typesFichiers.join(', '), 'aria-label': 'Types de fichiers joints acceptés', disabled: !adm });
     return h('section', { class: 'panneau' }, h('h2', { text: 'Documents' }),
       h('label', {}, 'Durée de la corbeille, en jours (7 à 365 ; 30 par défaut)', j),
       h('p', { class: 'muted', text: 'Passé ce délai, un document de la corbeille est effacé définitivement à la connexion d’un agent du module : sa clé est détruite. Les sauvegardes faites avant gardent la clé jusqu’à leur propre expiration.' }),
       h('label', { class: 'case' }, tp, h('span', { text: 'Compte d’un auteur retiré : transférer aussi au cadre ses documents privés, partagés avec personne (désactivé par défaut ; sinon ils restent illisibles, seul leur auteur les ouvrait)' })),
+      h('fieldset', { class: 'pile' }, h('legend', { text: 'Fichiers joints (PDF, images, fichiers gardés tels quels)' }),
+        h('p', { class: SIC.validations && SIC.validations.actif(cfg(), 'documents-fichiers') ? 'info' : 'muted', text: SIC.validations && SIC.validations.actif(cfg(), 'documents-fichiers') ? 'Fonction activée (onglet « Validations »).' : 'Fonction soumise à avis, désactivée : à activer dans l’onglet « Validations » (délégué à la protection des données, responsable de la sécurité informatique).' }),
+        h('label', {}, 'Taille maximale d’un fichier, en Mo (1 à 50 ; ' + DM.FICHIER_MAX_MO + ' par défaut)', mo),
+        h('label', {}, 'Types acceptés (extensions séparées par des virgules)', ty),
+        h('small', { class: 'muted', text: 'Par défaut : ' + DM.TYPES_FICHIERS.join(', ') + '. Les fichiers sont chiffrés par la clé de leur document et rangés à part des saisies, sur le partage.' })),
       h('p', { class: 'muted', text: 'Validation : rôle avec l’accès « Valider les documents » (cadre par défaut, Rôles et accès) ; il peut demander une validation supplémentaire à un agent nommé. Compte d’un auteur retiré : la gestion de ses documents partagés passe au cadre de ses services, à la connexion de l’administrateur.' }),
       adm ? h('div', { class: 'actions' }, h('button', { class: 'btn primaire', type: 'button', onclick: async function () {
-        try { var v = Math.round(+j.value); if (!(v >= 7 && v <= 365)) throw new Error('De 7 à 365 jours.'); var val = {}; if (v !== 30) val.corbeilleJours = v; if (tp.checked) val.transfertPrives = true; await U.enregistrerConfig([['documents', val]]); U.toast('Réglages enregistrés.'); } catch (e) { SIC.ui.alerte(e.message); }
+        try { var v = Math.round(+j.value); if (!(v >= 7 && v <= 365)) throw new Error('De 7 à 365 jours.'); var val = {}; if (v !== 30) val.corbeilleJours = v; if (tp.checked) val.transfertPrives = true;
+          var m2 = Math.round(+mo.value); if (!(m2 >= 1 && m2 <= 50)) throw new Error('Taille des fichiers joints : de 1 à 50 Mo.'); if (m2 !== DM.FICHIER_MAX_MO) val.fichierMaxMo = m2;
+          var t2 = ty.value.split(/[\s,;]+/).map(function (x) { return x.toLowerCase().replace(/^\./, ''); }).filter(Boolean);
+          if (t2.some(function (x) { return !/^[a-z0-9]{1,8}$/.test(x); })) throw new Error('Types de fichiers : extensions seulement (pdf, docx…).');
+          if (t2.length && t2.join(',') !== DM.TYPES_FICHIERS.join(',')) val.typesFichiers = t2; await U.enregistrerConfig([['documents', val]]); U.toast('Réglages enregistrés.'); } catch (e) { SIC.ui.alerte(e.message); }
       } }, 'Enregistrer')) : null);
   }
   var LIB = { DOC: 'Documents : création', DOC_VERSION: 'Documents : version', DOC_PARTAGE: 'Documents : partage', DOC_STATUT: 'Documents : demande de validation ou retour en brouillon', DOC_VALIDATION: 'Documents : validation',
@@ -1571,7 +1851,7 @@
   function resume(e) {
     var d = e.data || {}, x = doc(d.id || d.doc), m = x && metaConnue(x), nom = m ? '« ' + m.titre + ' »' : 'un document';
     switch (e.type) {
-      case 'DOC': return (d.modele ? 'Modèle ' : 'Document ') + nom + ' créé';
+      case 'DOC': return d.genre === 'fichier' ? 'Fichier joint ' + nom + ' déposé' : (d.modele ? 'Modèle ' : 'Document ') + nom + ' créé';
       case 'DOC_VERSION': return 'Version de ' + nom + (d.restauree ? ' (retour à une version)' : '');
       case 'DOC_PARTAGE': return 'Partage de ' + nom + ' : ' + ((d.partage || []).length ? d.partage.map(libEntree).join(', ') : 'privé');
       case 'DOC_STATUT': return (d.statut === 'a-valider' ? 'Validation demandée : ' : 'Renvoyé en brouillon : ') + nom;
@@ -1610,5 +1890,5 @@
     if (!m) chargerTitres([d], function () { U.rendreContenu(); });
     return { titre: m ? m.titre : 'Document', modele: !!d.modele };
   }
-  U.documents = { rechercher: rechercher, listeRattachables: listeRattachables, infos: infos, transfertsAutomatiques: transfertsAutomatiques, ouvrir: ouvrirEditeur, creer: creer, nouveau: modaleNouveau, section: section, effacementAutomatique: effacementAutomatique, lireBlocs: lireBlocs, rendreBlocs: rendreBlocs, imprimer: imprimer, lireVersion: lireVersion };
+  U.documents = { importerFichiers: choisirImportLot, rechercher: rechercher, listeRattachables: listeRattachables, infos: infos, transfertsAutomatiques: transfertsAutomatiques, ouvrir: ouvrirEditeur, creer: creer, nouveau: modaleNouveau, section: section, effacementAutomatique: effacementAutomatique, lireBlocs: lireBlocs, rendreBlocs: rendreBlocs, imprimer: imprimer, lireVersion: lireVersion };
 })();

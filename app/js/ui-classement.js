@@ -159,5 +159,35 @@
       U.boutonEnregistrer(async function () { v[niveau] = lire2(); Object.keys(v).forEach(function (k) { if (!v[k].length) delete v[k]; }); await U.enregistrerConfig([['etiquettesCommunes', v]]); }));
   }
 
-  U.classement = { lire: lire, marques: marques, etoile: etoile, modaleClasser: modaleClasser, modaleGerer: modaleGerer, barre: barre, filtrer: filtrer, panneauCommunes: panneauCommunes, disponible: disponible };
+  // ------------------------------------------------------------ Classement de plusieurs éléments (23 novembre 2026)
+  /**
+   * Choix d'étiquettes et d'un dossier pour un lot (import en lots, étiquetage de plusieurs documents) : { el, valeur() }
+   * avec valeur() = { etiquettes, dossier } (dossier '' : inchangé). Classement personnel de l'agent.
+   */
+  function selecteur(module) {
+    var choix = [], zone = h('div', { class: 'classement-etiquettes' });
+    var l = toutes();
+    if (!l.length) zone.appendChild(h('p', { class: 'muted', text: 'Aucune étiquette : créez-en dans « Étiquettes et dossiers… » de la liste.' }));
+    l.forEach(function (x) {
+      var cb = h('input', { type: 'checkbox', 'aria-label': 'Étiquette ' + x.libelle, onchange: function () { choix = cb.checked ? choix.concat([x.id]) : choix.filter(function (y) { return y !== x.id; }); } });
+      zone.appendChild(h('label', { class: 'case' }, cb, puce(x)));
+    });
+    var selDo = h('select', { 'aria-label': 'Ranger dans le dossier' }, [h('option', { value: '', text: 'Dossier inchangé' })].concat(optionsDossiers(module, '\u0000', null, 'Hors dossiers').map(function (o) { if (o.value === '') o.value = '-'; return o; })));
+    return { el: h('fieldset', { class: 'pile' }, h('legend', { text: 'Classement (personnel : vous seul le voyez)' }), zone, h('label', {}, 'Dossier', selDo)),
+      valeur: function () { return { etiquettes: choix.slice(), dossier: selDo.value }; } };
+  }
+  /** Ajoute des étiquettes (et range dans un dossier) pour plusieurs éléments, en un seul enregistrement. */
+  async function classerLot(module, ids, v) {
+    if (!disponible() || !ids.length || (!v.etiquettes.length && !v.dossier)) return;
+    var c = lire();
+    ids.forEach(function (id) {
+      var e = K.element(c, module, id), m = {};
+      if (v.etiquettes.length) m.etiquettes = e.etiquettes.concat(v.etiquettes.filter(function (x) { return e.etiquettes.indexOf(x) < 0; })).slice(0, 10);
+      if (v.dossier) m.dossier = v.dossier === '-' ? '' : v.dossier;
+      c = K.marquer(c, module, id, m);
+    });
+    await ecrire(c);
+  }
+
+  U.classement = { selecteur: selecteur, classerLot: classerLot, lire: lire, marques: marques, etoile: etoile, modaleClasser: modaleClasser, modaleGerer: modaleGerer, barre: barre, filtrer: filtrer, panneauCommunes: panneauCommunes, disponible: disponible };
 })();

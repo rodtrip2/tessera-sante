@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.89.0 — 23 novembre 2026
+
+**Documents : fichiers joints, import, étiquetage, rattachement et export en lots** (demande du porteur du 23 novembre 2026).
+- **Importer des fichiers…** (liste des documents, fiche d'un agent, d'un patient ou d'une salle) : plusieurs fichiers à la fois ; Word, Excel et CSV convertis en documents modifiables (case à cocher) ; PDF, images et autres fichiers gardés tels quels (**fichiers joints**) ; sort de chaque fichier affiché avant l'import (type non accepté, trop volumineux…) ; rattachement commun à un agent, un patient ou une salle **sans aucun partage** ; étiquettes et dossier personnels ; documents privés jusqu'à leur partage. Un seul fichier Word, Excel ou CSV garde l'import détaillé.
+- **Fichiers joints** : chiffrés par la clé propre du document puis rangés avec les pièces du module (hors saisies), empreinte SHA-256 vérifiée à chaque lecture ; fenêtre du fichier (titre, rattachements, Afficher pour les images et PDF, Télécharger selon le droit d'export, tracé au journal, Partager, Classer, Corbeille). Fonction soumise à avis (« documents-fichiers » : délégué à la protection des données, responsable de la sécurité informatique), **livrée désactivée** ; taille maximale (20 Mo par défaut) et types acceptés réglés dans *Administration → Documents*.
+- **Sélection dans les listes** : cases à cocher et barre « N document(s) sélectionné(s) » : **Exporter…** (archive ZIP, format choisi à chaque export : Word et Excel, ou PDF ; fichiers joints tels quels ; chaque export inscrit au journal), **Étiqueter…**, **Rattacher…**.
+- Démonstration : attestation PDF rattachée à un agent, plan en image partagé avec le service. Tests : `tests/documents.test.js` ; parcours des écrans complété. Documentation reportée (`docs/a-documenter.md`).
+
 ## 0.88.4 — 23 novembre 2026
 
 **`docs/evolutions-futures.md` nettoyé** (demande du porteur du 23 novembre 2026) : retrait de tout ce qui est déjà réalisé. Lots A, B et I retirés entièrement ; parties faites retirées des lots C, D, E, F, G, H, K, N, O et P (formalités d'admission et de sortie, faites en 0.63.0, comprises) ; état au 23 novembre 2026 et tableau des lots réduits à ce qui reste à faire. Aucun changement de l'application.

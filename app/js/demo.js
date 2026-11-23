@@ -169,6 +169,7 @@
         conges: { etat: 'accord', date: jourIso(-10), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-12) },
         'donnee-clinique': { etat: 'desactive', date: jourIso(-5), auteur: '', reference: 'En attente de l’analyse d’impact (fictif)' },
         formations: { etat: 'accord', date: jourIso(-3), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
+        'documents-fichiers': { etat: 'accord', date: jourIso(-1), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)' },
         entretiens: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
         'dossier-clinique': { etat: 'accord', date: jourIso(-1), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote (démonstration, fictif)', dpoInforme: jourIso(-2) },
         heures: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
@@ -1150,6 +1151,36 @@
           await docD({ titre: 'Ancienne note sur les visites (fictif)', h: -24 * 90,
             versions: [{ h: -24 * 90, contenu: { blocs: [p('Note remplacée par le règlement intérieur. (fictif)')] } }],
             suite: [{ h: -24 * 25, type: 'DOC_CORBEILLE', data: { corbeille: true } }] });
+          // Fichiers joints (23 novembre 2026) : attestation PDF rattachée à un agent sans lui être partagée (privée au
+          // cadre), plan en image partagé avec le service ; octets chiffrés par la clé du document, rangés avec les pièces
+          if (session.chiffrerFichierDocument && session.enregistrerPiece && !session.formation) {
+            var docF = async function (o) {
+              var id = 'DC' + SIC.crypto.hex(SIC.crypto.aleatoire(8)), part = DMd.partage(o.partage || []);
+              await session.creerCleDocument(id, DMd.clesDocument(moiT.id, part).filter(function (n) { return !session.clesDocumentManquantes([n]).length; }));
+              var emp = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', o.octets))).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+              var ch = await session.chiffrerFichierDocument(id, o.octets), piece = await session.enregistrerPiece('documents', ch.octets);
+              var c = await session.chiffrerDocument(id, { meta: DMd.meta({ titre: o.titre, rattaches: o.rattaches || [] }), contenu: DMd.contenu({ genre: 'fichier', nom: o.nom, type: o.type, taille: o.octets.length, empreinte: emp, piece: piece, g: ch.g }) });
+              await session.enregistrerLot([{ at: at(o.h), by: moiT.id, type: 'DOC', data: { id: id, nom: moiT.nom, genre: 'fichier', modele: false, partage: part, services: [], depuis: '' } },
+                { at: at(o.h), by: moiT.id, type: 'DOC_VERSION', data: { doc: id, g: c.g, ct: c.ct, nom: moiT.nom } }], { libelle: 'Fichier joint fictif : ' + o.titre, by: 'demo', sansControle: true });
+            };
+            // Petit PDF d'une page écrit à la main (texte fictif), avec sa table des renvois
+            var pdfDemo = (function () {
+              var flux = 'BT /F1 14 Tf 72 760 Td (Attestation de formation AFGSU niveau 2 - fictif) Tj 0 -24 Td (Agent A - document entierement fictif) Tj ET';
+              var objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+                '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', '<< /Length ' + flux.length + ' >>\nstream\n' + flux + '\nendstream'];
+              var t = '%PDF-1.4\n', pos = [];
+              objs.forEach(function (x, i) { pos.push(t.length); t += (i + 1) + ' 0 obj\n' + x + '\nendobj\n'; });
+              var xref = t.length;
+              t += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + pos.map(function (n) { return String(n).padStart(10, '0') + ' 00000 n \n'; }).join('') + 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+              return new TextEncoder().encode(t);
+            })();
+            try {
+              await docF({ titre: 'Attestation AFGSU 2 — Agent A (fictif)', nom: 'Attestation AFGSU agent A (fictif).pdf', type: 'application/pdf', octets: pdfDemo, h: -24 * 6,
+                rattaches: [{ module: 'equipe', genre: 'agent', id: 'demo-a', libelle: 'Agent : Agent A (fictif)', service: '' }] });
+              await docF({ titre: 'Plan d’évacuation de l’unité (fictif)', nom: 'Plan evacuation (fictif).png', type: 'image/png', h: -24 * 3, partage: [{ genre: 'service', code: SVd, droit: 'lire' }],
+                octets: SIC.crypto.deb64('iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAVElEQVR42u3WsQ0AIAgEQDZxMAsXdwATl3ABLI0Fl1CScNXz0UZPZ+6Vzuv9AAICKgf6dfi2DwQEVA8kqYGAgPQhrwMISB+S1EBAQPqQ1wEEVBp0AOAC5OIP3b9UAAAAAElFTkSuQmCC') });
+            } catch (e) { /* démonstration sans fichiers joints */ }
+          }
         }
         if (moiT && session.aClePersonnelle && session.aClePersonnelle()) {
           var lotT = [], nT = 0;

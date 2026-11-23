@@ -2237,6 +2237,22 @@
     try { return await C.dechiffrerJSON(k, C.deb64(ct), 'doci:' + id + ':' + imageId + ':' + g); } catch (e) { return null; }
   };
   /**
+   * Fichier joint d'un document (23 novembre 2026) : octets chiffrés par la clé du document (génération courante), puis
+   * rangés avec les pièces du module (double chiffrement : clé du document, clé du module). Données additionnelles
+   * propres aux fichiers ; renvoie { g, octets }.
+   */
+  Session.prototype.chiffrerFichierDocument = async function (id, octets) {
+    var g = await this.generationDocument(id), k = g && await this.cleDocument(id, g);
+    if (!k) throw new Error('Clé du document indisponible : fichier non enregistré.');
+    return { g: g, octets: await C.chiffrerOctets(k, octets, 'docf:' + id + ':' + g) };
+  };
+  Session.prototype.dechiffrerFichierDocument = async function (id, g, octets) {
+    if (!octets) return null;
+    var k = await this.cleDocument(id, g);
+    if (!k) return null;
+    try { return await C.dechiffrerOctets(k, octets, 'docf:' + id + ':' + g); } catch (e) { return null; }
+  };
+  /**
    * Nouveau partage d'un document : les clés ajoutées reçoivent toutes les générations (historique lisible) ; un retrait
    * (`retrait`) retire les emballages des clés retirées et crée une génération nouvelle pour la suite.
    */

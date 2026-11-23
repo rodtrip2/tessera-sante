@@ -415,3 +415,54 @@ test('Mémoire (0.85.0) : anciennes versions allégées à la lecture, relues su
   assert.equal(o.meta.titre, 'Version 0 (fictif)');
   assert.equal(await a2.relireSaisie('20990101T000000Z_inconnu_00000000'), null);
 });
+
+// ------------------------------------------------------------ Fichiers joints et lots (23 novembre 2026)
+test('Fichiers joints : contenu validé, sort à l’import (conversion, types, taille, fonction désactivée), noms d’export', () => {
+  const c = DM.contenu({ genre: 'fichier', nom: 'Note de service (fictif).pdf', type: 'application/pdf', taille: 1234, empreinte: 'ab'.repeat(32), piece: 'PJ0123456789abcdef', g: 2, script: 'x' });
+  assert.deepEqual(c, { genre: 'fichier', nom: 'Note de service (fictif).pdf', type: 'application/pdf', taille: 1234, empreinte: 'ab'.repeat(32), piece: 'PJ0123456789abcdef', g: 2 });
+  const m = DM.contenu({ genre: 'fichier', nom: '', type: 'pas un type', taille: -3, empreinte: 'zz', piece: '../x', g: 0 });
+  assert.equal(m.type, 'application/octet-stream'); assert.equal(m.taille, 0); assert.equal(m.empreinte, ''); assert.equal(m.piece, ''); assert.equal(m.g, 1); assert.equal(m.nom, 'fichier');
+  assert.equal(DM.texteContenu(c), 'Note de service (fictif).pdf'); assert.deepEqual(DM.sommaire(c), []);
+  assert.equal(DM.GENRES.fichier, 'Fichier joint');
+  const op = DM.options({}), actif = { fichiers: true, options: op };
+  assert.equal(op.fichierMaxMo, 20); assert.ok(op.typesFichiers.indexOf('pdf') >= 0);
+  assert.equal(DM.sortImport('a.docx', 10, actif), 'texte'); assert.equal(DM.sortImport('a.XLSX', 10, actif), 'tableur'); assert.equal(DM.sortImport('a.csv', 10, actif), 'tableur');
+  assert.equal(DM.sortImport('a.docx', 10, Object.assign({ convertir: false }, actif)), 'fichier');
+  assert.equal(DM.sortImport('a.pdf', 10, actif), 'fichier');
+  assert.match(DM.sortImport('a.exe', 10, actif).refus, /Type de fichier non accepté/);
+  assert.match(DM.sortImport('a.pdf', 21 * 1048576, actif).refus, /20 Mo au plus/);
+  assert.match(DM.sortImport('a.pdf', 0, actif).refus, /vide/);
+  // Fonction désactivée : Word et Excel convertis seulement
+  assert.equal(DM.sortImport('a.docx', 10, { options: op }), 'texte');
+  assert.match(DM.sortImport('a.pdf', 10, { options: op }).refus, /non activés/);
+  // Réglages de l'établissement
+  const o2 = DM.options({ documents: { fichierMaxMo: 5, typesFichiers: ['.PDF', 'odt', 'mauvais type!'] } });
+  assert.equal(o2.fichierMaxMo, 5); assert.deepEqual(o2.typesFichiers, ['pdf', 'odt']);
+  assert.equal(DM.options({ documents: { fichierMaxMo: 500 } }).fichierMaxMo, 20);
+  assert.equal(DM.affichable('scan.JPG'), 'image/jpeg'); assert.equal(DM.affichable('a.docx'), null);
+  assert.deepEqual(DM.nomsUniques(['Note.pdf', 'note.pdf', 'Note.pdf', 'Autre']), ['Note.pdf', 'note (2).pdf', 'Note (3).pdf', 'Autre']);
+  assert.equal(DM.nomFichierSur('Rapport : 2026/11 ?.'), 'Rapport _ 2026_11 _');
+  // Comparaison et fusion de deux versions d'un fichier joint (renommage, rattachement : contenu inchangé)
+  assert.deepEqual(DM.comparer(c, c).map((x) => x.etat), ['egal']);
+  const f = DM.fusionnerVersions({ meta: { titre: 'A' }, contenu: c }, { meta: { titre: 'B' }, contenu: c }, { meta: { titre: 'A', rattaches: [{ module: 'equipe', genre: 'agent', id: 'x1', libelle: 'Agent : X' }] }, contenu: c });
+  assert.equal(f.meta.titre, 'B'); assert.equal(f.meta.rattaches.length, 1); assert.equal(f.contenu.piece, c.piece); assert.equal(f.conflits, 0);
+  // Saisie DOC d'un fichier joint
+  const st = DM.reduire([{ id: 'e1', at: new Date().toISOString(), by: 'a1', type: 'DOC', data: { id: 'DC00000040', genre: 'fichier', partage: [] } }]);
+  assert.equal(st.docs.DC00000040.genre, 'fichier');
+});
+
+test('Fichiers joints : octets chiffrés par la clé du document, rangés avec les pièces du module, illisibles sans la clé', async () => {
+  const { racine, id } = await equipe();
+  const a = await co(racine, 'ide.a', 'mot de passe ide a');
+  await a.creerCleDocument('DC0000000c', ['k-a.' + id('ide.a')]);
+  const octets = new TextEncoder().encode('%PDF-1.4 fichier fictif');
+  const ch = await a.chiffrerFichierDocument('DC0000000c', octets);
+  assert.notDeepEqual(Array.from(ch.octets.slice(0, octets.length)), Array.from(octets));
+  const piece = await a.enregistrerPiece('documents', ch.octets);
+  assert.match(piece, DM.ID_PIECE);
+  const relu = await a.lirePiece('documents', piece);
+  assert.equal(new TextDecoder().decode(await a.dechiffrerFichierDocument('DC0000000c', ch.g, relu)), '%PDF-1.4 fichier fictif');
+  assert.equal(await a.dechiffrerFichierDocument('DC0000000d', ch.g, relu), null);   // autre document : refusé
+  const cadre = await co(racine, 'cadre', 'mot de passe cadre');   // même module, sans la clé du document
+  assert.equal(await cadre.dechiffrerFichierDocument('DC0000000c', ch.g, await cadre.lirePiece('documents', piece)), null);
+});
