@@ -1,6 +1,6 @@
 # Fiche pour le service informatique — Tessera Santé
 
-*Destinataire : service informatique (DSI ou direction du numérique, selon l'établissement). Objet : ce que Tessera Santé demande à l'infrastructure, ce qu'il change par rapport aux fichiers Word et Excel des partages, et ce qu'il faut préparer. Détail : fiche technique (`docs/fiche-technique.md`) et guide d'installation (document 03). Version du 16 novembre 2026 (Tessera 0.77).*
+*Destinataire : service informatique (DSI ou direction du numérique, selon l'établissement). Objet : ce que Tessera Santé demande à l'infrastructure, ce qu'il change par rapport aux fichiers Word et Excel des partages, et ce qu'il faut préparer. Détail : fiche technique (`docs/fiche-technique.md`) et guide d'installation (document 03). Version du 23 novembre 2026 (Tessera 0.88.1).*
 
 | En bref | |
 | --- | --- |

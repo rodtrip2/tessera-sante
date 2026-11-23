@@ -132,7 +132,7 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 | Documents | Documents texte et tableurs chiffrés, partagés avec qui l'on choisit, versions, validation, modèles remplis automatiquement, travail à plusieurs, imports et exports Office. |
 | Congés | Souhaits et demandes, validation, tableaux du service avec règles d'effectif, droits et soldes indicatifs. |
 | Contrôles | Contrôle des chambres de soins intensifs (CSI) libres et passage de surveillance à chaque poste ; **contrôles périodiques** du matériel (chariot d'urgence, réfrigérateur à médicaments, sac d'urgence) à leur rythme et après chaque utilisation, températures et péremptions surveillées, rappels dans l'Agenda ; registre (désactivé par défaut). |
-| Audits internes | Grilles d'audit de l'établissement et du service (circuit du médicament, isolement et contention ; tenue du dossier soumise à avis), réalisées par le cadre et les agents qu'il désigne ; taux de conformité par période et par critère ; écarts suivis dans « Mes tâches » (désactivé par défaut). |
+| Audits internes | Grilles d'audit de l'établissement et du service (circuit du médicament, isolement et contention ; tenue du dossier soumise à avis), réalisées par le cadre et les agents qu'il désigne ; taux de conformité par période et par critère ; **import des tableaux d'audit déjà tenus par le service** (classeur Excel, lu sur le poste, jamais copié) et **graphiques de l'évolution sur l'année** ; écarts suivis dans « Mes tâches » (désactivé par défaut). |
 | Formations, heures supplémentaires | Inscriptions et décisions ; heures en plus ou en moins d'après l'horaire prévu, récupérations, heures payées à saisir en priorité dans le logiciel de gestion du temps (soumis à avis). |
 | Données cliniques | Feuille de staff clinique (codes CIM, motif, projet thérapeutique, dépendance), notes du séjour, rappel du séjour précédent ; accès limité, bris de glace tracé (désactivé par défaut, soumis à avis). |
 
@@ -187,7 +187,7 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 
 ## 9. État d'avancement
 
-- **Socle commun et les dix-huit modules** : développés et vérifiés par plus de 540 tests automatiques et un parcours complet des écrans (version stable 0.85.1 du 16 novembre 2026, ergonomie revue), démonstration sur données fictives. Audit complet le 15 novembre 2026, points bloquants corrigés. Aucune utilisation avec des données réelles à ce jour.
+- **Socle commun et les dix-huit modules** : développés et vérifiés par plus de 560 tests automatiques et un parcours complet des écrans (version stable 0.87.1 du 17 novembre 2026, ergonomie revue), démonstration sur données fictives. Audit complet le 15 novembre 2026, points bloquants corrigés. Aucune utilisation avec des données réelles à ce jour.
 - **Documents pour chaque décideur** : délégué à la protection des données, responsable de la sécurité informatique, service informatique, ressources humaines, direction des soins et commission médicale, direction juridique, représentants du personnel (`kit/`).
 - **Kit de déploiement** : guide d'installation, procédures de secours, éléments RGPD (un traitement par module), guides utilisateur et guide pratique illustré, imports (dossier `kit/` du dépôt).
 

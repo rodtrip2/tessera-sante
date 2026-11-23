@@ -1,6 +1,6 @@
 # Fiche pour le responsable de la sécurité informatique — Tessera Santé
 
-*Destinataire : responsable de la sécurité informatique (RSSI) de l'établissement. Objet : décrire le modèle de sécurité de Tessera Santé, le comparer aux fichiers Word et Excel rangés aujourd'hui sur les partages, rendre compte de l'audit du 15 novembre 2026 et lister les points à arbitrer. Détail technique complet : fiche technique (`docs/fiche-technique.md`). Version du 16 novembre 2026 (Tessera 0.77).*
+*Destinataire : responsable de la sécurité informatique (RSSI) de l'établissement. Objet : décrire le modèle de sécurité de Tessera Santé, le comparer aux fichiers Word et Excel rangés aujourd'hui sur les partages, rendre compte de l'audit du 15 novembre 2026 et lister les points à arbitrer. Détail technique complet : fiche technique (`docs/fiche-technique.md`). Version du 23 novembre 2026 (Tessera 0.88.1).*
 
 | En bref | |
 | --- | --- |

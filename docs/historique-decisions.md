@@ -1169,3 +1169,22 @@ Décisions du porteur du 17 novembre 2026 : audits seuls (plans d'action plus ta
 - Kit : document du délégué à la protection des données et de la direction des soins (`kit/13`, `kit/17`) — audit de la tenue du dossier : finalité, référence pseudonyme, conservation ; guide du cadre (grilles, auditeurs, résultats) ; captures `audits`, `audits-resultats`.
 - Points à valider : grilles à remplacer par celles de l'établissement (pharmacie, qualité, référent isolement et contention) ; audit du dossier (avis) ; durée de conservation des audits.
 - `CLAUDE.md` : § 1 (liste des modules : Audits internes) et § 7 (fonction soumise à avis « audit-dossier » : délégué à la protection des données, direction des soins et commission médicale).
+
+## Versions 0.88.0 et 0.88.1 (17 et 23 novembre 2026) — reprises de `docs/a-documenter.md`
+
+### 0.88.0 — Audits : import d'un tableau mensuel, évolution sur l'année (17 novembre 2026)
+
+Demande du porteur du 17 novembre 2026 : importer le tableau d'audit mensuel tenu par le service (classeur de synthèse) sans reprendre le fichier ni ses données, et rendre les résultats sur l'année en graphiques.
+
+- `docs/architecture.md` § 7 nonies : modes des critères (`reponse`, `ratio`, `indicateur`), taux d'un audit = moyenne des critères évalués ; import (`lireSynthese`, `preparerImport`, `grilleDepuisSynthese`, `correspondance` dans `module-audits.js` ; fichier lu dans le navigateur, jamais copié ; `origine`, `fichier`) ; résultats sur l'année (`resultats(st, { annee })`, `parPeriode`, `indicateurs`) ; graphiques par `SIC.tableur.dessinGraphique` (options `yMax`, `etiquettes`) et `U.tableur.svgGraphique`.
+- `docs/fiche-projet.md` : import des tableaux d'audit existants, graphiques de l'année.
+- Kit : guide de l'utilisateur (importer un tableau d'audit, évolution sur l'année) ; capture `audits-annee` (parcours des écrans).
+- Points à valider : date retenue pour un mois importé (le 1er) ; seuils des couleurs (90 % et 70 %).
+
+### 0.88.1 — Application sur le partage : code protégé, mises à jour contrôlées (23 novembre 2026)
+
+Demande du porteur du 23 novembre 2026, dans la réflexion sur une version limitée au service ou au pôle, hébergée sur le partage réseau sans serveur web ni installation : protéger le code contre toute modification par les agents, et fournir un script de mise à jour.
+
+- Scripts `kit/outils/mettre-a-jour-outil.ps1` (site publié, archive ou dossier ; contrôle SHA-256 de chaque fichier, fichier en trop refusé, empreinte attendue de la liste facultative, version plus ancienne refusée sauf `-Forcer`, copie contrôlée puis échange des dossiers, droits NTFS repris, `app.ancien` et `-Revenir`, `-Simulation`, copie de référence `reference-empreintes\`, `journal-mises-a-jour.log`) et `kit/outils/verifier-outil.ps1` (contrôle quotidien par rapport à la référence, `journal-controles.log`, journal *Application* de Windows : 1000, 1001, 1002). Compatibles Windows PowerShell 5.1 et PowerShell 7 ; essayés sous PowerShell 7 seulement.
+- Guide d'installation § 3 bis ; fiches `kit/14` et `kit/15` ; fiche technique (modes d'hébergement) ; `tests/outils-partage.test.js`.
+- Points à valider : essai sur un poste Windows et un vrai partage (Windows PowerShell 5.1, droits NTFS, journal Windows) ; groupe et compte de mise à jour ; tâche planifiée du contrôle ; audit des écritures.
