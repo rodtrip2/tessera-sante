@@ -1,6 +1,6 @@
 # Fiche pour le service informatique — Tessera Santé
 
-*Destinataire : service informatique (DSI ou direction du numérique, selon l'établissement). Objet : ce que Tessera Santé demande à l'infrastructure, ce qu'il change par rapport aux fichiers Word et Excel des partages, et ce qu'il faut préparer. Détail : fiche technique (`docs/fiche-technique.md`) et guide d'installation (document 03). Version du 23 novembre 2026 (Tessera 0.88.1).*
+*Destinataire : service informatique (DSI ou direction du numérique, selon l'établissement). Objet : ce que Tessera Santé demande à l'infrastructure, ce qu'il change par rapport aux fichiers Word et Excel des partages, et ce qu'il faut préparer. Détail : fiche technique (`docs/fiche-technique.md`) et guide d'installation (document 03). Version du 23 novembre 2026 (Tessera 0.88.2).*
 
 | En bref | |
 | --- | --- |
@@ -52,7 +52,7 @@ Pour les services de soins, Tessera rend visibles les tâches à faire et garde 
 
 - Pendant le pilote : versions publiées par le porteur sur GitHub Pages ; une version stable ou bêta n'est publiée que si les tests passent, si son commit porte une signature vérifiée et après son approbation.
 - En production : télécharger la version, vérifier les empreintes (`Get-FileHash -Algorithm SHA256`), remplacer le dossier `app`. Les données ne sont pas touchées ; le format est versionné et lu par les versions suivantes.
-- Application sur le partage : script `outils/mettre-a-jour-outil.ps1` (téléchargement ou archive, contrôle de chaque fichier, refus d'une version plus ancienne, échange instantané des dossiers, ancienne version gardée, retour arrière `-Revenir`, journal des mises à jour). Au moindre écart, rien n'est remplacé.
+- Application sur le partage : `outils/mettre-a-jour-tessera.cmd` (double-clic, vérification puis confirmation) ou script `outils/mettre-a-jour-outil.ps1` (téléchargement ou archive, contrôle de chaque fichier, refus d'une version plus ancienne, échange instantané des dossiers, ancienne version gardée, retour arrière `-Revenir`, journal des mises à jour). Au moindre écart, rien n'est remplacé.
 
 ## 6. Points à valider
 

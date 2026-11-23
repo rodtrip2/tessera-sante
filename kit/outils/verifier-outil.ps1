@@ -15,8 +15,8 @@
 # Codes de sortie : 0 = conforme ; 1 = dossier ou référence inaccessible ; 2 = écart constaté.
 
 param(
-  # Dossier de l'application utilisé par les agents (celui qui contient index.html)
-  [string]$Dossier = '\\serveur\applis\TesseraSante\app',
+  # Dossier de l'application utilisé par les agents (celui qui contient index.html) ; par défaut : « app » à côté du script
+  [string]$Dossier = '',
   # Dossier de référence (ou chemin du fichier EMPREINTES-SHA256.txt de référence)
   [string]$Reference = '',
   [string]$Journal = '',
@@ -25,6 +25,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if (-not $Dossier) { $Dossier = Join-Path $PSScriptRoot 'app' }
 $Dossier = $Dossier.TrimEnd('\', '/')
 $parent = Split-Path -Parent $Dossier
 if (-not $Reference) { $Reference = Join-Path $parent 'reference-empreintes' }

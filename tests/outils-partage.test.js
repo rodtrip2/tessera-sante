@@ -44,3 +44,18 @@ test('Outils du partage : codes de sortie documentés', () => {
   assert.match(lire('mettre-a-jour-outil.ps1'), /0 = mise à jour faite ou déjà à jour ; 1 = source inaccessible ; 2 = contrôle refusé ou erreur ;\s*#\s*3 = version plus ancienne/);
   assert.match(lire('verifier-outil.ps1'), /0 = conforme ; 1 = dossier ou référence inaccessible ; 2 = écart constaté/);
 });
+
+test('Outils du partage : lanceur en un double-clic (fins de ligne CRLF, vérification avant installation)', () => {
+  const brut = fs.readFileSync(path.join(OUTILS, 'mettre-a-jour-tessera.cmd'), 'utf8');
+  assert.ok(!/[^\r]\n/.test(brut), 'fins de ligne LF : cmd.exe exige CRLF (.gitattributes)');
+  assert.match(brut, /%~dp0mettre-a-jour-outil\.ps1"/);
+  const simulation = brut.indexOf('-Simulation'), choix = brut.indexOf('choice /C ON');
+  assert.ok(simulation > 0 && choix > simulation, 'la vérification doit précéder la question');
+  assert.match(fs.readFileSync(path.join(__dirname, '..', '.gitattributes'), 'utf8'), /^\*\.cmd text eol=crlf$/m);
+});
+
+test('Outils du partage : sans paramètre, les scripts visent le dossier « app » situé à côté d’eux', () => {
+  assert.match(lire('mettre-a-jour-outil.ps1'), /\$Destination = Join-Path \$PSScriptRoot 'app'/);
+  assert.match(lire('verifier-outil.ps1'), /\$Dossier = Join-Path \$PSScriptRoot 'app'/);
+  assert.match(lire('mettre-a-jour-outil.ps1'), /Read-Host 'Taper O pour confirmer'/, 'première installation confirmée');
+});

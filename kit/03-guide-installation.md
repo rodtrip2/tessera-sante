@@ -65,7 +65,18 @@ Poser les droits sur le **dossier parent** : `app\` en hérite, et les droits so
 
 ### Première installation et mises à jour
 
-Depuis un poste, avec le compte de mise à jour, dans une fenêtre PowerShell :
+**Le plus simple : en un double-clic.** Copier `outils/mettre-a-jour-outil.ps1` et `outils/mettre-a-jour-tessera.cmd` dans le dossier parent, **à côté** du dossier `app` (jamais dedans : ils seraient signalés comme fichiers en trop) :
+
+```
+\\serveur\applis\TesseraSante\
+   mettre-a-jour-tessera.cmd
+   mettre-a-jour-outil.ps1
+   app\
+```
+
+Avec le compte de mise à jour (Maj + clic droit sur `mettre-a-jour-tessera.cmd` → *Exécuter en tant qu'autre utilisateur*), lancer `mettre-a-jour-tessera.cmd` : il vérifie d'abord la nouvelle version sans rien remplacer, affiche le résultat, demande *Installer cette version maintenant [O,N]*, puis installe et affiche le compte rendu. Sans dossier `app` à côté de lui, le script propose une première installation, après confirmation. Paramètres facultatifs (archive, canal bêta, proxy) : les ajouter à la fin de la cible d'un raccourci vers `mettre-a-jour-tessera.cmd`, par exemple `mettre-a-jour-tessera.cmd -Archive "C:\Telechargements\tessera.zip"`.
+
+**En ligne de commande** (tâche planifiée, autre emplacement), depuis un poste, avec le compte de mise à jour, dans une fenêtre PowerShell :
 
 ```powershell
 # Version stable, téléchargée depuis le site publié du projet (accès à Internet par le proxy nécessaire)
@@ -93,7 +104,7 @@ Au moindre écart, **rien n'est remplacé** et la version en place reste utilis�
 
 ### Contrôle quotidien
 
-Tâche planifiée du service informatique, une fois par jour, avec un compte en **lecture seule** :
+Tâche planifiée du service informatique, une fois par jour, avec un compte en **lecture seule** (sans `-Dossier`, le script contrôle le dossier `app` situé à côté de lui) :
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Scripts\verifier-outil.ps1 -Dossier '\\serveur\applis\TesseraSante\app' -JournalWindows

@@ -1,5 +1,12 @@
 # Journal des modifications — Tessera Santé
 
+## 0.88.2 — 23 novembre 2026
+
+**Mise à jour de l'application sur le partage en un double-clic** (demande du porteur du 23 novembre 2026). Aucun changement de l'application.
+- **`kit/outils/mettre-a-jour-tessera.cmd`**, à placer avec `mettre-a-jour-outil.ps1` à côté du dossier `app` : vérification de la nouvelle version sans rien remplacer, question *Installer cette version maintenant [O,N]*, installation et compte rendu ; paramètres facultatifs transmis au script (archive, canal, proxy).
+- Sans `-Destination` (ou `-Dossier`), `mettre-a-jour-outil.ps1` et `verifier-outil.ps1` visent le dossier `app` situé à côté d'eux ; première installation confirmée (« O ») quand ce dossier n'existe pas encore.
+- Guide d'installation § 3 bis, fiche du service informatique ; `.gitattributes` (fins de ligne CRLF des `.cmd`) ; tests.
+
 ## 0.88.1 — 23 novembre 2026
 
 **Application hébergée sur le partage réseau : code protégé et mises à jour contrôlées** (demande du porteur du 23 novembre 2026). Aucun changement de l'application.

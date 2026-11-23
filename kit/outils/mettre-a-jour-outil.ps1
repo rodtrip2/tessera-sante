@@ -1,7 +1,11 @@
 ﻿# SPDX-License-Identifier: EUPL-1.2
 #
 # Tessera Santé : mise à jour de l'application (dossier « app ») hébergée sur un partage réseau ou un serveur web.
-# Mode d'emploi : kit/03-guide-installation.md, § 3 bis et § 9.
+# Mode d'emploi : kit/03-guide-installation.md, § 3 bis.
+#
+# Usage simple : placer ce script et « mettre-a-jour-tessera.cmd » dans le dossier qui contient « app » (par exemple
+# \\serveur\applis\TesseraSante\), puis double-cliquer sur « mettre-a-jour-tessera.cmd » avec le compte de mise à jour.
+# Sans -Destination, le script met à jour le dossier « app » situé à côté de lui.
 #
 # Le script ne touche jamais au dossier des données : il ne remplace que les fichiers de l'application.
 #   1. récupère la nouvelle version : archive ZIP téléchargée depuis GitHub (-Archive), dossier déjà décompressé
@@ -23,8 +27,8 @@
 #                   3 = version plus ancienne que celle en place (refusée sans -Forcer).
 
 param(
-  # Dossier de l'application utilisé par les agents (celui qui contient index.html)
-  [string]$Destination = '\\serveur\applis\TesseraSante\app',
+  # Dossier de l'application utilisé par les agents (celui qui contient index.html) ; par défaut : « app » à côté du script
+  [string]$Destination = '',
   # Archive ZIP de la version (GitHub : « Code → Download ZIP » ou page des versions)
   [string]$Archive = '',
   # Dossier déjà décompressé : le dossier « app » lui-même ou le dossier qui le contient
@@ -45,6 +49,16 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if (-not $Destination) {
+  $Destination = Join-Path $PSScriptRoot 'app'
+  if (-not (Test-Path -LiteralPath (Join-Path $Destination 'index.html')) -and -not $Revenir -and -not $Simulation) {
+    # Aucun dossier « app » à côté du script : première installation, à confirmer (évite une installation par erreur
+    # dans un dossier de téléchargement)
+    Write-Host ('Aucune application Tessera trouvée à côté du script. Installer Tessera dans ' + $Destination + ' ?')
+    $r = Read-Host 'Taper O pour confirmer'
+    if ($r -notmatch '^[oOyY]') { Write-Host 'Installation abandonnée.'; exit 2 }
+  }
+}
 $Destination = $Destination.TrimEnd('\', '/')
 $parent = Split-Path -Parent $Destination
 if (-not $Reference) { $Reference = Join-Path $parent 'reference-empreintes' }
