@@ -1,0 +1,275 @@
+﻿# SPDX-License-Identifier: EUPL-1.2
+#
+# Tessera Santé : mise à jour de l'application (dossier « app ») hébergée sur un partage réseau ou un serveur web.
+# Mode d'emploi : kit/03-guide-installation.md, § 3 bis et § 9.
+#
+# Le script ne touche jamais au dossier des données : il ne remplace que les fichiers de l'application.
+#   1. récupère la nouvelle version : archive ZIP téléchargée depuis GitHub (-Archive), dossier déjà décompressé
+#      (-Source) ou, à défaut, téléchargement direct depuis le site publié du projet (-Canal stable ou beta) ;
+#   2. contrôle CHAQUE fichier par son empreinte SHA-256 (EMPREINTES-SHA256.txt publié avec l'application) et refuse
+#      tout fichier en trop ; facultatif : empreinte attendue du fichier d'empreintes lui-même (-EmpreinteAttendue) ;
+#   3. refuse de revenir à une version plus ancienne sans -Forcer ;
+#   4. copie la nouvelle version à côté de l'actuelle, la contrôle de nouveau, reprend les droits NTFS du dossier
+#      actuel, puis échange les deux dossiers (l'ancienne version est gardée dans « app.ancien ») ;
+#   5. range une copie du fichier d'empreintes dans le dossier de référence, utilisé par verifier-outil.ps1.
+# Au moindre écart, rien n'est remplacé : la version en place reste utilisée.
+#
+# Retour à la version précédente : -Revenir (échange « app » et « app.ancien »).
+# Essai sans rien remplacer : -Simulation.
+#
+# À lancer avec un compte qui a le droit de modifier le dossier de l'application (compte dédié aux mises à jour ou
+# service informatique), jamais avec le compte habituel d'un agent. Compatible Windows PowerShell 5.1 et PowerShell 7.
+# Codes de sortie : 0 = mise à jour faite ou déjà à jour ; 1 = source inaccessible ; 2 = contrôle refusé ou erreur ;
+#                   3 = version plus ancienne que celle en place (refusée sans -Forcer).
+
+param(
+  # Dossier de l'application utilisé par les agents (celui qui contient index.html)
+  [string]$Destination = '\\serveur\applis\TesseraSante\app',
+  # Archive ZIP de la version (GitHub : « Code → Download ZIP » ou page des versions)
+  [string]$Archive = '',
+  # Dossier déjà décompressé : le dossier « app » lui-même ou le dossier qui le contient
+  [string]$Source = '',
+  # Sans -Archive ni -Source : version téléchargée depuis le site publié du projet
+  [ValidateSet('stable', 'beta')][string]$Canal = 'stable',
+  [string]$Adresse = 'https://rodtrip2.github.io/tessera-sante/',
+  # Proxy de l'établissement pour le téléchargement (vide = réglage du poste)
+  [string]$Proxy = '',
+  # Empreinte SHA-256 attendue du fichier EMPREINTES-SHA256.txt (vérifiée si renseignée)
+  [string]$EmpreinteAttendue = '',
+  # Dossier où ranger la copie de référence des empreintes (à protéger : lecture seule pour les agents)
+  [string]$Reference = '',
+  [string]$Journal = '',
+  [switch]$Revenir,
+  [switch]$Simulation,
+  [switch]$Forcer
+)
+
+$ErrorActionPreference = 'Stop'
+$Destination = $Destination.TrimEnd('\', '/')
+$parent = Split-Path -Parent $Destination
+if (-not $Reference) { $Reference = Join-Path $parent 'reference-empreintes' }
+if (-not $Journal) { $Journal = Join-Path $parent 'journal-mises-a-jour.log' }
+$ancien = $Destination + '.ancien'
+$nouveau = $Destination + '.nouveau'
+$NOM_EMPREINTES = 'EMPREINTES-SHA256.txt'
+
+function Ecrire-Journal([string]$texte) {
+  $ligne = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  ' + $env:USERNAME + '  ' + $texte
+  try {
+    $d = Split-Path -Parent $Journal
+    if ($d -and -not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
+    Add-Content -LiteralPath $Journal -Value $ligne -Encoding UTF8
+  } catch { Write-Warning ('Journal inaccessible (' + $Journal + ') : ' + $_.Exception.Message) }
+  Write-Host $ligne
+}
+
+function Lire-Empreintes([string]$fichier) {
+  # Lignes « EMPREINTE  app/chemin » ; un chemin qui sort du dossier est refusé
+  $liste = @()
+  foreach ($l in (Get-Content -LiteralPath $fichier -Encoding UTF8)) {
+    if ($l -match '^([0-9A-Fa-f]{64})\s+app/(.+)$') {
+      $rel = $Matches[2].Trim()
+      if ($rel -match '(^|/)\.\.(/|$)' -or $rel -match '^[/\\]' -or $rel -match ':') { throw ('Chemin refusé dans la liste des empreintes : ' + $rel) }
+      $liste += [pscustomobject]@{ Hash = $Matches[1].ToUpperInvariant(); Rel = $rel }
+    }
+  }
+  return ,$liste
+}
+
+function Chemin-Local([string]$dossier, [string]$rel) {
+  return Join-Path $dossier ($rel -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+}
+
+function Controler-Dossier([string]$dossier) {
+  # Retourne la liste des écarts (vide = conforme)
+  $ecarts = @()
+  $fichier = Join-Path $dossier $NOM_EMPREINTES
+  if (-not (Test-Path -LiteralPath $fichier)) { return ,@($NOM_EMPREINTES + ' absent') }
+  $liste = Lire-Empreintes $fichier
+  if ($liste.Count -lt 10) { return ,@('liste d''empreintes incomplète (' + $liste.Count + ' fichiers)') }
+  $attendus = @{}
+  foreach ($e in $liste) {
+    $attendus[$e.Rel.ToLowerInvariant()] = $true
+    $f = Chemin-Local $dossier $e.Rel
+    if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $ecarts += ('fichier absent : ' + $e.Rel) }
+    elseif ((Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash -ne $e.Hash) { $ecarts += ('empreinte différente : ' + $e.Rel) }
+  }
+  $racine = (Resolve-Path -LiteralPath $dossier).ProviderPath.TrimEnd('\', '/')
+  foreach ($f in (Get-ChildItem -LiteralPath $dossier -Recurse -File -Force)) {
+    $rel = $f.FullName.Substring($racine.Length + 1) -replace '\\', '/'
+    if ($rel -ne $NOM_EMPREINTES -and -not $attendus.ContainsKey($rel.ToLowerInvariant())) { $ecarts += ('fichier en trop : ' + $rel) }
+  }
+  return ,$ecarts
+}
+
+function Version-De([string]$dossier) {
+  $v = Join-Path $dossier 'js\version.js'
+  if (-not (Test-Path -LiteralPath $v)) { $v = Join-Path $dossier 'js/version.js' }
+  if (Test-Path -LiteralPath $v) {
+    $m = [regex]::Match((Get-Content -LiteralPath $v -Raw -Encoding UTF8), "VERSION\s*=\s*'([^']+)'")
+    if ($m.Success) { return $m.Groups[1].Value }
+  }
+  return ''
+}
+
+function Comparer-Versions([string]$a, [string]$b) {
+  # -1 si a < b, 0 si égales, 1 si a > b (le suffixe de bêta passe avant la version finale)
+  $pa = ($a -split '-', 2); $pb = ($b -split '-', 2)
+  $na = @($pa[0].Split('.') | ForEach-Object { [int]$_ }); $nb = @($pb[0].Split('.') | ForEach-Object { [int]$_ })
+  for ($i = 0; $i -lt [Math]::Max($na.Count, $nb.Count); $i++) {
+    $x = 0; $y = 0
+    if ($i -lt $na.Count) { $x = $na[$i] }
+    if ($i -lt $nb.Count) { $y = $nb[$i] }
+    if ($x -lt $y) { return -1 }
+    if ($x -gt $y) { return 1 }
+  }
+  if ($pa.Count -gt 1 -and $pb.Count -eq 1) { return -1 }
+  if ($pa.Count -eq 1 -and $pb.Count -gt 1) { return 1 }
+  if ($pa.Count -gt 1 -and $pb.Count -gt 1) { return [string]::CompareOrdinal($pa[1], $pb[1]) }
+  return 0
+}
+
+function Ranger-Reference([string]$dossier) {
+  if (-not (Test-Path -LiteralPath $Reference)) { New-Item -ItemType Directory -Path $Reference -Force | Out-Null }
+  Copy-Item -LiteralPath (Join-Path $dossier $NOM_EMPREINTES) -Destination (Join-Path $Reference $NOM_EMPREINTES) -Force
+}
+
+function Reprendre-Droits([string]$depuis, [string]$vers) {
+  if ($env:OS -ne 'Windows_NT' -or -not (Test-Path -LiteralPath $depuis)) { return }
+  try { Set-Acl -LiteralPath $vers -AclObject (Get-Acl -LiteralPath $depuis) }
+  catch { Ecrire-Journal ('ATTENTION : droits NTFS non repris (' + $_.Exception.Message + ') ; vérifier les droits de ' + $Destination + '.') }
+}
+
+function Telecharger([string]$url, [string]$vers) {
+  $p = @{ Uri = $url; OutFile = $vers; UseBasicParsing = $true }
+  if ($Proxy) { $p.Proxy = $Proxy; $p.ProxyUseDefaultCredentials = $true }
+  Invoke-WebRequest @p
+}
+
+# ------------------------------------------------------------------ Retour à la version précédente
+if ($Revenir) {
+  if (-not (Test-Path -LiteralPath (Join-Path $ancien 'index.html'))) { Ecrire-Journal ('ARRÊT : aucune version précédente (' + $ancien + ').'); exit 2 }
+  $ecarts = Controler-Dossier $ancien
+  if ($ecarts.Count -gt 0 -and -not $Forcer) {
+    Ecrire-Journal ('ARRÊT : la version précédente ne correspond plus à ses empreintes (' + $ecarts[0] + ', ' + $ecarts.Count + ' écart(s)). -Forcer pour revenir quand même.')
+    exit 2
+  }
+  $vAct = Version-De $Destination; $vAnc = Version-De $ancien
+  if ($Simulation) { Ecrire-Journal ('Simulation : retour de ' + $vAct + ' à ' + $vAnc + ' possible.'); exit 0 }
+  $echange = $Destination + '.echange'
+  if (Test-Path -LiteralPath $echange) { Remove-Item -LiteralPath $echange -Recurse -Force }
+  Rename-Item -LiteralPath $Destination -NewName (Split-Path -Leaf $echange)
+  Rename-Item -LiteralPath $ancien -NewName (Split-Path -Leaf $Destination)
+  Rename-Item -LiteralPath $echange -NewName (Split-Path -Leaf $ancien)
+  Ranger-Reference $Destination
+  Ecrire-Journal ('Retour à la version précédente : ' + $vAnc + ' en place (' + $vAct + ' gardée dans ' + (Split-Path -Leaf $ancien) + ').')
+  exit 0
+}
+
+# ------------------------------------------------------------------ 1. Récupérer la nouvelle version
+if (-not (Test-Path -LiteralPath $parent)) { Ecrire-Journal ('ARRÊT : dossier parent introuvable (' + $parent + ').'); exit 1 }
+function Executer {
+  $temp = Join-Path ([System.IO.Path]::GetTempPath()) ('TesseraSante-maj-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+  New-Item -ItemType Directory -Path $temp -Force | Out-Null
+  try {
+    if ($Archive) {
+      if (-not (Test-Path -LiteralPath $Archive)) { Ecrire-Journal ('ARRÊT : archive introuvable (' + $Archive + ').'); return 1 }
+      Expand-Archive -LiteralPath $Archive -DestinationPath (Join-Path $temp 'zip') -Force
+      $trouve = Get-ChildItem -LiteralPath (Join-Path $temp 'zip') -Recurse -Filter $NOM_EMPREINTES -File |
+        Where-Object { $_.Directory.Name -eq 'app' -and (Test-Path -LiteralPath (Join-Path $_.DirectoryName 'index.html')) } | Select-Object -First 1
+      if (-not $trouve) { Ecrire-Journal 'ARRÊT : aucun dossier « app » avec index.html et EMPREINTES-SHA256.txt dans l''archive.'; return 2 }
+      $app = $trouve.DirectoryName
+      $origine = 'archive ' + (Split-Path -Leaf $Archive)
+    } elseif ($Source) {
+      if (Test-Path -LiteralPath (Join-Path $Source $NOM_EMPREINTES)) { $app = $Source }
+      elseif (Test-Path -LiteralPath (Join-Path (Join-Path $Source 'app') $NOM_EMPREINTES)) { $app = Join-Path $Source 'app' }
+      else { Ecrire-Journal ('ARRÊT : source inaccessible ou sans EMPREINTES-SHA256.txt (' + $Source + ').'); return 1 }
+      $origine = 'dossier ' + $Source
+    } else {
+      try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+      $base = $Adresse.TrimEnd('/') + '/'
+      if ($Canal -eq 'beta') { $base += 'beta/' }
+      $base += 'app/'
+      $app = Join-Path $temp 'app'
+      New-Item -ItemType Directory -Path $app -Force | Out-Null
+      try { Telecharger ($base + $NOM_EMPREINTES) (Join-Path $app $NOM_EMPREINTES) }
+      catch { Ecrire-Journal ('ARRÊT : téléchargement impossible (' + $base + $NOM_EMPREINTES + ') : ' + $_.Exception.Message); return 1 }
+      $liste = Lire-Empreintes (Join-Path $app $NOM_EMPREINTES)
+      foreach ($e in $liste) {
+        $f = Chemin-Local $app $e.Rel
+        $d = Split-Path -Parent $f
+        if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
+        try { Telecharger ($base + $e.Rel) $f }
+        catch { Ecrire-Journal ('ARRÊT : téléchargement interrompu (' + $e.Rel + ') : ' + $_.Exception.Message); return 1 }
+      }
+      $origine = 'site publié, version ' + $Canal + ' (' + $base + ')'
+    }
+
+    # ---------------------------------------------------------------- 2. Contrôle des empreintes
+    $ecarts = Controler-Dossier $app
+    if ($ecarts.Count -gt 0) {
+      Ecrire-Journal ('ARRÊT : nouvelle version refusée, ' + $ecarts.Count + ' écart(s) : ' + (($ecarts | Select-Object -First 5) -join ' ; ') + '. Version en place conservée.')
+      return 2
+    }
+    $hashListe = (Get-FileHash -LiteralPath (Join-Path $app $NOM_EMPREINTES) -Algorithm SHA256).Hash
+    if ($EmpreinteAttendue -and $hashListe -ne $EmpreinteAttendue.Trim().ToUpperInvariant()) {
+      Ecrire-Journal ('ARRÊT : le fichier d''empreintes ne correspond pas à l''empreinte attendue (' + $hashListe + '). Version en place conservée.')
+      return 2
+    }
+    $vNouv = Version-De $app
+    $nb = (Lire-Empreintes (Join-Path $app $NOM_EMPREINTES)).Count
+
+    # ---------------------------------------------------------------- 3. Comparaison avec la version en place
+    $vAct = ''
+    if (Test-Path -LiteralPath (Join-Path $Destination 'index.html')) {
+      $vAct = Version-De $Destination
+      $listeAct = Join-Path $Destination $NOM_EMPREINTES
+      if ((Test-Path -LiteralPath $listeAct) -and (Get-FileHash -LiteralPath $listeAct -Algorithm SHA256).Hash -eq $hashListe -and -not $Forcer) {
+        $ecartsAct = Controler-Dossier $Destination
+        if ($ecartsAct.Count -eq 0) { Ecrire-Journal ('Déjà à jour : version ' + $vAct + ' en place et conforme à ses empreintes.'); return 0 }
+        Ecrire-Journal ('La version en place (' + $vAct + ') présente ' + $ecartsAct.Count + ' écart(s) : réinstallation.')
+      } elseif ($vAct -and $vNouv -and (Comparer-Versions $vNouv $vAct) -lt 0 -and -not $Forcer) {
+        Ecrire-Journal ('ARRÊT : la version proposée (' + $vNouv + ') est plus ancienne que la version en place (' + $vAct + '). -Forcer pour l''installer quand même, ou -Revenir pour la version précédente.')
+        return 3
+      }
+    }
+
+    if ($Simulation) {
+      Ecrire-Journal ('Simulation : version ' + $vNouv + ' contrôlée (' + $nb + ' fichiers, ' + $origine + ', empreinte de la liste ' + $hashListe + ') ; en place : ' + $(if ($vAct) { $vAct } else { 'aucune' }) + '. Rien n''a été remplacé.')
+      return 0
+    }
+
+    # ---------------------------------------------------------------- 4. Copie, second contrôle, échange
+    if (Test-Path -LiteralPath $nouveau) { Remove-Item -LiteralPath $nouveau -Recurse -Force }
+    Copy-Item -LiteralPath $app -Destination $nouveau -Recurse -Force
+    $ecarts = Controler-Dossier $nouveau
+    if ($ecarts.Count -gt 0) {
+      Ecrire-Journal ('ARRÊT : copie vers ' + $nouveau + ' incomplète (' + $ecarts[0] + '). Version en place conservée.')
+      Remove-Item -LiteralPath $nouveau -Recurse -Force
+      return 2
+    }
+    Reprendre-Droits $Destination $nouveau
+    if (Test-Path -LiteralPath $Destination) {
+      if (Test-Path -LiteralPath $ancien) { Remove-Item -LiteralPath $ancien -Recurse -Force }
+      Rename-Item -LiteralPath $Destination -NewName (Split-Path -Leaf $ancien)
+    }
+    try { Rename-Item -LiteralPath $nouveau -NewName (Split-Path -Leaf $Destination) }
+    catch {
+      if (Test-Path -LiteralPath $ancien) { Rename-Item -LiteralPath $ancien -NewName (Split-Path -Leaf $Destination) }
+      Ecrire-Journal ('ARRÊT : échange impossible (' + $_.Exception.Message + '). Version précédente remise en place.')
+      return 2
+    }
+
+    # ---------------------------------------------------------------- 5. Référence
+    Ranger-Reference $Destination
+    Ecrire-Journal ('Mise à jour faite : ' + $(if ($vAct) { $vAct } else { 'aucune' }) + ' → ' + $vNouv + ' (' + $nb + ' fichiers contrôlés, ' + $origine + ', empreinte de la liste ' + $hashListe + '). Les agents rechargent la page (F5) ou rouvrent Tessera.')
+    return 0
+  } catch {
+    Ecrire-Journal ('ERREUR : ' + $_.Exception.Message + ' Version en place conservée.')
+    return 2
+  } finally {
+    if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
+  }
+}
+
+exit (Executer)

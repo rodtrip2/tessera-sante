@@ -8,7 +8,7 @@ Tessera Santé réunit un **socle commun** (connexion, comptes, services, droits
 | --- | --- | --- |
 | [Fiche projet](../docs/fiche-projet.md) | Direction, direction des soins, encadrement, instances | Présenter le projet et obtenir les décisions |
 | [Fiche technique](../docs/fiche-technique.md) | Service informatique (DSI ou direction du numérique, selon l'établissement), responsable de la sécurité informatique (RSSI) | Architecture, sécurité, prérequis, recette technique |
-| [03 — Guide d'installation](03-guide-installation.md) | Service informatique, administrateur fonctionnel | Mise en service pas à pas, modules, comptes, imports |
+| [03 — Guide d'installation](03-guide-installation.md) | Service informatique, administrateur fonctionnel | Mise en service pas à pas, modules, comptes, imports ; application sur le partage protégée (scripts `outils/mettre-a-jour-outil.ps1` et `outils/verifier-outil.ps1`) |
 | [04 — Procédures de secours](04-procedures-secours.md) | Administrateur, cadres, service informatique | Mots de passe, clés, départs, compromission, panne, restauration ; fiche papier dégradée |
 | [05 — Éléments RGPD et analyse d'impact (AIPD)](05-elements-rgpd-aipd.md) | Délégué à la protection des données (DPO, référent RGPD) | Fiches du registre des traitements (une par module) et préparation de l'analyse d'impact |
 | [06 — Guide utilisateur](06-guide-utilisateur.md) | Tous les agents, cadres, administrateur | Connexion, modules, fiche patient, agenda, isolement et contention, journal |

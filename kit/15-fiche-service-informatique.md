@@ -4,7 +4,7 @@
 
 | En bref | |
 | --- | --- |
-| **À installer** | Rien sur les postes ; un dossier de fichiers statiques sur un serveur web de l'intranet, en HTTPS (pendant le pilote : la version publiée sur GitHub Pages). |
+| **À installer** | Rien sur les postes ; un dossier de fichiers statiques sur un serveur web de l'intranet, en HTTPS (pendant le pilote : la version publiée sur GitHub Pages), ou, sans serveur web, dans un dossier du partage en lecture seule pour les agents. |
 | **À créer** | Un dossier de données sur un partage sauvegardé, droits NTFS « Modifier » pour le groupe des utilisateurs. |
 | **Postes** | Edge ou Chrome récents ; clés FIDO2 (YubiKey série 5) si le second facteur est retenu. |
 | **Charge estimée** | Environ une demi-journée pour l'installation et la recette ; mises à jour par simple remplacement du dossier `app`. |
@@ -46,11 +46,13 @@ Pour les services de soins, Tessera rend visibles les tâches à faire et garde 
 6. **Clés de sécurité** (si retenues) : modèle compatible PRF, ports USB autorisés, **test obligatoire sur un poste type**.
 7. **Facultatif** : dossier de secours copié par robocopy (document 09) ; postes désignés pour le travail hors réseau, disque chiffré (document 10).
 8. **Phase pilote** : `https://rodtrip2.github.io` autorisé par le proxy pour les postes concernés.
+9. **Sans serveur web, application sur le partage** (guide d'installation, § 3 bis) : dossier de l'application séparé du dossier des données, **Lecture et exécution** pour les agents, **Modifier** pour un petit groupe de mise à jour (compte dédié, jamais le compte habituel d'un agent) ; contrôle quotidien des empreintes par une tâche planifiée (`verifier-outil.ps1`, journal *Application* de Windows) ; audit Windows des écritures sur ce dossier.
 
 ## 5. Mises à jour
 
 - Pendant le pilote : versions publiées par le porteur sur GitHub Pages ; une version stable ou bêta n'est publiée que si les tests passent, si son commit porte une signature vérifiée et après son approbation.
 - En production : télécharger la version, vérifier les empreintes (`Get-FileHash -Algorithm SHA256`), remplacer le dossier `app`. Les données ne sont pas touchées ; le format est versionné et lu par les versions suivantes.
+- Application sur le partage : script `outils/mettre-a-jour-outil.ps1` (téléchargement ou archive, contrôle de chaque fichier, refus d'une version plus ancienne, échange instantané des dossiers, ancienne version gardée, retour arrière `-Revenir`, journal des mises à jour). Au moindre écart, rien n'est remplacé.
 
 ## 6. Points à valider
 
@@ -60,6 +62,7 @@ Pour les services de soins, Tessera rend visibles les tâches à faire et garde 
 - [ ] Synchronisation horaire des postes.
 - [ ] Clés de sécurité : modèle, achat, ports USB, essai sur un poste type.
 - [ ] Dossier de secours et postes hors réseau (facultatifs).
+- [ ] Application sur le partage (si retenue) : dossier et groupe de mise à jour, compte dédié, tâche planifiée du contrôle quotidien, audit des écritures.
 - [ ] Qualification de l'hébergement (pas de prestataire, donc a priori pas de certification d'hébergeur de données de santé, HDS), avec le délégué à la protection des données.
 - [ ] Recette technique (fiche technique, § 14).
 

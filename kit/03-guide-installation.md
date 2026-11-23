@@ -14,6 +14,8 @@
 
    Comparer avec `app/EMPREINTES-SHA256.txt`. Toute différence doit être expliquée avant la mise en service.
 
+   Pour un hébergement sur le partage réseau, le script `outils/mettre-a-jour-outil.ps1` fait ce contrôle fichier par fichier et installe la version (§ 3 bis).
+
 ## 2. Créer le dossier de données (service informatique)
 
 1. Créer un dossier vide sur un partage sauvegardé, par exemple `\\serveur\donnees\TesseraSante`.
@@ -38,13 +40,76 @@
 - **raccourci Windows** (toutes situations) : clic droit sur le bureau → *Nouveau → Raccourci*, cible `"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --app=https://intranet.etablissement.fr/tessera/`, puis *Propriétés → Changer d'icône* et choisir `icone.ico` ;
 - **stratégie de groupe** : raccourci déployé sur les postes concernés (préférence *Raccourcis*, champ *Fichier d'icône* pointant vers `\\serveur\partage\tessera\img\icone.ico`).
 
-**Repli sans serveur web** — copier `app/` dans un dossier en lecture seule du partage et ouvrir `index.html` avec Edge ou Chrome. Les clés de sécurité ne fonctionnent pas dans ce mode.
+**Sans serveur web : sur le partage réseau** — l'application est copiée dans un dossier du partage, en lecture seule pour les agents, et ouverte avec Edge ou Chrome (`index.html`). Rien n'est installé sur les postes et rien ne vient d'Internet. Les clés de sécurité ne fonctionnent pas dans ce mode. Mise en place et protection du code : § 3 bis.
 
 **Travail hors réseau** (facultatif, postes désignés) : voir le document 10.
 
-**Démonstration** — https://rodtrip2.github.io/tessera-sante/, en *mode démonstration* uniquement, sans aucune donnée réelle. Ouverte depuis cette page, l'application vérifie qu'il s'agit de la dernière version publiée et propose de recharger la page sinon. Sur l'intranet ou un partage, la mise à jour reste faite par le service informatique, après contrôle des empreintes.
+**Démonstration** — https://rodtrip2.github.io/tessera-sante/, en *mode démonstration* uniquement, sans aucune donnée réelle. Ouverte depuis cette page, l'application vérifie qu'il s'agit de la dernière version publiée et propose de recharger la page sinon. Sur l'intranet ou un partage, la mise à jour reste faite par le service informatique, après contrôle des empreintes (script du § 3 bis).
 
 Test sur un poste type : ouvrir le lien, cliquer *Ouvrir le dossier réseau du service*, choisir le dossier créé à l'étape 2. L'écran *Initialiser le dossier* doit s'afficher.
+
+## 3 bis. Hébergement sur le partage réseau : protéger le code (service informatique)
+
+Dans ce mode, le code de l'application est un simple dossier de fichiers. Il doit être **modifiable par un petit nombre de personnes seulement**, et son intégrité **contrôlée de l'extérieur** : une version modifiée de l'application pourrait supprimer sa propre vérification. Deux scripts du kit s'en chargent : `outils/mettre-a-jour-outil.ps1` (installation et mise à jour) et `outils/verifier-outil.ps1` (contrôle quotidien). Ils fonctionnent avec Windows PowerShell 5.1, présent sur tous les postes Windows récents, et avec PowerShell 7.
+
+### Deux dossiers séparés
+
+| Dossier (exemple) | Contenu | Droits NTFS |
+| --- | --- | --- |
+| `\\serveur\applis\TesseraSante\` (dossier parent) | `app\` (l'application), `app.ancien\` (version précédente), `reference-empreintes\`, journaux des scripts | Agents : **Lecture et exécution**. Groupe « Tessera – mise à jour » (service informatique, éventuellement un compte dédié de l'administrateur fonctionnel) : **Modifier**. Aucun autre droit ; héritage des groupes plus larges retiré |
+| `\\serveur\donnees\TesseraSante\` (§ 2) | Données chiffrées | Agents : **Modifier**. **Aucun fichier de l'application** dans ce dossier |
+
+Poser les droits sur le **dossier parent** : `app\` en hérite, et les droits sont conservés à chaque mise à jour (le script reprend aussi les droits du dossier remplacé). Les agents peuvent ainsi utiliser Tessera, mais ne peuvent ni modifier, ni remplacer, ni supprimer un fichier de l'application.
+
+**Compte de mise à jour.** Le compte habituel d'un agent, même cadre, ne doit pas avoir le droit d'écrire dans ce dossier : une session laissée ouverte ou un poste infecté suffirait à modifier le code. Utiliser un compte dédié (ouverture de session ou *Exécuter en tant qu'autre utilisateur*), ou confier la mise à jour au service informatique.
+
+### Première installation et mises à jour
+
+Depuis un poste, avec le compte de mise à jour, dans une fenêtre PowerShell :
+
+```powershell
+# Version stable, téléchargée depuis le site publié du projet (accès à Internet par le proxy nécessaire)
+powershell -ExecutionPolicy Bypass -File .\mettre-a-jour-outil.ps1 -Destination '\\serveur\applis\TesseraSante\app'
+
+# Ou depuis l'archive ZIP téléchargée à part (GitHub : « Code → Download ZIP » ou page des versions)
+powershell -ExecutionPolicy Bypass -File .\mettre-a-jour-outil.ps1 -Destination '\\serveur\applis\TesseraSante\app' -Archive 'C:\Telechargements\tessera-sante-stable.zip'
+```
+
+Le script :
+
+1. récupère la version (site publié : `-Canal stable`, par défaut, ou `-Canal beta` ; archive : `-Archive` ; dossier déjà décompressé : `-Source`) ;
+2. contrôle **chaque fichier** par son empreinte SHA-256 et refuse tout fichier en trop ; avec `-EmpreinteAttendue`, il vérifie aussi l'empreinte du fichier `EMPREINTES-SHA256.txt` lui-même, communiquée par le porteur ou relevée sur le dépôt ;
+3. refuse une version plus ancienne que celle en place (sauf `-Forcer`) ;
+4. copie la version à côté de l'actuelle, la contrôle de nouveau, puis échange les deux dossiers : la coupure dure une fraction de seconde, et l'ancienne version est gardée dans `app.ancien` ;
+5. range une copie des empreintes dans `reference-empreintes\`, utilisée par le contrôle quotidien, et écrit chaque opération dans `journal-mises-a-jour.log` (date, compte, versions, empreinte de la liste).
+
+Au moindre écart, **rien n'est remplacé** et la version en place reste utilisée. Les agents rechargent la page (F5) ou rouvrent Tessera ; les données ne sont pas touchées.
+
+- **Essai sans rien remplacer** : `-Simulation`.
+- **Retour à la version précédente** : `-Revenir` (échange `app` et `app.ancien`, après contrôle de ses empreintes).
+- **Copie abîmée ou modifiée** : relancer le script sur la même version ; il constate les écarts et réinstalle.
+- **Script bloqué par Windows** (fichier téléchargé) : `Unblock-File .\mettre-a-jour-outil.ps1`, ou `-ExecutionPolicy Bypass` comme ci-dessus.
+- Codes de sortie : 0 = fait ou déjà à jour ; 1 = source inaccessible ; 2 = contrôle refusé ou erreur ; 3 = version plus ancienne refusée.
+
+### Contrôle quotidien
+
+Tâche planifiée du service informatique, une fois par jour, avec un compte en **lecture seule** :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Scripts\verifier-outil.ps1 -Dossier '\\serveur\applis\TesseraSante\app' -JournalWindows
+```
+
+Le script compare le dossier à la copie de référence et signale tout fichier absent, modifié ou en trop, ainsi qu'un fichier d'empreintes remplacé. Résultat dans `journal-controles.log` et, avec `-JournalWindows`, dans le journal *Application* de Windows (source `TesseraSante` : 1000 = conforme, 1001 = écart, 1002 = dossier inaccessible), pour la supervision. Codes de sortie : 0 = conforme, 1 = inaccessible, 2 = écart. Le script lui-même est rangé hors du partage (par exemple `C:\Scripts\` sur le serveur), là où les agents n'écrivent pas.
+
+**En cas d'écart** : prévenir l'administrateur fonctionnel, ne plus utiliser la copie avant vérification, consulter l'audit Windows (ci-dessous) pour savoir qui a écrit, puis réinstaller la version avec `mettre-a-jour-outil.ps1`.
+
+### Traçabilité des écritures
+
+Activer l'**audit Windows des écritures** (stratégie *Auditer l'accès aux objets* et entrée d'audit *Écriture / Suppression* sur le dossier parent) : toute modification du code indique le compte et l'heure.
+
+### Ce qui reste
+
+Un administrateur du serveur peut toujours modifier le dossier : c'est la limite commune à tout logiciel de l'établissement. Les **données** ont leur propre protection, indépendante de ce dossier : fichiers chiffrés, saisies signées, une saisie fabriquée ou modifiée sur le partage est détectée et écartée.
 
 ## 4. Initialiser le dossier (administrateur)
 

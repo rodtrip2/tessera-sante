@@ -1,5 +1,12 @@
 # Journal des modifications — Tessera Santé
 
+## 0.88.1 — 23 novembre 2026
+
+**Application hébergée sur le partage réseau : code protégé et mises à jour contrôlées** (demande du porteur du 23 novembre 2026). Aucun changement de l'application.
+- **`kit/outils/mettre-a-jour-outil.ps1`** : installation et mise à jour du dossier `app` depuis le site publié (`-Canal stable` ou `beta`), une archive ZIP (`-Archive`) ou un dossier (`-Source`) ; chaque fichier contrôlé par son empreinte SHA-256, fichier en trop refusé, empreinte attendue de la liste facultative (`-EmpreinteAttendue`), version plus ancienne refusée (sauf `-Forcer`), copie contrôlée une seconde fois puis échange instantané des dossiers, droits NTFS repris, version précédente gardée (`app.ancien`, retour par `-Revenir`), essai sans remplacement (`-Simulation`), copie de référence des empreintes et journal des mises à jour. Au moindre écart, la version en place reste utilisée.
+- **`kit/outils/verifier-outil.ps1`** : contrôle quotidien hors de l'application (tâche planifiée) par rapport à la copie de référence : fichier absent, modifié ou en trop, liste d'empreintes remplacée ; journal et, au choix, journal *Application* de Windows (événements 1000, 1001, 1002).
+- Guide d'installation, nouveau § 3 bis (deux dossiers séparés, droits NTFS, compte dédié aux mises à jour, contrôle quotidien, audit des écritures, limites) ; fiches du service informatique et du responsable de la sécurité informatique ; fiche technique (modes d'hébergement). Tests : `tests/outils-partage.test.js` ; scripts essayés sous PowerShell 7 (installation, déjà à jour, réparation, version plus récente, refus d'une version plus ancienne, retour arrière, source falsifiée, falsification du code et de la liste).
+
 ## 0.88.0 — 17 novembre 2026
 
 **Audits internes : import d'un tableau d'audit mensuel et évolution sur l'année** (demande du porteur du 17 novembre 2026) :

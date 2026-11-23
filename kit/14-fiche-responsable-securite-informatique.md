@@ -69,6 +69,7 @@ La traçabilité des tâches du service (échéances légales, check-lists, aler
 - [ ] Clé de signature tirée de la clé personnelle ; tolérance d'horloge de 15 minutes pour le contrôle des droits ; seuil d'alerte d'horloge de 5 minutes.
 - [ ] Phase pilote sur GitHub Pages (dépôt public, compte du porteur en double authentification, commits signés, approbation des versions) ; passage sur l'intranet ensuite.
 - [ ] Postes hors réseau (BitLocker, liste nominative) ; fichiers exportés du DPI ; droits NTFS du sous-dossier des exports.
+- [ ] Application hébergée sur le partage (sans serveur web) : code en lecture seule pour les agents, mise à jour par un compte dédié avec contrôle des empreintes (`mettre-a-jour-outil.ps1`), contrôle quotidien hors de l'application (`verifier-outil.ps1`), audit des écritures (guide d'installation, § 3 bis).
 - [ ] Suites proposées : relecture extérieure du socle, tests d'attaque complémentaires, test de charge, en-tête `require-trusted-types-for 'script'`.
 
 ## 7. Documents de référence

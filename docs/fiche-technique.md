@@ -68,10 +68,12 @@
 | Accès Internet requis | Non | Oui (chargement du code) | Non |
 | Clés de sécurité (WebAuthn) | Oui (nom de domaine et certificat valides) | Oui | Non |
 | Maîtrise de la version | Service informatique | Porteur du projet | Service informatique |
-| Mise à jour | Par le service informatique, à chaque version | Immédiate, sans intervention du service informatique | Par le service informatique |
+| Mise à jour | Par le service informatique, à chaque version | Immédiate, sans intervention du service informatique | Par le service informatique ou un compte dédié, script `mettre-a-jour-outil.ps1` (contrôle des empreintes, retour arrière) |
 | Usage conseillé | **Production, une fois les modules mûrs** | **Phase pilote**, démonstration | Repli |
 
 Une clé de sécurité est liée au nom de domaine du site : elle doit être enregistrée dans chaque mode utilisé. Le mot de passe et le code de secours fonctionnent partout.
+
+**Application sur le partage : protection du code** *(existant, 0.88.1)*. Dossier de l'application séparé du dossier des données, en **lecture et exécution** pour les agents, modifiable par un petit groupe de mise à jour seulement (compte dédié). Mise à jour par `kit/outils/mettre-a-jour-outil.ps1` : chaque fichier contrôlé par son empreinte SHA-256, fichier en trop refusé, version plus ancienne refusée, copie contrôlée puis échange des dossiers, version précédente gardée, journal, copie de référence des empreintes rangée hors du dossier. Contrôle quotidien hors de l'application par `kit/outils/verifier-outil.ps1` (tâche planifiée, journal *Application* de Windows) : fichier absent, modifié ou en trop, liste d'empreintes remplacée. Audit Windows des écritures recommandé. Limite : un administrateur du serveur garde la main sur le dossier (détail : guide d'installation, § 3 bis).
 
 ### Phase pilote : version publiée sur GitHub
 
