@@ -448,7 +448,7 @@
     if (!init && peut('TACHE_EQUIPE')) choix.push({ lib: 'Tâche de l’équipe', couleur: couleurs().tache, action: function () { modaleTache(null, 'TACHE_EQUIPE', jour); } });
     if (!init && peut('TACHE')) choix.push({ lib: 'Tâche du service (récurrente)', couleur: couleurs().tache, action: function () { modaleTache(null, 'TACHE', jour); } });
     var grilleChoix = h('div', { class: 'ag-choix' }, choix.map(function (c) {
-      return teinter(h('button', { class: 'btn ag-choix-btn', type: 'button', onclick: function () { var d = document.querySelector('dialog[open]'); if (d) d.dispatchEvent(new Event('cancel')); setTimeout(c.action, 0); } }, h('i'), c.lib), c.couleur);
+      return teinter(h('button', { class: 'btn ag-choix-btn', type: 'button', onclick: function () { var ds = document.querySelectorAll('dialog[open]'), d = ds[ds.length - 1]; if (d) d.dispatchEvent(new Event('cancel')); setTimeout(c.action, 0); } }, h('i'), c.lib), c.couleur);
     }));
     U.modale(init && init.patients && init.patients.length ? 'Ajouter à l’agenda — ' + nomsPatients(init.patients).join(', ') : 'Ajouter à l’agenda', h('div', { class: 'pile' }, grilleChoix), [{ texte: 'Annuler' }]);
   }

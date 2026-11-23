@@ -860,7 +860,7 @@
       else if (!tab && modifiable) { var sl = window.getSelection(); if (sl && sl.rangeCount && !sl.isCollapsed && corps.contains(sl.getRangeAt(0).commonAncestorContainer)) range = sl.getRangeAt(0).cloneRange(); }
       var element = { module: 'documents', genre: 'document', id: id, service: '' };
       var defaut = plage ? 'Cases ' + plage.texte : range ? 'Passage du document' : '';
-      U.liens.modaleLier(element, { titre: titreDoc, libelle: defaut, extrait: range ? range.toString().replace(/\s+/g, ' ').slice(0, 160) : plage ? plage.texte : '',
+      U.liens.modaleLier(element, { titre: titreDoc, libelle: defaut, extrait: range ? range.toString().replace(/\s+/g, ' ').slice(0, 500) : plage ? textePlage(plage) : '',
         avant: plage || range ? async function (lib) {
           var an = 'an' + hex(5);
           if (plage) tab.remplacer(DM.ancrerCases(tab.lire(), plage.feuille, plage, an));
@@ -868,6 +868,12 @@
           marquer(); await enregistrer(false);
           return { module: 'documents', genre: 'extrait', id: id, ancre: an, libelle: lib || defaut, service: '' };
         } : null });
+    }
+    /** Texte des cases sélectionnées (valeurs affichées, formules : leur dernier résultat connu absent : ignorées). */
+    function textePlage(p) {
+      var T = SIC.tableur, f = tab.lire().feuilles[p.feuille], res = [];
+      for (var l = p.l1; l <= p.l2; l++) for (var c = p.c1; c <= p.c2; c++) { var x = f.cellules[T.nom(l, c)]; if (x && x.v !== undefined && x.v !== '') res.push(typeof x.v === 'number' && T.afficher ? T.afficher(x.v, x.s) : String(x.v)); }
+      return res.join(' ').replace(/\s+/g, ' ').slice(0, 500);
     }
     function ancrerRange(range, an) {
       var w = document.createTreeWalker(corps, NodeFilter.SHOW_TEXT), noeuds = [], n;

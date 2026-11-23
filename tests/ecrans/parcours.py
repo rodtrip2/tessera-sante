@@ -471,7 +471,7 @@ with sync_playwright() as p:
     a.keyboard.press('Escape'); time.sleep(0.4)
     ed.get_by_role('button', name='Lier à…').click(); time.sleep(0.8)
     t_l = a.locator('dialog[open]').last.inner_text()
-    verifier('Nouvelle tâche (personnelle, ou partagée' in t_l and 'Événement existant de l’agenda' in t_l, 'documents : « Lier à… » (tâches et événements, nouveaux ou existants)')
+    verifier('Créer une tâche' in t_l and 'Ajouter à la tâche' in t_l and 'Créer un événement' in t_l and 'Ajouter à l’événement' in t_l, 'documents : « Lier à… » (créer ou ajouter à une tâche, à un événement)')
     capture(a, 'documents-lier')
     a.keyboard.press('Escape'); time.sleep(0.4)
     ed.get_by_role('button', name='Fermer', exact=True).click(); time.sleep(1)

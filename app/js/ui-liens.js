@@ -64,68 +64,97 @@
   }
 
   /**
-   * « Lier à… » : `element` (document entier) ; o = { titre, libelle, extrait (montré à l'agent seulement), page (fichier
-   * PDF : numéro de page facultatif), avant(libelle) → élément précis (repère posé dans le document) }.
+   * « Lier à… » : `element` (document entier) ; o = { titre (du document), libelle (du lien), extrait (texte sélectionné),
+   * page (fichier PDF : numéro de page facultatif), avant(libelle) → élément précis (repère posé dans le document) }.
+   * Deux rubriques, Tâches et Agenda, chacune avec « Créer » et « Ajouter à » (demande du porteur du 24 novembre 2026).
+   * À la création, le titre reprend le texte sélectionné ; pour un événement, la date et l'heure trouvées dans ce texte
+   * sont reprises, et le reste du texte devient le titre (le tout modifiable avant d'enregistrer).
    */
   function modaleLier(element, o) {
     o = o || {};
     var lib = h('input', { type: 'text', maxlength: 120, value: o.libelle || '', placeholder: 'ex. Points à revoir avec l’équipe (sans donnée clinique)', 'aria-label': 'Libellé du lien' });
     var page = o.page ? h('input', { type: 'number', min: 1, max: 9999, class: 'champ-court', 'aria-label': 'Page (facultatif)' }) : null;
-    var choix = [];
-    function option(code, texte, extra, ok) { if (ok) choix.push({ code: code, texte: texte, extra: extra || null }); }
+    var extrait = String(o.extrait || '').replace(/\s+/g, ' ').trim(), D = SIC.datesTexte ? SIC.datesTexte.extraire(extrait) : null;
+    var perso = !!(U.mesTaches && U.mesTaches.disponible && U.mesTaches.disponible()), ag = agendaOuvert();
     var tp = tachesPerso(), ts = tachesService(), ev = evenements();
-    var selTp = tp.length ? h('select', { 'aria-label': 'Tâche existante' }, tp.map(function (t) { return h('option', { value: t.id, text: t.titre + (t.partagee ? ' (partagée)' : '') + (t.echeance ? ' — ' + jourFr(t.echeance) : '') }); })) : null;
-    var selTs = ts.length ? h('select', { 'aria-label': 'Tâche de l’équipe ou du service' }, ts.map(function (t) { return h('option', { value: t.id, text: t.titre + ' — ' + (t.niveau === 'service' ? 'service' : 'équipe') + ', ' + U.libService(t.service) }); })) : null;
-    var selEv = ev.length ? h('select', { 'aria-label': 'Événement existant' }, ev.map(function (r) { return h('option', { value: r.id, text: libEvenement(r) }); })) : null;
-    var perso = U.mesTaches && U.mesTaches.disponible && U.mesTaches.disponible();
-    option('nouvelle-tache', 'Nouvelle tâche (personnelle, ou partagée avec des collègues)', null, perso);
-    option('tache', 'Tâche existante (personnelle ou partagée)', selTp, perso && !!selTp);
-    option('nouvelle-equipe', 'Nouvelle tâche de l’équipe', null, agendaOuvert() && peut('TACHE_EQUIPE'));
-    option('nouvelle-service', 'Nouvelle tâche du service', null, agendaOuvert() && peut('TACHE'));
-    option('tache-service', 'Tâche de l’équipe ou du service existante', selTs, !!selTs);
-    option('nouvel-evenement', 'Nouvel événement de l’agenda', null, agendaOuvert() && peut('RDV'));
-    option('evenement', 'Événement existant de l’agenda', selEv, !!selEv);
-    if (!choix.length) return SIC.ui.alerte('Aucune tâche ni aucun événement accessible : le module Agenda doit être ouvert pour vous.');
-    var nom = 'lier-' + Math.random().toString(36).slice(2, 8), coche = choix[0].code;
-    var liste = h('div', { class: 'pile' }, choix.map(function (c, i) {
-      var rb = h('input', { type: 'radio', name: nom, checked: i === 0, onchange: function () { coche = c.code; } });
-      return h('div', { class: 'pile' }, h('label', { class: 'case' }, rb, h('span', { text: c.texte })), c.extra ? h('div', { class: 'liens-choix' }, c.extra) : null);
-    }));
-    U.modale('Lier à une tâche ou à un événement', h('div', { class: 'pile' },
-      h('p', {}, h('b', { text: o.titre || 'Document' }), o.extrait ? h('span', { class: 'muted', text: ' — « ' + o.extrait + ' »' }) : h('span', { class: 'muted', text: o.avant ? '' : ' — document entier' })),
+    // Types de tâche à créer
+    var types = [];
+    if (perso) types.push(['perso', 'Ma tâche (personnelle, ou partagée avec des collègues)']);
+    if (ag && peut('TACHE_EQUIPE')) types.push(['equipe', 'Tâche de l’équipe']);
+    if (ag && peut('TACHE')) types.push(['service', 'Tâche du service']);
+    var selType = h('select', { 'aria-label': 'Type de tâche à créer' }, types.map(function (x) { return h('option', { value: x[0], text: x[1] }); }));
+    // Tâches existantes, rangées par sorte
+    var selTache = h('select', { 'aria-label': 'Tâche existante' });
+    function groupe(libelle, l, val, txt) { if (l.length) selTache.appendChild(h('optgroup', { label: libelle }, l.map(function (t) { return h('option', { value: val(t), text: txt(t) }); }))); }
+    groupe('Mes tâches', tp.filter(function (t) { return !t.partagee; }), function (t) { return 'p|' + t.id; }, function (t) { return t.titre + (t.echeance ? ' — ' + jourFr(t.echeance) : ''); });
+    groupe('Tâches partagées', tp.filter(function (t) { return t.partagee; }), function (t) { return 'p|' + t.id; }, function (t) { return t.titre + (t.echeance ? ' — ' + jourFr(t.echeance) : ''); });
+    groupe('Tâches de l’équipe et du service', ts, function (t) { return 's|' + t.id; }, function (t) { return t.titre + ' — ' + (t.niveau === 'service' ? 'service' : 'équipe') + ', ' + U.libService(t.service); });
+    var selEv = h('select', { 'aria-label': 'Événement existant' }, ev.map(function (r) { return h('option', { value: r.id, text: libEvenement(r) }); }));
+    if (!types.length && !selTache.options.length && !(ag && peut('RDV')) && !ev.length) return SIC.ui.alerte('Aucune tâche ni aucun événement accessible : le module Agenda doit être ouvert pour vous.');
+
+    var dlg = null;
+    function fermer() { if (dlg) dlg.dispatchEvent(new Event('cancel')); }
+    /** Élément à lier (le repère est posé dans le document à ce moment-là). */
+    async function cible() {
+      var l = lib.value.trim(), x = Object.assign({}, element);
+      if (o.avant) x = await o.avant(l);
+      else if (l) x.libelle = l;
+      if (page && +page.value >= 1) { x = Object.assign({}, x, { genre: 'extrait', page: Math.round(+page.value) }); if (!x.libelle) x.libelle = 'Page ' + x.page; }
+      return x;
+    }
+    function action(f) { return async function (ev0) { var b = ev0.currentTarget; b.disabled = true; try { await f(); } catch (e) { SIC.ui.alerte(e.message); } finally { b.disabled = false; } }; }
+    function titreTache(max) { return (extrait || lib.value.trim() || (o.titre ? 'Document : ' + o.titre : '')).slice(0, max); }
+    var creerTache = action(async function () {
+      var x = await cible(), ty = selType.value; fermer();
+      setTimeout(function () {
+        if (ty === 'perso') U.mesTaches.nouvelle({ titre: titreTache(150), elements: [x] });
+        else U.agendaInt.modaleTache(null, ty === 'service' ? 'TACHE' : 'TACHE_EQUIPE', null, { titre: titreTache(120), liens: [x] });
+      }, 0);
+    });
+    var ajouterTache = action(async function () {
+      var v = selTache.value.split('|'), x;
+      if (v[0] === 'p') {
+        var t = tp.filter(function (y) { return y.id === v[1]; })[0];
+        if (t.elements.some(function (y) { return memeCible(y, element) && !o.avant && !page; })) throw new Error('Déjà lié à cette tâche.');
+        x = await cible(); await U.mesTaches.lierA(t, x); fermer(); U.toast('Lié à la tâche « ' + t.titre + ' ».'); return;
+      }
+      var ts0 = ts.filter(function (y) { return y.id === v[1]; })[0], l0 = A().liens(ts0.liens);
+      if (l0.length >= A().MAX_LIENS) throw new Error('Vingt éléments liés au plus.');
+      x = await cible();
+      if (l0.some(function (y) { return memeCible(y, x); })) throw new Error('Déjà lié à cette tâche.');
+      await s().enregistrer(ts0.niveau === 'service' ? 'TACHE' : 'TACHE_EQUIPE', { id: ts0.id, service: ts0.service, liens: l0.concat([x]) });
+      fermer(); U.toast('Lié à la tâche « ' + ts0.titre + ' ».');
+    });
+    var creerEvenement = action(async function () {
+      var x = await cible(), init = { liens: [x], titre: (D ? D.titre : extrait || lib.value.trim()).slice(0, 120) };
+      if (D) { init.debut = D.debut; if (D.fin) init.fin = D.fin; if (D.heure) init.heureFixee = true; }
+      fermer();
+      setTimeout(function () { U.agenda.modaleAjout(D ? new Date(D.debut).setHours(0, 0, 0, 0) : null, init); }, 0);
+    });
+    var ajouterEvenement = action(async function () {
+      var r = ev.filter(function (y) { return y.id === selEv.value; })[0], l1 = A().liens(r.liens);
+      if (l1.length >= A().MAX_LIENS) throw new Error('Vingt éléments liés au plus.');
+      var x = await cible();
+      if (l1.some(function (y) { return memeCible(y, x); })) throw new Error('Déjà lié à cet événement.');
+      await s().enregistrer('RDV', { id: r.id, service: r.service, liens: l1.concat([x]) });
+      fermer(); U.toast('Lié à l’événement « ' + (r.titre || libEvenement(r)) + ' ».');
+    });
+    var dateLue = D ? new Date(D.debut).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + (D.heure ? ' à ' + new Date(D.debut).toTimeString().slice(0, 5) + (D.fin ? ' – ' + new Date(D.fin).toTimeString().slice(0, 5) : '') : '') : '';
+    var corps = h('div', { class: 'pile' },
+      h('p', {}, h('b', { text: o.titre || 'Document' }), extrait ? h('span', { class: 'muted', text: ' — « ' + (extrait.length > 160 ? extrait.slice(0, 160) + '…' : extrait) + ' »' }) : h('span', { class: 'muted', text: o.avant ? '' : ' — document entier' })),
       page ? h('label', {}, 'Page du fichier (facultatif)', page) : null,
       h('label', {}, 'Libellé du lien (facultatif)', lib),
-      h('small', { class: 'muted', text: 'La tâche ou l’événement garde un lien vers le document et ce libellé, jamais le texte du passage. Ceux qui n’ont pas accès au document voient « accès réservé ».' }),
-      h('fieldset', { class: 'pile' }, h('legend', { text: 'Lier à' }), liste)),
-      [{ texte: 'Annuler' }, { texte: 'Lier', classe: 'primaire', action: async function () {
-        var l = lib.value.trim(), x = Object.assign({}, element);
-        if (o.avant) x = await o.avant(l);
-        else if (l) x.libelle = l;
-        if (page && +page.value >= 1) { x = Object.assign({}, x, { genre: 'extrait', page: Math.round(+page.value) }); if (!x.libelle) x.libelle = 'Page ' + x.page; }
-        var titre = l || (o.titre ? 'Document : ' + o.titre : 'Tâche');
-        if (coche === 'nouvelle-tache') { setTimeout(function () { U.mesTaches.nouvelle({ titre: titre, elements: [x] }); }, 0); return; }
-        if (coche === 'tache') {
-          var t = tp.filter(function (y) { return y.id === selTp.value; })[0];
-          if (t.elements.some(function (y) { return memeCible(y, x); })) throw new Error('Déjà lié à cette tâche.');
-          await U.mesTaches.lierA(t, x); U.toast('Lié à la tâche « ' + t.titre + ' ».'); return;
-        }
-        if (coche === 'nouvelle-equipe' || coche === 'nouvelle-service') { setTimeout(function () { U.agendaInt.modaleTache(null, coche === 'nouvelle-service' ? 'TACHE' : 'TACHE_EQUIPE', null, { titre: titre, liens: [x] }); }, 0); return; }
-        if (coche === 'tache-service') {
-          var ts0 = ts.filter(function (y) { return y.id === selTs.value; })[0], l0 = A().liens(ts0.liens);
-          if (l0.some(function (y) { return memeCible(y, x); })) throw new Error('Déjà lié à cette tâche.');
-          if (l0.length >= A().MAX_LIENS) throw new Error('Vingt éléments liés au plus.');
-          await s().enregistrer(ts0.niveau === 'service' ? 'TACHE' : 'TACHE_EQUIPE', { id: ts0.id, service: ts0.service, liens: l0.concat([x]) });
-          U.toast('Lié à la tâche « ' + ts0.titre + ' ».'); return;
-        }
-        if (coche === 'nouvel-evenement') { setTimeout(function () { U.agenda.modaleElement(null, Date.now(), false, null, false, null, { liens: [x], titre: l }); }, 0); return; }
-        if (coche === 'evenement') {
-          var r = ev.filter(function (y) { return y.id === selEv.value; })[0], l1 = A().liens(r.liens);
-          if (l1.some(function (y) { return memeCible(y, x); })) throw new Error('Déjà lié à cet événement.');
-          if (l1.length >= A().MAX_LIENS) throw new Error('Vingt éléments liés au plus.');
-          await s().enregistrer('RDV', { id: r.id, service: r.service, liens: l1.concat([x]) });
-          U.toast('Lié à l’événement « ' + (r.titre || libEvenement(r)) + ' ».');
-        }
-      } }]);
+      h('fieldset', { class: 'pile liens-rubrique' }, h('legend', { text: 'Tâches' }),
+        types.length ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn primaire', type: 'button', onclick: creerTache }, 'Créer une tâche'), types.length > 1 ? selType : h('span', { class: 'muted', text: types[0][1] })) : null,
+        selTache.options.length ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: ajouterTache }, 'Ajouter à la tâche'), selTache) : null,
+        types.length ? h('small', { class: 'muted', text: extrait ? 'Le titre de la nouvelle tâche reprend le texte sélectionné (modifiable).' : 'Titre à saisir dans la tâche.' }) : null),
+      ag && (peut('RDV') || ev.length) ? h('fieldset', { class: 'pile liens-rubrique' }, h('legend', { text: 'Agenda' }),
+        peut('RDV') ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn primaire', type: 'button', onclick: creerEvenement }, 'Créer un événement'),
+          h('span', { class: D ? 'info' : 'muted', text: D ? 'Date reprise du texte : ' + dateLue + (D.titre ? ' ; titre : « ' + D.titre + ' »' : '') : extrait ? 'Aucune date reconnue dans le texte : titre repris, date à choisir.' : 'Date et titre à choisir.' })) : null,
+        ev.length ? h('div', { class: 'actions gauche' }, h('button', { class: 'btn', type: 'button', onclick: ajouterEvenement }, 'Ajouter à l’événement'), selEv) : null) : null,
+      h('small', { class: 'muted', text: 'La tâche ou l’événement garde un lien vers le document et le libellé ; à la création, son titre (et sa date) reprennent le texte sélectionné : pas de donnée clinique. Ceux qui n’ont pas accès au document voient « accès réservé ».' }));
+    U.modale('Lier à une tâche ou à un événement', corps, [{ texte: 'Fermer' }], { large: true });
+    dlg = corps.closest('dialog');
   }
 
   // ------------------------------------------------------------ Ce qui est lié à un document (lecture, selon les droits)

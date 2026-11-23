@@ -1158,6 +1158,7 @@
             versions: [{ h: -24 * 2, contenu: { blocs: [ti(1, 'Réunion d’équipe du mardi (fictif)'), p('Présents : équipe de jour, cadre de santé (fictif).'), ti(2, 'Décisions'),
               { t: 'p', runs: [{ x: '1. ' }, { x: 'Mettre à jour le classeur des protocoles avant la fin du mois', an: 'an0demo01' }, { x: ' ; le cadre en fait le point à la prochaine réunion.' }] },
               { t: 'p', runs: [{ x: '2. ' }, { x: 'Organiser une séance de rappel sur le chariot d’urgence pour les nouveaux agents', an: 'an0demo02' }, { x: '.' }] },
+              p('3. Prochaine réunion d’équipe le ' + jC(9).split('-').reverse().join('/') + ' à 14h30 en salle de réunion.'),
               p('Document d’exemple, entièrement fictif.', { al: 'd' })] } }] });
           demoLiens = { doc: idCR, a1: { module: 'documents', genre: 'extrait', id: idCR, ancre: 'an0demo01', libelle: 'Classeur des protocoles', service: '' }, a2: { module: 'documents', genre: 'extrait', id: idCR, ancre: 'an0demo02', libelle: 'Rappel chariot d’urgence', service: '' } };
           try {

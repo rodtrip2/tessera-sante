@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.91.0 — 24 novembre 2026
+
+**« Lier à… » : créer ou ajouter à ; titre, date et heure repris du texte** (demande du porteur du 24 novembre 2026).
+- Deux rubriques, **Tâches** et **Agenda**, chacune avec **« Créer »** et **« Ajouter à »** (tâche : la mienne, personnelle ou partagée, de l'équipe ou du service ; événement nouveau ou existant).
+- **Création d'une tâche** : le titre reprend le texte sélectionné (modifiable). **Création d'un événement** : la date et l'heure trouvées dans le texte sont reprises (« le 3 décembre à 14h30 », « 12/01/2027 de 9h à 17h », « demain à 15 h »…), et le reste du texte devient le titre ; la date lue est annoncée avant de créer. Tableur : le texte des cases sélectionnées.
+- Correction : choisir le type d'un nouvel événement depuis un document ne ferme plus le document.
+- Tests : `tests/dates-texte.test.js` ; parcours des écrans mis à jour. Documentation reportée (`docs/a-documenter.md`).
+
 ## 0.90.0 — 23 novembre 2026
 
 **Passages, cases et pages d'un document liés aux tâches et à l'agenda ; tâches partagées** (demande du porteur du 23 novembre 2026).
