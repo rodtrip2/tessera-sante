@@ -59,3 +59,22 @@ test('Outils du partage : sans paramètre, les scripts visent le dossier « app 
   assert.match(lire('verifier-outil.ps1'), /\$Dossier = Join-Path \$PSScriptRoot 'app'/);
   assert.match(lire('mettre-a-jour-outil.ps1'), /Read-Host 'Taper O pour confirmer'/, 'première installation confirmée');
 });
+
+test('Outils du partage : adaptation locale -Zimbra (règle connect-src de index.html), reprise et contrôlée', () => {
+  const maj = lire('mettre-a-jour-outil.ps1'), ver = lire('verifier-outil.ps1');
+  const index = fs.readFileSync(path.join(__dirname, '..', 'app', 'index.html'), 'utf8');
+  // La page publiée n'autorise aucune connexion : la règle exacte que le script remplace y figure une fois
+  assert.equal(index.split("connect-src 'none'").length, 2);
+  assert.ok(!index.startsWith('﻿'), 'index.html sans BOM (empreinte recalculée sans BOM)');
+  assert.match(maj, /\[string\[\]\]\$Zimbra = @\(\)/);
+  assert.match(maj, /\[switch\]\$SansZimbra/);
+  assert.match(maj, /ADAPTATION-LOCALE\.txt/);
+  assert.match(maj, /Appliquer-Adaptation \$nouveau \$ORIGINES\s+\$ecarts = Controler-Dossier \$nouveau \$ORIGINES/);
+  assert.match(maj, /\$ORIGINES = Lire-Adaptation/);   // reprise aux mises à jour suivantes (double-clic)
+  assert.match(ver, /ADAPTATION-LOCALE\.txt/);
+  assert.match(ver, /connect-src 'none'/);
+  // Même normalisation dans les deux scripts
+  const norm = /\[regex\]::Replace\(\$t, 'connect-src\\s\+\[\^;"\]\*', "connect-src 'none'"\)/;
+  assert.match(maj, norm);
+  assert.match(ver, norm);
+});

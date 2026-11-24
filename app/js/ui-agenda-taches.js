@@ -495,12 +495,12 @@
   function vueMonAgenda(maintenant) {
     var s = U.App.session, moi = moiAvecGroupes(), svs = s.mesServices().map(function (x) { return x.code || x; });
     var debut = lundi(vue.ref), fin = plusJours(debut, 7), m = A.monAgenda(st(), fiches(), U.config(), moi, svs, debut, fin, maintenant);
-    var colonnes = [], ech = A.echangesIcs(U.config(), svs), cx = ech.importer ? coucheActuelle() : null;
+    var colonnes = [], ech = A.echangesIcs(U.config(), svs), cx = ech.importer ? coucheActuelle() : null, cz = U.synchroCaldav ? U.synchroCaldav.couche() : null;
     for (var i = 0; i < 7; i++) {
       var j0 = plusJours(debut, i), j1 = plusJours(debut, i + 1), iso = A.jourISO(j0);
       var els = m.elements.filter(function (x) { return x.debut < j1 && (x.fin || x.debut) >= j0; }), ts = m.taches.filter(function (x) { return x.occurrence === iso; });
       var abs = m.absences.filter(function (a) { return a.debut < j1 && (a.fin || a.debut) >= j0; });
-      var ext = cx && cx.visible ? cx.evenements.filter(function (e) { return e.debut < j1 && (e.fin > j0 || (e.fin === e.debut && e.debut >= j0)); }) : [];
+      var ext = (cx && cx.visible ? cx.evenements : []).concat(cz && cz.visible ? cz.evenements : []).filter(function (e) { return e.debut < j1 && (e.fin > j0 || (e.fin === e.debut && e.debut >= j0)); });
       colonnes.push(h('section', { class: 'agenda-jour' + (j0 === minuit(maintenant) ? ' aujourdhui' : '') }, h('h3', { text: libJour(j0) }),
         abs.length ? h('div', { class: 'agenda-absents' }, h('span', { text: 'Absent(e)' + (abs[0].categorie ? ' (' + (A.CATEGORIES_ABSENCE[abs[0].categorie] || '').toLowerCase() + ')' : '') })) : null,
         ts.length ? h('div', { class: 'agenda-taches' }, ts.map(ligneTache)) : null,
@@ -512,8 +512,11 @@
         ech.exporter ? h('button', { class: 'btn', type: 'button', onclick: modaleExportIcs }, 'Exporter vers mon agenda (.ics)') : null,
         ech.importer ? h('button', { class: 'btn', type: 'button', onclick: modaleImportIcs }, cx ? 'Agenda importé…' : 'Importer mon agenda (.ics)') : null,
         cx ? h('button', { class: 'btn', type: 'button', 'aria-pressed': cx.visible ? 'true' : 'false', onclick: async function () { cx.visible = !cx.visible; if (cx.gardee) { try { var g = Object.assign({}, prefs().icsCouche, { visible: cx.visible }); await U.App.session.enregistrerPreference('icsCouche', g); } catch (e) { /* sans conséquence */ } } U.rendreContenu(); } }, cx.visible ? 'Masquer l’agenda importé' : 'Afficher l’agenda importé') : null,
+        U.synchroCaldav ? U.synchroCaldav.bouton() : null,
+        cz ? h('button', { class: 'btn', type: 'button', 'aria-pressed': cz.visible ? 'true' : 'false', onclick: function () { U.synchroCaldav.basculerCouche(); } }, cz.visible ? 'Masquer l’agenda de la messagerie' : 'Afficher l’agenda de la messagerie') : null,
         h('button', { class: 'btn', onclick: function () { modaleAbsence(null); } }, '+ Absence')),
       bandeauAvis(),
+      U.synchroCaldav ? U.synchroCaldav.etatAffiche() : null,
       m.alertes.length ? h('section', { class: 'panneau' }, h('h2', { text: 'Alertes qui me sont adressées' }), h('div', { class: 'pile' }, m.alertes.map(function (a) { return carteAlerte(a, svs.length > 1); }))) : null,
       // Salles réservées par l'agent cette semaine (Salles et bureaux, 0.25.1) ; celles de ses événements figurent sur leur carte
       (function () {
@@ -529,7 +532,7 @@
         h('button', { class: 'btn petit', type: 'button', onclick: function () { vue.ref = plusJours(vue.ref, 7); U.rendreContenu(); } }, '▶'),
         h('b', { text: 'Semaine du ' + libJour(debut) + ' au ' + libJour(plusJours(debut, 6)) + ' ' + new Date(debut).getFullYear() })),
       h('div', { class: 'agenda-semaine' }, colonnes),
-      h('p', { class: 'muted' }, h('small', { text: 'Tous vos services réunis : accompagnements, activités et réunions où vous êtes prévu(e), tâches qui vous sont affectées ou qui reviennent à votre rôle, vos absences. Cette vue reste dans Tessera : aucune copie hors de l’outil, sauf l’export que vous faites vous-même vers votre messagerie (sans identité de patient).' + (cx && cx.visible ? ' En pointillés : votre agenda importé « ' + cx.nom + ' », en lecture seule, visible de vous seul(e).' : '') })));
+      h('p', { class: 'muted' }, h('small', { text: 'Tous vos services réunis : accompagnements, activités et réunions où vous êtes prévu(e), tâches qui vous sont affectées ou qui reviennent à votre rôle, vos absences. Cette vue reste dans Tessera : aucune copie hors de l’outil, sauf l’export ou la synchronisation que vous choisissez vous-même vers votre messagerie (sans identité de patient).' + (cx && cx.visible ? ' En pointillés : votre agenda importé « ' + cx.nom + ' », en lecture seule, visible de vous seul(e).' : '') + (cz && cz.visible ? ' En pointillés : votre agenda de la messagerie (« ' + cz.nom + ' »), lu à chaque synchronisation, en lecture seule, visible de vous seul(e), jamais copié sur le partage.' : '') })));
   }
 
   // ------------------------------------------------------------ Réglages (Administration → Agenda)

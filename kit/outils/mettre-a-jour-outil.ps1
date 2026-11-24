@@ -18,6 +18,13 @@
 #   5. range une copie du fichier d'empreintes dans le dossier de référence, utilisé par verifier-outil.ps1.
 # Au moindre écart, rien n'est remplacé : la version en place reste utilisée.
 #
+# Adaptation locale (24 novembre 2026) : -Zimbra 'https://zimbra.etablissement.fr' autorise cette copie de Tessera à
+# joindre le serveur d'agenda de l'établissement (synchronisation de Mes tâches et de Mon agenda, fonction soumise à
+# avis « synchro-caldav »). Le script ajoute cette seule adresse à la règle « connect-src » de index.html (aucune
+# autre modification), la note dans « reference-empreintes\ADAPTATION-LOCALE.txt » et la reprend aux mises à jour
+# suivantes ; verifier-outil.ps1 contrôle index.html une fois l'adaptation retirée, et l'adresse autorisée.
+# -SansZimbra retire l'adaptation. Rien n'est ajouté au dépôt public : l'adresse reste propre à l'établissement.
+#
 # Retour à la version précédente : -Revenir (échange « app » et « app.ancien »).
 # Essai sans rien remplacer : -Simulation.
 #
@@ -43,6 +50,10 @@ param(
   # Dossier où ranger la copie de référence des empreintes (à protéger : lecture seule pour les agents)
   [string]$Reference = '',
   [string]$Journal = '',
+  # Serveur d'agenda (Zimbra…) que Tessera peut joindre : adresse https, sans chemin (reprise aux mises à jour suivantes)
+  [string[]]$Zimbra = @(),
+  # Retirer l'adaptation locale (plus aucune connexion autorisée)
+  [switch]$SansZimbra,
   [switch]$Revenir,
   [switch]$Simulation,
   [switch]$Forcer
@@ -66,6 +77,8 @@ if (-not $Journal) { $Journal = Join-Path $parent 'journal-mises-a-jour.log' }
 $ancien = $Destination + '.ancien'
 $nouveau = $Destination + '.nouveau'
 $NOM_EMPREINTES = 'EMPREINTES-SHA256.txt'
+$NOM_ADAPTATION = 'ADAPTATION-LOCALE.txt'
+$UTF8 = New-Object System.Text.UTF8Encoding($false)
 
 function Ecrire-Journal([string]$texte) {
   $ligne = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  ' + $env:USERNAME + '  ' + $texte
@@ -94,8 +107,51 @@ function Chemin-Local([string]$dossier, [string]$rel) {
   return Join-Path $dossier ($rel -replace '/', [System.IO.Path]::DirectorySeparatorChar)
 }
 
-function Controler-Dossier([string]$dossier) {
-  # Retourne la liste des écarts (vide = conforme)
+# ------------------------------------------------------------------ Adaptation locale (règle connect-src)
+function Origine-Valide([string]$a) {
+  $a = $a.Trim()
+  if ($a -notmatch '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/.*)?$') { throw ('Adresse refusée pour -Zimbra (https://serveur attendu) : ' + $a) }
+  $u = [Uri]$a
+  $o = 'https://' + $u.Host.ToLowerInvariant()
+  if (-not $u.IsDefaultPort) { $o += ':' + $u.Port }
+  return $o
+}
+function Origines-Csp([string]$texte) {
+  $m = [regex]::Match($texte, 'connect-src\s+([^;"]*)')
+  if (-not $m.Success) { return ,@() }
+  $l = @($m.Groups[1].Value.Trim() -split '\s+' | Where-Object { $_ -match '^https://' })
+  return ,$l
+}
+function Hachage-Texte([string]$texte) {
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  try { return (($sha.ComputeHash($UTF8.GetBytes($texte)) | ForEach-Object { $_.ToString('X2') }) -join '') } finally { $sha.Dispose() }
+}
+function Index-Sans-Adaptation([string]$fichier) {
+  # Empreinte de index.html une fois la règle connect-src remise à 'none', et adresses autorisées
+  $t = [System.IO.File]::ReadAllText($fichier, $UTF8)
+  return [pscustomobject]@{ Hash = (Hachage-Texte ([regex]::Replace($t, 'connect-src\s+[^;"]*', "connect-src 'none'"))); Origines = (Origines-Csp $t) }
+}
+function Appliquer-Adaptation([string]$dossier, [string[]]$origines) {
+  $f = Join-Path $dossier 'index.html'
+  $t = [System.IO.File]::ReadAllText($f, $UTF8)
+  if (-not [regex]::IsMatch($t, "connect-src 'none'")) { throw 'index.html ne contient pas la règle attendue (connect-src ''none'').' }
+  if ($origines.Count -eq 0) { return }
+  $t = $t.Replace("connect-src 'none'", 'connect-src ' + ($origines -join ' '))
+  [System.IO.File]::WriteAllText($f, $t, $UTF8)
+}
+function Meme-Liste([string[]]$a, [string[]]$b) {
+  return ((@($a | Sort-Object) -join ' ') -eq (@($b | Sort-Object) -join ' '))
+}
+function Lire-Adaptation {
+  $f = Join-Path $Reference $NOM_ADAPTATION
+  if (-not (Test-Path -LiteralPath $f)) { return ,@() }
+  $l = @(Get-Content -LiteralPath $f -Encoding UTF8 | Where-Object { $_ -match '^connexion\s+https://' } | ForEach-Object { ($_ -replace '^connexion\s+', '').Trim() })
+  return ,$l
+}
+
+function Controler-Dossier([string]$dossier, $origines = @()) {
+  # Retourne la liste des écarts (vide = conforme). $origines : adresses que index.html doit autoriser (adaptation
+  # locale) ; $null = accepter celles qu'il contient (retour à la version précédente)
   $ecarts = @()
   $fichier = Join-Path $dossier $NOM_EMPREINTES
   if (-not (Test-Path -LiteralPath $fichier)) { return ,@($NOM_EMPREINTES + ' absent') }
@@ -106,6 +162,11 @@ function Controler-Dossier([string]$dossier) {
     $attendus[$e.Rel.ToLowerInvariant()] = $true
     $f = Chemin-Local $dossier $e.Rel
     if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $ecarts += ('fichier absent : ' + $e.Rel) }
+    elseif ($e.Rel -eq 'index.html') {
+      $ix = Index-Sans-Adaptation $f
+      if ($ix.Hash -ne $e.Hash) { $ecarts += ('empreinte différente : ' + $e.Rel) }
+      elseif ($null -ne $origines -and -not (Meme-Liste $ix.Origines $origines)) { $ecarts += ('adresses autorisées différentes dans index.html (' + $(if ($ix.Origines.Count) { $ix.Origines -join ' ' } else { 'aucune' }) + ')') }
+    }
     elseif ((Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash -ne $e.Hash) { $ecarts += ('empreinte différente : ' + $e.Rel) }
   }
   $racine = (Resolve-Path -LiteralPath $dossier).ProviderPath.TrimEnd('\', '/')
@@ -143,9 +204,15 @@ function Comparer-Versions([string]$a, [string]$b) {
   return 0
 }
 
-function Ranger-Reference([string]$dossier) {
+function Ranger-Reference([string]$dossier, [string[]]$origines) {
   if (-not (Test-Path -LiteralPath $Reference)) { New-Item -ItemType Directory -Path $Reference -Force | Out-Null }
   Copy-Item -LiteralPath (Join-Path $dossier $NOM_EMPREINTES) -Destination (Join-Path $Reference $NOM_EMPREINTES) -Force
+  $fa = Join-Path $Reference $NOM_ADAPTATION
+  if ($origines.Count -gt 0) {
+    $l = @('# Tessera Santé : adaptation locale de index.html (règle connect-src), écrite par mettre-a-jour-outil.ps1 le ' + (Get-Date -Format 'yyyy-MM-dd HH:mm') + ' par ' + $env:USERNAME,
+      '# Seules ces adresses peuvent être jointes par Tessera (synchronisation avec l''agenda de la messagerie).') + @($origines | ForEach-Object { 'connexion ' + $_ })
+    [System.IO.File]::WriteAllLines($fa, $l, $UTF8)
+  } elseif (Test-Path -LiteralPath $fa) { Remove-Item -LiteralPath $fa -Force }
 }
 
 function Reprendre-Droits([string]$depuis, [string]$vers) {
@@ -160,10 +227,19 @@ function Telecharger([string]$url, [string]$vers) {
   Invoke-WebRequest @p
 }
 
+# ------------------------------------------------------------------ Adresses autorisées (adaptation locale)
+try {
+  if ($SansZimbra) { $ORIGINES = @() }
+  elseif ($Zimbra.Count -gt 0) { $ORIGINES = @($Zimbra | Where-Object { $_ } | ForEach-Object { $_ -split '[,\s]+' } | Where-Object { $_ } | ForEach-Object { Origine-Valide $_ } | Select-Object -Unique) }
+  else { $ORIGINES = Lire-Adaptation }
+} catch { Ecrire-Journal ('ARRÊT : ' + $_.Exception.Message); exit 2 }
+if ($ORIGINES.Count -gt 3) { Ecrire-Journal 'ARRÊT : trois adresses au plus pour -Zimbra.'; exit 2 }
+$TEXTE_ORIGINES = $(if ($ORIGINES.Count) { 'connexion autorisée vers ' + ($ORIGINES -join ', ') } else { 'aucune connexion autorisée' })
+
 # ------------------------------------------------------------------ Retour à la version précédente
 if ($Revenir) {
   if (-not (Test-Path -LiteralPath (Join-Path $ancien 'index.html'))) { Ecrire-Journal ('ARRÊT : aucune version précédente (' + $ancien + ').'); exit 2 }
-  $ecarts = Controler-Dossier $ancien
+  $ecarts = Controler-Dossier $ancien $null
   if ($ecarts.Count -gt 0 -and -not $Forcer) {
     Ecrire-Journal ('ARRÊT : la version précédente ne correspond plus à ses empreintes (' + $ecarts[0] + ', ' + $ecarts.Count + ' écart(s)). -Forcer pour revenir quand même.')
     exit 2
@@ -175,7 +251,7 @@ if ($Revenir) {
   Rename-Item -LiteralPath $Destination -NewName (Split-Path -Leaf $echange)
   Rename-Item -LiteralPath $ancien -NewName (Split-Path -Leaf $Destination)
   Rename-Item -LiteralPath $echange -NewName (Split-Path -Leaf $ancien)
-  Ranger-Reference $Destination
+  Ranger-Reference $Destination (Index-Sans-Adaptation (Join-Path $Destination 'index.html')).Origines
   Ecrire-Journal ('Retour à la version précédente : ' + $vAnc + ' en place (' + $vAct + ' gardée dans ' + (Split-Path -Leaf $ancien) + ').')
   exit 0
 }
@@ -239,8 +315,11 @@ function Executer {
       $vAct = Version-De $Destination
       $listeAct = Join-Path $Destination $NOM_EMPREINTES
       if ((Test-Path -LiteralPath $listeAct) -and (Get-FileHash -LiteralPath $listeAct -Algorithm SHA256).Hash -eq $hashListe -and -not $Forcer) {
-        $ecartsAct = Controler-Dossier $Destination
-        if ($ecartsAct.Count -eq 0) { Ecrire-Journal ('Déjà à jour : version ' + $vAct + ' en place et conforme à ses empreintes.'); return 0 }
+        $ecartsAct = Controler-Dossier $Destination $ORIGINES
+        if ($ecartsAct.Count -eq 0) {
+          if (-not $Simulation) { Ranger-Reference $Destination $ORIGINES }
+          Ecrire-Journal ('Déjà à jour : version ' + $vAct + ' en place et conforme à ses empreintes (' + $TEXTE_ORIGINES + ').'); return 0
+        }
         Ecrire-Journal ('La version en place (' + $vAct + ') présente ' + $ecartsAct.Count + ' écart(s) : réinstallation.')
       } elseif ($vAct -and $vNouv -and (Comparer-Versions $vNouv $vAct) -lt 0 -and -not $Forcer) {
         Ecrire-Journal ('ARRÊT : la version proposée (' + $vNouv + ') est plus ancienne que la version en place (' + $vAct + '). -Forcer pour l''installer quand même, ou -Revenir pour la version précédente.')
@@ -249,14 +328,15 @@ function Executer {
     }
 
     if ($Simulation) {
-      Ecrire-Journal ('Simulation : version ' + $vNouv + ' contrôlée (' + $nb + ' fichiers, ' + $origine + ', empreinte de la liste ' + $hashListe + ') ; en place : ' + $(if ($vAct) { $vAct } else { 'aucune' }) + '. Rien n''a été remplacé.')
+      Ecrire-Journal ('Simulation : version ' + $vNouv + ' contrôlée (' + $nb + ' fichiers, ' + $origine + ', empreinte de la liste ' + $hashListe + ') ; en place : ' + $(if ($vAct) { $vAct } else { 'aucune' }) + ' ; après installation : ' + $TEXTE_ORIGINES + '. Rien n''a été remplacé.')
       return 0
     }
 
     # ---------------------------------------------------------------- 4. Copie, second contrôle, échange
     if (Test-Path -LiteralPath $nouveau) { Remove-Item -LiteralPath $nouveau -Recurse -Force }
     Copy-Item -LiteralPath $app -Destination $nouveau -Recurse -Force
-    $ecarts = Controler-Dossier $nouveau
+    Appliquer-Adaptation $nouveau $ORIGINES
+    $ecarts = Controler-Dossier $nouveau $ORIGINES
     if ($ecarts.Count -gt 0) {
       Ecrire-Journal ('ARRÊT : copie vers ' + $nouveau + ' incomplète (' + $ecarts[0] + '). Version en place conservée.')
       Remove-Item -LiteralPath $nouveau -Recurse -Force
@@ -275,8 +355,8 @@ function Executer {
     }
 
     # ---------------------------------------------------------------- 5. Référence
-    Ranger-Reference $Destination
-    Ecrire-Journal ('Mise à jour faite : ' + $(if ($vAct) { $vAct } else { 'aucune' }) + ' → ' + $vNouv + ' (' + $nb + ' fichiers contrôlés, ' + $origine + ', empreinte de la liste ' + $hashListe + '). Les agents rechargent la page (F5) ou rouvrent Tessera.')
+    Ranger-Reference $Destination $ORIGINES
+    Ecrire-Journal ('Mise à jour faite : ' + $(if ($vAct) { $vAct } else { 'aucune' }) + ' → ' + $vNouv + ' (' + $nb + ' fichiers contrôlés, ' + $origine + ', empreinte de la liste ' + $hashListe + ', ' + $TEXTE_ORIGINES + '). Les agents rechargent la page (F5) ou rouvrent Tessera.')
     return 0
   } catch {
     Ecrire-Journal ('ERREUR : ' + $_.Exception.Message + ' Version en place conservée.')

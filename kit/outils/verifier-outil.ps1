@@ -11,6 +11,9 @@
 #   3. écrit le résultat dans un journal et, avec -JournalWindows, dans le journal « Application » de Windows
 #      (source « TesseraSante » : événement 1000 = conforme, 1001 = écart, 1002 = dossier inaccessible), pour la
 #      supervision du service informatique.
+# Adaptation locale (24 novembre 2026) : si mettre-a-jour-outil.ps1 -Zimbra a autorisé le serveur d'agenda de
+# l'établissement, index.html est contrôlé une fois la règle connect-src remise à 'none', et les adresses qu'il
+# autorise doivent être exactement celles notées dans « ADAPTATION-LOCALE.txt » du dossier de référence.
 # Le contrôle se fait hors de l'application : une version modifiée de Tessera pourrait supprimer sa propre vérification.
 # Codes de sortie : 0 = conforme ; 1 = dossier ou référence inaccessible ; 2 = écart constaté.
 
@@ -31,6 +34,20 @@ $parent = Split-Path -Parent $Dossier
 if (-not $Reference) { $Reference = Join-Path $parent 'reference-empreintes' }
 if (-not $Journal) { $Journal = Join-Path $parent 'journal-controles.log' }
 $NOM_EMPREINTES = 'EMPREINTES-SHA256.txt'
+$UTF8 = New-Object System.Text.UTF8Encoding($false)
+
+function Origines-Csp([string]$texte) {
+  $m = [regex]::Match($texte, 'connect-src\s+([^;"]*)')
+  if (-not $m.Success) { return ,@() }
+  $l = @($m.Groups[1].Value.Trim() -split '\s+' | Where-Object { $_ -match '^https://' })
+  return ,$l
+}
+function Index-Sans-Adaptation([string]$fichier) {
+  $t = [System.IO.File]::ReadAllText($fichier, $UTF8)
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  try { $h = (($sha.ComputeHash($UTF8.GetBytes([regex]::Replace($t, 'connect-src\s+[^;"]*', "connect-src 'none'"))) | ForEach-Object { $_.ToString('X2') }) -join '') } finally { $sha.Dispose() }
+  return [pscustomobject]@{ Hash = $h; Origines = (Origines-Csp $t) }
+}
 
 function Ecrire-Journal([string]$texte, [int]$evenement = 0) {
   $ligne = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  ' + $texte
@@ -76,6 +93,10 @@ try {
     $avertissement = ' (sans copie de référence : contrôle sur la liste du dossier lui-même)'
   }
   $liste = Lire-Empreintes $ref
+  # Adresses autorisées notées par mettre-a-jour-outil.ps1 (à côté de la référence)
+  $fa = Join-Path (Split-Path -Parent $ref) 'ADAPTATION-LOCALE.txt'
+  $autorisees = @()
+  if ($ref -ne $listeDossier -and (Test-Path -LiteralPath $fa)) { $autorisees = @(Get-Content -LiteralPath $fa -Encoding UTF8 | Where-Object { $_ -match '^connexion\s+https://' } | ForEach-Object { ($_ -replace '^connexion\s+', '').Trim() }) }
   if ($liste.Count -lt 10) { Ecrire-Journal ('ÉCART : liste d''empreintes de référence incomplète (' + $liste.Count + ' fichiers).') 1001; exit 2 }
 
   $ecarts = @()
@@ -90,6 +111,11 @@ try {
     $attendus[$e.Rel.ToLowerInvariant()] = $true
     $f = Join-Path $Dossier ($e.Rel -replace '/', [System.IO.Path]::DirectorySeparatorChar)
     if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $ecarts += ('fichier absent : ' + $e.Rel) }
+    elseif ($e.Rel -eq 'index.html') {
+      $ix = Index-Sans-Adaptation $f
+      if ($ix.Hash -ne $e.Hash) { $ecarts += ('fichier modifié : ' + $e.Rel) }
+      elseif ((@($ix.Origines | Sort-Object) -join ' ') -ne (@($autorisees | Sort-Object) -join ' ')) { $ecarts += ('adresses autorisées dans index.html (' + $(if ($ix.Origines.Count) { $ix.Origines -join ' ' } else { 'aucune' }) + ') différentes de celles notées par la mise à jour (' + $(if ($autorisees.Count) { $autorisees -join ' ' } else { 'aucune' }) + ')') }
+    }
     elseif ((Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash -ne $e.Hash) { $ecarts += ('fichier modifié : ' + $e.Rel) }
   }
   $racine = (Resolve-Path -LiteralPath $Dossier).ProviderPath.TrimEnd('\', '/')
@@ -103,7 +129,7 @@ try {
     Ecrire-Journal ('ÉCART : ' + $ecarts.Count + ' anomalie(s) dans ' + $version + $avertissement + ' : ' + (($ecarts | Select-Object -First 10) -join ' ; ') + '. Ne plus utiliser cette copie avant vérification ; réinstaller avec mettre-a-jour-outil.ps1.') 1001
     exit 2
   }
-  Ecrire-Journal ('Conforme : ' + $version + ', ' + $liste.Count + ' fichiers contrôlés' + $avertissement + '.') 1000
+  Ecrire-Journal ('Conforme : ' + $version + ', ' + $liste.Count + ' fichiers contrôlés' + $avertissement + $(if ($autorisees.Count) { ' ; adaptation locale : connexion autorisée vers ' + ($autorisees -join ', ') } else { '' }) + '.') 1000
   exit 0
 } catch {
   Ecrire-Journal ('Contrôle impossible : ' + $_.Exception.Message) 1002

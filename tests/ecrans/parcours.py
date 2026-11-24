@@ -810,6 +810,17 @@ with sync_playwright() as p:
     a.locator('.mt-tache', has_text='Appeler la pharmacie').locator('input[type=checkbox]').check(); time.sleep(1.5)
     verifier(a.locator('.mt-tache.faite', has_text='Appeler la pharmacie').count() == 1, 'mes tâches : tâche ajoutée puis cochée faite')
     verifier(a.evaluate("JSON.stringify(SIC.ui.App.session.etatModule('agenda').perso).indexOf('pharmacie') < 0"), 'mes tâches : contenu chiffré dans le journal')
+    # Synchronisation avec l'agenda de la messagerie (0.92.0) : serveur simulé du mode démonstration
+    a.get_by_role('button', name='Synchroniser avec la messagerie…').click(); time.sleep(0.6)
+    d = a.locator('dialog[open]').last
+    verifier('agent.demo@chu.fictif' in d.get_by_label('Adresse de votre agenda').input_value(), 'synchronisation : adresse de l’agenda proposée sur le serveur autorisé')
+    d.get_by_label('Mot de passe de la messagerie').fill('demo')
+    d.get_by_label('Agenda de la messagerie à afficher dans Mon agenda').select_option(index=0)
+    capture(a, 'synchro-messagerie')
+    d.get_by_role('button', name='Enregistrer et synchroniser').click(); time.sleep(4)
+    verifier(a.locator('text=Synchronisé avec la messagerie').count() == 1, 'synchronisation : tâches copiées dans l’agenda de la messagerie')
+    verifier(a.evaluate("Object.keys(SIC.ui.synchroCaldav._etat.simule.elements).filter(k => k.includes('/tessera-taches/')).length") >= 4, 'synchronisation : liste « Tessera — tâches » remplie')
+    verifier(a.evaluate("JSON.stringify(SIC.ui.App.session.preferences.caldav).indexOf('demo\"') < 0"), 'synchronisation : mot de passe jamais en clair dans les préférences')
 
     print('Équipe (0.27.0)')
     fenetre(a, 'Équipe')

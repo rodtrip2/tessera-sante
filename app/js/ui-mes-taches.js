@@ -186,7 +186,9 @@
     return h('div', { class: 'pile' },
       h('section', { class: 'panneau' },
         h('div', { class: 'barre' }, h('h2', { text: 'Mes tâches' + (aFaire.length ? ' (' + aFaire.length + ')' : '') }), h('div', { class: 'espace' }),
+          U.synchroCaldav ? U.synchroCaldav.bouton() : null,
           h('button', { class: 'btn primaire', type: 'button', onclick: function () { modaleTache(null); } }, '+ Tâche')),
+        U.synchroCaldav ? U.synchroCaldav.etatAffiche() : null,
         aujourdhui ? h('p', { class: 'info', text: aujourdhui + ' tâche' + (aujourdhui > 1 ? 's' : '') + ' pour aujourd’hui ou en retard.' }) : null,
         enCours && !toutes.length ? h('p', { class: 'muted', text: 'Ouverture de votre liste…' }) : aFaire.length ? h('ul', { class: 'mt-liste' }, aFaire.map(ligneTache)) : h('p', { class: 'muted', text: 'Rien à faire dans votre liste. « + Tâche », ou « + Ma liste » depuis un événement, une demande, une fiche…' })),
       h('section', { class: 'panneau' }, h('h2', { text: 'Ce que les modules vous demandent' + (dm.length ? ' (' + dm.length + ')' : '') }),
@@ -241,5 +243,23 @@
         (t.fait ? '✓ Tâche faite : ' : '☐ Tâche : ') + t.titre + (t.echeance && !t.fait ? ' (échéance ' + t.echeance.split('-').reverse().join('/') + ')' : ''));
     }));
   }
-  U.mesTaches = { disponible: disponible, liees: liees, rappelElement: rappelElement, demandes: demandes, bouton: bouton, boutonModale: boutonModale, nouvelle: function (init) { modaleTache(null, init); }, ouvrir: function (t) { modaleTache(t); }, lierA: lierA, partageables: partageables, nomCompte: nomCompte, taches: taches, aRappeler: aRappeler, jourRappel: jourRappel };
+  /**
+   * Toutes les tâches de l'agent, personnelles et partagées, une fois déchiffrées (synchronisation avec l'agenda de la
+   * messagerie, 24 novembre 2026) : les tâches faites depuis plus de 30 jours sont laissées de côté.
+   */
+  async function chargees() {
+    var e = st();
+    if (!e || !disponible()) return [];
+    await Promise.all(A.tachesPerso(e, moi().id).filter(function (t) { return !cache[t.evt]; }).map(function (t) { return s().dechiffrerPersonnel(USAGE, t.chiffre).then(function (c) { cache[t.evt] = c || { illisible: true }; }, function () { cache[t.evt] = { illisible: true }; }); }));
+    await Promise.all(A.tachesPartagees(e, moi().id).filter(function (t) { return !cacheP[t.evt]; }).map(function (t) { return s().ouvrirEnveloppe('tache:' + t.id, t.env).then(function (c) { cacheP[t.evt] = c || { illisible: true }; }, function () { cacheP[t.evt] = { illisible: true }; }); }));
+    var limite = Date.now() - GARDE_FAITES * J;
+    return taches().filter(function (t) { return !t.illisible && (!t.fait || Date.parse(t.faitLe || t.le) >= limite); });
+  }
+  var pourSynchro = {
+    lister: chargees,
+    enregistrer: function (id, c) { return enregistrer(id, c); },
+    creer: async function (c) { var id = 'TP' + C.hex(C.aleatoire(6)); await enregistrer(id, c); return id; },
+    retirer: async function (id) { var t = taches().filter(function (x) { return x.id === id; })[0]; if (t) await retirer(t); }
+  };
+  U.mesTaches = { disponible: disponible, liees: liees, rappelElement: rappelElement, demandes: demandes, bouton: bouton, boutonModale: boutonModale, nouvelle: function (init) { modaleTache(null, init); }, ouvrir: function (t) { modaleTache(t); }, lierA: lierA, partageables: partageables, nomCompte: nomCompte, taches: taches, aRappeler: aRappeler, jourRappel: jourRappel, pourSynchro: pourSynchro };
 })();

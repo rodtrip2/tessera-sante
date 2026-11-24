@@ -170,6 +170,7 @@
         'donnee-clinique': { etat: 'desactive', date: jourIso(-5), auteur: '', reference: 'En attente de l’analyse d’impact (fictif)' },
         formations: { etat: 'accord', date: jourIso(-3), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
         'documents-fichiers': { etat: 'accord', date: jourIso(-1), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)' },
+        'synchro-caldav': { etat: 'accord', date: jourIso(-1), auteur: 'Directeur des soins (fictif)', reference: 'Essai avec le serveur de messagerie simulé (fictif)' },
         entretiens: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },
         'dossier-clinique': { etat: 'accord', date: jourIso(-1), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote (démonstration, fictif)', dpoInforme: jourIso(-2) },
         heures: { etat: 'accord', date: jourIso(-2), auteur: 'Directeur des soins (fictif)', reference: 'Accord pour le pilote dans l’Unité 1 (fictif)', dpoInforme: jourIso(-4) },

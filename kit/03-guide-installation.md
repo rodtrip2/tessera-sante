@@ -122,6 +122,32 @@ Activer l'**audit Windows des écritures** (stratégie *Auditer l'accès aux obj
 
 Un administrateur du serveur peut toujours modifier le dossier : c'est la limite commune à tout logiciel de l'établissement. Les **données** ont leur propre protection, indépendante de ce dossier : fichiers chiffrés, saisies signées, une saisie fabriquée ou modifiée sur le partage est détectée et écartée.
 
+## 3 ter. Synchronisation avec l'agenda de la messagerie (facultatif, service informatique)
+
+Fonction soumise à avis (« Synchronisation de Mes tâches et de Mon agenda avec l'agenda de la messagerie », onglet *Validations*), **livrée désactivée**. Elle permet à chaque agent qui le choisit de retrouver ses tâches et son agenda Tessera dans l'agenda de la messagerie de l'établissement (Zimbra ou tout serveur CalDAV), puis sur son téléphone avec l'application DAVx5, qu'il utilise peut-être déjà pour sa messagerie :
+
+- **Mes tâches** (personnelles et partagées) : liste « Tessera — tâches », dans les deux sens (une tâche cochée ou ajoutée sur le téléphone revient dans Tessera) ;
+- **Mon agenda** : agenda « Tessera — agenda », copie en lecture seule, **sans identité de patient** (type, lieu, horaire) ;
+- l'agenda de la messagerie peut être affiché dans *Mon agenda* (lecture seule, jamais copié sur le partage).
+
+Le navigateur de l'agent échange **directement** avec le serveur de messagerie, dans le réseau de l'hôpital, pendant que Tessera est ouvert (à l'ouverture puis toutes les 3 minutes) : aucun service extérieur, aucun serveur à installer. Trois réglages sont nécessaires.
+
+**1. Autoriser le serveur dans Tessera.** Par défaut, Tessera ne peut joindre aucune adresse (règle `connect-src 'none'`). Le script de mise à jour ajoute l'adresse du serveur, et elle seule, à cette règle :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\mettre-a-jour-outil.ps1 -Zimbra 'https://zimbra.etablissement.fr'
+```
+
+ou `mettre-a-jour-tessera.cmd -Zimbra https://zimbra.etablissement.fr`. L'adresse est notée dans `reference-empreintes\ADAPTATION-LOCALE.txt` et **reprise automatiquement** aux mises à jour suivantes (double-clic compris) ; `-SansZimbra` la retire. Le contrôle quotidien (`verifier-outil.ps1`) vérifie `index.html` une fois cette adresse retirée, et signale toute adresse différente de celle notée. Rien n'est ajouté au dépôt public : l'adresse reste propre à l'établissement. Pour une copie servie par l'intranet, appliquer le même script au dossier publié (`-Destination`) ou ajouter l'adresse à l'en-tête `Content-Security-Policy` du serveur web.
+
+**2. Laisser le serveur de messagerie répondre à Tessera.** Le navigateur n'accepte la réponse du serveur de messagerie que si celui-ci autorise l'adresse de Tessera (échanges entre origines, « CORS ») : en-têtes `Access-Control-Allow-Origin` (adresse de Tessera, par exemple `https://intranet.etablissement.fr` ; pour une copie ouverte depuis le partage, l'origine envoyée par le navigateur est `null`), `Access-Control-Allow-Methods: GET, PUT, DELETE, PROPFIND, REPORT, MKCALENDAR, OPTIONS`, `Access-Control-Allow-Headers: Authorization, Content-Type, Depth, If-Match, If-None-Match`, `Access-Control-Expose-Headers: ETag`, et réponse aux requêtes préalables `OPTIONS` sans authentification, sur les seules adresses `/dav/`. Selon la version de Zimbra, ces en-têtes se règlent dans Zimbra lui-même ou sur le serveur mandataire placé devant lui. Autoriser `null` ouvre le serveur à toute page ouverte depuis un fichier : préférer une copie de Tessera servie par l'intranet pour cette fonction.
+
+**3. Activer la fonction** dans l'onglet *Validations* (administrateur), après avis du délégué à la protection des données (DPO, référent RGPD), du responsable de la sécurité informatique (RSSI) et du service informatique (DSI ou direction du numérique, selon l'établissement), ou sur accord hiérarchique pendant le pilote.
+
+Chaque agent règle ensuite la synchronisation pour lui-même : *Agenda → Mes tâches → Synchroniser avec la messagerie…* (identifiant et mot de passe de sa messagerie ; l'adresse de son agenda est proposée : `https://zimbra.etablissement.fr/dav/<identifiant>/`). Le mot de passe est gardé en mémoire pendant la session ; l'agent peut le faire **mémoriser, chiffré par sa clé de liste** (lisible de lui seul, jamais écrit au journal) ; il est **redemandé** dès que le serveur le refuse, par exemple après son changement. Sur le téléphone, l'agent ajoute à DAVx5 le compte de sa messagerie (adresse `https://zimbra.etablissement.fr/dav/`) et coche les listes « Tessera — tâches » et « Tessera — agenda » ; les tâches s'affichent dans une application de tâches compatible (jtx Board, Tasks.org, OpenTasks).
+
+**Test** : *Tester la connexion* dans la fenêtre de réglage. « Serveur d'agenda injoignable » indique en général l'étape 1 (adresse non autorisée sur cette copie) ou l'étape 2 (en-têtes absents : la console du navigateur, touche F12, mentionne alors « CORS »).
+
 ## 4. Initialiser le dossier (administrateur)
 
 1. Sur l'écran *Initialiser le dossier* : nom affiché, identifiant (par exemple `prenom.nom`), mot de passe d'au moins 12 caractères. Ce premier compte est **cadre de santé et administrateur**.

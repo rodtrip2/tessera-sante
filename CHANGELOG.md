@@ -1,5 +1,16 @@
 # Journal des modifications — Tessera Santé
 
+## 0.92.0 — 24 novembre 2026
+
+**Synchronisation de Mes tâches et de Mon agenda avec l'agenda de la messagerie (Zimbra…) et le téléphone (DAVx5)** (demande du porteur du 24 novembre 2026).
+- *Mes tâches → Synchroniser avec la messagerie…* : chaque agent qui le choisit relie Tessera à l'agenda de sa messagerie (protocole CalDAV), avec son identifiant et son mot de passe.
+- **Tâches personnelles et partagées** : liste « Tessera — tâches », dans les deux sens ; une tâche cochée, modifiée, ajoutée ou supprimée sur le téléphone revient dans Tessera (pour tous les participants d'une tâche partagée) ; modifiée des deux côtés : la plus récente l'emporte.
+- **Mon agenda** : agenda « Tessera — agenda », copie en lecture seule, sans identité de patient ; l'agenda de la messagerie peut être affiché dans Mon agenda.
+- **Mot de passe** gardé pendant la session, mémorisable chiffré par la clé de liste de l'agent (jamais au journal), redemandé dès que la messagerie le refuse.
+- Synchronisation à l'ouverture de Tessera, puis toutes les 3 minutes, et à la demande. Fonction soumise à avis (« synchro-caldav » : délégué à la protection des données, responsable de la sécurité informatique, service informatique), **livrée désactivée**.
+- **Script de mise à jour** : `-Zimbra 'https://…'` autorise ce seul serveur dans la copie de l'établissement (règle `connect-src`), reprise aux mises à jour suivantes, contrôlée chaque jour par `verifier-outil.ps1` ; `-SansZimbra` la retire. Guide d'installation, § 3 ter (réglage du serveur de messagerie).
+- Démonstration avec un serveur simulé. Tests : `tests/caldav.test.js`, adaptation locale des scripts ; parcours des écrans complété. Documentation reportée (`docs/a-documenter.md`).
+
 ## 0.91.0 — 24 novembre 2026
 
 **« Lier à… » : créer ou ajouter à ; titre, date et heure repris du texte** (demande du porteur du 24 novembre 2026).

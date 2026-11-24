@@ -807,6 +807,7 @@
     App.minuteurs.push(setInterval(function () {
       if (App.session && App.session.cle && document.visibilityState === 'visible') App.session.synchroniser().catch(function () {});
     }, 5000));
+    try { if (SIC.ui.synchroCaldav) SIC.ui.synchroCaldav.demarrer(App.minuteurs); } catch (e) { /* sans effet sur la session */ }   // agenda de la messagerie (24 novembre 2026)
     setTimeout(function () { SIC.ui.sauvegarde.controler(); }, 1500);   // contrôle d'intégrité à la connexion, puis toutes les 15 min
     App.minuteurs.push(setInterval(function () { if (App.session && App.session.cle) SIC.ui.sauvegarde.controler(); }, 15 * 60000));
     App.minuteurs.push(setInterval(function () {   // heures relatives (« dans 3 h ») et échéances qui changent de couleur
