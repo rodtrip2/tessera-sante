@@ -12,10 +12,11 @@
  * - lecture des réponses du protocole (XML « multistatus ») ;
  * - client : découverte des agendas, création des deux agendas « Tessera », lecture, écriture, suppression ;
  * - tâches au format VTODO (titre, échéance, heure, rappel, note, faite) et retour ;
- * - plan de synchronisation des tâches (dans les deux sens : modification la plus récente gagnée en cas de conflit)
- *   et des événements de « Mon agenda » (copie en lecture seule, Tessera fait foi) ;
+ * - plan de synchronisation, dans les deux sens (en cas de conflit, la modification la plus récente l'emporte), des
+ *   tâches et des événements : rendez-vous personnels et partagés, éléments de Mon agenda ;
  * - serveur simulé en mémoire, pour les tests et le mode démonstration.
- * Jamais d'identité de patient : les événements envoyés sont ceux de l'export .ics (type, lieu, horaire).
+ * Jamais d'identité de patient : les éléments de l'Agenda envoyés sont ceux de l'export .ics (type, lieu, horaire) ; seul
+ * leur horaire revient du téléphone, si l'agent peut le modifier.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./ics.js'));
@@ -259,13 +260,13 @@
       if (r) {
         vus[r.href] = 1;
         var er = empreinte(r.tache);
-        if (!m) { if (el !== er) plan.envoyer.push({ id: l.id, href: r.href, etag: r.etag }); else plan.recevoir.push({ id: l.id, href: r.href, etag: r.etag, tache: r.tache, sansChangement: true }); return; }
+        if (!m) { if (el !== er) plan.envoyer.push({ id: l.id, href: r.href, etag: r.etag, uid: r.tache.uid }); else plan.recevoir.push({ id: l.id, href: r.href, etag: r.etag, tache: r.tache, sansChangement: true }); return; }
         var chL = m.emp !== el, chR = m.etag ? m.etag !== r.etag : er !== m.emp;
         if (chL && chR && el !== er) {
           var tl = Date.parse(l.le || ''), tr = r.tache.modifie;
-          if (isFinite(tr) && (!isFinite(tl) || tr > tl)) plan.recevoir.push({ id: l.id, href: r.href, etag: r.etag, tache: r.tache });
-          else plan.envoyer.push({ id: l.id, href: r.href, etag: r.etag });
-        } else if (chL && el !== er) plan.envoyer.push({ id: l.id, href: r.href, etag: r.etag });
+          if (typeof tr === 'number' && (!isFinite(tl) || tr > tl)) plan.recevoir.push({ id: l.id, href: r.href, etag: r.etag, tache: r.tache });
+          else plan.envoyer.push({ id: l.id, href: r.href, etag: r.etag, uid: r.tache.uid });
+        } else if (chL && el !== er) plan.envoyer.push({ id: l.id, href: r.href, etag: r.etag, uid: r.tache.uid });
         else if (chR) plan.recevoir.push({ id: l.id, href: r.href, etag: r.etag, tache: r.tache, sansChangement: el === er });
       } else if (m && m.href) {
         // Supprimée sur le téléphone : supprimée dans Tessera, sauf si elle a changé entre-temps dans Tessera
@@ -293,40 +294,99 @@
     return c;
   }
 
-  // ------------------------------------------------------------ Événements de « Mon agenda » (copie en lecture seule)
-  function empreinteEvt(e) { return JSON.stringify([e.debut, e.fin, e.titre || '', e.lieu || '', !!e.journee]); }
+  // ------------------------------------------------------------ Événements (VEVENT), dans les deux sens
+  /**
+   * Événement de Tessera : { cle, genre ('perso' : rendez-vous personnel ou partagé ; 'service' : élément de l'Agenda,
+   * absence, salle), debut, fin, journee, titre, lieu, note, le (ISO), modifiable (horaire modifiable par l'agent) }.
+   */
+  function empreinteEvt(e) { e = e || {}; return JSON.stringify([e.debut, e.fin, String(e.titre || ''), String(e.lieu || ''), !!e.journee, String(e.note || '')]); }
   function hrefEvt(agenda, cle) { return agenda.replace(/\/?$/, '/') + encodeURIComponent(ICS.uid(cle).split('@')[0]) + '.ics'; }
-  function ecrireEvenement(e, maintenant) {
-    return ICS.ecrire([e], { maintenant: maintenant }).replace('METHOD:PUBLISH\r\n', '');
+  function cleDeUid(uid) { var m = /^tessera-(.+)@tessera-sante$/.exec(String(uid || '')); return m && !/^tache-/.test(m[1]) ? m[1] : null; }
+  function dateSeule(t) { var d = new Date(t); return d.getFullYear() + deux(d.getMonth() + 1) + deux(d.getDate()); }
+  /** Événement au format iCalendar (VEVENT), sans méthode (objet CalDAV) ; `o.uid` garde l'identifiant donné par le téléphone. */
+  function ecrireEvenement(e, o) {
+    o = typeof o === 'number' ? { maintenant: o } : (o || {});
+    var maintenant = o.maintenant || Date.now(), l = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Tessera Santé//Agenda//FR', 'BEGIN:VEVENT',
+      'UID:' + (o.uid || ICS.uid(e.cle)), 'DTSTAMP:' + horodatage(maintenant), 'LAST-MODIFIED:' + horodatage(Date.parse(e.le || '') || maintenant)];
+    if (e.journee) l.push('DTSTART;VALUE=DATE:' + dateSeule(e.debut), 'DTEND;VALUE=DATE:' + dateSeule(e.fin && e.fin > e.debut ? e.fin : e.debut + JOUR));
+    else l.push('DTSTART:' + horodatage(e.debut), 'DTEND:' + horodatage(e.fin && e.fin > e.debut ? e.fin : e.debut + 3600000));
+    l.push('SUMMARY:' + ICS.echapper(e.titre || 'Rendez-vous'));
+    if (e.lieu) l.push('LOCATION:' + ICS.echapper(e.lieu));
+    if (e.note) l.push('DESCRIPTION:' + ICS.echapper(e.note));
+    l.push('STATUS:CONFIRMED', 'TRANSP:OPAQUE', 'END:VEVENT', 'END:VCALENDAR');
+    return l.map(replier).join('\r\n') + '\r\n';
+  }
+  /** Premier événement d'un élément VEVENT : { uid, debut, fin, journee, titre, lieu, note, modifie, repete } ou null. */
+  function lireEvenement(ics) {
+    var ls = String(ics || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n[ \t]/g, '').split('\n'), dans = false, prof = 0, e = null, duree = null;
+    ls.forEach(function (brut) {
+      var i = brut.indexOf(':');
+      if (i < 0) return;
+      var tete = brut.slice(0, i).split(';'), nom = tete[0].toUpperCase(), v = brut.slice(i + 1), params = tete.slice(1).join(';').toUpperCase();
+      if (nom === 'BEGIN') { if (v.toUpperCase() === 'VEVENT' && !e) { dans = true; e = { uid: '', titre: '', lieu: '', note: '', debut: null, fin: null, journee: false, modifie: null, repete: false }; } else if (dans) prof++; return; }
+      if (nom === 'END') { if (dans && prof) prof--; else if (dans && v.toUpperCase() === 'VEVENT') dans = false; return; }
+      if (!dans || prof) return;
+      if (nom === 'UID') e.uid = v.trim();
+      else if (nom === 'SUMMARY') e.titre = desechapper(v).replace(/\s+/g, ' ').trim().slice(0, 150);
+      else if (nom === 'LOCATION') e.lieu = desechapper(v).replace(/\s+/g, ' ').trim().slice(0, 150);
+      else if (nom === 'DESCRIPTION') e.note = desechapper(v).trim().slice(0, 1000);
+      else if (nom === 'DTSTART') { var d = horodatageVers(v); if (d) { e.debut = d.t; e.journee = params.indexOf('VALUE=DATE') >= 0 && params.indexOf('DATE-TIME') < 0 || !/T/.test(v); } }
+      else if (nom === 'DTEND') { var f = horodatageVers(v); if (f) e.fin = f.t; }
+      else if (nom === 'DURATION') { var m = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?$/.exec(v.trim()); if (m) duree = ((+m[1] || 0) * 7 + (+m[2] || 0)) * JOUR + ((+m[3] || 0) * 60 + (+m[4] || 0)) * 60000; }
+      else if (nom === 'RRULE') e.repete = true;
+      else if (nom === 'LAST-MODIFIED') { var lm = horodatageVers(v); if (lm) e.modifie = lm.t; }
+    });
+    if (!e || typeof e.debut !== 'number') return null;
+    if (typeof e.fin !== 'number') e.fin = duree !== null ? e.debut + duree : e.debut + (e.journee ? JOUR : 3600000);
+    return e;
   }
   /**
-   * Plan des événements : `evenements` [{ cle, debut, fin, titre, lieu, journee }] de la période [debut, fin[ ;
-   * `distants` [{ href, etag, uid }] de l'agenda « Tessera — agenda » ; `memoire` { cle: { href, emp, debut } }.
-   * Rend { envoyer: [{ cle, href }], supprimer: [{ href, etag }], memoire }. Tessera fait foi : un événement modifié
-   * sur le téléphone est remis à l'identique ; ce qui n'a pas été créé par Tessera n'est jamais touché ; les
-   * événements passés (avant la période) sont laissés en place.
+   * Plan des événements, dans les deux sens. `locales` : événements de Tessera de la période (rendez-vous personnels et
+   * partagés : tous ceux qui ne sont pas finis) ; `distants` : [{ href, etag, evt (lireEvenement) }] de l'agenda
+   * « Tessera — agenda » ; `memoire` : { cle: { href, etag, emp, debut, uid } }. Rend { envoyer, recevoir, creerLocal,
+   * supprimerLocal, supprimerDistant, garder } :
+   * - modifié d'un seul côté : passe de l'autre ; des deux côtés : le plus récent l'emporte ;
+   * - rendez-vous personnel supprimé sur le téléphone (inchangé dans Tessera) : retiré de Tessera ; élément de l'Agenda
+   *   supprimé sur le téléphone : remis (il appartient au service) ;
+   * - événement créé sur le téléphone dans cet agenda : nouveau rendez-vous personnel ;
+   * - retiré de Tessera : retiré du téléphone ; événements passés (avant `debut`) laissés en place.
    */
-  function planEvenements(evenements, distants, memoire, agenda, debut, maintenant) {
-    var mem = memoire || {}, parHref = {}, res = { envoyer: [], supprimer: [], memoire: {} }, cles = {};
-    (distants || []).forEach(function (r) { parHref[r.href] = r; });
-    (evenements || []).forEach(function (e) {
-      var href = hrefEvt(agenda, e.cle), m = mem[e.cle], r = parHref[href], emp = empreinteEvt(e);
-      cles[href] = 1;
-      res.memoire[e.cle] = { href: href, emp: emp, debut: e.debut, etag: m && m.etag };
-      if (!r || !m || m.emp !== emp || (m.etag && r.etag && m.etag !== r.etag)) res.envoyer.push({ cle: e.cle, href: href, etag: r ? r.etag : null });
+  function planEvenements(locales, distants, memoire, agenda, debut) {
+    var mem = memoire || {}, parHref = {}, parUid = {}, vus = {}, cles = {}, hrefsMem = {};
+    var plan = { envoyer: [], recevoir: [], creerLocal: [], supprimerLocal: [], supprimerDistant: [], garder: {} };
+    (distants || []).forEach(function (r) { if (!r.evt) return; parHref[r.href] = r; if (r.evt.uid) parUid[r.evt.uid] = r; });
+    Object.keys(mem).forEach(function (k) { if (mem[k] && mem[k].href) hrefsMem[mem[k].href] = k; });
+    function nouveau(l) { return { cle: l.cle, href: hrefEvt(agenda, l.cle), etag: null, nouveau: true, uid: ICS.uid(l.cle) }; }
+    (locales || []).forEach(function (l) {
+      cles[l.cle] = 1;
+      var m = mem[l.cle], r = (m && m.href && parHref[m.href]) || parUid[ICS.uid(l.cle)] || null, el = empreinteEvt(l);
+      if (r) {
+        vus[r.href] = 1;
+        var er = empreinteEvt(r.evt), uid = r.evt.uid || (m && m.uid) || ICS.uid(l.cle);
+        if (!m) { if (el !== er) plan.envoyer.push({ cle: l.cle, href: r.href, etag: r.etag, uid: uid }); else plan.recevoir.push({ cle: l.cle, href: r.href, etag: r.etag, evt: r.evt, sansChangement: true }); return; }
+        var chL = m.emp !== el, chR = m.etag ? m.etag !== r.etag : er !== m.emp;
+        if (chL && chR && el !== er) {
+          var tl = Date.parse(l.le || ''), tr = r.evt.modifie;
+          if (typeof tr === 'number' && (!isFinite(tl) || tr > tl)) plan.recevoir.push({ cle: l.cle, href: r.href, etag: r.etag, evt: r.evt });
+          else plan.envoyer.push({ cle: l.cle, href: r.href, etag: r.etag, uid: uid });
+        } else if (chL && el !== er) plan.envoyer.push({ cle: l.cle, href: r.href, etag: r.etag, uid: uid });
+        else if (chR) plan.recevoir.push({ cle: l.cle, href: r.href, etag: r.etag, evt: r.evt, sansChangement: el === er });
+      } else if (m && m.href) {
+        if (l.genre === 'perso' && m.emp === el) plan.supprimerLocal.push(l.cle);   // supprimé sur le téléphone
+        else plan.envoyer.push(nouveau(l));   // élément de l'Agenda, ou rendez-vous modifié entre-temps : remis
+      } else plan.envoyer.push(nouveau(l));
     });
-    Object.keys(mem).forEach(function (k) {
-      var m = mem[k];
-      if (!m || res.memoire[k] || cles[m.href]) return;
-      if (m.debut >= debut) { if (parHref[m.href]) res.supprimer.push({ href: m.href, etag: parHref[m.href].etag }); }
-      else if (m.debut >= (maintenant || Date.now()) - 90 * JOUR) res.memoire[k] = m;   // passé récent : garde en mémoire, laissé sur le serveur
-    });
+    function passe(m, evt) { var d = m && isFinite(m.debut) ? m.debut : evt && evt.debut; return isFinite(d) && d < debut; }
     (distants || []).forEach(function (r) {
-      if (cles[r.href] || res.supprimer.some(function (x) { return x.href === r.href; })) return;
-      var garde = Object.keys(res.memoire).some(function (k) { return res.memoire[k].href === r.href; });
-      if (!garde && /^tessera-/.test(r.uid || '') && !/^tessera-tache-/.test(r.uid || '')) res.supprimer.push({ href: r.href, etag: r.etag });   // ancien envoi de Tessera oublié
+      if (!r.evt || vus[r.href]) return;
+      var k = hrefsMem[r.href] || (cleDeUid(r.evt.uid) && mem[cleDeUid(r.evt.uid)] ? cleDeUid(r.evt.uid) : null), m = k ? mem[k] : null;
+      if (k && cles[k]) return;
+      if (passe(m, r.evt)) { if (k) plan.garder[k] = m; return; }   // passé : laissé sur le serveur
+      if (m || cleDeUid(r.evt.uid)) plan.supprimerDistant.push({ href: r.href, etag: r.etag });   // retiré de Tessera
+      else if (r.evt.titre || r.evt.debut) plan.creerLocal.push({ href: r.href, etag: r.etag, evt: r.evt });   // créé sur le téléphone
     });
-    return res;
+    Object.keys(mem).forEach(function (k) { if (!cles[k] && !plan.garder[k] && passe(mem[k]) && mem[k].debut >= debut - 90 * JOUR) plan.garder[k] = mem[k]; });
+    return plan;
   }
   function uidDe(ics) { var m = /\nUID[^:\n]*:([^\r\n]+)/.exec('\n' + String(ics || '').replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '')); return m ? m[1].trim() : ''; }
 
@@ -342,7 +402,7 @@
    */
   async function synchroniser(o) {
     var c = o.client, cfg = Object.assign({}, o.config || {}), maintenant = o.maintenant || Date.now(), maison = null;
-    var res = { taches: { envoyees: 0, recues: 0, creees: 0, retireesIci: 0, retireesLa: 0, reportees: 0 }, evenements: { envoyes: 0, retires: 0 }, affiches: null };
+    var res = { taches: { envoyees: 0, recues: 0, creees: 0, retireesIci: 0, retireesLa: 0, reportees: 0 }, evenements: { envoyes: 0, recus: 0, crees: 0, retiresIci: 0, retires: 0, remis: 0, reportes: 0 }, affiches: null };
     cfg.agendas = Object.assign({}, cfg.agendas || {});
     async function agenda(cle, refaire) {
       if (cfg.agendas[cle] && !refaire) return cfg.agendas[cle];
@@ -369,7 +429,7 @@
       for (var i = 0; i < plan.envoyer.length; i++) {
         var x = plan.envoyer[i], l = parId[x.id];
         try {
-          var et = await c.ecrire(x.href, ecrireTache(l, { modifie: Date.parse(l.le || '') || maintenant, maintenant: maintenant }), { etag: x.etag, nouveau: x.nouveau });
+          var et = await c.ecrire(x.href, ecrireTache(l, { modifie: Date.parse(l.le || '') || maintenant, maintenant: maintenant, uid: x.uid || undefined }), { etag: x.etag, nouveau: x.nouveau });
           mem[x.id] = { href: x.href, etag: et, emp: empreinte(l) }; res.taches.envoyees++;
         } catch (e) { if (e.code === 'conflit') res.taches.reportees++; else throw e; }
       }
@@ -390,18 +450,50 @@
       }
       cfg.memTaches = mem;
     }
-    if (cfg.agenda && typeof o.evenements === 'function') {
+    if (cfg.agenda && o.agenda) {
       var debut = minuit(maintenant) - 7 * JOUR, fin = minuit(maintenant) + 61 * JOUR;
-      var le = await lister('evenements', 'VEVENT'), evts = (await o.evenements(debut, fin)) || [], parCle = {};
-      evts.forEach(function (e) { parCle[e.cle] = e; });
-      var pe = planEvenements(evts, le.items.map(function (r) { return { href: r.href, etag: r.etag, uid: uidDe(r.ics) }; }), cfg.memEvts, le.href, debut, maintenant);
-      for (i = 0; i < pe.envoyer.length; i++) {
-        var ev = pe.envoyer[i];
-        pe.memoire[ev.cle].etag = await c.ecrire(ev.href, ecrireEvenement(parCle[ev.cle], maintenant), {});
-        res.evenements.envoyes++;
+      var le = await lister('evenements', 'VEVENT'), dE = le.items.map(function (r) { return { href: r.href, etag: r.etag, evt: lireEvenement(r.ics) }; });
+      var locE = (await o.agenda.lister(debut, fin)) || [], parCle = {}, memE = {}, ancE = cfg.memEvts || {};
+      locE.forEach(function (e) { parCle[e.cle] = e; if (ancE[e.cle]) memE[e.cle] = ancE[e.cle]; });
+      var pe = planEvenements(locE, dE, ancE, le.href, debut);
+      Object.keys(pe.garder).forEach(function (k) { memE[k] = pe.garder[k]; });
+      var envoyerE = async function (cle, href, etag, uid, nouv, ev) {
+        try {
+          var et2 = await c.ecrire(href, ecrireEvenement(ev, { maintenant: maintenant, uid: uid }), { etag: etag, nouveau: nouv });
+          memE[cle] = { href: href, etag: et2, emp: empreinteEvt(ev), debut: ev.debut, uid: uid };
+          return true;
+        } catch (e) { if (e.code === 'conflit') { res.evenements.reportes++; return false; } throw e; }
+      };
+      for (i = 0; i < pe.envoyer.length; i++) { var xe = pe.envoyer[i]; if (await envoyerE(xe.cle, xe.href, xe.etag, xe.uid, xe.nouveau, parCle[xe.cle])) res.evenements.envoyes++; }
+      for (i = 0; i < pe.recevoir.length; i++) {
+        var ye = pe.recevoir[i], loc = parCle[ye.cle], uidE = ye.evt.uid || ICS.uid(ye.cle);
+        if (ye.sansChangement) { memE[ye.cle] = { href: ye.href, etag: ye.etag, emp: empreinteEvt(loc), debut: loc.debut, uid: uidE }; continue; }
+        var apres = loc;
+        if (loc.genre === 'perso') {
+          apres = Object.assign({}, loc, { debut: ye.evt.debut, fin: ye.evt.fin, journee: ye.evt.journee, titre: ye.evt.titre || loc.titre, lieu: ye.evt.lieu, note: ye.evt.note });
+          await o.agenda.enregistrer(ye.cle, apres, loc); res.evenements.recus++;
+        } else if (ye.evt.debut !== loc.debut || ye.evt.fin !== loc.fin) {
+          // Élément de l'Agenda : seul l'horaire revient, s'il est permis à l'agent ; le reste est remis comme dans Tessera
+          var ok = false;
+          if (loc.modifiable) { try { await o.agenda.enregistrer(ye.cle, { debut: ye.evt.debut, fin: ye.evt.fin }, loc); ok = true; res.evenements.recus++; } catch (e) { ok = false; } }
+          if (ok) apres = Object.assign({}, loc, { debut: ye.evt.debut, fin: ye.evt.fin });
+          else res.evenements.remis++;
+        }
+        if (empreinteEvt(apres) !== empreinteEvt(ye.evt)) { if (loc.genre !== 'perso' && apres === loc) res.evenements.remis++; await envoyerE(ye.cle, ye.href, ye.etag, uidE, false, apres); }
+        else memE[ye.cle] = { href: ye.href, etag: ye.etag, emp: empreinteEvt(apres), debut: apres.debut, uid: uidE };
       }
-      for (i = 0; i < pe.supprimer.length; i++) { await c.supprimer(pe.supprimer[i].href); res.evenements.retires++; }
-      cfg.memEvts = pe.memoire;
+      for (i = 0; i < pe.creerLocal.length; i++) {
+        var ze = pe.creerLocal[i], nouvE = { genre: 'perso', debut: ze.evt.debut, fin: ze.evt.fin, journee: ze.evt.journee, titre: ze.evt.titre || 'Rendez-vous', lieu: ze.evt.lieu, note: ze.evt.note };
+        var ncle = await o.agenda.creer(nouvE);
+        memE[ncle] = { href: ze.href, etag: ze.etag, emp: empreinteEvt(nouvE), debut: nouvE.debut, uid: ze.evt.uid };
+        res.evenements.crees++;
+      }
+      for (i = 0; i < pe.supprimerLocal.length; i++) { await o.agenda.retirer(pe.supprimerLocal[i]); delete memE[pe.supprimerLocal[i]]; res.evenements.retiresIci++; }
+      for (i = 0; i < pe.supprimerDistant.length; i++) {
+        try { await c.supprimer(pe.supprimerDistant[i].href, pe.supprimerDistant[i].etag); res.evenements.retires++; }
+        catch (e) { if (e.code === 'conflit') res.evenements.reportes++; else throw e; }
+      }
+      cfg.memEvts = memE;
     }
     if (cfg.afficher) {
       var d0 = minuit(maintenant) - 14 * JOUR, d1 = minuit(maintenant) + 120 * JOUR;
@@ -496,7 +588,7 @@
   return {
     lireXml: lireXml, reponses: reponses, Client: Client, ErreurCaldav: ErreurCaldav,
     ecrireTache: ecrireTache, lireTache: lireTache, empreinte: empreinte, uidTache: uidTache, idDeUid: idDeUid, planTaches: planTaches, fusionner: fusionner,
-    ecrireEvenement: ecrireEvenement, planEvenements: planEvenements, empreinteEvt: empreinteEvt, hrefEvt: hrefEvt, uidDe: uidDe,
+    ecrireEvenement: ecrireEvenement, lireEvenement: lireEvenement, planEvenements: planEvenements, cleDeUid: cleDeUid, empreinteEvt: empreinteEvt, hrefEvt: hrefEvt, uidDe: uidDe,
     synchroniser: synchroniser, NOMS: NOMS, origines: origines, adresseZimbra: adresseZimbra, autorisee: autorisee, serveurSimule: serveurSimule, CHAMPS: CHAMPS
   };
 });

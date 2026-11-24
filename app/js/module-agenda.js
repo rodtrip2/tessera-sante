@@ -15,7 +15,7 @@
 })(typeof self !== 'undefined' ? self : this, function (N, Droits, M, registre, P, Pm) {
   'use strict';
 
-  var TYPES = ['RDV', 'OCCURRENCE', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'PATIENT_INSCRIT', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE', 'TACHE_PERSO', 'TACHE_PARTAGEE'];
+  var TYPES = ['RDV', 'OCCURRENCE', 'COMMENTAIRE', 'CHECK', 'INSCRIPTION', 'PATIENT_INSCRIT', 'VALIDATION', 'TRANSPORT', 'TACHE', 'TACHE_EQUIPE', 'TACHE_AJUSTEMENT', 'TACHE_FAITE', 'ABSENCE', 'ALERTE', 'ALERTE_VUE', 'TACHE_PERSO', 'TACHE_PARTAGEE', 'RDV_PERSO', 'RDV_PARTAGE'];
   // Types d'éléments (décisions du porteur du 7 novembre 2026 : entretien médical ou infirmier, individuel ou avec la
   // famille ; permission de sortie demandée puis validée, distincte de la sortie du patient)
   // Audience JLD (services de psychiatrie) et Examen : décisions du porteur du 8 novembre 2026
@@ -926,13 +926,28 @@
         st.partagees[d.id] = { id: d.id, participants: d.participants.filter(function (x, i, l) { return typeof x === 'string' && x && l.indexOf(x) === i; }).slice(0, 20), env: d.env && typeof d.env === 'object' ? d.env : (tsp && tsp.env) || null,
           supprime: !!d.supprime, auteur: tsp ? tsp.auteur : e.by, cree: tsp ? tsp.cree : e.at, le: e.at, par: e.by, evt: e.id };
         break;
+      case 'RDV_PERSO':
+        // Rendez-vous personnel (24 novembre 2026) : contenu chiffré par la clé de liste de l'agent, comme ses tâches
+        if (!/^RP[0-9a-f]{8,24}$/.test(d.id || '') || !d.agent) break;
+        if (st.rdvPerso[d.id] && st.rdvPerso[d.id].agent !== d.agent) break;
+        st.rdvPerso[d.id] = { id: d.id, agent: d.agent, chiffre: typeof d.chiffre === 'string' ? d.chiffre : '', supprime: !!d.supprime, cree: (st.rdvPerso[d.id] && st.rdvPerso[d.id].cree) || e.at, le: e.at, evt: e.id };
+        break;
+      case 'RDV_PARTAGE':
+        // Rendez-vous partagé (24 novembre 2026) : chiffré pour ses seuls participants, modifié par eux seuls
+        if (!/^RS[0-9a-f]{8,24}$/.test(d.id || '') || !Array.isArray(d.participants)) break;
+        var rsp = st.rdvPartages[d.id];
+        if (rsp && rsp.participants.indexOf(e.by) < 0) break;
+        if (!rsp && d.participants.indexOf(e.by) < 0) break;
+        st.rdvPartages[d.id] = { id: d.id, participants: d.participants.filter(function (x, i, l) { return typeof x === 'string' && x && l.indexOf(x) === i; }).slice(0, 20), env: d.env && typeof d.env === 'object' ? d.env : (rsp && rsp.env) || null,
+          supprime: !!d.supprime, auteur: rsp ? rsp.auteur : e.by, cree: rsp ? rsp.cree : e.at, le: e.at, par: e.by, evt: e.id };
+        break;
       case 'ALERTE_VUE':
         if (st.alertes[d.alerte]) st.alertes[d.alerte].vue = d.annule ? null : { par: e.by, le: e.at, evt: e.id };
         break;
     }
   }
   function reduire(evts) {
-    return N.reduire(evts, { cle: 'agenda', etat: function () { return { rdv: {}, taches: {}, absences: {}, alertes: {}, avis: [], perso: {}, partagees: {} }; }, appliquer: appliquer });
+    return N.reduire(evts, { cle: 'agenda', etat: function () { return { rdv: {}, taches: {}, absences: {}, alertes: {}, avis: [], perso: {}, partagees: {}, rdvPerso: {}, rdvPartages: {} }; }, appliquer: appliquer });
   }
 
   /** Services sur lesquels agit une saisie de l'Agenda (activation du module par service). */
@@ -953,7 +968,11 @@
   function permisPourSoi(type, data, compte, ctx) {
     if (type === 'COMMENTAIRE') return !!compte && !!data && !data.supprime;   // retrait : annulation depuis le journal
     if (type === 'INSCRIPTION') return !!compte && !!data && data.agent === compte.id;   // chacun s'inscrit lui-même
-    if (type === 'TACHE_PERSO') return !!compte && !!data && data.agent === compte.id;   // sa propre liste de tâches
+    if (type === 'TACHE_PERSO' || type === 'RDV_PERSO') return !!compte && !!data && data.agent === compte.id;   // sa propre liste de tâches, ses rendez-vous
+    if (type === 'RDV_PARTAGE') {   // rendez-vous partagé : ses participants (24 novembre 2026)
+      var rx = ctx && ctx.etat && ctx.etat.rdvPartages && data && ctx.etat.rdvPartages[data.id];
+      return !!compte && !!data && Array.isArray(data.participants) && (rx ? rx.participants.indexOf(compte.id) >= 0 : data.participants.indexOf(compte.id) >= 0);
+    }
     if (type === 'TACHE_PARTAGEE') {   // tâche partagée : ses participants (23 novembre 2026)
       var tx = ctx && ctx.etat && ctx.etat.partagees && data && ctx.etat.partagees[data.id];
       return !!compte && !!data && Array.isArray(data.participants) && (tx ? tx.participants.indexOf(compte.id) >= 0 : data.participants.indexOf(compte.id) >= 0);
@@ -977,6 +996,9 @@
   function liens(l) { return (Array.isArray(l) ? l : []).map(lien).filter(Boolean).slice(0, MAX_LIENS); }
   /** Tâches partagées dont l'agent est participant (contenu chiffré), hors retirées. */
   function tachesPartagees(st, agent) { return Object.keys((st && st.partagees) || {}).map(function (k) { return st.partagees[k]; }).filter(function (t) { return !t.supprime && t.participants.indexOf(agent) >= 0; }); }
+  /** Rendez-vous personnels d'un agent et rendez-vous partagés dont il est participant (contenu chiffré), hors retirés. */
+  function rdvPerso(st, agent) { return Object.keys((st && st.rdvPerso) || {}).map(function (k) { return st.rdvPerso[k]; }).filter(function (t) { return t.agent === agent && !t.supprime; }); }
+  function rdvPartages(st, agent) { return Object.keys((st && st.rdvPartages) || {}).map(function (k) { return st.rdvPartages[k]; }).filter(function (t) { return !t.supprime && t.participants.indexOf(agent) >= 0; }); }
   /** Tâches personnelles d'un agent (contenu chiffré), hors retirées. */
   function tachesPerso(st, agent) { return Object.keys((st && st.perso) || {}).map(function (k) { return st.perso[k]; }).filter(function (t) { return t.agent === agent && !t.supprime; }); }
 
@@ -993,6 +1015,21 @@
       if (!d.supprime && d.participants.length < 2) throw new Error('Une tâche partagée réunit au moins deux personnes.');
       if (d.participants.length > 20) throw new Error('Vingt participants au plus.');
       if (!d.supprime && (!d.env || typeof d.env !== 'object' || typeof d.env.ct !== 'string' || d.env.ct.length > 60000)) throw new Error('Tâche partagée mal formée.');
+      return;
+    }
+    if (type === 'RDV_PARTAGE') {
+      var rx = ctx.etat && ctx.etat.rdvPartages && ctx.etat.rdvPartages[d.id], cr = ctx.compte;
+      if (!/^RS[0-9a-f]{8,24}$/.test(d.id || '') || !Array.isArray(d.participants) || !cr) throw new Error('Rendez-vous partagé mal formé.');
+      if (rx ? rx.participants.indexOf(cr.id) < 0 : d.participants.indexOf(cr.id) < 0) throw new Error('Seuls les participants modifient un rendez-vous partagé.');
+      if (!d.supprime && d.participants.length < 2) throw new Error('Un rendez-vous partagé réunit au moins deux personnes.');
+      if (d.participants.length > 20) throw new Error('Vingt participants au plus.');
+      if (!d.supprime && (!d.env || typeof d.env !== 'object' || typeof d.env.ct !== 'string' || d.env.ct.length > 60000)) throw new Error('Rendez-vous partagé mal formé.');
+      return;
+    }
+    if (type === 'RDV_PERSO') {
+      var rp = ctx.etat && ctx.etat.rdvPerso && ctx.etat.rdvPerso[d.id], cq = ctx.compte;
+      if (!/^RP[0-9a-f]{8,24}$/.test(d.id || '') || !cq || d.agent !== cq.id || (rp && rp.agent !== cq.id)) throw new Error('Un rendez-vous personnel n’appartient qu’à son agent.');
+      if (!d.supprime && (typeof d.chiffre !== 'string' || !d.chiffre || d.chiffre.length > 40000)) throw new Error('Rendez-vous personnel mal formé.');
       return;
     }
     if ((type === 'RDV' || type === 'TACHE' || type === 'TACHE_EQUIPE') && d.liens !== undefined && (!Array.isArray(d.liens) || d.liens.length > MAX_LIENS || liens(d.liens).length !== d.liens.length)) throw new Error('Éléments liés mal formés.');
@@ -1052,7 +1089,7 @@
     icone: 'AG',
     acces: ACCES,
     droits: D,
-    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['TACHE_PARTAGEE'], controler: controler,
+    saisies: { types: TYPES, champ: function () { return null; }, cibles: cibles, reduire: reduire, permisPourSoi: permisPourSoi, pourSoiSelonEtat: ['TACHE_PARTAGEE', 'RDV_PARTAGE'], controler: controler,
       services: function (st, e) { return cibles(st, e); } },
     reglages: { defaut: {}, groupes: [], exclus: [], cadre: { agendaReglages: controlerCadreReglages } },
     // Onglet « Tâches du service » : affiché à qui peut régler les tâches (décision du porteur du 7 novembre 2026)
@@ -1091,6 +1128,6 @@
     libelleRepetition: libelleRepetition, accompagnateurs: accompagnateurs, placesPatients: placesPatients, rolesConfirmation: rolesConfirmation, reglagesService: reglagesService, suggestions: suggestions, tachesSuggerees: tachesSuggerees, SUGGESTIONS_DEFAUT: SUGGESTIONS_DEFAUT, EVENEMENTS_SUGGESTION: EVENEMENTS_SUGGESTION, processusPermission: processusPermission, tachesPermission: tachesPermission, permissions: Pm, partageDefaut: partageDefaut, PARTAGES: PARTAGES, echangesIcs: echangesIcs, controlerCadreReglages: controlerCadreReglages, aRepondre: aRepondre, aConfirmer: aConfirmer, patientsManquants: patientsManquants, participants: P, modeAu: modeAu, delaiPermission: delaiPermission, permissionsAValider: permissionsAValider,
     enAttente: enAttente, PREREGLAGES_DEFAUT: PREREGLAGES_DEFAUT, categories: categories, categorie: categorie, baseDe: baseDe, nettoyerPrereglages: nettoyerPrereglages, typesEnAttente: typesEnAttente, ATTENTE_DEFAUT: ATTENTE_DEFAUT, CHAMPS_OCCURRENCE: CHAMPS_OCCURRENCE, rdvOccurrence: rdvOccurrence, TRANSPORTS: TRANSPORTS, TYPES_VALIDATION: TYPES_VALIDATION, EXAMENS: EXAMENS, validationsDe: validationsDe, etatValidations: etatValidations, statutPermission: statutPermission,
     aFaireValider: aFaireValider, etatTransports: etatTransports, transportsAReserver: transportsAReserver, accompagnateursManquants: accompagnateursManquants, avisPour: avisPour, CHECKLISTS_DEFAUT: CHECKLISTS_DEFAUT, regularite: regularite, datesOccurrences: datesOccurrences, occurrences: occurrences,
-    alertesEquipe: alertesEquipe, alertePour: alertePour, occupationsSalles: occupationsSalles, evenementsPatients: evenementsPatients, limiteAuxSiens: limiteAuxSiens, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda,
+    alertesEquipe: alertesEquipe, alertePour: alertePour, occupationsSalles: occupationsSalles, evenementsPatients: evenementsPatients, limiteAuxSiens: limiteAuxSiens, reunionsAVenir: reunionsAVenir, monAgenda: monAgenda, rdvPerso: rdvPerso, rdvPartages: rdvPartages,
     etatChecklist: etatChecklist, checklists: checklists, alertesChecklists: alertesChecklists, optionsTaches: optionsTaches, AJUSTABLES: AJUSTABLES, affectation: affectation, controler: controler, tachePour: tachePour, tachesDues: tachesDues, absences: absences, prevusAbsents: prevusAbsents, jourISO: jourISO, depuisISO: depuisISO };
 });

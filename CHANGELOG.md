@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.93.0 — 24 novembre 2026
+
+**Synchronisation de l'agenda dans les deux sens, fréquence réglable** (demande du porteur du 24 novembre 2026).
+- **Agenda personnel** dans Mon agenda : « + Rendez-vous » (journée entière possible, lieu, note), chiffré par la clé de liste de l'agent ; **rendez-vous partagés** avec un ou plusieurs collègues, chiffrés pour les seuls participants.
+- **Dans les deux sens** avec l'agenda « Tessera — agenda » de la messagerie et le téléphone : un rendez-vous créé, modifié ou supprimé d'un côté l'est de l'autre ; un événement créé sur le téléphone dans cet agenda devient un rendez-vous personnel. Éléments du service : l'horaire modifié sur le téléphone revient dans Tessera si l'agent a le droit de le modifier ; le reste est remis comme dans Tessera.
+- **Fréquence de la synchronisation** choisie par chaque agent : de toutes les minutes à toutes les heures (3 minutes par défaut), ou à la demande seulement.
+- Démonstration : rendez-vous personnels et partagé. Tests : agenda dans les deux sens, rendez-vous ; parcours des écrans complété. Documentation reportée (`docs/a-documenter.md`).
+
 ## 0.92.0 — 24 novembre 2026
 
 **Synchronisation de Mes tâches et de Mon agenda avec l'agenda de la messagerie (Zimbra…) et le téléphone (DAVx5)** (demande du porteur du 24 novembre 2026).

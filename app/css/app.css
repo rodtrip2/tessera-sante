@@ -1438,6 +1438,8 @@ fieldset.role > legend.repliable-titre { font-weight: 600; }
 /* Agenda importé (.ics), lecture seule, lot A (14 novembre 2026) */
 .agenda-element.agenda-importe { border: 1px dashed var(--ink-2); background: transparent; cursor: default; opacity: .9; }
 .agenda-element.agenda-importe b { font-weight: 600; }
+.agenda-element.agenda-perso { border-left: 4px solid var(--accent); background: var(--accent-soft); }
+.agenda-element.agenda-perso .btn.lien { text-align: left; font-weight: 600; padding: 0; white-space: normal; overflow-wrap: anywhere; }
 
 /* Module Contrôles : CSI libres et surveillance (lot B, 14 novembre 2026) */
 .controles-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }

@@ -126,11 +126,11 @@ Un administrateur du serveur peut toujours modifier le dossier : c'est la limite
 
 Fonction soumise à avis (« Synchronisation de Mes tâches et de Mon agenda avec l'agenda de la messagerie », onglet *Validations*), **livrée désactivée**. Elle permet à chaque agent qui le choisit de retrouver ses tâches et son agenda Tessera dans l'agenda de la messagerie de l'établissement (Zimbra ou tout serveur CalDAV), puis sur son téléphone avec l'application DAVx5, qu'il utilise peut-être déjà pour sa messagerie :
 
-- **Mes tâches** (personnelles et partagées) : liste « Tessera — tâches », dans les deux sens (une tâche cochée ou ajoutée sur le téléphone revient dans Tessera) ;
-- **Mon agenda** : agenda « Tessera — agenda », copie en lecture seule, **sans identité de patient** (type, lieu, horaire) ;
+- **Mes tâches** (personnelles et partagées) : liste « Tessera — tâches », dans les deux sens (une tâche cochée, modifiée, ajoutée ou supprimée sur le téléphone revient dans Tessera) ;
+- **Mon agenda** : agenda « Tessera — agenda », dans les deux sens : rendez-vous personnels et partagés (créés, modifiés ou supprimés d'un côté ou de l'autre), éléments du service où l'agent est prévu, **sans identité de patient** (type, lieu, horaire), dont seul l'horaire revient du téléphone, si l'agent peut le modifier dans Tessera ;
 - l'agenda de la messagerie peut être affiché dans *Mon agenda* (lecture seule, jamais copié sur le partage).
 
-Le navigateur de l'agent échange **directement** avec le serveur de messagerie, dans le réseau de l'hôpital, pendant que Tessera est ouvert (à l'ouverture puis toutes les 3 minutes) : aucun service extérieur, aucun serveur à installer. Trois réglages sont nécessaires.
+Le navigateur de l'agent échange **directement** avec le serveur de messagerie, dans le réseau de l'hôpital, pendant que Tessera est ouvert (à l'ouverture, puis à la fréquence choisie par l'agent : de toutes les minutes à toutes les heures, 3 minutes par défaut, ou à la demande seulement) : aucun service extérieur, aucun serveur à installer. Trois réglages sont nécessaires.
 
 **1. Autoriser le serveur dans Tessera.** Par défaut, Tessera ne peut joindre aucune adresse (règle `connect-src 'none'`). Le script de mise à jour ajoute l'adresse du serveur, et elle seule, à cette règle :
 

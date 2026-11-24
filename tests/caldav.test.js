@@ -158,33 +158,100 @@ test('CalDAV : conflit (modifiée des deux côtés) : la plus récente l’empor
   assert.ok(L.t.TPc3);
 });
 
-test('CalDAV : Mon agenda copié en lecture seule (sans patient), remis à l’identique, retiré ; agenda de la messagerie lu', async () => {
+/** Agenda local en mémoire : rendez-vous personnels (cle perso-…) et éléments de l'Agenda (cle agenda-…). */
+function agendaLocal(initiaux) {
+  let n = 0;
+  const e = {}, journal = [];
+  (initiaux || []).forEach((x) => { e[x.cle] = Object.assign({ le: new Date(MAINTENANT - 3600e3).toISOString(), note: '', lieu: '' }, x); });
+  return {
+    e, journal,
+    api: {
+      lister: async (debut, fin) => Object.values(e).filter((x) => x.genre === 'perso' ? x.fin >= debut : x.debut < fin && x.fin >= debut).map((x) => Object.assign({}, x)),
+      enregistrer: async (cle, x, loc) => {
+        if (loc.genre !== 'perso' && !loc.modifiable) throw new Error('refusé');
+        journal.push([cle, x]);
+        e[cle] = Object.assign({}, e[cle], loc.genre === 'perso' ? x : { debut: x.debut, fin: x.fin }, { le: new Date().toISOString() });
+      },
+      creer: async (x) => { const cle = 'perso-RPnouv' + (++n); e[cle] = Object.assign({}, x, { cle, le: new Date().toISOString() }); return cle; },
+      retirer: async (cle) => { delete e[cle]; }
+    }
+  };
+}
+const ics = (srv, k) => srv.elements[k].ics;
+const majIcs = (texte, f) => f(texte).replace(/LAST-MODIFIED:[^\r]+/, 'LAST-MODIFIED:' + new Date(MAINTENANT + 60e3).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, ''));
+
+test('CalDAV : VEVENT ↔ événement (journée entière, durée, note, identifiant du téléphone gardé)', () => {
+  const e = { cle: 'perso-RPaa11bb22', debut: new Date(2026, 10, 26, 14, 0).getTime(), fin: new Date(2026, 10, 26, 15, 30).getTime(), titre: 'Rendez-vous (fictif)', lieu: 'Bureau 2', note: 'Apporter le dossier' };
+  const t = D.ecrireEvenement(e, { maintenant: MAINTENANT });
+  assert.ok(!/METHOD:/.test(t));
+  const l = D.lireEvenement(t);
+  assert.equal(D.empreinteEvt(l), D.empreinteEvt(e));
+  assert.equal(D.cleDeUid(l.uid), 'perso-RPaa11bb22');
+  assert.equal(D.cleDeUid('tessera-tache-TP1@tessera-sante'), null);
+  assert.match(D.ecrireEvenement(e, { uid: 'abc@telephone' }), /UID:abc@telephone/);
+  const j = D.lireEvenement('BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x\r\nDTSTART;VALUE=DATE:20261201\r\nDTEND;VALUE=DATE:20261202\r\nSUMMARY:Congé (fictif)\r\nBEGIN:VALARM\r\nDESCRIPTION:pas le titre\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR');
+  assert.deepEqual([j.journee, j.fin - j.debut, j.titre], [true, 864e5, 'Congé (fictif)']);
+  const d = D.lireEvenement('BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:y\r\nDTSTART:20261201T090000Z\r\nDURATION:PT45M\r\nRRULE:FREQ=WEEKLY\r\nEND:VEVENT\r\nEND:VCALENDAR');
+  assert.deepEqual([d.fin - d.debut, d.repete], [45 * 60e3, true]);
+});
+
+test('CalDAV : agenda dans les deux sens (rendez-vous personnels : modification, création, suppression ; éléments de l’Agenda : horaire seulement)', async () => {
   const srv = D.serveurSimule({ agents: [{ identifiant: 'agent', motDePasse: 'secret' }] });
   const c = D.Client({ adresse: D.adresseZimbra(srv.origine, 'agent'), identifiant: 'agent', motDePasse: 'secret', fetch: srv.fetch });
-  const j = (n, h) => new Date(2026, 10, 24 + n, h).getTime();
-  let evts = [
-    { cle: 'agenda-R1-2026-11-25', debut: j(1, 10), fin: j(1, 11), titre: 'Réunion d’équipe', lieu: 'Salle 2' },
-    { cle: 'absence-A1', debut: j(3, 0), fin: j(4, 0), journee: true, titre: 'Absence' }];
-  const ev = async () => evts;
+  const j = (n, h, m) => new Date(2026, 10, 24 + n, h, m || 0).getTime();
+  const L = agendaLocal([
+    { cle: 'perso-RP000000a1', genre: 'perso', debut: j(1, 10), fin: j(1, 11), titre: 'Rendez-vous banque (fictif)' },
+    { cle: 'agenda-R1-2026-11-26', genre: 'service', debut: j(2, 14), fin: j(2, 15), titre: 'Réunion d’équipe', lieu: 'Salle 2', modifiable: true },
+    { cle: 'absence-A1', genre: 'service', debut: j(3, 0), fin: j(4, 0), journee: true, titre: 'Absence', modifiable: false }]);
   srv.ajouter('/dav/agent/Calendar/perso.ics', 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:perso\r\nDTSTART:20261126T120000Z\r\nDTEND:20261126T130000Z\r\nSUMMARY:Déjeuner formation (fictif)\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n');
-  let r = await D.synchroniser({ client: c, config: { agenda: true, afficher: srv.origine + '/dav/agent/Calendar/' }, evenements: ev, maintenant: MAINTENANT });
+  let r = await D.synchroniser({ client: c, config: { agenda: true, afficher: srv.origine + '/dav/agent/Calendar/' }, agenda: L.api, maintenant: MAINTENANT });
   let cfg = r.config;
-  assert.equal(r.resume.evenements.envoyes, 2);
+  assert.equal(r.resume.evenements.envoyes, 3);
   assert.deepEqual(r.resume.affiches.map((e) => e.objet), ['Déjeuner formation (fictif)']);
-  const k = Object.keys(srv.elements).filter((x) => x.includes('/tessera-agenda/'));
-  assert.equal(k.length, 2);
-  assert.ok(k.every((x) => !/METHOD:/.test(srv.elements[x].ics)));
-  // Modifié sur le téléphone : remis à l'identique ; rien d'autre à envoyer
-  srv.modifier(srv.origine + k.find((x) => x.includes('R1')), (ics) => ics.replace('Réunion d’équipe', 'Changé'));
-  r = await D.synchroniser({ client: c, config: cfg, evenements: ev, maintenant: MAINTENANT });
+  const cle = (s) => Object.keys(srv.elements).find((k) => k.includes('/tessera-agenda/') && k.includes(s));
+  r = await D.synchroniser({ client: c, config: cfg, agenda: L.api, maintenant: MAINTENANT });
+  assert.equal(r.resume.evenements.envoyes + r.resume.evenements.recus, 0, 'stable');
   cfg = r.config;
-  assert.equal(r.resume.evenements.envoyes, 1);
-  assert.match(srv.elements[k.find((x) => x.includes('R1'))].ics, /Réunion d’équipe/);
-  // Retiré de Tessera : retiré de la messagerie ; un événement créé par l'agent dans cet agenda n'est jamais touché
-  srv.ajouter('/dav/agent/tessera-agenda/a-moi.ics', 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:a-moi\r\nDTSTART:20261126T120000Z\r\nSUMMARY:x\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n');
-  evts = evts.slice(1);
-  r = await D.synchroniser({ client: c, config: cfg, evenements: ev, maintenant: MAINTENANT });
-  assert.equal(r.resume.evenements.retires, 1);
-  assert.ok(srv.elements['/dav/agent/tessera-agenda/a-moi.ics']);
-  assert.equal(Object.keys(srv.elements).filter((x) => x.includes('/tessera-agenda/')).length, 2);
+
+  // Téléphone : rendez-vous personnel déplacé et renommé ; réunion décalée d'une heure (titre changé aussi) ; absence décalée ; nouvel événement
+  srv.modifier(srv.origine + cle('RP000000a1'), (t) => majIcs(t, (x) => x.replace('Rendez-vous banque (fictif)', 'Banque, guichet (fictif)').replace(/DTSTART:[^\r]+/, 'DTSTART:20261125T100000Z').replace(/DTEND:[^\r]+/, 'DTEND:20261125T110000Z')));
+  srv.modifier(srv.origine + cle('agenda-R1'), (t) => majIcs(t, (x) => x.replace('Réunion d’équipe', 'Changé').replace(/DTSTART:[^\r]+/, 'DTSTART:' + new Date(j(2, 15)).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')).replace(/DTEND:[^\r]+/, 'DTEND:' + new Date(j(2, 16)).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, ''))));
+  srv.modifier(srv.origine + cle('absence-A1'), (t) => majIcs(t, (x) => x.replace('DTSTART;VALUE=DATE:20261127', 'DTSTART;VALUE=DATE:20261128')));
+  srv.ajouter('/dav/agent/tessera-agenda/tel.ics', 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:tel-1@telephone\r\nDTSTART:20261130T080000Z\r\nDTEND:20261130T090000Z\r\nSUMMARY:Dentiste (fictif)\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n');
+  r = await D.synchroniser({ client: c, config: cfg, agenda: L.api, maintenant: MAINTENANT });
+  cfg = r.config;
+  assert.equal(L.e['perso-RP000000a1'].titre, 'Banque, guichet (fictif)');
+  assert.equal(L.e['perso-RP000000a1'].debut, Date.UTC(2026, 10, 25, 10));
+  assert.equal(L.e['agenda-R1-2026-11-26'].debut, j(2, 15), 'horaire de la réunion repris');
+  assert.equal(L.e['agenda-R1-2026-11-26'].titre, 'Réunion d’équipe');
+  assert.match(ics(srv, cle('agenda-R1')), /Réunion d’équipe/, 'titre remis comme dans Tessera');
+  assert.equal(L.e['absence-A1'].debut, j(3, 0), 'absence : non modifiable, remise');
+  assert.match(ics(srv, cle('absence-A1')), /DTSTART;VALUE=DATE:20261127/);
+  const dent = Object.values(L.e).find((x) => x.titre === 'Dentiste (fictif)');
+  assert.ok(dent && dent.genre === 'perso');
+  assert.deepEqual([r.resume.evenements.recus, r.resume.evenements.crees], [2, 1]);
+  r = await D.synchroniser({ client: c, config: cfg, agenda: L.api, maintenant: MAINTENANT });
+  assert.equal(r.resume.evenements.envoyes + r.resume.evenements.recus + r.resume.evenements.crees, 0, 'stable après la reprise');
+  cfg = r.config;
+  // Rendez-vous créé sur le téléphone puis modifié dans Tessera : renvoyé avec l'identifiant du téléphone
+  const cDent = Object.keys(L.e).find((k) => L.e[k].titre === 'Dentiste (fictif)');
+  L.e[cDent] = Object.assign({}, L.e[cDent], { lieu: 'Cabinet (fictif)', le: new Date().toISOString() });
+  r = await D.synchroniser({ client: c, config: cfg, agenda: L.api, maintenant: MAINTENANT });
+  cfg = r.config;
+  assert.match(ics(srv, '/dav/agent/tessera-agenda/tel.ics'), /UID:tel-1@telephone[\s\S]*LOCATION:Cabinet \(fictif\)/);
+
+  // Suppressions : rendez-vous personnel supprimé sur le téléphone → retiré de Tessera ; réunion supprimée → remise ;
+  // absence retirée de Tessera → retirée du téléphone ; événement passé laissé en place
+  srv.modifier(srv.origine + cle('RP000000a1'), () => null);
+  srv.modifier(srv.origine + cle('agenda-R1'), () => null);
+  delete L.e['absence-A1'];
+  r = await D.synchroniser({ client: c, config: cfg, agenda: L.api, maintenant: MAINTENANT });
+  cfg = r.config;
+  assert.ok(!L.e['perso-RP000000a1']);
+  assert.ok(cle('agenda-R1'), 'réunion remise sur le téléphone');
+  assert.ok(!cle('absence-A1'));
+  assert.deepEqual([r.resume.evenements.retiresIci, r.resume.evenements.retires], [1, 1]);
+  const plus = await D.synchroniser({ client: c, config: cfg, agenda: L.api, maintenant: MAINTENANT + 30 * 864e5 });
+  assert.ok(cle('agenda-R1'), 'passé : laissé sur le serveur');
+  assert.equal(plus.resume.evenements.retires, 0);
 });

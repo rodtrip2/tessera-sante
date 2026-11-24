@@ -1214,6 +1214,19 @@
           var stD0 = session.etatModule && session.etatModule('documents'), docReg = Object.keys((stD0 && stD0.docs) || {})[0];
           if (docReg) await tp(-30, { titre: 'Relire le document avant la réunion (fictif)', echeance: jC(-3), heure: '', rappel: '', note: '', element: { module: 'documents', genre: 'document', id: docReg, service: '' }, fait: true, faitLe: new Date(Date.now() - 2 * 864e5).toISOString() });
           await session.enregistrerLot(lotT, { libelle: 'Tâches personnelles fictives', by: moiT.id, sansControle: true });
+          // Agenda personnel (24 novembre 2026) : rendez-vous personnels, dont une journée entière, et un rendez-vous partagé
+          var lotR = [], nR = 0, aH = function (j, hh, mm) { var d = new Date(); d.setHours(hh, mm || 0, 0, 0); d.setDate(d.getDate() + j); return d.getTime(); };
+          var rp = async function (h0, c) { lotR.push({ at: at(h0), by: moiT.id, type: 'RDV_PERSO', data: { id: 'RP0000de' + String(++nR).padStart(4, '0'), agent: moiT.id, chiffre: await session.chiffrerPersonnel('rdv', c) } }); };
+          await rp(-30, { titre: 'Rendez-vous avec le cadre supérieur (fictif)', debut: aH(1, 11, 0), fin: aH(1, 11, 45), journee: false, lieu: 'Bureau du pôle', note: 'Bilan du pilote Tessera.' });
+          await rp(-30, { titre: 'Jury de concours (fictif)', debut: aH(3, 0, 0), fin: aH(4, 0, 0), journee: true, lieu: 'Institut de formation (fictif)', note: '' });
+          try {
+            var autre = (session.comptes || []).filter(function (c) { return c.id !== moiT.id && c.id !== 'secours' && c.actif !== false && !session.clesEnveloppeManquantes(['t-a.' + c.id]).length; })[0];
+            if (autre) {
+              var psR = [moiT.id, autre.id];
+              lotR.push({ at: at(-12), by: moiT.id, type: 'RDV_PARTAGE', data: { id: 'RS0000de0001', participants: psR, env: await session.chiffrerEnveloppe('rdv:RS0000de0001', psR.map(function (x) { return 't-a.' + x; }), { titre: 'Point sur l’accueil des stagiaires (fictif)', debut: aH(2, 14, 0), fin: aH(2, 14, 30), journee: false, lieu: 'Bureau infirmier', note: '' }) } });
+            }
+          } catch (e) { /* démonstration sans rendez-vous partagé */ }
+          await session.enregistrerLot(lotR, { libelle: 'Rendez-vous personnels fictifs', by: moiT.id, sansControle: true });
         }
         // Classement personnel (lot I, 14 novembre 2026) : favori, étiquettes personnelle et commune, dossiers et sous-dossier
         if (moiT && session.enregistrerPreference) {

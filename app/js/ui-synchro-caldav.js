@@ -1,21 +1,24 @@
 // SPDX-License-Identifier: EUPL-1.2
 /*
  * Synchronisation de Mes tâches et de Mon agenda avec l'agenda de la messagerie (Zimbra…), puis le téléphone par
- * DAVx5 (24 novembre 2026, décisions du porteur : tâches personnelles et partagées, Mon agenda ; mot de passe
+ * DAVx5 (24 novembre 2026, décisions du porteur : tâches personnelles et partagées, agenda personnel et rendez-vous
+ * partagés, Mon agenda, dans les deux sens ; fréquence réglable ; mot de passe
  * mémorisable mais redemandé dès que le serveur le refuse ; adresse du serveur autorisée par le script de mise à jour).
  *
  * Fonction soumise à avis « synchro-caldav », livrée désactivée (onglet Validations). Chaque agent la règle pour
  * lui-même (bouton « Synchronisation… » de Mes tâches et de Mon agenda) ; ses réglages vont dans ses préférences,
  * rangées chiffrées sur le partage, jamais au journal. Le mot de passe de la messagerie est gardé en mémoire pendant
  * la session ; s'il le choisit, l'agent le fait mémoriser, chiffré par sa clé de liste (lisible de lui seul).
- * Synchronisation à l'ouverture de Tessera puis toutes les 3 minutes tant que Tessera est ouvert, et à la demande.
+ * Synchronisation à l'ouverture de Tessera, puis à la fréquence choisie par l'agent (3 minutes par défaut, de 1 minute à
+ * une heure, ou à la demande seulement) tant que Tessera est ouvert, et à la demande.
  * Logique et protocole : caldav.js. Mode démonstration : serveur simulé dans le navigateur (données fictives).
  */
 (function () {
   'use strict';
   var SIC = self.SIC, U = SIC.ui, h = U.h, D = SIC.caldav, A = SIC.agenda;
-  var CODE = 'synchro-caldav', USAGE = 'caldav', INTERVALLE = 3 * 60000;
-  var etat = { mdp: null, enCours: false, derniere: null, resume: null, erreur: null, mdpRefuse: false, demande: false, couche: null, coucheVisible: true, simule: null };
+  var CODE = 'synchro-caldav', USAGE = 'caldav', INTERVALLE_DEFAUT = 3;
+  var INTERVALLES = [[1, 'Toutes les minutes'], [2, 'Toutes les 2 minutes'], [3, 'Toutes les 3 minutes'], [5, 'Toutes les 5 minutes'], [10, 'Toutes les 10 minutes'], [15, 'Toutes les 15 minutes'], [30, 'Toutes les 30 minutes'], [60, 'Toutes les heures'], [0, 'À la demande seulement (bouton « Synchroniser maintenant »)']];
+  var etat = { essai: 0, mdp: null, enCours: false, derniere: null, resume: null, erreur: null, mdpRefuse: false, demande: false, couche: null, coucheVisible: true, simule: null };
 
   function s() { return U.App.session; }
   function demo() { return !!(U.App.dossier && U.App.dossier.mode === 'demo'); }
@@ -74,11 +77,44 @@
   // ------------------------------------------------------------ Synchronisation
   async function enregistrerReglages(r) { await s().enregistrerPreference('caldav', r); }
   function sansMemoire(r) { var c = Object.assign({}, r); delete c.memTaches; delete c.memEvts; return c; }
+  /** Intervalle de synchronisation choisi par l'agent, en minutes (0 : à la demande seulement). */
+  function intervalle(r) { var v = r && r.intervalle; return INTERVALLES.some(function (x) { return x[0] === v; }) ? v : INTERVALLE_DEFAUT; }
   function evenements(debut, fin) {
     var I = U.agendaInt, svs = s().mesServices().map(function (x) { return x.code || x; }), o = A.echangesIcs(U.config(), svs);
     if (!I || !I.evenementsExport || !o.exporter) return [];
     return I.evenementsExport(debut, fin, ['agenda', 'absences', 'salles'], o.services);
   }
+  /** Élément de l'Agenda d'une clé d'export (agenda-<id>-<date>) : { r, occurrence, repete } ou null. */
+  function elementDe(cle) {
+    var m = /^agenda-(.+)-(\d{4}-\d{2}-\d{2})$/.exec(cle || ''), e = null;
+    try { e = s().etatModule('agenda'); } catch (x) { e = null; }
+    var r = m && e && e.rdv && e.rdv[m[1]];
+    return r && !r.supprime ? { r: r, occurrence: m[2], repete: A.regularite(r.regularite).type !== 'aucune' } : null;
+  }
+  /**
+   * Agenda pour la synchronisation, dans les deux sens : rendez-vous personnels et partagés (tout modifiable), éléments
+   * de Mon agenda (seul l'horaire revient, s'il est permis à l'agent ; absences et salles remises comme dans Tessera).
+   */
+  var agendaSynchro = {
+    lister: async function (debut, fin) {
+      var res = U.mesRdv && U.mesRdv.disponible() ? await U.mesRdv.pourSynchro.lister(debut) : [];
+      evenements(debut, fin).forEach(function (e) {
+        var x = elementDe(e.cle), modifiable = false;
+        try { modifiable = !!x && s().peut(x.repete ? 'OCCURRENCE' : 'RDV'); } catch (er) { modifiable = false; }
+        res.push({ cle: e.cle, genre: 'service', debut: e.debut, fin: e.fin, journee: !!e.journee, titre: e.titre || '', lieu: e.lieu || '', note: '', modifiable: modifiable });
+      });
+      return res;
+    },
+    enregistrer: async function (cle, x, loc) {
+      if (loc.genre === 'perso') return U.mesRdv.pourSynchro.enregistrer(cle, x);
+      var el = elementDe(cle);
+      if (!el || !loc.modifiable) throw new Error('Horaire non modifiable.');
+      if (el.repete) await s().enregistrer('OCCURRENCE', { rdv: el.r.id, occurrence: el.occurrence, debut: x.debut, fin: x.fin });
+      else await s().enregistrer('RDV', { id: el.r.id, service: el.r.service, debut: x.debut, fin: x.fin });
+    },
+    creer: function (x) { return U.mesRdv.pourSynchro.creer(x); },
+    retirer: function (cle) { return U.mesRdv.pourSynchro.retirer(cle); }
+  };
   function texteResume(x) {
     var t = x.taches, e = x.evenements, l = [];
     if (t.envoyees) l.push(t.envoyees + ' tâche(s) envoyée(s)');
@@ -87,7 +123,13 @@
     if (t.retireesIci) l.push(t.retireesIci + ' supprimée(s) sur le téléphone, retirée(s) de vos tâches');
     if (t.retireesLa) l.push(t.retireesLa + ' retirée(s) du téléphone');
     if (t.reportees) l.push(t.reportees + ' reportée(s) à la prochaine fois');
-    if (e.envoyes || e.retires) l.push((e.envoyes ? e.envoyes + ' événement(s) envoyé(s)' : '') + (e.envoyes && e.retires ? ', ' : '') + (e.retires ? e.retires + ' retiré(s)' : ''));
+    if (e.envoyes) l.push(e.envoyes + ' événement(s) envoyé(s)');
+    if (e.recus) l.push(e.recus + ' événement(s) modifié(s) sur le téléphone');
+    if (e.crees) l.push(e.crees + ' rendez-vous ajouté(s) depuis le téléphone');
+    if (e.retiresIci) l.push(e.retiresIci + ' rendez-vous supprimé(s) sur le téléphone, retiré(s) de Mon agenda');
+    if (e.retires) l.push(e.retires + ' événement(s) retiré(s) du téléphone');
+    if (e.remis) l.push(e.remis + ' changement(s) d’un élément du service non repris (remis comme dans Tessera)');
+    if (e.reportes) l.push(e.reportes + ' événement(s) reporté(s) à la prochaine fois');
     return l.join(' ; ');
   }
   /**
@@ -105,15 +147,15 @@
       if (o.interactif) return demanderMdp(etat.mdpRefuse ? 'Le mot de passe a été refusé par la messagerie (il a peut-être changé). Saisissez le nouveau.' : null);
       return null;
     }
-    etat.enCours = true;
+    etat.enCours = true; etat.essai = Date.now();
     try {
-      var res = await D.synchroniser({ client: client(r, mdp), config: r, taches: U.mesTaches.pourSynchro, evenements: evenements, nomAgent: s().compteEffectif().nom, maintenant: Date.now() });
+      var res = await D.synchroniser({ client: client(r, mdp), config: r, taches: U.mesTaches.pourSynchro, agenda: agendaSynchro, nomAgent: s().compteEffectif().nom, maintenant: Date.now() });
       etat.mdp = mdp; etat.erreur = null; etat.derniere = Date.now(); etat.resume = res.resume;
       etat.couche = r.afficher && res.resume.affiches ? { nom: r.nomAffiche || 'Agenda de la messagerie', evenements: res.resume.affiches } : null;
       if (JSON.stringify(res.config) !== JSON.stringify(r)) { try { await enregistrerReglages(res.config); } catch (e) { /* réglages repris à la prochaine fois */ } }
       var txt = texteResume(res.resume);
       if (o.interactif) U.toast('Synchronisation faite' + (txt ? ' : ' + txt : ' : rien à changer') + '.');
-      else if (res.resume.taches.recues || res.resume.taches.creees || res.resume.taches.retireesIci) U.toast('Messagerie : ' + txt + '.');
+      else if (res.resume.taches.recues || res.resume.taches.creees || res.resume.taches.retireesIci || res.resume.evenements.recus || res.resume.evenements.crees || res.resume.evenements.retiresIci) U.toast('Messagerie : ' + txt + '.');
       U.rendreContenu();
       return res.resume;
     } catch (e) {
@@ -147,6 +189,7 @@
     var mdp = h('input', { type: 'password', autocomplete: 'off', maxlength: 200, 'aria-label': 'Mot de passe de la messagerie', placeholder: r0.actif ? 'Inchangé' : '' });
     var memo = h('input', { type: 'checkbox', checked: !!r0.mdpChiffre });
     var taches = h('input', { type: 'checkbox', checked: r0.actif ? !!r0.taches : true }), agenda = h('input', { type: 'checkbox', checked: r0.actif ? !!r0.agenda : true });
+    var frequence = h('select', { 'aria-label': 'Fréquence de la synchronisation' }, INTERVALLES.map(function (x) { return h('option', { value: String(x[0]), text: x[1], selected: x[0] === intervalle(r0) }); }));
     var afficher = h('select', { 'aria-label': 'Agenda de la messagerie à afficher dans Mon agenda' }, h('option', { value: '', text: 'Ne pas afficher' }));
     if (r0.afficher) afficher.appendChild(h('option', { value: r0.afficher, text: r0.nomAffiche || 'Agenda choisi', selected: true }));
     var zoneTest = h('div', { class: 'muted' });
@@ -184,7 +227,7 @@
       if (!taches.checked && !agenda.checked && !afficher.value) throw new Error('Choisissez au moins une chose à synchroniser.');
       var t = await tester(), memeCompte = r0.actif && r0.adresse === t.x.adresse && r0.identifiant === t.x.identifiant;
       var nomAff = afficher.value ? (t.liste.filter(function (a) { return a.href === afficher.value; })[0] || {}).nom || '' : '';
-      var r = Object.assign({}, memeCompte ? r0 : {}, t.x, { actif: true, taches: taches.checked, agenda: agenda.checked, afficher: afficher.value, nomAffiche: nomAff,
+      var r = Object.assign({}, memeCompte ? r0 : {}, t.x, { actif: true, taches: taches.checked, agenda: agenda.checked, afficher: afficher.value, nomAffiche: nomAff, intervalle: +frequence.value,
         mdpChiffre: memo.checked ? (mdp.value || !r0.mdpChiffre ? await s().chiffrerPersonnel(USAGE, { mdp: t.m }) : r0.mdpChiffre) : '' });
       if (!memeCompte) { r.agendas = {}; r.memTaches = {}; r.memEvts = {}; }
       etat.mdp = t.m; etat.mdpRefuse = false; etat.demande = false;
@@ -201,10 +244,11 @@
       h('label', { class: 'case' }, memo, h('span', { text: 'Mémoriser le mot de passe (chiffré par votre clé de liste, lisible de vous seul ; jamais écrit au journal ; redemandé s’il est refusé, par exemple après son changement). Sinon, il est demandé à chaque ouverture de Tessera.' })),
       h('fieldset', { class: 'pile' }, h('legend', { text: 'À synchroniser' }),
         h('label', { class: 'case' }, taches, h('span', { text: 'Mes tâches, personnelles et partagées : liste « Tessera — tâches », modifiable sur le téléphone (titre, échéance, rappel, note, faite) ; les changements reviennent dans Tessera, pour tous les participants d’une tâche partagée.' })),
-        h('label', { class: 'case' }, agenda, h('span', { text: 'Mon agenda (événements où vous êtes prévu(e), absences, salles réservées, de la semaine passée aux deux mois à venir) : agenda « Tessera — agenda », en lecture seule, sans identité de patient (type, lieu, horaire). Un changement fait sur le téléphone est remplacé par Tessera.' })),
+        h('label', { class: 'case' }, agenda, h('span', { text: 'Mon agenda : agenda « Tessera — agenda », dans les deux sens. Vos rendez-vous personnels et partagés : tout se modifie sur le téléphone, et un événement créé sur le téléphone dans cet agenda devient un rendez-vous personnel. Les éléments du service où vous êtes prévu(e) (sans identité de patient : type, lieu, horaire), vos absences et vos salles, de la semaine passée aux deux mois à venir : seul l’horaire d’un élément que vous pouvez modifier dans Tessera revient du téléphone ; le reste est remis comme dans Tessera.' })),
         h('label', {}, 'Afficher dans Mon agenda l’agenda de la messagerie (lecture seule, visible de vous seul(e), jamais copié sur le partage)', afficher)),
+      h('label', {}, 'Fréquence de la synchronisation (quand Tessera est ouvert)', frequence),
       zoneTest,
-      h('p', { class: 'muted', text: 'La synchronisation se fait quand Tessera est ouvert : à l’ouverture, puis toutes les 3 minutes. Aucune donnée clinique dans les tâches. Un téléphone qui reçoit vos tâches doit être verrouillé par un code.' }),
+      h('p', { class: 'muted', text: 'La synchronisation se fait quand Tessera est ouvert : à l’ouverture, puis à la fréquence choisie, et à la demande. Aucune donnée clinique dans les tâches et les rendez-vous. Un téléphone qui les reçoit doit être verrouillé par un code.' }),
       demo() ? h('p', { class: 'info', text: 'Mode démonstration : serveur simulé dans ce navigateur (identifiant agent.demo@chu.fictif, mot de passe « demo »), données fictives.' }) : null),
     boutons, { large: true, focus: r0.actif ? null : ident });
   }
@@ -222,16 +266,20 @@
       h('button', { class: 'btn petit', type: 'button', onclick: function () { demanderMdp(); } }, 'Saisir le mot de passe'));
     if (etat.erreur) return h('p', { class: 'alerte', text: 'Synchronisation impossible : ' + etat.erreur });
     if (!etat.derniere) return null;
-    return h('p', { class: 'muted' }, h('small', {}, 'Synchronisé avec la messagerie à ' + U.date(etat.derniere).slice(-5) + '. ',
+    return h('p', { class: 'muted' }, h('small', {}, 'Synchronisé avec la messagerie à ' + U.date(etat.derniere).slice(-5) + (intervalle(r) ? ' (' + INTERVALLES.filter(function (x) { return x[0] === intervalle(r); })[0][1].toLowerCase() + ')' : ' (à la demande)') + '. ',
       h('button', { class: 'btn lien petit', type: 'button', onclick: function () { synchroniser({ interactif: true }).catch(function (e) { SIC.ui.alerte(e.message); }); } }, 'Synchroniser maintenant')));
   }
   function couche() { return disponible() && reglages() && etat.couche ? { nom: etat.couche.nom, evenements: etat.couche.evenements, visible: etat.coucheVisible } : null; }
 
   // ------------------------------------------------------------ Démarrage (après la connexion)
   function demarrer(minuteurs) {
-    etat.mdp = null; etat.mdpRefuse = false; etat.demande = false; etat.derniere = null; etat.resume = null; etat.erreur = null; etat.couche = null;
+    etat.mdp = null; etat.mdpRefuse = false; etat.demande = false; etat.derniere = null; etat.resume = null; etat.erreur = null; etat.couche = null; etat.essai = 0;
     setTimeout(function () { synchroniser().catch(function () {}); }, 8000);
-    if (minuteurs) minuteurs.push(setInterval(function () { if (document.visibilityState === 'visible') synchroniser().catch(function () {}); }, INTERVALLE));
+    // Fréquence choisie par l'agent (24 novembre 2026) : contrôle toutes les 20 secondes du temps écoulé depuis le dernier essai
+    if (minuteurs) minuteurs.push(setInterval(function () {
+      var r = reglages(), n = intervalle(r);
+      if (r && n > 0 && document.visibilityState === 'visible' && etat.essai && Date.now() - etat.essai >= n * 60000) synchroniser().catch(function () {});
+    }, 20000));
   }
 
   U.synchroCaldav = { disponible: disponible, synchroniser: synchroniser, modaleReglages: modaleReglages, bouton: bouton, etatAffiche: etatAffiche, couche: couche,

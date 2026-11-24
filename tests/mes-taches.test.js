@@ -148,3 +148,37 @@ test('Liens des tâches et des événements : format validé, contenu jamais gar
   assert.equal(st.taches.T1.liens[0].ancre, 'an0test02');
   assert.throws(() => A.contrat.saisies.controler('RDV', { id: 'R1', liens: [{ module: 'x' }] }, { etat: st, config: {}, peut: () => true, compte: { id: 'u', services: [] } }), /mal formés/);
 });
+
+test('Rendez-vous personnels et partagés (24 novembre 2026) : chiffrés, réservés à leur agent ou à leurs participants', async () => {
+  const racine = new Repertoire('TesseraSante');
+  const admin = new Session(new Dossier(racine, 'reseau'));
+  await admin.initialiser({ nom: 'Admin (fictif)', login: 'admin', motDePasse: 'mot de passe solide' });
+  await admin.enregistrer('CONFIG', { cle: 'services', valeur: [{ code: 'U1', libelle: 'U1 (fictif)' }] });
+  await admin.creerComptes([{ nom: 'IDE A (fictif)', login: 'ide.a', motDePasse: 'mot de passe ide a', roles: ['IDE'], services: ['U1'] },
+    { nom: 'IDE B (fictif)', login: 'ide.b', motDePasse: 'mot de passe ide b', roles: ['IDE'], services: ['U1'] },
+    { nom: 'AS C (fictif)', login: 'as.c', motDePasse: 'mot de passe as c', roles: ['AS'], services: ['U1'] }]);
+  await admin.creerClesManquantes();
+  const id = (l) => admin.comptes.find((c) => c.login === l).id;
+  const a = await co(racine, 'ide.a', 'mot de passe ide a'); a.choisirModule('agenda');
+  const contenu = { titre: 'Rendez-vous banque (fictif)', debut: Date.UTC(2026, 10, 25, 9), fin: Date.UTC(2026, 10, 25, 10), journee: false, lieu: '', note: '' };
+  await a.enregistrer('RDV_PERSO', { id: 'RP0000aa0001', agent: id('ide.a'), chiffre: await a.chiffrerPersonnel('rdv', contenu) });
+  const pa = SIC.agenda.rdvPerso(a.etatModule('agenda'), id('ide.a'));
+  assert.equal(pa.length, 1);
+  assert.ok(!pa[0].chiffre.includes('banque'));
+  assert.equal((await a.dechiffrerPersonnel('rdv', pa[0].chiffre)).titre, 'Rendez-vous banque (fictif)');
+  await assert.rejects(a.enregistrer('RDV_PERSO', { id: 'mauvais', agent: id('ide.a'), chiffre: 'x' }), /appartient|rôle/);
+  const b = await co(racine, 'ide.b', 'mot de passe ide b'); b.choisirModule('agenda');
+  assert.equal(SIC.agenda.rdvPerso(b.etatModule('agenda'), id('ide.b')).length, 0);
+  await assert.rejects(b.enregistrer('RDV_PERSO', { id: 'RP0000aa0001', agent: id('ide.a'), supprime: true }), /appartient|rôle/);
+  // Partagé : lu et modifié par les participants seuls
+  const ps = [id('ide.a'), id('ide.b')];
+  const env = await a.chiffrerEnveloppe('rdv:RS0000aa0001', ps.map((x) => 't-a.' + x), contenu);
+  await a.enregistrer('RDV_PARTAGE', { id: 'RS0000aa0001', participants: ps, env });
+  const sb = SIC.agenda.rdvPartages((await co(racine, 'ide.b', 'mot de passe ide b')).etatModule('agenda'), id('ide.b'));
+  assert.equal(sb.length, 1);
+  assert.equal((await b.ouvrirEnveloppe('rdv:RS0000aa0001', sb[0].env)).titre, 'Rendez-vous banque (fictif)');
+  const c = await co(racine, 'as.c', 'mot de passe as c'); c.choisirModule('agenda');
+  assert.equal(await c.ouvrirEnveloppe('rdv:RS0000aa0001', sb[0].env), null);
+  await assert.rejects(c.enregistrer('RDV_PARTAGE', { id: 'RS0000aa0001', participants: ps.concat([id('as.c')]), env }), /participants|rôle/);
+  await assert.rejects(a.enregistrer('RDV_PARTAGE', { id: 'RS0000aa0002', participants: [id('ide.a')], env }), /au moins deux/);
+});
