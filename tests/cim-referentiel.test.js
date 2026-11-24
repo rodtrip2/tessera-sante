@@ -38,6 +38,39 @@ test('Terminologie au format JSON (CodeSystem) : concepts imbriqués, version et
   assert.throws(() => CIM.lire('{ illisible'), /illisible/);
 });
 
+// Terminologie RDF (SKOS) de l'Agence du numérique en santé : structure seulement, codes et libellés fictifs
+const RDF = '<?xml version="1.0"?>\n<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#" xmlns:skos="http://www.w3.org/2004/02/skos/core#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:owl="http://www.w3.org/2002/07/owl#" xmlns:terms="http://purl.org/dc/terms/">\n'
+  + '  <rdf:Description rdf:about="x/F20.0">\n    <rdfs:label xml:lang="en">Paranoid (fictitious)</rdfs:label>\n    <rdfs:label xml:lang="fr">Schizophrénie paranoïde (fictif) &amp; autre</rdfs:label>\n    <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#Class"/>\n    <dc:type>category</dc:type>\n    <skos:notation>F20.0</skos:notation>\n    <skos:altLabel xml:lang="fr">Synonyme (fictif)</skos:altLabel>\n  </rdf:Description>\n'
+  + '  <rdf:Description rdf:about="x/F20-F29">\n    <rdfs:label xml:lang="fr">Bloc fictif</rdfs:label>\n    <dc:type>block</dc:type>\n    <skos:notation>F20-F29</skos:notation>\n  </rdf:Description>\n'
+  + '  <rdf:Description rdf:about="x/V">\n    <rdfs:label xml:lang="fr">Chapitre fictif</rdfs:label>\n    <dc:type>chapter</dc:type>\n    <skos:notation>V</skos:notation>\n  </rdf:Description>\n'
+  + '  <rdf:Description rdf:about="x/X47.2+0">\n    <rdfs:label xml:lang="fr">Code avec extension (fictif)</rdfs:label>\n    <dc:type>category</dc:type>\n    <skos:notation>X47.2+0</skos:notation>\n  </rdf:Description>\n'
+  + '  <rdf:Description rdf:about="x/X47.20">\n    <rdfs:label xml:lang="fr">Code voisin (fictif)</rdfs:label>\n    <dc:type>category</dc:type>\n    <skos:notation>X47.20</skos:notation>\n  </rdf:Description>\n'
+  + '  <rdf:Description rdf:about="x/F03.+1">\n    <rdfs:label xml:lang="fr">Code au point suivi de + (fictif)</rdfs:label>\n    <dc:type>category</dc:type>\n    <skos:notation>F03.+1</skos:notation>\n  </rdf:Description>\n'
+  + '  <rdf:Description rdf:about="x/ontologie">\n    <owl:versionInfo>2025 (fictif)</owl:versionInfo>\n    <terms:publisher rdf:resource="https://esante.gouv.fr/"/>\n  </rdf:Description>\n</rdf:RDF>\n';
+
+test('Terminologie RDF (SKOS) de l’Agence du numérique en santé : catégories seules, libellé français, version (24 novembre 2026)', () => {
+  const r = CIM.lire(new TextEncoder().encode(RDF));
+  assert.equal(r.format, 'terminologie RDF (SKOS)');
+  assert.deepEqual(r.codes.map((c) => c[0]), ['F03.+1', 'F20.0', 'X47.2+0', 'X47.20']);
+  assert.equal(r.doublons, 0, 'X47.2+0 et X47.20 sont deux codes');
+  assert.equal(r.version, '2025 (fictif)');
+  assert.match(r.editeur, /Agence du numérique en santé/);
+  const i = CIM.indexer(r.codes);
+  assert.equal(CIM.trouver(i, 'f200').libelle, 'Schizophrénie paranoïde (fictif) & autre');
+  assert.equal(CIM.trouver(i, 'X472+0').libelle, 'Code avec extension (fictif)');
+  assert.equal(CIM.trouver(i, 'X4720').libelle, 'Code voisin (fictif)');
+  assert.deepEqual(CIM.chercher(i, 'X47.2').map((x) => x.code), ['X47.2+0', 'X47.20']);
+  assert.equal(CIM.trouver(i, 'F20.0+').code, 'F20.0', 'signe final (dague) ignoré');
+  assert.throws(() => CIM.lire('<?xml version="1.0"?><racine><rien/></racine>'), /skos:notation/);
+  // Taille : le fichier officiel de 2026 dépasse 40 Mo
+  assert.doesNotThrow(() => { try { CIM.lire(new Uint8Array(45 * 1024 * 1024)); } catch (e) { if (/volumineux/.test(e.message)) throw e; } });
+});
+
+test('Plusieurs codes à la fois : codes avec « + » au milieu (X47.2+0) distincts de leurs voisins', () => {
+  const l = K.separerCim('X47.2+0 Extension (fictif) ; X47.20 Voisin (fictif), F03.+1');
+  assert.deepEqual(l.map((x) => x.code), ['X47.2+0', 'X47.20', 'F03.+1']);
+});
+
 test('Tableau code ; libellé : en-tête ignoré, doublons, rien de reconnu', () => {
   const r = CIM.lire('Code;Libellé\nF20.0;Paranoïde (fictif)\nF200;Doublon (fictif)\n"F41.1";"Anxiété ""généralisée"" (fictif)"\nZ59.0\tSans abri (fictif)\n');
   assert.deepEqual(r.codes.map((c) => c[0]), ['F20.0', 'F41.1', 'Z59.0']);

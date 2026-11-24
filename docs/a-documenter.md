@@ -70,3 +70,13 @@ Demande du porteur du 24 novembre 2026 : « la synchronisation doit pouvoir se f
 - **Points à valider** (`CLAUDE.md` § 7, complété) : modification de l'horaire d'un élément du service depuis le téléphone ; participants d'un rendez-vous partagé visibles (métadonnée) ; fréquence minimale acceptable pour le serveur de messagerie (aucune limite fixée par l'établissement pour l'instant).
 - Démonstration : deux rendez-vous personnels (dont une journée entière) et un rendez-vous partagé. Tests : `tests/caldav.test.js` (VEVENT, agenda dans les deux sens), `tests/mes-taches.test.js` (rendez-vous personnels et partagés) ; parcours des écrans complété (`mon-agenda-rendez-vous`).
 
+## 0.93.1 — Import de la liste des codes CIM : terminologie RDF de l'Agence du numérique en santé (24 novembre 2026)
+
+Signalement du porteur du 24 novembre 2026 : « les CIM-10 ne s'importent pas correctement, la nomenclature ne s'affiche pas quand on entre un code », avec le fichier officiel `terminologie-cim-10-2026-10.rdf` (non ajouté au dépôt ; seule sa structure est décrite).
+
+- Causes : format **RDF / XML (SKOS, OWL)** non lu (seuls la nomenclature de l'ATIH, le JSON « CodeSystem » et les tableaux l'étaient) ; fichier de **44 Mo**, au-delà de la limite de 40 Mo ; et **247 codes perdus** comme faux doublons : la clé de comparaison retirait tous les « + », or `X47.2+0` et `X47.20` sont deux codes distincts.
+- **`docs/architecture.md`** (Données cliniques, liste des codes CIM) : `cim.js` lit la terminologie RDF (une `rdf:Description` par code : `skos:notation`, `rdfs:label` en français de préférence, `dc:type` « category » ; chapitres et blocs écartés ; version tirée de `owl:versionInfo`, éditeur de `terms:publisher`) ; taille maximale 120 Mo ; clé de comparaison : point et signe final (dague, astérisque) retirés, « + » au milieu gardé ; saisie de plusieurs codes à la fois : codes avec « + » au milieu reconnus ; libellé d'un code saisi : 300 caractères (120 auparavant ; libellés officiels plus longs). Fichier choisi : `.rdf`, `.xml`, `.owl` acceptés en plus.
+- Fichier officiel essayé (sur le poste de travail seulement, jamais dans le dépôt) : 42 496 codes, version 2025, lus en moins d'une seconde ; suggestions et libellé rempli dans la feuille de staff vérifiés dans le navigateur.
+- **Kit / guides** : guide de l'utilisateur (`kit/06`, liste des codes CIM) mis à jour le 24 novembre 2026 (format RDF) ; PDF à régénérer.
+- Tests : `tests/cim-referentiel.test.js` (extrait RDF fictif ; codes avec « + » ; plusieurs codes à la fois).
+

@@ -1,5 +1,13 @@
 # Journal des modifications — Tessera Santé
 
+## 0.93.1 — 24 novembre 2026
+
+**Liste des codes CIM : import de la terminologie officielle au format RDF** (signalement du porteur du 24 novembre 2026).
+- Le fichier de la CIM-10 diffusé par l'Agence du numérique en santé au format RDF (« terminologie-cim-10-….rdf ») est lu : codes des catégories, libellé français, version ; chapitres et blocs écartés. Taille maximale portée à 120 Mo (le fichier de 2026 dépasse 40 Mo).
+- Codes avec « + » au milieu (X47.2+0) désormais distincts de leurs voisins (X47.20) : 247 codes n'étaient plus perdus comme doublons.
+- Libellé d'un code de la feuille de staff : 300 caractères (libellés officiels longs).
+- Tests (extrait fictif) ; vérifié dans le navigateur avec le fichier officiel, qui n'est pas ajouté au dépôt.
+
 ## 0.93.0 — 24 novembre 2026
 
 **Synchronisation de l'agenda dans les deux sens, fréquence réglable** (demande du porteur du 24 novembre 2026).

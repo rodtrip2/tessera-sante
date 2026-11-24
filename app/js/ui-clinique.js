@@ -83,7 +83,7 @@
     }
     function ligneCim(v) {
       var code = h('input', { type: 'text', maxlength: 12, class: 'champ-court', 'aria-label': 'Code CIM', value: v ? v.code : '', disabled: !ecrit, placeholder: 'F20.0', autocomplete: 'off' });
-      var lib = h('input', { type: 'text', maxlength: 120, 'aria-label': 'Libellé', value: v ? v.libelle : '', disabled: !ecrit, placeholder: refCim ? 'Libellé (ou cherchez par mots)' : 'Libellé (facultatif)', autocomplete: 'off' });
+      var lib = h('input', { type: 'text', maxlength: 300, 'aria-label': 'Libellé', value: v ? v.libelle : '', disabled: !ecrit, placeholder: refCim ? 'Libellé (ou cherchez par mots)' : 'Libellé (facultatif)', autocomplete: 'off' });
       var sugg = h('ul', { class: 'cl-cim-sugg', 'aria-label': 'Codes CIM proposés' }), note = h('small', { class: 'muted cl-cim-note', 'aria-live': 'polite' });
       var l = { code: code, lib: lib, sugg: sugg, note: note }, el = h('div', { class: 'cl-cim-bloc' }, h('div', { class: 'cl-cim' }, code, lib, ecrit ? h('button', { class: 'btn petit', type: 'button', title: 'Retirer', onclick: function () { lignes.splice(lignes.indexOf(l), 1); el.remove(); } }, '×') : null), sugg, note);
       code.addEventListener('input', function () { suggerer(l, code.value); });
@@ -104,12 +104,12 @@
       var codes = K.separerCim(saisieMulti.value);
       if (!codes.length) { U.toast('Aucun code CIM reconnu (une lettre suivie de deux chiffres : F20, F20.0, F200…).'); return; }
       var deja = {};
-      lignes.forEach(function (l) { var c = l.code.value.trim().toUpperCase().replace(/[.+*†]/g, ''); if (c) deja[c] = l; });
+      lignes.forEach(function (l) { var c = l.code.value.trim() ? SIC.cim.cleCode(l.code.value.trim()) : ''; if (c) deja[c] = l; });
       // Lignes vides retirées : les codes séparés prennent leur place
       lignes.slice().forEach(function (l) { if (!l.code.value.trim() && !l.lib.value.trim()) { lignes.splice(lignes.indexOf(l), 1); l.code.closest('.cl-cim-bloc').remove(); } });
       var ajoutes = 0, completes = 0;
       codes.forEach(function (c) {
-        var l = deja[c.code.replace(/[.+*†]/g, '')];
+        var l = deja[SIC.cim.cleCode(c.code)];
         if (l) { if (c.libelle && !l.lib.value.trim()) { l.lib.value = c.libelle; completes++; } return; }
         ligneCim(c); ajoutes++;
       });
@@ -210,7 +210,7 @@
     var etat = r ? h('p', {}, h('b', { text: 'Liste en service : ' }), (r.version ? 'version ' + r.version + ', ' : '') + r.nombre.toLocaleString('fr-FR') + ' codes (' + r.format + ', fichier « ' + r.nomFichier + ' »), importée le ' + fr(r.le) + '.')
       : h('p', { class: 'muted', text: 'Aucune liste importée : les codes CIM se saisissent librement (code et libellé).' });
     var apercu = h('div', { class: 'pile' });
-    var fichier = h('input', { type: 'file', accept: '.txt,.csv,.tsv,.json', 'aria-label': 'Fichier de la liste des codes CIM', disabled: !peutImporter, onchange: function () { preparer(fichier.files && fichier.files[0]); } });
+    var fichier = h('input', { type: 'file', accept: '.txt,.csv,.tsv,.json,.rdf,.xml,.owl', 'aria-label': 'Fichier de la liste des codes CIM', disabled: !peutImporter, onchange: function () { preparer(fichier.files && fichier.files[0]); } });
     async function preparer(f) {
       apercu.replaceChildren();
       if (!f) return;
@@ -232,7 +232,7 @@
         } }, r ? 'Remplacer la liste en service' : 'Mettre la liste en service')));
     }
     return h('section', { class: 'panneau' }, h('h2', { text: 'Liste des codes CIM' }), etat,
-      h('p', { class: 'muted', text: 'Tessera ne fournit pas la liste : la CIM-10 (droits de l’Organisation mondiale de la santé) dans sa version française à usage PMSI est publiée par l’ATIH (Agence technique de l’information sur l’hospitalisation) et diffusée par l’Agence du numérique en santé, sous leurs conditions de licence, à respecter par l’établissement. Téléchargez le fichier officiel (nomenclature de l’ATIH, ou terminologie au format JSON du serveur multi-terminologies), puis importez-le ici : il est lu sur ce poste, chiffré par la clé du module Données cliniques et rangé dans le dossier de l’établissement ; rien n’est envoyé à l’extérieur.' }),
+      h('p', { class: 'muted', text: 'Tessera ne fournit pas la liste : la CIM-10 (droits de l’Organisation mondiale de la santé) dans sa version française à usage PMSI est publiée par l’ATIH (Agence technique de l’information sur l’hospitalisation) et diffusée par l’Agence du numérique en santé, sous leurs conditions de licence, à respecter par l’établissement. Téléchargez le fichier officiel (nomenclature de l’ATIH, ou terminologie CIM-10 du serveur multi-terminologies de l’Agence du numérique en santé, au format RDF ou JSON), puis importez-le ici : il est lu sur ce poste, chiffré par la clé du module Données cliniques et rangé dans le dossier de l’établissement ; rien n’est envoyé à l’extérieur.' }),
       h('p', { class: 'muted', text: 'Une fois la liste en service, la feuille de staff propose les codes et libellés au fil de la saisie, remplit le libellé d’un code connu et signale un code absent de la liste ; la saisie libre reste possible. Mettez la liste à jour chaque année.' }),
       peutImporter ? h('div', { class: 'pile' }, fichier, apercu,
         r ? h('div', { class: 'actions' }, h('button', { class: 'btn petit danger', type: 'button', onclick: async function () {

@@ -13,6 +13,9 @@
  *     encodé en Windows-1252 ou en UTF-8 ;
  *   - ressource « CodeSystem » au format JSON (FHIR) du serveur multi-terminologies de l'Agence du numérique en santé
  *     (concepts imbriqués : code, display) ;
+ *   - terminologie au format RDF / XML (SKOS, OWL) du serveur multi-terminologies de l'Agence du numérique en santé
+ *     (« terminologie-cim-10-AAAA-MM.rdf » : une description par code, avec skos:notation, rdfs:label et dc:type ;
+ *     chapitres et blocs écartés), ajoutée le 24 novembre 2026 ;
  *   - tableau à deux colonnes (code ; libellé), séparateur point-virgule, tabulation ou virgule.
  * Aucun appel réseau : le fichier est lu dans le navigateur.
  */
@@ -22,7 +25,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var MAX_CODES = 60000, MAX_OCTETS = 40 * 1024 * 1024;
+  var MAX_CODES = 60000, MAX_OCTETS = 120 * 1024 * 1024;   // le fichier RDF de 2026 dépasse 40 Mo
   var RE_CODE = /^[A-Z][0-9]{2}(?:\.[0-9A-Z+]{1,4})?[+*†]?$/;
 
   /** Code normalisé : majuscules, sans espace, point après le 3e caractère (« F200 » → « F20.0 », « f20.0 » → « F20.0 »). */
@@ -32,8 +35,11 @@
     if (!m) return c;
     return m[1] + (m[2] ? '.' + m[2] : '') + m[3];
   }
-  /** Clé de comparaison : sans point ni signe (« F20.0 », « F200 », « F20.0+ » → « F200 »). */
-  function cleCode(code) { return normaliser(code).replace(/[.+*†]/g, ''); }
+  /**
+   * Clé de comparaison : sans point ni signe final (« F20.0 », « F200 », « F20.0+ » → « F200 »). Un « + » au milieu
+   * du code est gardé (24 novembre 2026) : « X47.2+0 » et « X47.20 » sont deux codes différents de la CIM-10 FR.
+   */
+  function cleCode(code) { return normaliser(code).replace(/[+*†]$/, '').replace(/\./g, ''); }
   function sansAccents(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
 
   /** Texte d'un fichier : UTF-8 si valide, sinon Windows-1252 (fichiers de l'ATIH). */
@@ -57,6 +63,32 @@
       });
     })(obj.concept);
     return { codes: codes, rejetes: rejetes, format: 'CodeSystem (JSON)', version: nettoyer(obj.version, 40), editeur: nettoyer(obj.publisher, 120), titre: nettoyer(obj.title || obj.name, 200) };
+  }
+  function entitesXml(t) {
+    return String(t).replace(/&(#x[0-9a-fA-F]+|#[0-9]+|lt|gt|amp|quot|apos);/g, function (m, e) {
+      if (e === 'lt') return '<'; if (e === 'gt') return '>'; if (e === 'amp') return '&'; if (e === 'quot') return '"'; if (e === 'apos') return "'";
+      var n = e.charAt(1) === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return isFinite(n) ? String.fromCodePoint(n) : m;
+    });
+  }
+  /** Terminologie RDF / XML (SKOS) : codes des catégories (dc:type « category »), libellé français de préférence. */
+  function lireRdf(texte) {
+    var codes = [], rejetes = 0, re = /<(?:[\w.-]+:)?Description\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?Description>/g, m;
+    var reNot = /<(?:[\w.-]+:)?notation\b[^>]*>([^<]*)</, reType = /<(?:[\w.-]+:)?type>([^<]*)</, reLib = /<(?:[\w.-]+:)?(?:label|prefLabel)\b([^>]*)>([^<]*)</g;
+    while ((m = re.exec(texte)) && codes.length < MAX_CODES) {
+      var corps = m[1], n = reNot.exec(corps);
+      if (!n) continue;
+      var type = (reType.exec(corps) || [])[1], code = normaliser(entitesXml(n[1]).trim());
+      if (type && !/^\s*category\s*$/i.test(type)) continue;   // chapitre, bloc : pas un code
+      var lib = '', l, premier = '';
+      reLib.lastIndex = 0;
+      while ((l = reLib.exec(corps))) { var v = nettoyer(entitesXml(l[2])); if (!premier) premier = v; if (/xml:lang\s*=\s*["']fr/i.test(l[1])) { lib = v; break; } }
+      lib = lib || premier;
+      if (RE_CODE.test(code) && lib) codes.push([code, lib, '']); else rejetes++;
+    }
+    var ver = /<(?:[\w.-]+:)?versionInfo\b[^>]*>([^<]*)</.exec(texte), pub = /<(?:[\w.-]+:)?publisher\b[^>]*rdf:resource="([^"]*)"/.exec(texte);
+    return { codes: codes, rejetes: rejetes, format: 'terminologie RDF (SKOS)', version: ver ? nettoyer(entitesXml(ver[1]), 40) : '',
+      editeur: pub && /esante\.gouv\.fr/.test(pub[1]) ? 'Agence du numérique en santé (ATIH)' : (pub ? nettoyer(pub[1], 120) : '') };
   }
   function lireLignes(texte) {
     var lignes = texte.split(/\r?\n/), codes = [], rejetes = 0, atih = 0;
@@ -92,6 +124,9 @@
       try { obj = JSON.parse(t); } catch (e) { throw new Error('Fichier JSON illisible.'); }
       if (!obj || obj.resourceType !== 'CodeSystem') throw new Error('Ce fichier JSON n’est pas une terminologie (« CodeSystem » attendu).');
       r = lireFhir(obj);
+    } else if (debut === '<') {
+      if (!/<(?:[\w.-]+:)?notation\b/.test(t.slice(0, 2000000))) throw new Error('Ce fichier XML ne contient pas de codes (skos:notation attendu) : choisissez la terminologie CIM-10 au format RDF.');
+      r = lireRdf(t);
     } else r = lireLignes(t);
     var vus = Object.create(null), codes = [], doublons = 0;
     r.codes.forEach(function (c) { var k = cleCode(c[0]); if (vus[k]) { doublons++; return; } vus[k] = 1; codes.push(c); });

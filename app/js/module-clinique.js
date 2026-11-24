@@ -34,7 +34,8 @@
   function texte(v, n) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n || 200); }
   function long(v, n) { return String(v == null ? '' : v).slice(0, n || 4000).trim(); }
   function cle(patientId, sejourId) { return patientId + '|' + sejourId; }
-  function lireCim(l) { return (Array.isArray(l) ? l : []).map(function (x) { return x && texte(x.code, 12) ? { code: texte(x.code, 12).toUpperCase(), libelle: texte(x.libelle, 120) } : null; }).filter(Boolean).slice(0, 20); }
+  // Libellé : 300 caractères (24 novembre 2026), les libellés officiels de la CIM-10 FR dépassent 120 caractères
+  function lireCim(l) { return (Array.isArray(l) ? l : []).map(function (x) { return x && texte(x.code, 12) ? { code: texte(x.code, 12).toUpperCase(), libelle: texte(x.libelle, 300) } : null; }).filter(Boolean).slice(0, 20); }
   function lireAvq(a) { var r = {}; AVQ.forEach(function (v) { var n = Math.round(+(a || {})[v.code]); if (n >= 1 && n <= 4) r[v.code] = n; }); return r; }
   /** Score de dépendance : somme des 6 variables cotées (6 à 24), null si incomplet. */
   function score(avq) { var a = avq || {}, s = 0; for (var i = 0; i < AVQ.length; i++) { if (!a[AVQ[i].code]) return null; s += a[AVQ[i].code]; } return s; }
@@ -71,7 +72,7 @@
    * séparateur (« carence en vitamine B12 ») reste dans le libellé. Codes en double ignorés.
    * Exemple : « F20.0 Schizophrénie paranoïde ; F10.2, Z59.0 Sans abri » → trois lignes.
    */
-  var RE_CIM = /(^|[^A-Za-z0-9])([A-Za-z][0-9]{2}(?:\.[0-9A-Za-z]{1,3}|[0-9][0-9A-Za-z]{0,2})?[+*†]?)(?![0-9A-Za-z])/g;
+  var RE_CIM = /(^|[^A-Za-z0-9])([A-Za-z][0-9]{2}(?:\.[0-9A-Za-z+]{1,4}|[0-9][0-9A-Za-z+]{0,3})?[+*†]?)(?![0-9A-Za-z])/g;   // « + » au milieu : X47.2+0 (24 novembre 2026)
   function separerCim(saisie) {
     var s = String(saisie == null ? '' : saisie).slice(0, 4000), trouves = [], m;
     RE_CIM.lastIndex = 0;
@@ -84,8 +85,8 @@
     }
     var vus = {}, res = [];
     trouves.forEach(function (t, i) {
-      var code = t.code.toUpperCase(), cle = code.replace(/[.+*†]/g, '');
-      var lib = s.slice(t.fin, i + 1 < trouves.length ? trouves[i + 1].debut : s.length).replace(/^[\s;,:|/–—\-–]+|[\s;,:|/–—\-]+$/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
+      var code = t.code.toUpperCase(), cle = code.replace(/[+*†]$/, '').replace(/\./g, '');
+      var lib = s.slice(t.fin, i + 1 < trouves.length ? trouves[i + 1].debut : s.length).replace(/^[\s;,:|/–—\-–]+|[\s;,:|/–—\-]+$/g, '').replace(/\s+/g, ' ').trim().slice(0, 300);
       if (/^(et|ou)$/i.test(lib)) lib = '';
       if (vus[cle]) { if (lib && !vus[cle].libelle) vus[cle].libelle = lib; return; }
       vus[cle] = { code: code.slice(0, 12), libelle: lib };
