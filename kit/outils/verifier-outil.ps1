@@ -13,7 +13,8 @@
 #      supervision du service informatique.
 # Adaptation locale (24 novembre 2026) : si mettre-a-jour-outil.ps1 -Zimbra a autorisé le serveur d'agenda de
 # l'établissement, index.html est contrôlé une fois la règle connect-src remise à 'none', et les adresses qu'il
-# autorise doivent être exactement celles notées dans « ADAPTATION-LOCALE.txt » du dossier de référence.
+# autorise doivent être exactement celles notées dans « ADAPTATION-LOCALE.txt » du dossier de référence ; de même pour
+# le dossier des données fixé (-Donnees, 26 novembre 2026 : balise « tessera-donnees »).
 # Le contrôle se fait hors de l'application : une version modifiée de Tessera pourrait supprimer sa propre vérification.
 # Codes de sortie : 0 = conforme ; 1 = dossier ou référence inaccessible ; 2 = écart constaté.
 
@@ -45,8 +46,10 @@ function Origines-Csp([string]$texte) {
 function Index-Sans-Adaptation([string]$fichier) {
   $t = [System.IO.File]::ReadAllText($fichier, $UTF8)
   $sha = [System.Security.Cryptography.SHA256]::Create()
-  try { $h = (($sha.ComputeHash($UTF8.GetBytes([regex]::Replace($t, 'connect-src\s+[^;"]*', "connect-src 'none'"))) | ForEach-Object { $_.ToString('X2') }) -join '') } finally { $sha.Dispose() }
-  return [pscustomobject]@{ Hash = $h; Origines = (Origines-Csp $t) }
+  $n = [regex]::Replace([regex]::Replace($t, 'connect-src\s+[^;"]*', "connect-src 'none'"), '<meta name="tessera-donnees" content="([^"]*)">', '<meta name="tessera-donnees" content="">')
+  try { $h = (($sha.ComputeHash($UTF8.GetBytes($n)) | ForEach-Object { $_.ToString('X2') }) -join '') } finally { $sha.Dispose() }
+  $m = [regex]::Match($t, '<meta name="tessera-donnees" content="([^"]*)">')
+  return [pscustomobject]@{ Hash = $h; Origines = (Origines-Csp $t); Donnees = $(if ($m.Success) { $m.Groups[1].Value } else { '' }) }
 }
 
 function Ecrire-Journal([string]$texte, [int]$evenement = 0) {
@@ -95,8 +98,12 @@ try {
   $liste = Lire-Empreintes $ref
   # Adresses autorisées notées par mettre-a-jour-outil.ps1 (à côté de la référence)
   $fa = Join-Path (Split-Path -Parent $ref) 'ADAPTATION-LOCALE.txt'
-  $autorisees = @()
-  if ($ref -ne $listeDossier -and (Test-Path -LiteralPath $fa)) { $autorisees = @(Get-Content -LiteralPath $fa -Encoding UTF8 | Where-Object { $_ -match '^connexion\s+https://' } | ForEach-Object { ($_ -replace '^connexion\s+', '').Trim() }) }
+  $autorisees = @(); $donneesFixees = ''
+  if ($ref -ne $listeDossier -and (Test-Path -LiteralPath $fa)) {
+    $autorisees = @(Get-Content -LiteralPath $fa -Encoding UTF8 | Where-Object { $_ -match '^connexion\s+https://' } | ForEach-Object { ($_ -replace '^connexion\s+', '').Trim() })
+    $ld = @(Get-Content -LiteralPath $fa -Encoding UTF8 | Where-Object { $_ -match '^donnees\s+' } | ForEach-Object { ($_ -replace '^donnees\s+', '').Trim() })
+    if ($ld.Count) { $donneesFixees = $ld[0] }
+  }
   if ($liste.Count -lt 10) { Ecrire-Journal ('ÉCART : liste d''empreintes de référence incomplète (' + $liste.Count + ' fichiers).') 1001; exit 2 }
 
   $ecarts = @()
@@ -115,6 +122,7 @@ try {
       $ix = Index-Sans-Adaptation $f
       if ($ix.Hash -ne $e.Hash) { $ecarts += ('fichier modifié : ' + $e.Rel) }
       elseif ((@($ix.Origines | Sort-Object) -join ' ') -ne (@($autorisees | Sort-Object) -join ' ')) { $ecarts += ('adresses autorisées dans index.html (' + $(if ($ix.Origines.Count) { $ix.Origines -join ' ' } else { 'aucune' }) + ') différentes de celles notées par la mise à jour (' + $(if ($autorisees.Count) { $autorisees -join ' ' } else { 'aucune' }) + ')') }
+      elseif ($ix.Donnees -ne $donneesFixees) { $ecarts += ('dossier des données fixé dans index.html (' + $(if ($ix.Donnees) { $ix.Donnees } else { 'aucun' }) + ') différent de celui noté par la mise à jour (' + $(if ($donneesFixees) { $donneesFixees } else { 'aucun' }) + ')') }
     }
     elseif ((Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash -ne $e.Hash) { $ecarts += ('fichier modifié : ' + $e.Rel) }
   }
@@ -129,7 +137,7 @@ try {
     Ecrire-Journal ('ÉCART : ' + $ecarts.Count + ' anomalie(s) dans ' + $version + $avertissement + ' : ' + (($ecarts | Select-Object -First 10) -join ' ; ') + '. Ne plus utiliser cette copie avant vérification ; réinstaller avec mettre-a-jour-outil.ps1.') 1001
     exit 2
   }
-  Ecrire-Journal ('Conforme : ' + $version + ', ' + $liste.Count + ' fichiers contrôlés' + $avertissement + $(if ($autorisees.Count) { ' ; adaptation locale : connexion autorisée vers ' + ($autorisees -join ', ') } else { '' }) + '.') 1000
+  Ecrire-Journal ('Conforme : ' + $version + ', ' + $liste.Count + ' fichiers contrôlés' + $avertissement + $(if ($autorisees.Count) { ' ; adaptation locale : connexion autorisée vers ' + ($autorisees -join ', ') } else { '' }) + $(if ($donneesFixees) { ' ; dossier des données fixé : ' + $donneesFixees } else { '' }) + '.') 1000
   exit 0
 } catch {
   Ecrire-Journal ('Contrôle impossible : ' + $_.Exception.Message) 1002

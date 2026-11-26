@@ -15,7 +15,7 @@
   /** Après la connexion : pose ou retire le verrou de ce poste selon le réglage de l'établissement. */
   async function appliquer() {
     var s = U.App.session;
-    if (!s || !s.etat || s.formation || U.App.dossier.mode !== 'reseau' || U.App.secours) return;
+    if (!s || !s.etat || s.formation || U.App.dossier.mode !== 'reseau' || U.App.secours || SIC.Dossier.donneesFixees()) return;   // dossier fixé par le script : règle plus forte
     try {
       if (s.etat.config.verrouDossier === true) await SIC.Dossier.ecrireVerrou({ nom: U.App.dossier.nom, creeLe: s.coffre.creeLe, le: new Date().toISOString(), par: s.utilisateur ? s.utilisateur.nom : '' });
       else if (await SIC.Dossier.lireVerrou()) await SIC.Dossier.ecrireVerrou(null);
@@ -73,8 +73,9 @@
   async function ouvrirMemesDonnees() {
     var v = await SIC.Dossier.lireVerrou();
     var d = await SIC.Dossier.choisirAutre('sic-dossier');
+    await d.verifierDonneesFixees();   // dossier fixé par le service informatique : jamais de déblocage dans Tessera
     var c = await d.lireCoffre();
-    if (v && (!c || c.creeLe !== v.creeLe)) {
+    if (v && !SIC.Dossier.donneesFixees() && (!c || c.creeLe !== v.creeLe)) {
       if (!(await debloquer('Le dossier « ' + d.nom + ' » ne contient pas les données de ce poste.'))) { var e = new Error('annulé'); e.name = 'AbortError'; throw e; }
     }
     var em = null; try { em = await d.lireEtatMiroir(); } catch (er) { /* sans état */ }
@@ -86,6 +87,9 @@
   function panneau() {
     var cfg = U.config(), cb = h('input', { type: 'checkbox', checked: cfg.verrouDossier === true }), etat = h('small', { class: 'muted' });
     SIC.Dossier.lireVerrou().then(function (v) { etat.textContent = 'Ce poste : ' + (v ? 'choix bloqué sur « ' + v.nom + ' » depuis le ' + U.date(Date.parse(v.le)) : 'choix libre'); }).catch(function () {});
+    var fx = SIC.Dossier.donneesFixees();
+    if (fx) return h('section', { class: 'panneau' }, h('h2', { text: 'Choix du dossier sur les postes' }),
+      h('p', { class: 'info', text: 'Dossier des données fixé par le service informatique' + (fx.chemin ? ' : « ' + fx.chemin + ' »' : '') + ', pour tous les postes qui utilisent cette copie de Tessera. Seuls les dossiers contenant ces mêmes données s’ouvrent (dossier habituel, dossier de secours, copie locale, nouvel emplacement après un déplacement) ; ni autre dossier, ni mode démonstration, ni déblocage dans Tessera. Le changement se fait par le script de mise à jour (guide d’installation, § 3 quater).' }));
     return h('section', { class: 'panneau' }, h('h2', { text: 'Choix du dossier sur les postes' }),
       h('p', { class: 'muted', text: 'Une fois le dossier de travail ouvert sur un poste, empêcher d’y ouvrir d’autres données (autre dossier, dossier personnel, mode démonstration). Le blocage est posé sur chaque poste à la connexion suivante. Restent possibles sans formalité les dossiers contenant les mêmes données : dossier habituel, dossier de secours, copie locale d’un poste désigné, nouveau dossier après un déplacement. Pour autre chose, un administrateur débloque le poste (identifiant et mot de passe, ou code de secours) depuis l’écran d’accueil. Il s’agit d’une règle d’organisation : le service informatique peut toujours lever le blocage en effaçant les données du site dans le navigateur.' }),
       h('label', { class: 'case' }, cb, h('span', { text: 'Bloquer le changement de dossier sur les postes (déblocage par un administrateur)' })),

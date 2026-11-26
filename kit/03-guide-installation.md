@@ -148,6 +148,25 @@ Chaque agent règle ensuite la synchronisation pour lui-même : *Agenda → Mes 
 
 **Test** : *Tester la connexion* dans la fenêtre de réglage. « Serveur d'agenda injoignable » indique en général l'étape 1 (adresse non autorisée sur cette copie) ou l'étape 2 (en-têtes absents : la console du navigateur, touche F12, mentionne alors « CORS »).
 
+## 3 quater. Fixer le dossier des données (facultatif, service informatique)
+
+Pour une copie de Tessera installée sur le partage par le script de mise à jour (§ 3 bis), le service informatique peut **fixer le dossier des données** : cette copie n'ouvre plus que les données de l'établissement, sur tous les postes, dès la première ouverture.
+
+```powershell
+mettre-a-jour-tessera.cmd -Donnees '\\serveur\partage\Tessera\donnees'
+```
+
+Le script lit le coffre du dossier indiqué (`coffre.json`, qui doit déjà exister : initialiser le dossier d'abord, § 4) et inscrit dans la page de Tessera la date de création de ce coffre et le chemin. Ensuite :
+
+- l'écran d'accueil affiche le chemin et propose seulement **« Ouvrir le dossier des données… »** et **« Ouvrir une autre copie de ces données… »** (dossier de secours, nouvel emplacement après un déplacement) ;
+- un dossier contenant d'autres données, ou un dossier vide, est **refusé** ; plus de **mode démonstration** sur cette copie (le **mode formation**, proposé à la connexion, reste disponible) ; plus de **déblocage par un administrateur** dans Tessera ; le réglage « Choix du dossier sur les postes » de l'administration devient sans objet ;
+- la **copie locale des données** (travail hors réseau) contient les mêmes données : elle reste ouverte ;
+- le réglage est **repris à chaque mise à jour** (double-clic compris), noté dans `reference-empreintes\ADAPTATION-LOCALE.txt` et **contrôlé chaque jour** par `verifier-outil.ps1` ; `-SansDonnees` le retire ; une nouvelle initialisation des données (nouveau coffre) demande de relancer le script avec `-Donnees`.
+
+**Limites** : le navigateur n'ouvre jamais un dossier à partir de son chemin (règle de sécurité de Chrome et d'Edge) : chaque agent désigne le dossier **une fois par poste**, Tessera s'en souvient ensuite (« Reprendre »). Le réglage ne vaut que pour cette copie de Tessera : une autre copie (par exemple la page publique) peut ouvrir d'autres dossiers ; la barrière reste les **droits Windows** sur les dossiers du partage. Même mécanisme que l'adresse de la messagerie (§ 3 ter) : `-Zimbra` et `-Donnees` se combinent.
+
+**Travail hors réseau** (document 10) : la copie de l'outil sur le poste (`copie-locale-outil.ps1`) et sa mise en cache par le navigateur acceptent la page ainsi adaptée et la reprennent telle quelle (même dossier des données, même adresse de messagerie). `copie-locale-outil.ps1` n'accepte l'adaptation que si elle est celle notée par le script de mise à jour (`reference-empreintes`, à côté du dossier `app` de la source, lisible par le compte qui lance la copie ; autre emplacement : paramètre `-Reference`).
+
 ## 4. Initialiser le dossier (administrateur)
 
 1. Sur l'écran *Initialiser le dossier* : nom affiché, identifiant (par exemple `prenom.nom`), mot de passe d'au moins 12 caractères. Ce premier compte est **cadre de santé et administrateur**.

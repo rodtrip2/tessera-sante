@@ -1,5 +1,12 @@
 # Journal des modifications — Tessera Santé
 
+## 0.94.0 — 26 novembre 2026
+
+**Dossier des données fixé par le service informatique** (demande du porteur du 26 novembre 2026).
+- `mettre-a-jour-tessera.cmd -Donnees '\\serveur\partage\…'` : la copie de Tessera du partage n'ouvre plus que ces données, sur tous les postes ; ni autre dossier, ni mode démonstration (le mode formation reste), ni déblocage dans Tessera. Repris à chaque mise à jour, contrôlé chaque jour ; `-SansDonnees` le retire. Chaque agent désigne le dossier une fois par poste (le navigateur n'ouvre pas un chemin de lui-même).
+- **Travail hors ligne complet** inchangé : la copie locale des données s'ouvre toujours ; la copie de l'outil sur le poste et sa mise en cache par le navigateur acceptent désormais une page adaptée (dossier fixé, adresse de la messagerie) — correction : depuis 0.92.0, `-Zimbra` faisait refuser la copie de l'outil sur le poste.
+- Guide d'installation, § 3 quater ; tests ; documentation reportée (`docs/a-documenter.md`).
+
 ## 0.93.1 — 24 novembre 2026
 
 **Liste des codes CIM : import de la terminologie officielle au format RDF** (signalement du porteur du 24 novembre 2026).

@@ -59,12 +59,14 @@
     if (!window.showDirectoryPicker) throw new Error("Ce navigateur ne permet pas d'ouvrir un dossier réseau. Utilisez Edge ou Chrome à jour.");
     var h = await window.showDirectoryPicker({ id: 'sic-dossier' + suffixe(), mode: 'readwrite' });
     await Dossier.verifierEssai(h);
+    await new Dossier(h, 'reseau').verifierDonneesFixees();   // avant d'être retenu sur le poste
     await memoriser('dossier', h);
     await memoriser('mode', 'reseau');
     return new Dossier(h, 'reseau');
   };
 
   Dossier.demo = async function () {
+    if (fixees()) throw new Error('Mode démonstration indisponible : cette copie de Tessera n’ouvre que les données de l’établissement, fixées par le service informatique. Le mode formation reste proposé à la connexion.');
     if (!navigator.storage || !navigator.storage.getDirectory) throw new Error('Le stockage de démonstration n\'est pas disponible dans ce navigateur.');
     var racine = await navigator.storage.getDirectory();
     var h = await racine.getDirectoryHandle('SuiviIsoCont-demo' + suffixe(), { create: true });
@@ -88,7 +90,27 @@
       throw new Error("L'accès au dossier a été refusé.");
     }
     await Dossier.verifierEssai(prec.handle);
-    return new Dossier(prec.handle, 'reseau');
+    var d = new Dossier(prec.handle, 'reseau');
+    await d.verifierDonneesFixees();
+    return d;
+  };
+
+  /**
+   * Dossier des données fixé par le service informatique (26 novembre 2026, donnees-fixees.js) : seul un dossier
+   * contenant les mêmes données (même date de création du coffre) s'ouvre ; un coffre abîmé ou absent d'un dossier
+   * de données reste ouvert pour l'écran de restauration ; un dossier vide n'est jamais initialisé.
+   */
+  function fixees() { return (SIC.donneesFixees && SIC.donneesFixees.actuelles) || null; }
+  Dossier.donneesFixees = fixees;
+  Dossier.prototype.verifierDonneesFixees = async function () {
+    var R = fixees();
+    if (!R) return;
+    if (this.mode !== 'reseau') throw new Error('Cette copie de Tessera n’ouvre que les données de l’établissement, fixées par le service informatique.');
+    var c = null;
+    try { c = await this.lireCoffre(); } catch (e) { c = null; }
+    if (SIC.donneesFixees.conforme(c, R)) return;
+    if (!c) { var an = null; try { an = await this.anomalie(); } catch (e) { an = null; } if (an === 'coffre-illisible' || an === 'sans-coffre') return; }
+    throw new Error(SIC.donneesFixees.refus(c, R));
   };
 
   /**
@@ -896,6 +918,7 @@
     var d = await Dossier.miroirPoste('local');
     if (!d) throw new Error('Aucune copie locale des données sur ce poste.');
     if (!(await d.autorise(true))) throw new Error('L’accès à la copie locale a été refusé.');
+    await d.verifierDonneesFixees();
     return d;
   };
   /** Retire du dossier principal l'état d'un dossier de secours qui n'existe plus (poste retiré, serveur arrêté). */

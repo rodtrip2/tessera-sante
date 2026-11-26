@@ -346,7 +346,7 @@
     var carte = h('div', { class: 'carte' }, marque(), h('p', { text: 'Les données restent dans un dossier du réseau de l’établissement, chiffrées sur ce poste avant d’y être écrites. Rien n’est envoyé sur Internet.' }), zoneErr, pile);
 
     async function ouvrir(fn) {
-      try { App.dossier = await fn(); await demarrerSession(); }
+      try { App.dossier = await fn(); await App.dossier.verifierDonneesFixees(); await demarrerSession(); }
       catch (e) { if (e.name !== 'AbortError') erreurDans(zoneErr, e); }
     }
     SIC.Dossier.miroirPoste('local').then(function (local) {
@@ -356,7 +356,7 @@
     }).catch(function () {});
     Promise.all([SIC.Dossier.precedent(), SIC.Dossier.lireVerrou().catch(function () { return null; })]).then(function (r) {
       var prec = r[0];
-      if (prec && !(r[1] && prec.mode === 'demo')) {
+      if (prec && !((r[1] || SIC.Dossier.donneesFixees()) && prec.mode === 'demo')) {
         pile.insertBefore(h('button', { class: 'btn primaire', onclick: function () { ouvrir(function () { return SIC.Dossier.rouvrir(prec); }); } }, 'Reprendre : ' + prec.nom), pile.firstChild);
         pile.insertBefore(h('div', { class: 'separateur', text: 'ou' }), pile.children[1]);
       }
@@ -372,7 +372,15 @@
     }
     // Choix du dossier bloqué par l'établissement : seules les mêmes données s'ouvrent sans administrateur,
     // ni autre dossier ni mode démonstration (rien n'est proposé avant de savoir si le poste est bloqué)
-    SIC.Dossier.lireVerrou().catch(function () { return null; }).then(function (v) {
+    // Dossier des données fixé par le service informatique (script de mise à jour, 26 novembre 2026) : ces données seules
+    var fixe = SIC.Dossier.donneesFixees();
+    if (fixe) {
+      zoneChoix.appendChild(h('div', { class: 'info', text: 'Données de l’établissement fixées par le service informatique' + (fixe.chemin ? ' : « ' + fixe.chemin + ' »' : '') + '. Désignez ce dossier une fois sur ce poste : Tessera s’en souvient ensuite.' }));
+      zoneChoix.appendChild(h('button', { class: 'btn primaire', disabled: !reseauOk, onclick: function () { ouvrir(SIC.Dossier.choisirReseau); } }, 'Ouvrir le dossier des données…'));
+      zoneChoix.appendChild(h('button', { class: 'btn', disabled: !reseauOk, title: 'Dossier de secours, nouvel emplacement après un déplacement : les mêmes données seulement', onclick: function () { ouvrir(SIC.ui.verrou.ouvrirMemesDonnees); } }, 'Ouvrir une autre copie de ces données…'));
+      if (!reseauOk) zoneChoix.appendChild(h('small', { text: 'L’ouverture d’un dossier réseau nécessite Edge ou Chrome à jour.' }));
+    }
+    if (!fixe) SIC.Dossier.lireVerrou().catch(function () { return null; }).then(function (v) {
       if (!v) { choixLibres(); astuce.hidden = false; return; }
       vider(zoneChoix);
       zoneChoix.appendChild(h('div', { class: 'info', text: 'Choix du dossier bloqué sur ce poste : données de « ' + v.nom + ' ».' }));

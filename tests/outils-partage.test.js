@@ -69,7 +69,7 @@ test('Outils du partage : adaptation locale -Zimbra (règle connect-src de index
   assert.match(maj, /\[string\[\]\]\$Zimbra = @\(\)/);
   assert.match(maj, /\[switch\]\$SansZimbra/);
   assert.match(maj, /ADAPTATION-LOCALE\.txt/);
-  assert.match(maj, /Appliquer-Adaptation \$nouveau \$ORIGINES\s+\$ecarts = Controler-Dossier \$nouveau \$ORIGINES/);
+  assert.match(maj, /Appliquer-Adaptation \$nouveau \$ORIGINES \$DONNEES\s+\$ecarts = Controler-Dossier \$nouveau \$ORIGINES/);
   assert.match(maj, /\$ORIGINES = Lire-Adaptation/);   // reprise aux mises à jour suivantes (double-clic)
   assert.match(ver, /ADAPTATION-LOCALE\.txt/);
   assert.match(ver, /connect-src 'none'/);
@@ -77,4 +77,21 @@ test('Outils du partage : adaptation locale -Zimbra (règle connect-src de index
   const norm = /\[regex\]::Replace\(\$t, 'connect-src\\s\+\[\^;"\]\*', "connect-src 'none'"\)/;
   assert.match(maj, norm);
   assert.match(ver, norm);
+});
+
+test('Outils du partage : dossier des données fixé (-Donnees), repris, contrôlé, et copie du poste ou cache du navigateur acceptant l’adaptation', () => {
+  const maj = lire('mettre-a-jour-outil.ps1'), ver = lire('verifier-outil.ps1'), cop = lire('copie-locale-outil.ps1');
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'app', 'sw.js'), 'utf8');
+  assert.match(maj, /\[string\]\$Donnees = ''/);
+  assert.match(maj, /\[switch\]\$SansDonnees/);
+  assert.match(maj, /"creeLe"/);
+  assert.match(maj, /\$DONNEES = Lire-Donnees/);   // reprise aux mises à jour suivantes
+  assert.match(maj, /Appliquer-Adaptation \$nouveau \$ORIGINES \$DONNEES\s+\$ecarts = Controler-Dossier \$nouveau \$ORIGINES \$DONNEES/);
+  // Même normalisation de la balise dans les trois scripts et dans la mise en cache du navigateur
+  const vide = '<meta name="tessera-donnees" content="">';
+  [maj, ver, cop].forEach((t) => { assert.ok(t.includes(vide)); assert.match(t, /connect-src 'none'/); });
+  assert.ok(sw.includes(vide) && /sansAdaptation\(octets\)/.test(sw));
+  // Copie du poste : adaptation acceptée seulement si elle est celle notée par la mise à jour
+  assert.match(cop, /ADAPTATION-LOCALE\.txt/);
+  assert.match(cop, /\[string\]\$Reference = ''/);
 });

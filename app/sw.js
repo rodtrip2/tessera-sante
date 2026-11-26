@@ -19,6 +19,15 @@ var DELAI_RESEAU = 4000;
 
 function hex(buf) { return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('').toUpperCase(); }
 
+/**
+ * index.html adapté sur place par le script de mise à jour (adresse de l'agenda de la messagerie, dossier des données
+ * fixé ; 26 novembre 2026) : contrôlé une fois l'adaptation retirée, comme le font les scripts du kit.
+ */
+function sansAdaptation(octets) {
+  var t = new TextDecoder().decode(octets);
+  return new TextEncoder().encode(t.replace(/connect-src\s+[^;"]*/, "connect-src 'none'").replace(/<meta name="tessera-donnees" content="[^"]*">/, '<meta name="tessera-donnees" content="">')).buffer;
+}
+
 async function precharger() {
   var rep = await fetch('EMPREINTES-SHA256.txt', { cache: 'no-store' });
   if (!rep.ok) throw new Error('Empreintes inaccessibles');
@@ -30,6 +39,7 @@ async function precharger() {
     var r = await fetch(m[2], { cache: 'no-store' });
     if (!r.ok) throw new Error('Fichier inaccessible : ' + m[2]);
     var octets = await r.clone().arrayBuffer();
+    if (m[2] === 'index.html') octets = sansAdaptation(octets);
     if (hex(await crypto.subtle.digest('SHA-256', octets)) !== m[1]) throw new Error('Empreinte différente : ' + m[2]);
     await cache.put(new Request(m[2]), r);
   }
