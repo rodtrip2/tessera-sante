@@ -23,3 +23,12 @@ const lignes = lister(app).filter((p) => p !== sortie).map((p) => {
 });
 writeFileSync(sortie, '# Tessera Santé ' + version + ' — empreintes SHA-256 (format Get-FileHash, majuscules)\n' + lignes.join('\n') + '\n');
 console.log(lignes.length + ' fichiers → ' + relative(racine, sortie));
+
+// Outils du partage (26 novembre 2026) : liste contrôlée par le fichier d'installation (mettre-a-jour-tessera.cmd) et
+// par mettre-a-jour-outil.ps1, qui remplacent les outils à chaque mise à jour.
+const outils = join(racine, 'kit', 'outils');
+const sortieOutils = join(outils, 'EMPREINTES-OUTILS.txt');
+const lo = readdirSync(outils).sort().filter((n) => n !== 'EMPREINTES-OUTILS.txt' && statSync(join(outils, n)).isFile()).map((n) =>
+  createHash('sha256').update(readFileSync(join(outils, n))).digest('hex').toUpperCase() + '  ' + n);
+writeFileSync(sortieOutils, '# Tessera Santé ' + version + ' — outils du partage, empreintes SHA-256 (format Get-FileHash, majuscules)\n' + lo.join('\n') + '\n');
+console.log(lo.length + ' outils → ' + relative(racine, sortieOutils));

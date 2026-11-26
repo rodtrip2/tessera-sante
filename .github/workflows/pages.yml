@@ -53,7 +53,7 @@ jobs:
       - name: Empreintes de l’application à jour
         run: |
           node scripts/empreintes.mjs
-          git diff --exit-code -- app/EMPREINTES-SHA256.txt
+          git diff --exit-code -- app/EMPREINTES-SHA256.txt kit/outils/EMPREINTES-OUTILS.txt
 
   assembler:
     needs: tests
@@ -108,8 +108,8 @@ jobs:
           echo "Version stable ou bêta modifiée : $changement" >> "$GITHUB_STEP_SUMMARY"
           rm -rf _site && mkdir -p _site/beta _site/dev
           git archive "$stable" | tar -x -C _site
-          git archive "$beta" app index.html | tar -x -C _site/beta
-          git archive "$dev" app index.html | tar -x -C _site/dev
+          git archive "$beta" app index.html kit/outils | tar -x -C _site/beta
+          git archive "$dev" app index.html kit/outils | tar -x -C _site/dev
           rm -rf _site/.github _site/tests _site/scripts
           touch _site/.nojekyll
           printf 'stable=%s %s\nbeta=%s %s\ndev=%s %s\n' "$stable" "$(ver "$stable")" "$beta" "$(ver "$beta")" "$dev" "$(ver "$dev")" > _site/versions-publiees.txt

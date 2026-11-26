@@ -95,3 +95,24 @@ test('Outils du partage : dossier des données fixé (-Donnees), repris, contrô
   assert.match(cop, /ADAPTATION-LOCALE\.txt/);
   assert.match(cop, /\[string\]\$Reference = ''/);
 });
+
+test('Installation en un fichier : le .cmd télécharge et contrôle le script ; outils contrôlés par leur liste d’empreintes, à jour', () => {
+  const cmd = lire('mettre-a-jour-tessera.cmd'), maj = lire('mettre-a-jour-outil.ps1');
+  // Le script est téléchargé et comparé à la liste avant la vérification de la version
+  const iTel = cmd.indexOf("EMPREINTES-OUTILS.txt"), iSim = cmd.indexOf('-Simulation %*');
+  assert.ok(iTel > 0 && iTel < iSim);
+  assert.match(cmd, /Get-FileHash -LiteralPath \(Join-Path \$t 'script\.ps1'\) -Algorithm SHA256\)\.Hash -ne \$h/);
+  assert.match(cmd, /-SansConfirmation %\*/);
+  assert.match(cmd, /mettre-a-jour-tessera\.cmd\.nouveau" \(move \/y/);
+  assert.ok(!/\r?\n[^\r\n]*"[^"\r\n]*[éèàç][^"\r\n]*"[^\r\n]*-Command/.test(cmd), 'commande PowerShell de l’amorce sans accent');
+  assert.match(maj, /function Mettre-A-Jour-Outils/);
+  assert.match(maj, /\[switch\]\$SansOutils/);
+  assert.match(maj, /\[switch\]\$SansConfirmation/);
+  // Liste des outils à jour (régénérée par node scripts/empreintes.mjs, contrôlée à la publication)
+  const crypto = require('crypto');
+  const dir = path.join(__dirname, '..', 'kit', 'outils');
+  const liste = fs.readFileSync(path.join(dir, 'EMPREINTES-OUTILS.txt'), 'utf8').split('\n').filter((l) => /^[0-9A-F]{64}  /.test(l));
+  const noms = fs.readdirSync(dir).filter((n) => n !== 'EMPREINTES-OUTILS.txt').sort();
+  assert.deepEqual(liste.map((l) => l.slice(66)), noms);
+  liste.forEach((l) => assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, l.slice(66)))).digest('hex').toUpperCase(), l.slice(0, 64), l.slice(66)));
+});

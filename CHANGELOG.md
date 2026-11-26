@@ -1,5 +1,12 @@
 # Journal des modifications — Tessera Santé
 
+## 0.95.0 — 26 novembre 2026
+
+**Installation de Tessera en un seul fichier** (demande du porteur du 26 novembre 2026).
+- `mettre-a-jour-tessera.cmd` suffit : déposé seul dans le dossier du partage, il télécharge le script de mise à jour, le contrôle par son empreinte, puis installe ou met à jour Tessera après vérification et confirmation.
+- Les outils du partage (script de mise à jour, contrôle quotidien, copie sur les postes, ce fichier) sont téléchargés et mis à jour avec Tessera, contrôlés par la liste `EMPREINTES-OUTILS.txt`, publiée et vérifiée avec chaque version.
+- Guide d'installation, § 3 bis ; tests. Documentation reportée (`docs/a-documenter.md`).
+
 ## 0.94.0 — 26 novembre 2026
 
 **Dossier des données fixé par le service informatique** (demande du porteur du 26 novembre 2026).

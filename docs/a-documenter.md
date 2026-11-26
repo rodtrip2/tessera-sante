@@ -93,3 +93,14 @@ Demande du porteur du 26 novembre 2026 : fixer, par le script d'installation et 
 - **Kit** : guide d'installation **§ 3 quater** écrit ; document 10 (travail hors réseau) complété ; à reporter dans les fiches du service informatique et du responsable de la sécurité informatique (`kit/14`, `kit/15`) : dossier des données fixé, limites (désignation une fois par poste ; autre copie de Tessera non concernée ; droits Windows).
 - Tests : `tests/donnees-fixees.test.js`, `tests/outils-partage.test.js` ; scripts essayés sous PowerShell 7 (Linux) avec un dossier de données fictif, y compris la copie sur le poste (robocopy simulé) ; accueil vérifié dans le navigateur sur une copie adaptée.
 
+## 0.95.0 — Installation en un seul fichier ; outils mis à jour avec Tessera (26 novembre 2026)
+
+Demande du porteur du 26 novembre 2026 : que le script de mise à jour serve aussi à l'installation et se suffise pour télécharger l'ensemble des fichiers. Choix du porteur : le script **ne pose pas** les droits Windows ; les **outils se mettent à jour** avec Tessera ; le fichier **`.cmd` lance l'installation et télécharge le script**.
+
+- `kit/outils/mettre-a-jour-tessera.cmd` : amorce (adresse `ADRESSE` en tête, stable par défaut) : télécharge `EMPREINTES-OUTILS.txt` et `mettre-a-jour-outil.ps1`, contrôle l'empreinte du script, le range à côté (script déjà présent utilisé si le téléchargement échoue), puis vérification (`-Simulation`), confirmation, installation (`-SansConfirmation`) ; se remplace lui-même en dernier par `mettre-a-jour-tessera.cmd.nouveau` déposé par le script.
+- `mettre-a-jour-outil.ps1` : `Mettre-A-Jour-Outils` après l'application (déjà à jour, simulation : compte rendu seulement, installation faite) : outils de la même source (site publié : `<adresse>[beta/]kit/outils/` ; dossier `-Source` ou archive contenant `kit/outils` ou `EMPREINTES-OUTILS.txt`), tous contrôlés, copiés à côté du dossier `app` s'ils ont changé ; jamais bloquant pour l'application ; `-SansOutils`, `-SansConfirmation`.
+- `scripts/empreintes.mjs` écrit aussi `kit/outils/EMPREINTES-OUTILS.txt` (« empreinte  nom ») ; flux `tests.yml` et `pages.yml` : liste contrôlée (bloquant) ; `pages.yml` : `kit/outils` publié aussi dans `beta/` et `dev/`.
+- **Kit** : guide d'installation § 3 bis réécrit (« un seul fichier, en un double-clic ») ; à reporter dans la fiche du service informatique (`kit/15`) et le README du kit.
+- Tests : `tests/outils-partage.test.js` (amorce, liste des outils à jour) ; essai sous PowerShell 7 (Linux) avec un site publié simulé : amorce, première installation, outils remplacés, outil altéré refusé, fichier `.cmd` déposé en `.nouveau`. Non essayé : le fichier `.cmd` lui-même sous Windows.
+- Remarque : l'installation en un fichier fonctionne depuis le site publié **une fois cette version publiée** sur le canal visé (les versions antérieures n'ont pas de liste des outils).
+

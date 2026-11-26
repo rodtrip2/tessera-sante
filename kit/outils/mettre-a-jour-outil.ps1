@@ -32,6 +32,13 @@
 # verifier-outil.ps1 ; -SansDonnees la retire. Le navigateur ne peut pas ouvrir un chemin de lui-même : chaque agent
 # désigne le dossier une fois par poste.
 #
+# Outils (26 novembre 2026) : après l'application, les outils du partage (ce script, mettre-a-jour-tessera.cmd,
+# verifier-outil.ps1, copie-locale-outil.ps1, miroir-robocopy.ps1) sont repris de la même source (kit/outils), contrôlés
+# par EMPREINTES-OUTILS.txt et remplacés à côté du dossier « app » s'ils ont changé (le fichier .cmd, en cours
+# d'exécution, est déposé en « .nouveau » et se remplace lui-même à la fin) ; un échec ne touche pas l'application.
+# -SansOutils : ne pas les mettre à jour. Le fichier mettre-a-jour-tessera.cmd suffit à installer Tessera : il
+# télécharge ce script, le contrôle, puis le lance.
+#
 # Retour à la version précédente : -Revenir (échange « app » et « app.ancien »).
 # Essai sans rien remplacer : -Simulation.
 #
@@ -67,13 +74,17 @@ param(
   [switch]$SansDonnees,
   [switch]$Revenir,
   [switch]$Simulation,
-  [switch]$Forcer
+  [switch]$Forcer,
+  # Ne pas mettre à jour les outils du partage (kit/outils)
+  [switch]$SansOutils,
+  # Première installation déjà confirmée (fichier mettre-a-jour-tessera.cmd)
+  [switch]$SansConfirmation
 )
 
 $ErrorActionPreference = 'Stop'
 if (-not $Destination) {
   $Destination = Join-Path $PSScriptRoot 'app'
-  if (-not (Test-Path -LiteralPath (Join-Path $Destination 'index.html')) -and -not $Revenir -and -not $Simulation) {
+  if (-not (Test-Path -LiteralPath (Join-Path $Destination 'index.html')) -and -not $Revenir -and -not $Simulation -and -not $SansConfirmation) {
     # Aucun dossier « app » à côté du script : première installation, à confirmer (évite une installation par erreur
     # dans un dossier de téléchargement)
     Write-Host ('Aucune application Tessera trouvée à côté du script. Installer Tessera dans ' + $Destination + ' ?')
@@ -300,9 +311,45 @@ if ($Revenir) {
   exit 0
 }
 
+# ------------------------------------------------------------------ Outils du partage
+$NOM_OUTILS = 'EMPREINTES-OUTILS.txt'
+function Mettre-A-Jour-Outils([string]$dossierSource, [string]$baseWeb, [string]$temp) {
+  # Outils de la même source que l'application, contrôlés par leur liste d'empreintes ; jamais bloquant
+  if ($SansOutils) { return }
+  try {
+    $src = Join-Path $temp 'outils'
+    if ($baseWeb) {
+      New-Item -ItemType Directory -Path $src -Force | Out-Null
+      try { Telecharger ($baseWeb + $NOM_OUTILS) (Join-Path $src $NOM_OUTILS) } catch { Ecrire-Journal ('Outils : liste introuvable sur ' + $baseWeb + ' (version sans outils ?) ; outils en place conservés.'); return }
+    } elseif ($dossierSource -and (Test-Path -LiteralPath (Join-Path $dossierSource $NOM_OUTILS))) { $src = $dossierSource }
+    else { return }
+    $liste = @(Get-Content -LiteralPath (Join-Path $src $NOM_OUTILS) -Encoding UTF8 | ForEach-Object { $m = [regex]::Match($_, '^([0-9A-Fa-f]{64})\s+([A-Za-z0-9._-]+)$'); if ($m.Success) { [pscustomobject]@{ Hash = $m.Groups[1].Value.ToUpperInvariant(); Nom = $m.Groups[2].Value } } })
+    if ($liste.Count -eq 0) { Ecrire-Journal 'Outils : liste vide ; outils en place conservés.'; return }
+    $changes = @()
+    foreach ($o in $liste) {
+      $f = Join-Path $src $o.Nom
+      if ($baseWeb) { try { Telecharger ($baseWeb + $o.Nom) $f } catch { Ecrire-Journal ('Outils : téléchargement impossible (' + $o.Nom + ') ; outils en place conservés.'); return } }
+      if (-not (Test-Path -LiteralPath $f) -or (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash -ne $o.Hash) { Ecrire-Journal ('Outils refusés : empreinte différente ou fichier absent (' + $o.Nom + ') ; outils en place conservés.'); return }
+      $cible = Join-Path $parent $o.Nom
+      if (-not (Test-Path -LiteralPath $cible) -or (Get-FileHash -LiteralPath $cible -Algorithm SHA256).Hash -ne $o.Hash) { $changes += $o }
+    }
+    if ($changes.Count -eq 0) { Ecrire-Journal ('Outils à jour (' + $liste.Count + ' contrôlés).'); return }
+    if ($Simulation) { Ecrire-Journal ('Simulation : ' + $changes.Count + ' outil(s) à remplacer (' + (($changes | ForEach-Object { $_.Nom }) -join ', ') + ').'); return }
+    foreach ($o in $changes) {
+      $de = Join-Path $src $o.Nom
+      # Le fichier .cmd est peut-être en cours d'exécution : déposé à côté, il se remplace lui-même à la fin
+      if ($o.Nom -like '*.cmd' -and (Test-Path -LiteralPath (Join-Path $parent $o.Nom))) { Copy-Item -LiteralPath $de -Destination (Join-Path $parent ($o.Nom + '.nouveau')) -Force }
+      else { Copy-Item -LiteralPath $de -Destination (Join-Path $parent $o.Nom) -Force }
+    }
+    Copy-Item -LiteralPath (Join-Path $src $NOM_OUTILS) -Destination (Join-Path $parent $NOM_OUTILS) -Force
+    Ecrire-Journal ('Outils mis à jour : ' + (($changes | ForEach-Object { $_.Nom }) -join ', ') + '.')
+  } catch { Ecrire-Journal ('Outils : ' + $_.Exception.Message + ' ; outils en place conservés.') }
+}
+
 # ------------------------------------------------------------------ 1. Récupérer la nouvelle version
 if (-not (Test-Path -LiteralPath $parent)) { Ecrire-Journal ('ARRÊT : dossier parent introuvable (' + $parent + ').'); exit 1 }
 function Executer {
+  $srcOutils = ''; $baseOutils = ''
   $temp = Join-Path ([System.IO.Path]::GetTempPath()) ('TesseraSante-maj-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
   New-Item -ItemType Directory -Path $temp -Force | Out-Null
   try {
@@ -314,15 +361,20 @@ function Executer {
       if (-not $trouve) { Ecrire-Journal 'ARRÊT : aucun dossier « app » avec index.html et EMPREINTES-SHA256.txt dans l''archive.'; return 2 }
       $app = $trouve.DirectoryName
       $origine = 'archive ' + (Split-Path -Leaf $Archive)
+      $ol = Get-ChildItem -LiteralPath (Join-Path $temp 'zip') -Recurse -Filter $NOM_OUTILS -File | Select-Object -First 1
+      $srcOutils = $(if ($ol) { $ol.DirectoryName } else { '' })
     } elseif ($Source) {
       if (Test-Path -LiteralPath (Join-Path $Source $NOM_EMPREINTES)) { $app = $Source }
       elseif (Test-Path -LiteralPath (Join-Path (Join-Path $Source 'app') $NOM_EMPREINTES)) { $app = Join-Path $Source 'app' }
       else { Ecrire-Journal ('ARRÊT : source inaccessible ou sans EMPREINTES-SHA256.txt (' + $Source + ').'); return 1 }
       $origine = 'dossier ' + $Source
+      $srcOutils = ''
+      foreach ($c in @((Join-Path $Source 'kit\outils'), (Join-Path (Split-Path -Parent $app) 'kit\outils'), (Join-Path $Source 'kit/outils'))) { if (-not $srcOutils -and (Test-Path -LiteralPath (Join-Path $c $NOM_OUTILS))) { $srcOutils = $c } }
     } else {
       try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
       $base = $Adresse.TrimEnd('/') + '/'
       if ($Canal -eq 'beta') { $base += 'beta/' }
+      $baseOutils = $base + 'kit/outils/'
       $base += 'app/'
       $app = Join-Path $temp 'app'
       New-Item -ItemType Directory -Path $app -Force | Out-Null
@@ -362,7 +414,9 @@ function Executer {
         $ecartsAct = Controler-Dossier $Destination $ORIGINES $DONNEES
         if ($ecartsAct.Count -eq 0) {
           if (-not $Simulation) { Ranger-Reference $Destination $ORIGINES $DONNEES }
-          Ecrire-Journal ('Déjà à jour : version ' + $vAct + ' en place et conforme à ses empreintes (' + $TEXTE_ORIGINES + ').'); return 0
+          Ecrire-Journal ('Déjà à jour : version ' + $vAct + ' en place et conforme à ses empreintes (' + $TEXTE_ORIGINES + ').')
+          Mettre-A-Jour-Outils $srcOutils $baseOutils $temp
+          return 0
         }
         Ecrire-Journal ('La version en place (' + $vAct + ') présente ' + $ecartsAct.Count + ' écart(s) : réinstallation.')
       } elseif ($vAct -and $vNouv -and (Comparer-Versions $vNouv $vAct) -lt 0 -and -not $Forcer) {
@@ -373,6 +427,7 @@ function Executer {
 
     if ($Simulation) {
       Ecrire-Journal ('Simulation : version ' + $vNouv + ' contrôlée (' + $nb + ' fichiers, ' + $origine + ', empreinte de la liste ' + $hashListe + ') ; en place : ' + $(if ($vAct) { $vAct } else { 'aucune' }) + ' ; après installation : ' + $TEXTE_ORIGINES + '. Rien n''a été remplacé.')
+      Mettre-A-Jour-Outils $srcOutils $baseOutils $temp
       return 0
     }
 
@@ -401,6 +456,7 @@ function Executer {
     # ---------------------------------------------------------------- 5. Référence
     Ranger-Reference $Destination $ORIGINES $DONNEES
     Ecrire-Journal ('Mise à jour faite : ' + $(if ($vAct) { $vAct } else { 'aucune' }) + ' → ' + $vNouv + ' (' + $nb + ' fichiers contrôlés, ' + $origine + ', empreinte de la liste ' + $hashListe + ', ' + $TEXTE_ORIGINES + '). Les agents rechargent la page (F5) ou rouvrent Tessera.')
+    Mettre-A-Jour-Outils $srcOutils $baseOutils $temp
     return 0
   } catch {
     Ecrire-Journal ('ERREUR : ' + $_.Exception.Message + ' Version en place conservée.')

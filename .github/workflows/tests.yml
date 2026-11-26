@@ -27,4 +27,4 @@ jobs:
       - name: Empreintes de l’application à jour
         run: |
           node scripts/empreintes.mjs
-          git diff --exit-code -- app/EMPREINTES-SHA256.txt
+          git diff --exit-code -- app/EMPREINTES-SHA256.txt kit/outils/EMPREINTES-OUTILS.txt

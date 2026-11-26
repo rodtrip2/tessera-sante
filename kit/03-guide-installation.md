@@ -65,16 +65,27 @@ Poser les droits sur le **dossier parent** : `app\` en hérite, et les droits so
 
 ### Première installation et mises à jour
 
-**Le plus simple : en un double-clic.** Copier `outils/mettre-a-jour-outil.ps1` et `outils/mettre-a-jour-tessera.cmd` dans le dossier parent, **à côté** du dossier `app` (jamais dedans : ils seraient signalés comme fichiers en trop) :
+**Le plus simple : un seul fichier, en un double-clic** (26 novembre 2026). Télécharger `mettre-a-jour-tessera.cmd` (dossier `kit/outils` du site publié : `https://rodtrip2.github.io/tessera-sante/kit/outils/mettre-a-jour-tessera.cmd`) et le déposer **seul** dans le dossier qui recevra Tessera. Avec le compte de mise à jour (Maj + clic droit → *Exécuter en tant qu'autre utilisateur*), le lancer :
+
+1. il **télécharge le script** `mettre-a-jour-outil.ps1`, le **contrôle** par son empreinte (liste `EMPREINTES-OUTILS.txt`, publiée avec chaque version) et le range à côté de lui ; si le téléchargement échoue, le script déjà présent est utilisé ;
+2. il **vérifie la version** à installer sans rien remplacer et affiche le résultat ;
+3. il demande *Installer cette version maintenant [O,N]* ;
+4. il **installe ou met à jour** le dossier `app` et les **outils** (contrôle quotidien, copie sur les postes, script de mise à jour, et ce fichier lui-même), tous contrôlés par leurs empreintes, puis affiche le compte rendu.
+
+Après la première installation, le dossier contient :
 
 ```
 \\serveur\applis\TesseraSante\
-   mettre-a-jour-tessera.cmd
+   mettre-a-jour-tessera.cmd      ← à relancer pour chaque mise à jour
    mettre-a-jour-outil.ps1
-   app\
+   verifier-outil.ps1, copie-locale-outil.ps1, miroir-robocopy.ps1, EMPREINTES-OUTILS.txt
+   app\                           ← Tessera, utilisé par les agents
+   reference-empreintes\, journal-mises-a-jour.log
 ```
 
-Avec le compte de mise à jour (Maj + clic droit sur `mettre-a-jour-tessera.cmd` → *Exécuter en tant qu'autre utilisateur*), lancer `mettre-a-jour-tessera.cmd` : il vérifie d'abord la nouvelle version sans rien remplacer, affiche le résultat, demande *Installer cette version maintenant [O,N]*, puis installe et affiche le compte rendu. Sans dossier `app` à côté de lui, le script propose une première installation, après confirmation. Paramètres facultatifs (archive, canal bêta, proxy) : les ajouter à la fin de la cible d'un raccourci vers `mettre-a-jour-tessera.cmd`, par exemple `mettre-a-jour-tessera.cmd -Archive "C:\Telechargements\tessera.zip"`.
+Les **outils sont mis à jour à chaque mise à jour** de Tessera, de la même source et après contrôle de leurs empreintes ; au moindre écart, les outils en place sont gardés, sans toucher à l'application (`-SansOutils` pour ne pas les mettre à jour). Paramètres facultatifs (canal bêta, proxy, archive, `-Zimbra`, `-Donnees`) : les ajouter à la fin de la cible d'un raccourci vers `mettre-a-jour-tessera.cmd`, par exemple `mettre-a-jour-tessera.cmd -Proxy http://proxy:8080`. Miroir interne ou version bêta : modifier la ligne `set "ADRESSE=…"` en tête du fichier. **Fichier bloqué par Windows** (téléchargé d'Internet) : *Propriétés → Débloquer*, ou accepter l'avertissement au premier lancement.
+
+Les droits Windows (agents en lecture seule sur ce dossier, écriture réservée au compte de mise à jour : ci-dessus) restent posés par le service informatique.
 
 **En ligne de commande** (tâche planifiée, autre emplacement), depuis un poste, avec le compte de mise à jour, dans une fenêtre PowerShell :
 
