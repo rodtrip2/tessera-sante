@@ -1,6 +1,6 @@
 # Fiche pour le délégué à la protection des données — Tessera Santé
 
-*Destinataire : délégué à la protection des données (DPO, référent RGPD) de l'établissement. Objet : présenter les traitements de Tessera Santé, ce qu'ils changent par rapport aux fichiers Word et Excel rangés aujourd'hui sur les partages du réseau, et les points sur lesquels votre avis est attendu. Version du 16 novembre 2026 (Tessera 0.77).*
+*Destinataire : délégué à la protection des données (DPO, référent RGPD) de l'établissement. Objet : présenter les traitements de Tessera Santé, ce qu'ils changent par rapport aux fichiers Word et Excel rangés aujourd'hui sur les partages du réseau, et les points sur lesquels votre avis est attendu. Version du 26 novembre 2026 (Tessera 0.95.1).*
 
 | En bref | |
 | --- | --- |
@@ -66,6 +66,8 @@ Le cœur de Tessera est la traçabilité des actions d'un service : échéances 
 - [ ] Données du personnel : formations, heures supplémentaires, entretiens des agents ; frontière avec le dossier administratif (avec les ressources humaines).
 - [ ] Mesure d'usage anonyme de l'outil (nombre de saisies par module et par semaine, jamais l'identité des agents ; avec les représentants du personnel).
 - [ ] Agenda exporté en fichier `.ics` vers une messagerie éventuellement hébergée hors de l'établissement.
+- [ ] Synchronisation de Mes tâches et de Mon agenda avec l'agenda de la messagerie et le téléphone de l'agent (fonction soumise à avis livrée désactivée) : copie des tâches, rendez-vous et éléments de l'agenda du service (sans identité de patient) sur le serveur de messagerie (hébergé dans l'établissement ou non) et sur le téléphone (professionnel ou personnel, verrouillage) ; participants d'une tâche ou d'un rendez-vous partagé visibles des agents de l'Agenda.
+- [ ] Fichiers joints des Documents (fonction soumise à avis livrée désactivée) : durée de conservation ; documents concernant des agents (frontière avec le dossier administratif, avec les ressources humaines).
 - [ ] Usage de GitHub Pages pendant le pilote (seul le code y est servi, aucune donnée n'y transite).
 - [ ] Information des patients et des agents (mentions proposées au document 05, § 4).
 

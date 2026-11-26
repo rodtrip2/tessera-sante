@@ -1,6 +1,6 @@
 # Fiche pour le service informatique — Tessera Santé
 
-*Destinataire : service informatique (DSI ou direction du numérique, selon l'établissement). Objet : ce que Tessera Santé demande à l'infrastructure, ce qu'il change par rapport aux fichiers Word et Excel des partages, et ce qu'il faut préparer. Détail : fiche technique (`docs/fiche-technique.md`) et guide d'installation (document 03). Version du 23 novembre 2026 (Tessera 0.88.2).*
+*Destinataire : service informatique (DSI ou direction du numérique, selon l'établissement). Objet : ce que Tessera Santé demande à l'infrastructure, ce qu'il change par rapport aux fichiers Word et Excel des partages, et ce qu'il faut préparer. Détail : fiche technique (`docs/fiche-technique.md`) et guide d'installation (document 03). Version du 26 novembre 2026 (Tessera 0.95.1).*
 
 | En bref | |
 | --- | --- |
@@ -46,13 +46,14 @@ Pour les services de soins, Tessera rend visibles les tâches à faire et garde 
 6. **Clés de sécurité** (si retenues) : modèle compatible PRF, ports USB autorisés, **test obligatoire sur un poste type**.
 7. **Facultatif** : dossier de secours copié par robocopy (document 09) ; postes désignés pour le travail hors réseau, disque chiffré (document 10).
 8. **Phase pilote** : `https://rodtrip2.github.io` autorisé par le proxy pour les postes concernés.
-9. **Sans serveur web, application sur le partage** (guide d'installation, § 3 bis) : dossier de l'application séparé du dossier des données, **Lecture et exécution** pour les agents, **Modifier** pour un petit groupe de mise à jour (compte dédié, jamais le compte habituel d'un agent) ; contrôle quotidien des empreintes par une tâche planifiée (`verifier-outil.ps1`, journal *Application* de Windows) ; audit Windows des écritures sur ce dossier.
+9. **Sans serveur web, application sur le partage** (guide d'installation, § 3 bis à 3 quater) : installation et mises à jour par le seul fichier `mettre-a-jour-tessera.cmd` (il télécharge le script, contrôle chaque fichier, met aussi à jour les outils) ; dossier de l'application séparé du dossier des données, **Lecture et exécution** pour les agents, **Modifier** pour un petit groupe de mise à jour (compte dédié, jamais le compte habituel d'un agent) ; contrôle quotidien des empreintes par une tâche planifiée (`verifier-outil.ps1`, journal *Application* de Windows) ; audit Windows des écritures sur ce dossier. Facultatif : **dossier des données fixé** (`-Donnees`) pour que cette copie n'ouvre que les données de l'établissement.
+10. **Synchronisation avec l'agenda de la messagerie** (facultatif, fonction soumise à avis, guide d'installation § 3 ter) : adresse du serveur CalDAV ajoutée à cette copie par `-Zimbra` ; serveur de messagerie réglé pour accepter les échanges avec Tessera (en-têtes CORS sur `/dav/`, réponses aux requêtes `OPTIONS`) ; copie servie par l'intranet conseillée (origine `null` d'une copie ouverte depuis le partage).
 
 ## 5. Mises à jour
 
 - Pendant le pilote : versions publiées par le porteur sur GitHub Pages ; une version stable ou bêta n'est publiée que si les tests passent, si son commit porte une signature vérifiée et après son approbation.
 - En production : télécharger la version, vérifier les empreintes (`Get-FileHash -Algorithm SHA256`), remplacer le dossier `app`. Les données ne sont pas touchées ; le format est versionné et lu par les versions suivantes.
-- Application sur le partage : `outils/mettre-a-jour-tessera.cmd` (double-clic, vérification puis confirmation) ou script `outils/mettre-a-jour-outil.ps1` (téléchargement ou archive, contrôle de chaque fichier, refus d'une version plus ancienne, échange instantané des dossiers, ancienne version gardée, retour arrière `-Revenir`, journal des mises à jour). Au moindre écart, rien n'est remplacé.
+- Application sur le partage : `outils/mettre-a-jour-tessera.cmd` déposé **seul** dans le dossier (il télécharge et contrôle le script, vérifie la version, fait confirmer, installe ou met à jour l'application et les outils), ou script `outils/mettre-a-jour-outil.ps1` en ligne de commande (téléchargement ou archive, contrôle de chaque fichier, refus d'une version plus ancienne, échange instantané des dossiers, ancienne version gardée, retour arrière `-Revenir`, journal des mises à jour). Au moindre écart, rien n'est remplacé. Adaptations propres à l'établissement (`-Zimbra`, `-Donnees`) reprises à chaque mise à jour et contrôlées chaque jour.
 
 ## 6. Points à valider
 
@@ -62,7 +63,8 @@ Pour les services de soins, Tessera rend visibles les tâches à faire et garde 
 - [ ] Synchronisation horaire des postes.
 - [ ] Clés de sécurité : modèle, achat, ports USB, essai sur un poste type.
 - [ ] Dossier de secours et postes hors réseau (facultatifs).
-- [ ] Application sur le partage (si retenue) : dossier et groupe de mise à jour, compte dédié, tâche planifiée du contrôle quotidien, audit des écritures.
+- [ ] Application sur le partage (si retenue) : dossier et groupe de mise à jour, compte dédié, tâche planifiée du contrôle quotidien, audit des écritures ; dossier des données fixé ou non.
+- [ ] Synchronisation avec l'agenda de la messagerie (si retenue) : adresse du serveur, réglage CORS, prise en charge des agendas et des tâches (CalDAV, VTODO) par la version de la messagerie, fréquence acceptable par le serveur.
 - [ ] Qualification de l'hébergement (pas de prestataire, donc a priori pas de certification d'hébergeur de données de santé, HDS), avec le délégué à la protection des données.
 - [ ] Recette technique (fiche technique, § 14).
 

@@ -1,6 +1,6 @@
 # Fiche pour le responsable de la sécurité informatique — Tessera Santé
 
-*Destinataire : responsable de la sécurité informatique (RSSI) de l'établissement. Objet : décrire le modèle de sécurité de Tessera Santé, le comparer aux fichiers Word et Excel rangés aujourd'hui sur les partages, rendre compte de l'audit du 15 novembre 2026 et lister les points à arbitrer. Détail technique complet : fiche technique (`docs/fiche-technique.md`). Version du 23 novembre 2026 (Tessera 0.88.1).*
+*Destinataire : responsable de la sécurité informatique (RSSI) de l'établissement. Objet : décrire le modèle de sécurité de Tessera Santé, le comparer aux fichiers Word et Excel rangés aujourd'hui sur les partages, rendre compte de l'audit du 15 novembre 2026 et lister les points à arbitrer. Détail technique complet : fiche technique (`docs/fiche-technique.md`). Version du 26 novembre 2026 (Tessera 0.95.1).*
 
 | En bref | |
 | --- | --- |
@@ -54,7 +54,8 @@ La traçabilité des tâches du service (échéances légales, check-lists, aler
 - **Cloisonnement entre services d'un même module** par l'interface (choix du porteur) ; la séparation entre modules est cryptographique.
 - **Hors du contrôle des droits à la lecture** : permissions qui dépendent de l'état du module, données ajoutées, contrôles fins (service visé, règles métier) ; ces saisies restent signées et nominatives.
 - **Bris de glace, limite « patients présents », lecture tracée d'un message chiffré** : garantis par l'application et la traçabilité, pas par la cryptographie.
-- **Métadonnées en clair** : identifiants de connexion dans `coffre.json`, auteur et dates des entretiens chiffrés, liste des détenteurs des clés maîtresses.
+- **Métadonnées en clair** : identifiants de connexion dans `coffre.json`, auteur et dates des entretiens chiffrés, liste des détenteurs des clés maîtresses, participants des tâches et rendez-vous partagés.
+- **Dossier des données fixé** (`-Donnees`) : seule la copie installée par le script est concernée ; le navigateur n'ouvrant pas un chemin de lui-même, chaque agent désigne le dossier une fois par poste ; les droits Windows du partage restent la barrière.
 - **Essais de mot de passe** : non limités par l'application (pas de serveur) ; PBKDF2-SHA-256 600 000 itérations, règle renforcée et second facteur y répondent.
 - **Poste compromis** (enregistreur de frappe) et **exports ouverts sur un poste** : hors du périmètre de l'application.
 - **Second facteur** essayé avec l'authentificateur virtuel de Chrome ; essai avec une vraie clé à faire en recette.
@@ -69,7 +70,9 @@ La traçabilité des tâches du service (échéances légales, check-lists, aler
 - [ ] Clé de signature tirée de la clé personnelle ; tolérance d'horloge de 15 minutes pour le contrôle des droits ; seuil d'alerte d'horloge de 5 minutes.
 - [ ] Phase pilote sur GitHub Pages (dépôt public, compte du porteur en double authentification, commits signés, approbation des versions) ; passage sur l'intranet ensuite.
 - [ ] Postes hors réseau (BitLocker, liste nominative) ; fichiers exportés du DPI ; droits NTFS du sous-dossier des exports.
-- [ ] Application hébergée sur le partage (sans serveur web) : code en lecture seule pour les agents, mise à jour par un compte dédié avec contrôle des empreintes (`mettre-a-jour-outil.ps1`), contrôle quotidien hors de l'application (`verifier-outil.ps1`), audit des écritures (guide d'installation, § 3 bis).
+- [ ] Synchronisation avec l'agenda de la messagerie (fonction soumise à avis `synchro-caldav`, livrée désactivée) : règle `connect-src` ouverte vers ce seul serveur, sur place (`-Zimbra`) ; authentification « Basic » sur https ; mot de passe de la messagerie mémorisé, au choix de l'agent, chiffré par sa clé de liste dans ses préférences (jamais au journal) ; copie des tâches et des rendez-vous (sans donnée clinique) sur le serveur de messagerie et le téléphone ; horaire d'un élément du service modifiable depuis le téléphone, avec les droits de l'agent ; réglage CORS du serveur (origine `null` à éviter).
+- [ ] Fichiers joints des Documents (fonction soumise à avis `documents-fichiers`, livrée désactivée) : types et taille acceptés (20 Mo par défaut), fichiers chiffrés deux fois, ouverts dans le navigateur.
+- [ ] Application hébergée sur le partage (sans serveur web) : code en lecture seule pour les agents, mise à jour par un compte dédié avec contrôle des empreintes (`mettre-a-jour-outil.ps1`), contrôle quotidien hors de l'application (`verifier-outil.ps1`), audit des écritures ; installation et mises à jour par `mettre-a-jour-tessera.cmd` (script et outils contrôlés par leurs empreintes) ; dossier des données fixé (guide d'installation, § 3 bis à 3 quater).
 - [ ] Suites proposées : relecture extérieure du socle, tests d'attaque complémentaires, test de charge, en-tête `require-trusted-types-for 'script'`.
 
 ## 7. Documents de référence

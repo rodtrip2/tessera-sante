@@ -87,6 +87,7 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 - **Check-lists** (ex. sortie d'un patient) : chaque point a son délai (infirmier libéral prévenu 2 jours avant, transport commandé la veille, ordonnance le jour même…) et apparaît « en retard » s'il n'est pas fait à temps.
 - **Tâches** ponctuelles ou récurrentes, ajoutées directement dans l'agenda et cochées « faites » par les agents : celles du service, réglées par le cadre, peuvent être affectées à un agent mais ne sont supprimées que par lui ; celles de l'équipe sont gérées par toute l'équipe.
 - **Absences** des professionnels (motif facultatif), signalées sur les éléments où ils étaient prévus.
+- **Mes tâches et Mon agenda** : tâches personnelles et rendez-vous personnels, chiffrés pour l'agent seul ; tâches et rendez-vous partagés avec un ou plusieurs collègues ; sur avis, synchronisation dans les deux sens avec l'agenda de la messagerie de l'établissement et le téléphone de l'agent (sans identité de patient), à la fréquence qu'il choisit.
 - **Alertes** : alertes saisies par l'équipe (patient à voir par le médecin…, types réglables par service) affichées jusqu'à « vu », prochaines **échéances JLD** calculées par le module Isocont (pour qui y a accès), points de check-list en retard, réunions à venir.
 - **« Mon agenda »** : la semaine de chaque professionnel sur tous ses services (où il est prévu, ses tâches, ses absences, les alertes qui le visent), dans Tessera seulement.
 - Selon le choix de l'établissement, l'agenda désigne le patient par ses initiales (par défaut), son IPP ou son nom. Aucune donnée clinique : le contenu des prises en charge reste dans le dossier du patient.
@@ -129,7 +130,7 @@ La fiche patient est commune à tous les modules : elle relie Isocont, l'Agenda 
 | Salles et bureaux | Réserver une salle, voir les salles libres, arbitrer les conflits ; planning des psychologues. |
 | Informations du service | Page tenue par le cadre : coordonnées, horaires, consignes, numéros utiles. |
 | Équipe | Annuaire, fiches des agents, référents par domaine, prêts de droits pendant une absence ; entretiens des agents menés par le cadre (soumis à avis). |
-| Documents | Documents texte et tableurs chiffrés, partagés avec qui l'on choisit, versions, validation, modèles remplis automatiquement, travail à plusieurs, imports et exports Office. |
+| Documents | Documents texte et tableurs chiffrés, partagés avec qui l'on choisit, versions, validation, modèles remplis automatiquement, travail à plusieurs, imports et exports Office ; ajout de fichiers par lots (Word, Excel convertis ; PDF et autres fichiers joints tels quels, sur avis), étiquettes, rattachement à un agent ou à un patient, export par lots ; un passage, des cases ou une page reliés à une tâche ou à un événement de l'agenda. |
 | Congés | Souhaits et demandes, validation, tableaux du service avec règles d'effectif, droits et soldes indicatifs. |
 | Contrôles | Contrôle des chambres de soins intensifs (CSI) libres et passage de surveillance à chaque poste ; **contrôles périodiques** du matériel (chariot d'urgence, réfrigérateur à médicaments, sac d'urgence) à leur rythme et après chaque utilisation, températures et péremptions surveillées, rappels dans l'Agenda ; registre (désactivé par défaut). |
 | Audits internes | Grilles d'audit de l'établissement et du service (circuit du médicament, isolement et contention ; tenue du dossier soumise à avis), réalisées par le cadre et les agents qu'il désigne ; taux de conformité par période et par critère ; **import des tableaux d'audit déjà tenus par le service** (classeur Excel, lu sur le poste, jamais copié) et **graphiques de l'évolution sur l'année** ; écarts suivis dans « Mes tâches » (désactivé par défaut). |
@@ -164,7 +165,7 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 ## 7. Sécurité et conformité
 
 - **Les données restent dans l'établissement**, sur un dossier du réseau, chiffrées (AES-256) sur le poste avant d'y être écrites.
-- **Aucun serveur à installer, aucune connexion sortante** : l'application est un ensemble de fichiers qui ne peuvent rien envoyer sur Internet. Elle fonctionne avec Edge ou Chrome.
+- **Aucun serveur à installer, aucune connexion sortante** : l'application est un ensemble de fichiers qui ne peuvent rien envoyer sur Internet. Elle fonctionne avec Edge ou Chrome. Seule exception possible, décidée par l'établissement : le serveur de messagerie interne, pour la synchronisation des agendas. Installée sur le partage, elle est mise à jour par le service informatique en un double-clic, chaque fichier étant contrôlé, et peut n'ouvrir que le dossier des données de l'établissement.
 - **Un module, une clé de chiffrement** : un agent ne peut déchiffrer que les modules auxquels il a accès. Quand un droit est retiré, l'agent perd l'accès aux nouvelles saisies ; les autres agents gardent l'accès à tout l'historique.
 - **Accès nominatifs**, mot de passe personnel robuste imposé à la première connexion (règle de la CNIL), verrouillage automatique, clés matérielles (YubiKey) et code de secours papier pour l'administration ; connexion par mot de passe **et** clé matérielle exigible pour les rôles choisis par l'établissement.
 - **Traçabilité** : chaque saisie est nominative, horodatée, **signée par son auteur**, jamais effacée ; les corrections et annulations sont elles-mêmes tracées. Une saisie falsifiée, écrite au nom d'un autre ou sans en avoir le droit est écartée et signalée. Plusieurs postes saisissent en même temps sans perte.
@@ -187,7 +188,7 @@ Les rôles et leurs droits sont modifiables par l'établissement. Chaque agent n
 
 ## 9. État d'avancement
 
-- **Socle commun et les dix-huit modules** : développés et vérifiés par plus de 560 tests automatiques et un parcours complet des écrans (version stable 0.87.1 du 17 novembre 2026, ergonomie revue), démonstration sur données fictives. Audit complet le 15 novembre 2026, points bloquants corrigés. Aucune utilisation avec des données réelles à ce jour.
+- **Socle commun et les dix-huit modules** : développés et vérifiés par près de 600 tests automatiques et un parcours complet des écrans (version stable 0.95.1 du 26 novembre 2026, ergonomie revue), démonstration sur données fictives. Audit complet le 15 novembre 2026, points bloquants corrigés. Aucune utilisation avec des données réelles à ce jour.
 - **Documents pour chaque décideur** : délégué à la protection des données, responsable de la sécurité informatique, service informatique, ressources humaines, direction des soins et commission médicale, direction juridique, représentants du personnel (`kit/`).
 - **Kit de déploiement** : guide d'installation, procédures de secours, éléments RGPD (un traitement par module), guides utilisateur et guide pratique illustré, imports (dossier `kit/` du dépôt).
 

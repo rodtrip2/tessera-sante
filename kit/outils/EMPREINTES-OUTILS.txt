@@ -1,4 +1,4 @@
-# Tessera Santé 0.95.0 — outils du partage, empreintes SHA-256 (format Get-FileHash, majuscules)
+# Tessera Santé 0.95.1 — outils du partage, empreintes SHA-256 (format Get-FileHash, majuscules)
 065E4F54D3326CA2B1727374082D91172C180D267EBD3BB80D4BD98C11C46E92  copie-locale-outil.ps1
 0824A48E65FC1C9AE26F87C7E96370CCCC44B9DA62CFB35D5A94618E6670DEED  mettre-a-jour-outil.ps1
 839EE478411AAF7AE312C3354ECFA6D15BB766BAFC7607AAACE928B9B5396BD4  mettre-a-jour-tessera.cmd

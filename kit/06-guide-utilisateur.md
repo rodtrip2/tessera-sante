@@ -97,7 +97,14 @@ Onglet *Alertes* :
 
 ### Mon agenda
 
-Votre semaine, tous vos services réunis : éléments où vous êtes prévu(e) ou inscrit(e) comme accompagnateur, tâches qui vous sont affectées ou qui reviennent à votre rôle, vos absences, et les alertes qui vous sont adressées. Cette vue reste dans Tessera : rien n'est copié dans un autre agenda.
+Votre semaine, tous vos services réunis : vos rendez-vous personnels et partagés, les éléments où vous êtes prévu(e) ou inscrit(e) comme accompagnateur, les tâches qui vous sont affectées ou qui reviennent à votre rôle, vos absences, et les alertes qui vous sont adressées.
+
+- **+ Rendez-vous** : votre agenda personnel (titre, journée entière ou horaire, lieu, note ; jamais de donnée clinique). Il est chiffré pour vous seul ; partagé avec un ou plusieurs collègues, il est chiffré pour les participants seuls, que chacun peut modifier ou quitter.
+- **Synchroniser avec la messagerie…** (si l'établissement l'a activé) : vos tâches et votre agenda Tessera sont copiés dans l'agenda de votre messagerie (« Tessera — tâches », « Tessera — agenda »), puis sur votre téléphone avec l'application DAVx5, **dans les deux sens** :
+  - une tâche ou un rendez-vous créé, modifié, coché ou supprimé sur le téléphone l'est aussi dans Tessera (pour tous les participants s'il est partagé) ; un événement créé sur le téléphone dans « Tessera — agenda » devient un rendez-vous personnel ;
+  - pour un élément du service (sans identité de patient : type, lieu, horaire), seul un changement d'horaire revient, et seulement si vous pouvez le modifier dans Tessera ; le reste est remis comme dans Tessera ;
+  - réglages : identifiant et mot de passe de votre messagerie (gardé pendant la session ou, si vous le choisissez, mémorisé chiffré pour vous seul ; redemandé quand il change), fréquence (de toutes les minutes à toutes les heures, ou à la demande), agenda de la messagerie à afficher dans Mon agenda (en pointillés, pour vous seul) ;
+  - sur le téléphone : ajouter le compte de la messagerie dans DAVx5 et cocher les listes « Tessera » ; les tâches s'affichent dans une application de tâches compatible (jtx Board, Tasks.org, OpenTasks). Votre téléphone doit être verrouillé par un code.
 
 ## 5. Véhicules de l'établissement
 
@@ -138,7 +145,7 @@ Fenêtre *Vue d'ensemble* : un onglet par vue ouverte à votre rôle et à vos s
 
 - **Aujourd'hui** : fenêtre ouverte à la connexion — mon agenda du jour, mes tâches, ce qui m'attend dans les modules, mes salles.
 - **Rechercher** (bouton de l'en-tête ou Ctrl + K) : patients, événements, salles, documents, messages, agents… seulement ce que vous pouvez déjà consulter.
-- **Mes tâches** (fenêtre Agenda) : votre liste personnelle, lue par vous seul ; « + Ma liste » depuis un message, un document, un événement, une demande de travaux, une fiche patient.
+- **Mes tâches** (fenêtre Agenda) : votre liste personnelle, lue par vous seul ; « + Ma liste » depuis un message, un document, un événement, une demande de travaux, une fiche patient. Une tâche peut porter plusieurs éléments liés et être **partagée** avec un ou plusieurs collègues (chiffrée pour les participants seuls ; faite pour tous, avec le nom de qui l'a cochée ; *Quitter* pour en sortir). Synchronisation avec la messagerie et le téléphone : voir *Mon agenda*.
 - **Annuler** : juste après une saisie, le message de confirmation propose « Annuler » ; vous pouvez annuler votre propre saisie dans les deux minutes.
 - **Tableaux** : clic sur un titre de colonne pour trier ; filtre rapide au-dessus des longs tableaux ; *Plus ▾ → Affichage* : taille d'affichage et hauteur des lignes ; « ? » : raccourcis clavier.
 - **Barre des modules** : si l'établissement l'active, épinglez vos modules favoris ; les autres s'ouvrent par le menu « Modules ».
@@ -146,7 +153,7 @@ Fenêtre *Vue d'ensemble* : un onglet par vue ouverte à votre rôle et à vos s
 - **Classer** messages et documents : étoile, étiquettes en couleur, dossiers ; votre classement n'est vu que par vous.
 - **Signaler** (en-tête) : un défaut ou une idée d'amélioration, sans donnée de patient ; votre cadre ou l'administrateur vous répond.
 - **Écrire à…** : ouvre la messagerie du poste avec le destinataire et l'objet préremplis ; Tessera n'envoie ni ne lit aucun courriel.
-- **Mon agenda vers Outlook ou Zimbra** : « Exporter vers mon agenda (.ics) » (sans identité des patients), « Importer mon agenda (.ics) » (affiché en pointillés, pour vous seul).
+- **Mon agenda vers Outlook ou Zimbra** : « Exporter vers mon agenda (.ics) » (sans identité des patients), « Importer mon agenda (.ics) » (affiché en pointillés, pour vous seul) ; ou, si l'établissement l'a activée, la synchronisation automatique (voir *Mon agenda*).
 
 ## 5 quinquies. Modules ajoutés
 
@@ -157,7 +164,7 @@ Fenêtre *Vue d'ensemble* : un onglet par vue ouverte à votre rôle et à vos s
 | **Salles et bureaux** | Planning des salles du service, salles libres pour un créneau, réservation ou demande en cas de conflit (arbitrée par le cadre) ; « Occupé » : réservation d'un planning que vous ne lisez pas. |
 | **Informations du service** | Coordonnées, horaires, consignes et numéros utiles du service et de l'établissement, tenus par le cadre. |
 | **Équipe** | Annuaire, *Ma fiche* (vos coordonnées ; personnelles seulement avec votre accord), référents, messageries du service, prêts de droits pendant une absence ; *Entretiens* : ceux que votre cadre a partagés avec vous, à lire et signer si demandé (la signature ne vaut pas accord). |
-| **Documents** | Documents texte et tableurs (graphiques du tableur exportables en PDF : bouton *Exporter en PDF* sous chaque graphique), privés à leur création puis partagés avec qui vous choisissez ; enregistrés automatiquement, versions, validation par le cadre, modèles (champs remplis d'après le patient rattaché), suivi des modifications, exports et imports Word, Excel, PDF. |
+| **Documents** | Documents texte et tableurs (graphiques du tableur exportables en PDF : bouton *Exporter en PDF* sous chaque graphique), privés à leur création puis partagés avec qui vous choisissez ; enregistrés automatiquement, versions, validation par le cadre, modèles (champs remplis d'après le patient rattaché), suivi des modifications, exports et imports Word, Excel, PDF. **Importer des fichiers…** : plusieurs à la fois ; Word, Excel et CSV convertis en documents modifiables, PDF, images et autres fichiers gardés tels quels si l'établissement l'a activé ; étiquettes, dossier, rattachement à un agent, un patient ou une salle (sans partage). Cases de sélection : *Exporter…* (ZIP, format modifiable ou PDF), *Étiqueter…*, *Rattacher…*. **Lier à…** : sélectionnez un passage, des cases ou une page, puis créez une tâche (titre repris du texte) ou un événement (date, heure et titre lus dans le texte), ou ajoutez-les à une tâche ou un événement existant ; *Liens* et Alt + clic sur un passage repéré montrent où il est lié. |
 | **Congés** | *Mes congés* : souhaits et demandes (demi-journées), soldes indicatifs ; le validateur décide ; tableaux du service. Le logiciel de gestion du temps de l'établissement fait foi. |
 | **Contrôles** | À chaque poste : passage de surveillance des CSI occupées, contrôle des CSI libres (check-list, second agent qui confirme avec son propre compte), contrôle à la libération ; **contrôles périodiques** (onglet du même nom : chariot d'urgence, réfrigérateur, sac d'urgence…) à faire le jour venu ou après une utilisation signalée (bouton *Signaler une utilisation*), valeurs relevées et dates de péremption saisies ; un écart (point non conforme, valeur hors des seuils, date dépassée) demande un commentaire et peut ouvrir une demande de travaux. |
 | **Audits internes** | Pour le cadre et les agents qu'il désigne auditeurs : *Réaliser un audit* sur une grille (conforme, non conforme ou non concerné pour chaque critère, commentaire), taux de conformité aussitôt calculé, écarts ajoutés à *Mes tâches* si vous le souhaitez ; onglets *Résultats* (*Évolution sur l'année* : graphique de la conformité mois par mois et un graphique par critère, impression et export en PDF ; *Tableaux par période*) et *Registre*. Le cadre peut **importer un tableau d'audit** déjà tenu par le service (*Importer un tableau d'audit…* : classeur Excel avec les mois en première colonne et un critère par colonne ; choisir pour chaque colonne ce qu'elle contient, *Vérifier avant d'importer*) : un audit par mois, daté du 1er ; le fichier est lu sur le poste et n'est pas copié. Aucun nom de patient. |
@@ -165,7 +172,7 @@ Fenêtre *Vue d'ensemble* : un onglet par vue ouverte à votre rôle et à vos s
 | **Heures supplémentaires** | Déclarer l'horaire prévu (boutons des postes, ou « Repos » pour un rappel) puis l'horaire effectué : Tessera calcule les heures en plus ou en moins ; motif de la liste ou écrit ; récupérations ; soldes h+, h−, différence sur le temps de travail annuel (remise à zéro en fin d'année), h+ payées à part. |
 | **Données cliniques** (si l'établissement les active) | *Feuille de staff clinique* : codes CIM (un par ligne ; si l'établissement a importé la liste des codes, Tessera propose codes et libellés au fil de la saisie — tapez « F20 » ou des mots du libellé —, remplit le libellé et signale un code absent de la liste ; ou *Saisir plusieurs codes à la fois* : « F20.0 Schizophrénie ; F10.2 ; Z59.0 », séparés en lignes par *Séparer en codes*, à vérifier avant d'enregistrer), motif, projet thérapeutique, dépendance (6 variables AVQ, de 1 à 4) ; fenêtre du séjour avec le rappel du séjour précédent et les notes cliniques. Sans accès (rôle ou patient non présent) : « accès restreint » et, si votre rôle le permet, **bris de glace** justifié, tracé et relu par le cadre. Le DPI reste la référence. |
 
-Certaines fonctions (formations, heures supplémentaires, entretiens, données cliniques, bris de glace) n'apparaissent que si l'établissement les a activées après les avis prévus.
+Certaines fonctions (formations, heures supplémentaires, entretiens, données cliniques, bris de glace, fichiers joints, synchronisation avec la messagerie) n'apparaissent que si l'établissement les a activées après les avis prévus.
 
 ## 6. Isolement et contention
 

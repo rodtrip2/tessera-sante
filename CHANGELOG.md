@@ -1,5 +1,9 @@
 # Journal des modifications — Tessera Santé
 
+## 0.95.1 — 26 novembre 2026
+
+**Documentation mise à jour** (demande du porteur du 26 novembre 2026) pour les versions 0.89.0 à 0.95.0 : architecture (§ 7 decies, hébergement, plan, décisions), fiche technique (mécanismes du 23 au 26 novembre, installation et adaptations locales), fiche projet, évolutions futures (fichiers joints et synchronisation des agendas réalisés), guide de l'utilisateur (Mes tâches, Mon agenda, synchronisation, Documents), fiches du délégué à la protection des données, du responsable de la sécurité informatique et du service informatique, éléments RGPD, sommaire du kit ; PDF régénérés ; `docs/a-documenter.md` vidé (détail dans `docs/historique-decisions.md`). Version passée en stable.
+
 ## 0.95.0 — 26 novembre 2026
 
 **Installation de Tessera en un seul fichier** (demande du porteur du 26 novembre 2026).
